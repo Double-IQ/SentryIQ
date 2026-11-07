@@ -51,44 +51,47 @@
         }
         const prfInput = cryptoApi().fromBase64Url(publicKey.extensions.prf.eval.first);
         publicKey.extensions.prf.eval.first = prfInput.buffer;
-        const credential = await navigator.credentials.get({ publicKey: publicKey });
-        if (!credential) throw new Error('Passkey authentication was cancelled.');
-        const extensionResults = credential.getClientExtensionResults ? credential.getClientExtensionResults() : {};
-        const prfResult = extensionResults && extensionResults.prf && extensionResults.prf.results
-            ? extensionResults.prf.results.first
-            : null;
-        if (!prfResult) throw new Error('This passkey does not support the PRF extension required by secure Gallery.');
-        const prfOutput = new Uint8Array(prfResult);
-        if (prfOutput.byteLength !== 32) {
-            prfOutput.fill(0);
-            throw new Error('The passkey returned an invalid Gallery key result.');
+        let prfOutput = null;
+        try {
+            const credential = await navigator.credentials.get({ publicKey: publicKey });
+            if (!credential) throw new Error('Passkey authentication was cancelled.');
+            const extensionResults = credential.getClientExtensionResults ? credential.getClientExtensionResults() : {};
+            const prfResult = extensionResults && extensionResults.prf && extensionResults.prf.results
+                ? extensionResults.prf.results.first
+                : null;
+            if (!prfResult) throw new Error('This passkey does not support the PRF extension required by secure Gallery.');
+            prfOutput = new Uint8Array(prfResult);
+            if (prfOutput.byteLength !== 32) throw new Error('The passkey returned an invalid Gallery key result.');
+
+            const response = credential.response;
+            const body = {
+                action: 'verify',
+                csrf_token: csrfToken(),
+                rawId: cryptoApi().toBase64Url(credential.rawId),
+                clientDataJSON: cryptoApi().toBase64Url(response.clientDataJSON),
+                authenticatorData: cryptoApi().toBase64Url(response.authenticatorData),
+                signature: cryptoApi().toBase64Url(response.signature)
+            };
+            const verifiedResponse = await fetch('gallery_passkey.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const verified = await readJson(verifiedResponse);
+            return {
+                credentialId: verified.credentialId,
+                identity: verified.identity,
+                prfOutput: prfOutput,
+                accountSalt: prfInput
+            };
+        } catch (error) {
+            if (prfOutput) cryptoApi().clearSecret(prfOutput);
+            cryptoApi().clearSecret(prfInput);
+            throw error;
         }
-
-        const response = credential.response;
-        const body = {
-            action: 'verify',
-            csrf_token: csrfToken(),
-            rawId: cryptoApi().toBase64Url(credential.rawId),
-            clientDataJSON: cryptoApi().toBase64Url(response.clientDataJSON),
-            authenticatorData: cryptoApi().toBase64Url(response.authenticatorData),
-            signature: cryptoApi().toBase64Url(response.signature)
-        };
-        const verifiedResponse = await fetch('gallery_passkey.php', {
-            method: 'POST',
-            credentials: 'same-origin',
-            cache: 'no-store',
-            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-            body: JSON.stringify(body)
-        });
-        const verified = await readJson(verifiedResponse);
-        return {
-            credentialId: verified.credentialId,
-            identity: verified.identity,
-            prfOutput: prfOutput,
-            accountSalt: prfInput
-        };
     }
-
     async function verifyNewPasskey() {
         const options = await requestOptions();
         return verifyPasskey(options);
