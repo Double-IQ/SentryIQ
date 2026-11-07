@@ -23,21 +23,17 @@ Do not use the Backblaze account master application key. Do not grant bucket adm
 
 The S3-compatible API uses AWS Signature Version 4. SentryIQ creates short-lived signed URLs on the server; the key ID and application key are never returned to the browser.
 
-## 3. Install the protected runtime configuration
+## 3. Connect from SentryIQ
 
-Find the \`data_dir\` configured in the installation's private \`sentryiq_config.php\`. The directory must already be outside the public web root.
+1. Sign in and unlock the SentryIQ vault.
+2. Open **Gallery → Backblaze Storage Settings**.
+3. Enter the bucket name, B2 region, bucket-scoped application key ID, and application key.
+4. Save. SentryIQ validates the fields and writes `gallery_b2.php` automatically inside the protected `data_dir`, outside the public web root, with owner-only (`0600`) permissions.
+5. Run the built-in connection test before uploading photos.
 
-Create this file inside that private runtime directory:
+The credentials are stored only in the protected server-side runtime file. They are not written to the repository, database, browser storage, or returned to the page. Saving or disconnecting requires a fresh vault unlock.
 
-\`gallery_b2.php\`
-
-Use \`docs/examples/gallery_b2.php.example\` as the template and fill in the bucket name, region, application key ID, and application key. Set file permissions to owner-only (\`0600\`) and ensure the PHP process can read it.
-
-The resulting path must be:
-
-\`<data_dir>/gallery_b2.php\`
-
-Never place this file in the repository, public web directory, database, browser JavaScript, or a support/chat message. Do not commit real credentials.
+For manual recovery or deployments where the settings page is unavailable, `docs/examples/gallery_b2.php.example` remains a reference template. Never commit real credentials.
 
 ## 4. Configure bucket CORS
 
