@@ -207,6 +207,9 @@ function viewRecordDetails(label,username,password,url,notes,id,category){if(Arr
 <?php require_once __DIR__ . '/app/Vault/DashboardActions.php'; ?>
 <?php endif; ?>
 </div>
+<footer style="max-width:820px;margin:0 auto 24px;padding:12px 18px;text-align:center;font-size:13px;color:var(--text-muted,#667085);">
+    <a href="credits.php" style="color:inherit;text-decoration:underline;text-underline-offset:3px;">Credits &amp; acknowledgements</a>
+</footer>
 <script>
 <?php if ($show_login_splash): ?>
 (function(){
