@@ -87,6 +87,9 @@ try {
         'Additional passkeys must use the same dedicated Gallery PRF input salt.'
     );
     check($store->credentialEnvelope($credentialTwo) !== null, 'Additional passkey envelope should be stored.');
+    $store->removeCredentialEnvelope($credentialOne);
+    check($store->credentialEnvelope($credentialOne) === null, 'Removed passkey envelope should no longer be available.');
+    check($store->accountSalt() === str_repeat('C', 43), 'Removing one passkey must preserve the Gallery PRF salt for remaining credentials.');
     expectFailure(
         fn() => $store->initialize($publicKey, $privateEnvelope, $credentialOne, $makeCredentialEnvelope($credentialOne), $recoveryEnvelope),
         'Gallery identity must not be initialized twice.'
