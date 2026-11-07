@@ -62,8 +62,6 @@ function gallery_passkey_store(string $path): array
     $raw = @file_get_contents($path);
     $store = is_string($raw) ? json_decode($raw, true) : null;
     if (!is_array($store) || !is_array($store['credentials'] ?? null)) throw new RuntimeException('Passkey storage is invalid.');
-    $salt = gallery_passkey_unb64((string)($store['prf_salt'] ?? ''));
-    if ($salt === false || strlen($salt) !== 32) throw new RuntimeException('Passkey Gallery unlock is not configured.');
     return $store;
 }
 
@@ -143,6 +141,16 @@ try {
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'options') {
         $store = gallery_passkey_store($passkeyPath);
+        if ($galleryKeys->isInitialized()) {
+            $accountSalt = gallery_passkey_unb64((string)$galleryKeys->accountSalt());
+            if ($accountSalt === false || strlen($accountSalt) !== 32) throw new RuntimeException('Gallery PRF salt is invalid.');
+        } else {
+            $accountSalt = gallery_passkey_unb64((string)($_SESSION['gallery_prf_salt'] ?? ''));
+            if ($accountSalt === false || strlen($accountSalt) !== 32) {
+                $accountSalt = random_bytes(32);
+                $_SESSION['gallery_prf_salt'] = gallery_passkey_b64($accountSalt);
+            }
+        }
         $challenge = random_bytes(32);
         $_SESSION['gallery_passkey_challenge'] = gallery_passkey_b64($challenge);
         $allowCredentials = [];
@@ -163,7 +171,7 @@ try {
                 'timeout' => 60000,
                 'extensions' => [
                     'prf' => [
-                        'eval' => ['first' => $store['prf_salt']],
+                        'eval' => ['first' => gallery_passkey_b64($accountSalt)],
                     ],
                 ],
             ],
@@ -257,14 +265,19 @@ try {
             if (is_array($record) && hash_equals((string)($record['credential_id'] ?? ''), $credentialId)) $knownCredential = true;
         }
         if (!$knownCredential) throw new RuntimeException('Unknown passkey.');
+        $credentialEnvelope = (array)($request['credentialEnvelope'] ?? []);
+        $expectedGallerySalt = (string)($_SESSION['gallery_prf_salt'] ?? '');
+        if ($expectedGallerySalt === '' || !hash_equals($expectedGallerySalt, (string)($credentialEnvelope['salt'] ?? ''))) {
+            throw new RuntimeException('Gallery passkey envelope does not match the active Gallery PRF salt.');
+        }
         $galleryKeys->initialize(
             (array)($request['publicKey'] ?? []),
             (array)($request['privateKeyEnvelope'] ?? []),
             $credentialId,
-            (array)($request['credentialEnvelope'] ?? []),
+            $credentialEnvelope,
             (array)($request['recoveryEnvelope'] ?? [])
         );
-        unset($_SESSION['gallery_passkey_verified_credential'], $_SESSION['gallery_passkey_verified_at']);
+        unset($_SESSION['gallery_passkey_verified_credential'], $_SESSION['gallery_passkey_verified_at'], $_SESSION['gallery_prf_salt']);
         gallery_passkey_json(['status' => 'ok']);
     }
 
