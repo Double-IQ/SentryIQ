@@ -219,14 +219,12 @@ try {
 
         $identity = null;
         if ($galleryKeys->isInitialized()) {
-            $credentialEnvelope = $galleryKeys->credentialEnvelope($credentialId);
-            if ($credentialEnvelope !== null) {
-                $identity = [
-                    'publicKey' => $galleryKeys->publicKey(),
-                    'privateKeyEnvelope' => $galleryKeys->privateKeyEnvelope(),
-                    'credentialEnvelope' => $credentialEnvelope,
-                ];
-            }
+            $identity = [
+                'publicKey' => $galleryKeys->publicKey(),
+                'privateKeyEnvelope' => $galleryKeys->privateKeyEnvelope(),
+                'credentialEnvelope' => $galleryKeys->credentialEnvelope($credentialId),
+                'recoveryEnvelope' => $galleryKeys->recoveryEnvelope(),
+            ];
         }
         gallery_passkey_json(['status' => 'ok', 'credentialId' => $credentialId, 'identity' => $identity]);
     }
