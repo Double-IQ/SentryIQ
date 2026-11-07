@@ -159,6 +159,7 @@ try {
         }
         $challenge = random_bytes(32);
         $_SESSION['gallery_passkey_challenge'] = gallery_passkey_b64($challenge);
+        $_SESSION['gallery_passkey_challenge_at'] = time();
         $allowCredentials = [];
         foreach ($store['credentials'] as $record) {
             if (!is_array($record) || !is_string($record['credential_id'] ?? null)) continue;
@@ -202,7 +203,10 @@ try {
         }
         $store = gallery_passkey_store($passkeyPath);
         $challenge = gallery_passkey_unb64((string)($_SESSION['gallery_passkey_challenge'] ?? ''));
-        if ($challenge === false || strlen($challenge) !== 32) throw new RuntimeException('Gallery passkey challenge expired.');
+        $challengeAt = (int)($_SESSION['gallery_passkey_challenge_at'] ?? 0);
+        if ($challenge === false || strlen($challenge) !== 32 || $challengeAt < time() - 120) {
+            throw new RuntimeException('Gallery passkey challenge expired.');
+        }
 
         $credentialIdBytes = gallery_passkey_unb64((string)($request['rawId'] ?? ''));
         $clientData = gallery_passkey_unb64((string)($request['clientDataJSON'] ?? ''));
@@ -243,7 +247,7 @@ try {
         $store['credentials'][$foundIndex]['sign_count'] = max($previousCounter, $counter);
         gallery_passkey_save($passkeyPath, $store);
 
-        unset($_SESSION['gallery_passkey_challenge']);
+        unset($_SESSION['gallery_passkey_challenge'], $_SESSION['gallery_passkey_challenge_at']);
         $_SESSION['gallery_passkey_verified_credential'] = $credentialId;
         $_SESSION['gallery_passkey_verified_at'] = time();
 
