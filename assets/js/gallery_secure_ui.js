@@ -236,16 +236,18 @@
             return;
         }
         this.disabled = true;
+        byId('secure-gallery-lock').disabled = true;
         setStatus('secure-gallery-workspace-status', 'Preparing, encrypting and uploading photo directly to Backblaze…');
         try {
             await SentryIQGalleryStorage.upload(file, byId('secure-gallery-album').value);
-            byId('secure-gallery-file').value = '';
             setStatus('secure-gallery-workspace-status', 'Encrypted photo uploaded successfully.', 'success');
             await refreshPhotos();
         } catch (error) {
             setStatus('secure-gallery-workspace-status', error.message || 'Photo upload failed.', 'error');
         } finally {
+            byId('secure-gallery-file').value = '';
             this.disabled = false;
+            byId('secure-gallery-lock').disabled = false;
         }
     });
 
