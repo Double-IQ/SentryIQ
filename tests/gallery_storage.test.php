@@ -41,6 +41,7 @@ check(($putParts['scheme'] ?? '') === 'https', 'B2 URL must use HTTPS.');
 check(($putParts['host'] ?? '') === 's3.us-west-004.backblazeb2.com', 'B2 URL must use the configured regional endpoint.');
 check(str_contains((string)($putParts['path'] ?? ''), '/sentryiq-test-bucket/gallery/v1/'), 'B2 URL must be scoped to the configured bucket and opaque object key.');
 check(($putQuery['X-Amz-Expires'] ?? '') === '300', 'B2 URL must have the requested short expiry.');
+check(($putQuery['X-Amz-SignedHeaders'] ?? '') === 'content-type;host', 'B2 PUT URL must bind the ciphertext content type.');
 check(preg_match('/^[a-f0-9]{64}$/', (string)($putQuery['X-Amz-Signature'] ?? '')) === 1, 'B2 URL must contain a SigV4 signature.');
 check(!str_contains($putUrl, 'test-application-secret'), 'B2 URL must not disclose the application key.');
 check($putUrl !== $getUrl, 'PUT and GET authorizations must be method-scoped.');
