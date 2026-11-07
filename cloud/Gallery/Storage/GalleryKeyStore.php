@@ -74,47 +74,52 @@ final class GalleryKeyStore
         $this->validateCredentialEnvelope($credentialEnvelope, $credentialId);
         $this->validateRecoveryEnvelope($recoveryEnvelope);
 
-        if ($this->read() !== []) {
-            throw new RuntimeException('The Gallery encryption identity is already initialized.');
-        }
-
-        $this->write([
-            'version' => 1,
-            'public_key' => $publicKey,
-            'private_key_envelope' => $privateKeyEnvelope,
-            'credential_envelopes' => [$credentialId => $credentialEnvelope],
-            'recovery_envelope' => $recoveryEnvelope,
-            'created_at' => time(),
-        ]);
+        $this->mutate(function (array &$store) use ($publicKey, $privateKeyEnvelope, $credentialId, $credentialEnvelope, $recoveryEnvelope): void {
+            if ($store !== []) throw new RuntimeException('The Gallery encryption identity is already initialized.');
+            $store = [
+                'version' => 1,
+                'public_key' => $publicKey,
+                'private_key_envelope' => $privateKeyEnvelope,
+                'credential_envelopes' => [$credentialId => $credentialEnvelope],
+                'recovery_envelope' => $recoveryEnvelope,
+                'created_at' => time(),
+            ];
+        });
     }
 
     public function addCredentialEnvelope(string $credentialId, array $envelope): void
     {
         $this->validateCredentialId($credentialId);
         $this->validateCredentialEnvelope($envelope, $credentialId);
-        $store = $this->read();
-        if ($store === []) throw new RuntimeException('The Gallery encryption identity has not been initialized.');
-        if (isset($store['credential_envelopes'][$credentialId])) {
-            throw new RuntimeException('This passkey already has a Gallery key envelope.');
-        }
-        $accountSalt = $this->accountSalt();
-        if (!is_string($accountSalt) || !hash_equals($accountSalt, (string)$envelope['salt'])) {
-            throw new RuntimeException('Gallery passkey envelope uses an unexpected PRF salt.');
-        }
-        $store['credential_envelopes'][$credentialId] = $envelope;
-        $this->write($store);
+        $this->mutate(function (array &$store) use ($credentialId, $envelope): void {
+            if ($store === []) throw new RuntimeException('The Gallery encryption identity has not been initialized.');
+            if (isset($store['credential_envelopes'][$credentialId])) {
+                throw new RuntimeException('This passkey already has a Gallery key envelope.');
+            }
+            $accountSalt = null;
+            foreach ((array)($store['credential_envelopes'] ?? []) as $existingEnvelope) {
+                if (is_array($existingEnvelope) && is_string($existingEnvelope['salt'] ?? null)) {
+                    $accountSalt = $existingEnvelope['salt'];
+                    break;
+                }
+            }
+            if (!is_string($accountSalt) || !hash_equals($accountSalt, (string)$envelope['salt'])) {
+                throw new RuntimeException('Gallery passkey envelope uses an unexpected PRF salt.');
+            }
+            $store['credential_envelopes'][$credentialId] = $envelope;
+        });
     }
 
     public function removeCredentialEnvelope(string $credentialId): void
     {
         $this->validateCredentialId($credentialId);
-        $store = $this->read();
-        if ($store === [] || !isset($store['credential_envelopes'][$credentialId])) return;
-        if (count($store['credential_envelopes']) <= 1) {
-            throw new RuntimeException('The last Gallery passkey envelope cannot be removed.');
-        }
-        unset($store['credential_envelopes'][$credentialId]);
-        $this->write($store);
+        $this->mutate(function (array &$store) use ($credentialId): void {
+            if ($store === [] || !isset($store['credential_envelopes'][$credentialId])) return;
+            if (count($store['credential_envelopes']) <= 1) {
+                throw new RuntimeException('The last Gallery passkey envelope cannot be removed.');
+            }
+            unset($store['credential_envelopes'][$credentialId]);
+        });
     }
 
     private function read(): array
@@ -135,6 +140,24 @@ final class GalleryKeyStore
             throw new RuntimeException('Gallery key storage is invalid.');
         }
         return $decoded;
+    }
+
+    private function mutate(callable $callback): void
+    {
+        $lockPath = $this->file . '.lock';
+        if (is_link($lockPath)) throw new RuntimeException('Gallery key storage lock is invalid.');
+        $lock = @fopen($lockPath, 'c');
+        if ($lock === false) throw new RuntimeException('Unable to lock Gallery key storage.');
+        @chmod($lockPath, 0600);
+        try {
+            if (!flock($lock, LOCK_EX)) throw new RuntimeException('Unable to lock Gallery key storage.');
+            $store = $this->read();
+            $callback($store);
+            $this->write($store);
+        } finally {
+            @flock($lock, LOCK_UN);
+            fclose($lock);
+        }
     }
 
     private function write(array $store): void
