@@ -79,6 +79,9 @@ final class GalleryKeyStore
         $this->validateCredentialEnvelope($envelope, $credentialId);
         $store = $this->read();
         if ($store === []) throw new RuntimeException('The Gallery encryption identity has not been initialized.');
+        if (isset($store['credential_envelopes'][$credentialId])) {
+            throw new RuntimeException('This passkey already has a Gallery key envelope.');
+        }
         $store['credential_envelopes'][$credentialId] = $envelope;
         $this->write($store);
     }
