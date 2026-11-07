@@ -77,7 +77,14 @@ try {
     $store->initialize($publicKey, $privateEnvelope, $credentialOne, $makeCredentialEnvelope($credentialOne), $recoveryEnvelope);
     check($store->isInitialized(), 'Gallery key store should initialize.');
     check($store->credentialEnvelope($credentialOne) !== null, 'Initial passkey envelope should be stored.');
+    check($store->accountSalt() === str_repeat('C', 43), 'Gallery account PRF salt should be stored with its first passkey envelope.');
     $store->addCredentialEnvelope($credentialTwo, $makeCredentialEnvelope($credentialTwo));
+    $wrongSaltEnvelope = $makeCredentialEnvelope(str_repeat('Z', 32));
+    $wrongSaltEnvelope['salt'] = str_repeat('L', 43);
+    expectFailure(
+        fn() => $store->addCredentialEnvelope(str_repeat('Z', 32), $wrongSaltEnvelope),
+        'Additional passkeys must use the same dedicated Gallery PRF input salt.'
+    );
     check($store->credentialEnvelope($credentialTwo) !== null, 'Additional passkey envelope should be stored.');
     expectFailure(
         fn() => $store->initialize($publicKey, $privateEnvelope, $credentialOne, $makeCredentialEnvelope($credentialOne), $recoveryEnvelope),
