@@ -52,7 +52,11 @@ Allow only the methods needed by the browser flow:
 
 Allow the \`Content-Type\` request header. Expose only response headers the client actually needs (initially, none are required for the Gallery cryptographic flow). Do not use wildcard origins.
 
-## 5. Verify before enabling uploads
+## Image handling and metadata
+
+The browser decodes selected images and re-encodes the stored original, preview and thumbnail as WebP before encryption. This strips source EXIF metadata such as embedded GPS coordinates. The original source-file bytes are not retained or uploaded. Filenames, album labels and dimensions are included only inside the encrypted metadata object.
+
+## 6. Verify before enabling uploads
 
 - Confirm the bucket is private from an unauthenticated browser.
 - Confirm the PHP runtime can read the protected config file.
