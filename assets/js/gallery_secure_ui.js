@@ -31,6 +31,7 @@
     }
 
     async function refreshPhotos() {
+        photoCards.forEach(function (item) { SentryIQGalleryStorage.revokeObjectUrl(item.thumbnailUrl); });
         grid.replaceChildren();
         photoCards = [];
         updateAlbumFilter();
@@ -121,7 +122,7 @@
         });
         card.append(image, title, album, preview, remove);
         grid.appendChild(card);
-        photoCards.push({ card: card, album: album.textContent });
+        photoCards.push({ card: card, album: album.textContent, thumbnailUrl: photo.thumbnailUrl });
         updateAlbumFilter();
     }
 
