@@ -84,6 +84,7 @@ header('Content-Security-Policy: ' . $csp);
     </div>
 
     <main class="secure-gallery" data-b2-configured="<?php echo $b2Configured ? 1 : 0; ?>">
+        <p style="text-align:right;margin:0 0 12px;"><a class="btn" href="gallery_b2_settings.php">☁️ Backblaze Storage Settings</a></p>
         <section id="secure-gallery-unlock-panel" class="secure-gallery-panel">
             <h2>🔐 Unlock your private photos</h2>
             <p>Photos are encrypted in this browser before they are sent directly to your private Backblaze B2 bucket. The server stores encrypted key envelopes and photo metadata, not readable images.</p>
@@ -120,7 +121,6 @@ header('Content-Security-Policy: ' . $csp);
                 </div>
             </div>
             <p>Image resizing, thumbnails, previews and encryption happen locally in your browser. Only encrypted objects are uploaded to Backblaze.</p>
-            <p><a class="btn" href="gallery_b2_settings.php">☁️ Backblaze Storage Settings</a></p>
             <div id="secure-gallery-b2-warning" class="secure-gallery-status error" <?php if ($b2Configured) echo 'hidden'; ?>>Backblaze B2 is not configured. Follow docs/operations/backblaze-b2-gallery-setup.md to add the protected runtime credentials file before uploading photos.</div>
             <div class="secure-gallery-row">
                 <select id="secure-gallery-album-filter" aria-label="Filter by album">
