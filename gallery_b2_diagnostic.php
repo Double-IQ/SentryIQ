@@ -9,6 +9,23 @@ require_once __DIR__ . '/cloud/Gallery/Storage/BackblazeB2Signer.php';
 
 use SentryIQCloud\Gallery\Storage\BackblazeB2Signer;
 
+// The diagnostic makes direct browser requests to the configured S3 endpoint.
+// Add only the validated bucket endpoint to connect-src; never use a wildcard.
+$b2Host = '';
+$dataDirectory = sentryiq_data_dir();
+if (is_string($dataDirectory) && $dataDirectory !== '') {
+    try {
+        $b2Host = BackblazeB2Signer::fromRuntimeDirectory($dataDirectory)->endpointHost();
+    } catch (Throwable) {
+        $b2Host = '';
+    }
+}
+$csp = "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'";
+if ($b2Host !== '' && preg_match('/^[a-z0-9.-]+$/', $b2Host)) {
+    $csp .= ' https://' . $b2Host;
+}
+header('Content-Security-Policy: ' . $csp);
+
 header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: no-referrer');
