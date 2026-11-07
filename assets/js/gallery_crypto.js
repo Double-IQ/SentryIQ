@@ -56,7 +56,7 @@
     }
 
     function validateRole(role) {
-        if (!['original', 'thumbnail', 'preview'].includes(role)) throw new Error('Invalid Gallery object role.');
+        if (!['original', 'thumbnail', 'preview', 'metadata'].includes(role)) throw new Error('Invalid Gallery object role.');
     }
 
     async function derivePrfWrappingKey(prfOutput, salt, credentialId) {
