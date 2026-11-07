@@ -1,0 +1,16 @@
+<?php
+
+declare(strict_types=1);
+
+/*
+ * Copy this file to <SentryIQ data_dir>/gallery_b2.php.
+ * Replace the placeholders and set permissions to 0600.
+ * Never commit a populated credentials file.
+ */
+
+return [
+    'bucket' => 'replace-with-private-bucket-name',
+    'region' => 'replace-with-b2-region',
+    'key_id' => 'replace-with-bucket-scoped-application-key-id',
+    'application_key' => 'replace-with-bucket-scoped-application-key',
+];
