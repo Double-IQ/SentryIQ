@@ -33,6 +33,11 @@
     async function refreshPhotos() {
         grid.replaceChildren();
         photoCards = [];
+        const page = document.querySelector('main[data-b2-configured]');
+        if (page && page.dataset.b2Configured !== '1') {
+            setStatus('secure-gallery-workspace-status', 'Gallery keys are ready, but Backblaze B2 is not configured yet. Follow the setup guide before uploading or listing photos.', 'error');
+            return;
+        }
         setStatus('secure-gallery-workspace-status', 'Loading encrypted photos…');
         try {
             const records = await SentryIQGalleryStorage.list();
