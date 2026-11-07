@@ -149,7 +149,11 @@ try {
                 'allowCredentials' => $allowCredentials,
                 'userVerification' => 'required',
                 'timeout' => 60000,
-                'extensions' => ['prf' => ['eval' => ['first' => $store['prf_salt']]],
+                'extensions' => [
+                    'prf' => [
+                        'eval' => ['first' => $store['prf_salt']],
+                    ],
+                ],
             ],
         ]);
     }
