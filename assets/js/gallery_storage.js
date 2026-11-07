@@ -41,7 +41,7 @@
     function canvasBlob(canvas, quality) {
         return new Promise(function (resolve, reject) {
             canvas.toBlob(function (blob) {
-                if (blob) resolve(blob);
+                if (blob && blob.type === 'image/webp') resolve(blob);
                 else reject(new Error('This browser could not create a WebP image.'));
             }, 'image/webp', quality);
         });
@@ -72,7 +72,7 @@
         let bitmap;
         try {
             bitmap = await createImageBitmap(file);
-            if (!bitmap.width || !bitmap.height || bitmap.width > 20000 || bitmap.height > 20000) {
+            if (!bitmap.width || !bitmap.height || bitmap.width > 20000 || bitmap.height > 20000 || bitmap.width * bitmap.height > 40000000) {
                 throw new Error('The image dimensions are invalid or too large.');
             }
             const saved = await makeWebp(bitmap, 8000, 0.90);
