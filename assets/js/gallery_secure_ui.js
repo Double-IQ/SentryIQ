@@ -191,6 +191,8 @@
         setStatus('secure-gallery-setup-status', 'Creating your encrypted Gallery identity…');
         try {
             await SentryIQSecureGallery.completeIdentitySetup();
+            byId('secure-gallery-recovery-code').value = '';
+            byId('secure-gallery-recovery-saved').checked = false;
             showWorkspace();
             await refreshPhotos();
         } catch (error) {
@@ -250,6 +252,9 @@
     byId('secure-gallery-lock').addEventListener('click', function () {
         closeViewer();
         SentryIQGalleryStorage.lock();
+        byId('secure-gallery-file').value = '';
+        byId('secure-gallery-recovery-code').value = '';
+        byId('secure-gallery-recovery-input').value = '';
         grid.replaceChildren();
         photoCards = [];
         workspace.hidden = true;
@@ -268,6 +273,9 @@
     });
     window.addEventListener('pagehide', function () {
         if (viewerUrl) SentryIQGalleryStorage.revokeObjectUrl(viewerUrl);
+        byId('secure-gallery-file').value = '';
+        byId('secure-gallery-recovery-code').value = '';
+        byId('secure-gallery-recovery-input').value = '';
         SentryIQGalleryStorage.lock();
     });
 }());
