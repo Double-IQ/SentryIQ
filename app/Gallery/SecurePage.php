@@ -114,6 +114,11 @@ if (is_string($dataDirectory) && $dataDirectory !== '') {
             <p>Image resizing, thumbnails, previews and encryption happen locally in your browser. Only encrypted objects are uploaded to Backblaze.</p>
             <div id="secure-gallery-b2-warning" class="secure-gallery-status error" <?php if ($b2Configured) echo 'hidden'; ?>>Backblaze B2 is not configured. Follow docs/operations/backblaze-b2-gallery-setup.md to add the protected runtime credentials file before uploading photos.</div>
             <div class="secure-gallery-row">
+                <select id="secure-gallery-album-filter" aria-label="Filter by album">
+                    <option value="">All albums</option>
+                </select>
+            </div>
+            <div class="secure-gallery-row">
                 <input id="secure-gallery-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,image/avif,image/heic,image/heif">
                 <input id="secure-gallery-album" type="text" maxlength="80" placeholder="Album name (optional)">
                 <button id="secure-gallery-upload" class="btn btn-primary" type="button" <?php if (!$b2Configured) echo 'disabled'; ?>>Encrypt &amp; upload</button>
