@@ -122,6 +122,7 @@ try {
     check($objectStore->all() === [], 'Removed Gallery object must no longer be listed.');
 } finally {
     @unlink($directory . '/gallery_keys.json');
+    @unlink($directory . '/gallery_keys.json.lock');
     @unlink($directory . '/gallery_objects.json');
     @unlink($directory . '/gallery_objects.json.lock');
     @rmdir($directory);
