@@ -56,6 +56,32 @@
         }
     }
 
+    function updateAlbumFilter() {
+        const select = byId('secure-gallery-album-filter');
+        const current = select.value;
+        const albums = Array.from(new Set(photoCards.map(function (item) { return item.album; }).filter(Boolean))).sort();
+        select.replaceChildren();
+        const all = document.createElement('option');
+        all.value = '';
+        all.textContent = 'All albums';
+        select.appendChild(all);
+        albums.forEach(function (album) {
+            const option = document.createElement('option');
+            option.value = album;
+            option.textContent = album;
+            select.appendChild(option);
+        });
+        select.value = albums.includes(current) ? current : '';
+        filterCards();
+    }
+
+    function filterCards() {
+        const selected = byId('secure-gallery-album-filter').value;
+        photoCards.forEach(function (item) {
+            item.card.hidden = selected !== '' && item.album !== selected;
+        });
+    }
+
     function addPhotoCard(photo) {
         const card = document.createElement('article');
         card.className = 'secure-gallery-card';
@@ -93,6 +119,7 @@
         card.append(image, title, album, preview, remove);
         grid.appendChild(card);
         photoCards.push({ card: card, album: album.textContent });
+        updateAlbumFilter();
     }
 
     async function openViewer(photoId) {
@@ -112,6 +139,8 @@
         if (viewerUrl) SentryIQGalleryStorage.revokeObjectUrl(viewerUrl);
         viewerUrl = null;
     }
+
+    byId('secure-gallery-album-filter').addEventListener('change', filterCards);
 
     byId('secure-gallery-unlock').addEventListener('click', async function () {
         this.disabled = true;
