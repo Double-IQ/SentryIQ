@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../cloud/Gallery/Storage/BackblazeB2Signer.php';
 require_once __DIR__ . '/../cloud/Gallery/Storage/GalleryKeyStore.php';
+require_once __DIR__ . '/../cloud/Gallery/Storage/GalleryObjectStore.php';
 
 use SentryIQCloud\Gallery\Storage\BackblazeB2Signer;
 use SentryIQCloud\Gallery\Storage\GalleryKeyStore;
+use SentryIQCloud\Gallery\Storage\GalleryObjectStore;
 
 function check(bool $condition, string $message): void
 {
@@ -83,6 +85,33 @@ try {
     );
     $permissions = fileperms($directory . '/gallery_keys.json');
     check(is_int($permissions) && (($permissions & 0077) === 0), 'Gallery key file must not be accessible to group or other users.');
+
+    $objectStore = new GalleryObjectStore($directory . '/gallery_objects.json');
+    $photoId = bin2hex(random_bytes(16));
+    $objectKeys = [];
+    $envelopes = [];
+    $sizes = [];
+    foreach (['original', 'thumbnail', 'preview', 'metadata'] as $role) {
+        $objectKeys[$role] = BackblazeB2Signer::newObjectKey($role);
+        $envelopes[$role] = [
+            'version' => 1,
+            'algorithm' => 'A256GCM',
+            'keyWrap' => 'RSA-OAEP-256',
+            'nonce' => str_repeat('J', 16),
+            'wrappedDek' => str_repeat('K', 512),
+            'photoId' => $photoId,
+            'role' => $role,
+        ];
+        $sizes[$role] = 100;
+    }
+    $objectStore->createPending($photoId, $objectKeys);
+    check(($objectStore->find($photoId)['status'] ?? '') === 'pending', 'New object reservation must be pending.');
+    $objectStore->commit($photoId, $envelopes, $sizes);
+    check(($objectStore->find($photoId)['status'] ?? '') === 'active', 'Committed ciphertext objects must be active.');
+    check(count($objectStore->all()) === 1, 'Active Gallery objects must be listed.');
+    check(isset($objectStore->find($photoId)['objects']['metadata']['envelope']), 'Encrypted metadata envelope must be stored.');
+    check($objectStore->remove($photoId) !== null, 'Gallery object record should be removable.');
+    check($objectStore->all() === [], 'Removed Gallery object must no longer be listed.');
 } finally {
     @unlink($directory . '/gallery_keys.json');
     @rmdir($directory);
