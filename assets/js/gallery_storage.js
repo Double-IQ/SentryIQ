@@ -184,8 +184,29 @@
         }
     }
 
+    async function cleanupPending() {
+        const response = await fetch('gallery_storage.php?action=cleanup_pending', {
+            method: 'GET',
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: { Accept: 'application/json' }
+        });
+        const payload = await jsonResponse(response);
+        const pending = payload.pending || {};
+        for (const photoId of Object.keys(pending)) {
+            const urls = pending[photoId] || {};
+            const outcomes = await Promise.allSettled(Object.keys(urls).map(function (role) {
+                return deleteCiphertext(urls[role]);
+            }));
+            if (outcomes.every(function (item) { return item.status === 'fulfilled'; })) {
+                await post('confirm_cancel', { photoId: photoId });
+            }
+        }
+    }
+
     async function list() {
         secureApi();
+        await cleanupPending();
         const response = await fetch('gallery_storage.php?action=list', {
             method: 'GET',
             credentials: 'same-origin',
