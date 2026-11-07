@@ -130,6 +130,10 @@ final class GalleryObjectStore
     {
         if (!is_file($this->file)) return [];
         if (is_link($this->file) || !is_readable($this->file)) throw new RuntimeException('Gallery object index is unavailable.');
+        $permissions = @fileperms($this->file);
+        if (is_int($permissions) && (($permissions & 0077) !== 0)) {
+            throw new RuntimeException('Gallery object index permissions must be owner-only (0600).');
+        }
         $raw = @file_get_contents($this->file);
         $records = is_string($raw) ? json_decode($raw, true) : null;
         if (!is_array($records)) throw new RuntimeException('Gallery object index is invalid.');
@@ -139,6 +143,7 @@ final class GalleryObjectStore
     private function mutate(callable $callback): void
     {
         $lockPath = $this->file . '.lock';
+        if (is_link($lockPath)) throw new RuntimeException('Gallery object index lock is invalid.');
         $lock = @fopen($lockPath, 'c');
         if ($lock === false) throw new RuntimeException('Unable to lock Gallery object index.');
         @chmod($lockPath, 0600);
