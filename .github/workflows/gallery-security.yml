@@ -23,6 +23,7 @@ jobs:
           node --check assets/js/gallery_crypto.js
           node --check assets/js/gallery_secure.js
           node --check assets/js/gallery_storage.js
+          node --check assets/js/gallery_secure_ui.js
           node --check tests/gallery_crypto.test.js
 
       - name: Test browser-side Gallery cryptography
