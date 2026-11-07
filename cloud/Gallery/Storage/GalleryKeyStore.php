@@ -114,11 +114,12 @@ final class GalleryKeyStore
     {
         $this->validateCredentialId($credentialId);
         $this->mutate(function (array &$store) use ($credentialId): void {
-            if ($store === [] || !isset($store['credential_envelopes'][$credentialId])) return;
+            if ($store === [] || !isset($store['credential_envelopes'][$credentialId])) return false;
             if (count($store['credential_envelopes']) <= 1) {
                 throw new RuntimeException('The last Gallery passkey envelope cannot be removed.');
             }
             unset($store['credential_envelopes'][$credentialId]);
+            return true;
         });
     }
 
@@ -152,8 +153,8 @@ final class GalleryKeyStore
         try {
             if (!flock($lock, LOCK_EX)) throw new RuntimeException('Unable to lock Gallery key storage.');
             $store = $this->read();
-            $callback($store);
-            $this->write($store);
+            $changed = $callback($store);
+            if ($changed !== false) $this->write($store);
         } finally {
             @flock($lock, LOCK_UN);
             fclose($lock);
