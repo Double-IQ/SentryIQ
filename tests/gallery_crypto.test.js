@@ -2,9 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { webcrypto } = require('node:crypto');
-
-globalThis.crypto = webcrypto;
+const crypto = globalThis.crypto;
+if (!crypto || !crypto.subtle) throw new Error('Node.js Web Crypto is required for Gallery tests.');
 globalThis.window = globalThis;
 globalThis.self = globalThis;
 
