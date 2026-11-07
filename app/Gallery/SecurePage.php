@@ -120,6 +120,7 @@ header('Content-Security-Policy: ' . $csp);
                 </div>
             </div>
             <p>Image resizing, thumbnails, previews and encryption happen locally in your browser. Only encrypted objects are uploaded to Backblaze.</p>
+            <p><a class="btn" href="gallery_b2_settings.php">☁️ Backblaze Storage Settings</a></p>
             <div id="secure-gallery-b2-warning" class="secure-gallery-status error" <?php if ($b2Configured) echo 'hidden'; ?>>Backblaze B2 is not configured. Follow docs/operations/backblaze-b2-gallery-setup.md to add the protected runtime credentials file before uploading photos.</div>
             <div class="secure-gallery-row">
                 <select id="secure-gallery-album-filter" aria-label="Filter by album">
