@@ -15,9 +15,12 @@ final class GalleryObjectStore
         if ($this->file === '' || !str_starts_with($this->file, '/') || is_link($this->file)) {
             throw new RuntimeException('Gallery object index path is invalid.');
         }
-        $directory = dirname($this->file);
-        if (!is_dir($directory) || is_link($directory)) {
-            throw new RuntimeException('Gallery secure runtime is unavailable.');
+        $directory = realpath(dirname($this->file));
+        $documentRoot = isset($_SERVER['DOCUMENT_ROOT']) ? realpath((string)$_SERVER['DOCUMENT_ROOT']) : false;
+        if ($directory === false || is_link(dirname($this->file))
+            || (is_string($documentRoot) && $documentRoot !== ''
+                && ($directory === $documentRoot || str_starts_with($directory . DIRECTORY_SEPARATOR, rtrim($documentRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)))) {
+            throw new RuntimeException('Gallery object storage must be outside the public web root.');
         }
     }
 
