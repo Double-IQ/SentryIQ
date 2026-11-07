@@ -129,6 +129,18 @@ try {
     $galleryKeys = new GalleryKeyStore($dataDirectory . '/gallery_keys.json');
     $origin = gallery_passkey_origin();
 
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'recovery-envelope') {
+        if (!$galleryKeys->isInitialized()) gallery_passkey_json(['status' => 'error', 'message' => 'Secure Gallery has not been initialized.'], 404);
+        gallery_passkey_json([
+            'status' => 'ok',
+            'identity' => [
+                'publicKey' => $galleryKeys->publicKey(),
+                'privateKeyEnvelope' => $galleryKeys->privateKeyEnvelope(),
+                'recoveryEnvelope' => $galleryKeys->recoveryEnvelope(),
+            ],
+        ]);
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'options') {
         $store = gallery_passkey_store($passkeyPath);
         $challenge = random_bytes(32);
