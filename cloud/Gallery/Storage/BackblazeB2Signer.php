@@ -85,7 +85,7 @@ final class BackblazeB2Signer
 
     /**
      * Create a short-lived SigV4 URL for one exact object and HTTP method.
-     * Only the Host header is signed; callers must not alter the URL host/path.
+     * PUT URLs also bind Content-Type to application/octet-stream; callers must not alter signed headers.
      */
     public function presign(
         string $method,
@@ -114,17 +114,19 @@ final class BackblazeB2Signer
             $canonicalUri .= '/' . $this->encodePathSegment($segment);
         }
 
+        $signedHeaders = $method === 'PUT' ? 'content-type;host' : 'host';
+        $canonicalHeaders = $method === 'PUT'
+            ? "content-type:application/octet-stream\n" . 'host:' . $this->host . "\n"
+            : 'host:' . $this->host . "\n";
         $query = [
             'X-Amz-Algorithm' => 'AWS4-HMAC-SHA256',
             'X-Amz-Credential' => $this->keyId . '/' . $scope,
             'X-Amz-Date' => $amzDate,
             'X-Amz-Expires' => (string)$expiresSeconds,
-            'X-Amz-SignedHeaders' => 'host',
+            'X-Amz-SignedHeaders' => $signedHeaders,
         ];
         ksort($query, SORT_STRING);
         $canonicalQuery = $this->canonicalQuery($query);
-        $canonicalHeaders = 'host:' . $this->host . "\n";
-        $signedHeaders = 'host';
         $canonicalRequest = $method . "\n"
             . $canonicalUri . "\n"
             . $canonicalQuery . "\n"
