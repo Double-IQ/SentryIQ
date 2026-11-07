@@ -149,11 +149,24 @@
                 preview: await prepared.preview.blob.arrayBuffer(),
                 metadata: new TextEncoder().encode(JSON.stringify(metadata))
             };
+            prepared.saved.blob = null;
+            prepared.thumbnail.blob = null;
+            prepared.preview.blob = null;
             const encrypted = {};
             const sizes = {};
-            for (const role of roles) {
-                encrypted[role] = await secure.encryptObject(plainObjects[role], photoId, role);
-                sizes[role] = encrypted[role].ciphertext.byteLength;
+            try {
+                for (const role of roles) {
+                    encrypted[role] = await secure.encryptObject(plainObjects[role], photoId, role);
+                    new Uint8Array(plainObjects[role]).fill(0);
+                    plainObjects[role] = null;
+                    sizes[role] = encrypted[role].ciphertext.byteLength;
+                }
+            } finally {
+                for (const role of roles) {
+                    if (plainObjects[role] instanceof ArrayBuffer) new Uint8Array(plainObjects[role]).fill(0);
+                    else if (plainObjects[role] instanceof Uint8Array) plainObjects[role].fill(0);
+                    plainObjects[role] = null;
+                }
             }
             for (const role of roles) {
                 await uploadCiphertext(reservation.uploadUrls[role], encrypted[role].ciphertext);
