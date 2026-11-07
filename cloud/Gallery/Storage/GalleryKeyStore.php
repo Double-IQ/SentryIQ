@@ -38,6 +38,15 @@ final class GalleryKeyStore
         return is_array($store['recovery_envelope'] ?? null) ? $store['recovery_envelope'] : null;
     }
 
+    public function accountSalt(): ?string
+    {
+        $store = $this->read();
+        foreach ((array)($store['credential_envelopes'] ?? []) as $envelope) {
+            if (is_array($envelope) && is_string($envelope['salt'] ?? null)) return $envelope['salt'];
+        }
+        return null;
+    }
+
     public function credentialEnvelope(string $credentialId): ?array
     {
         $this->validateCredentialId($credentialId);
@@ -81,6 +90,10 @@ final class GalleryKeyStore
         if ($store === []) throw new RuntimeException('The Gallery encryption identity has not been initialized.');
         if (isset($store['credential_envelopes'][$credentialId])) {
             throw new RuntimeException('This passkey already has a Gallery key envelope.');
+        }
+        $accountSalt = $this->accountSalt();
+        if (!is_string($accountSalt) || !hash_equals($accountSalt, (string)$envelope['salt'])) {
+            throw new RuntimeException('Gallery passkey envelope uses an unexpected PRF salt.');
         }
         $store['credential_envelopes'][$credentialId] = $envelope;
         $this->write($store);
