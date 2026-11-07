@@ -193,7 +193,17 @@
 
     async function unlockWithRecovery(recoveryCode) {
         if (!recoveryIdentity || !recoveryIdentity.recoveryEnvelope) {
-            throw new Error('Verify a registered passkey first, then enter the Gallery recovery code.');
+            const response = await fetch('gallery_passkey.php?action=recovery-envelope', {
+                method: 'GET',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: { Accept: 'application/json' }
+            });
+            const payload = await readJson(response);
+            recoveryIdentity = payload.identity;
+        }
+        if (!recoveryIdentity || !recoveryIdentity.recoveryEnvelope) {
+            throw new Error('Gallery recovery is not available. Initialize secure Gallery first.');
         }
         const recoveryKey = cryptoApi().fromBase64Url(String(recoveryCode || '').trim());
         if (recoveryKey.byteLength !== 32) {
