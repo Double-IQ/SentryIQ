@@ -76,7 +76,7 @@ final class BackblazeB2Signer
 
     public static function newObjectKey(string $role): string
     {
-        if (!in_array($role, ['original', 'thumbnail', 'preview'], true)) {
+        if (!in_array($role, ['original', 'thumbnail', 'preview', 'metadata'], true)) {
             throw new RuntimeException('Invalid Gallery object role.');
         }
 
@@ -97,7 +97,7 @@ final class BackblazeB2Signer
         if (!in_array($method, ['PUT', 'GET', 'HEAD', 'DELETE'], true)) {
             throw new RuntimeException('Unsupported Backblaze B2 signed method.');
         }
-        if (!preg_match('#^gallery/v1/[a-f0-9]{64}/(original|thumbnail|preview)$#', $objectKey)) {
+        if (!preg_match('#^gallery/v1/[a-f0-9]{64}/(original|thumbnail|preview|metadata)$#', $objectKey)) {
             throw new RuntimeException('Invalid Gallery object key.');
         }
         if ($expiresSeconds < 1 || $expiresSeconds > 600) {
