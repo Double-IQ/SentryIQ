@@ -28,7 +28,13 @@ function gallery_storage_data_directory(): string
     if ($directory === '' || !str_starts_with($directory, '/') || !is_dir($directory) || is_link($directory)) {
         throw new RuntimeException('SentryIQ secure runtime is unavailable.');
     }
-    return rtrim($directory, '/');
+    $runtime = realpath($directory);
+    $documentRoot = isset($_SERVER['DOCUMENT_ROOT']) ? realpath((string)$_SERVER['DOCUMENT_ROOT']) : false;
+    if ($runtime === false || (is_string($documentRoot) && $documentRoot !== ''
+        && ($runtime === $documentRoot || str_starts_with($runtime . DIRECTORY_SEPARATOR, rtrim($documentRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)))) {
+        throw new RuntimeException('SentryIQ secure runtime must be outside the public web root.');
+    }
+    return rtrim($runtime, '/');
 }
 
 function gallery_storage_request(): array
