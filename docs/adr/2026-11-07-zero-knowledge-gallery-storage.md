@@ -22,10 +22,11 @@ Build a separate browser-controlled Gallery cryptographic identity. Do not reuse
 
 1. Generate a per-user public/private key pair in the browser using Web Crypto. The initial compatibility candidate is RSA-OAEP with SHA-256 and a 3072-bit modulus; confirm browser support and test performance before finalizing.
 2. Keep the public key on the server. Encrypt the private key in the browser with an AES-256-GCM key derived from the passkey PRF output using HKDF-SHA-256, a random per-account salt, and a domain-separated context string. Store only the encrypted private-key envelope and its parameters server-side.
-3. Keep the PRF output in browser memory only. Change the passkey flow so PHP verifies the WebAuthn assertion but never receives the PRF output and never unwraps the Gallery private key. The browser uses the PRF output locally to unlock the encrypted private key.
-4. Generate a fresh random 256-bit AES-GCM data-encryption key (DEK) for each photo object. Encrypt the original and every browser-generated derivative with authenticated encryption, using a fresh 96-bit nonce for each encryption and authenticated metadata that binds the ciphertext to its photo ID, object role, and format version.
-5. Wrap each photo DEK with the user's Gallery public key using RSA-OAEP. Store the wrapped DEK with the encrypted photo metadata. Future sharing can add one wrapped DEK per authorized recipient without re-encrypting the photo.
-6. Use opaque random object identifiers. Encrypt privacy-sensitive metadata such as original filenames, album names, captions, MIME types and image dimensions. Do not use plaintext content hashes as duplicate indexes; initial release should omit cross-object deduplication to avoid equality leakage.
+3. PRF outputs are credential-specific: two passkeys do not produce interchangeable PRF outputs, even when given the same input. Therefore, store a separate encrypted copy of the same Gallery private key for each enrolled passkey, bound to that credential ID. Enrolling another passkey must happen from an already-unlocked browser (or through the recovery flow) and create its own envelope; never assume that one PRF-derived envelope can unlock every passkey.
+4. Keep each PRF output in browser memory only. Change the passkey flow so PHP verifies the WebAuthn assertion but never receives the Gallery PRF output and never unwraps the Gallery private key. The browser uses the PRF output locally to unlock the matching credential's encrypted private-key envelope.
+5. Generate a fresh random 256-bit AES-GCM data-encryption key (DEK) for each photo object. Encrypt the original and every browser-generated derivative with authenticated encryption, using a fresh 96-bit nonce for each encryption and authenticated metadata that binds the ciphertext to its photo ID, object role, and format version.
+6. Wrap each photo DEK with the user's Gallery public key using RSA-OAEP. Store the wrapped DEK with the encrypted photo metadata. Future sharing can add one wrapped DEK per authorized recipient without re-encrypting the photo.
+7. Use opaque random object identifiers. Encrypt privacy-sensitive metadata such as original filenames, album names, captions, MIME types and image dimensions. Do not use plaintext content hashes as duplicate indexes; initial release should omit cross-object deduplication to avoid equality leakage.
 
 ### Upload and download
 
@@ -35,7 +36,7 @@ Build a separate browser-controlled Gallery cryptographic identity. Do not reuse
 - For viewing, PHP checks ownership/permissions and issues a short-lived, read-only authorization for the exact object. The browser downloads ciphertext, verifies/decrypts it locally, and creates a temporary Blob URL for display. Revoke Blob URLs when no longer needed and avoid persistent browser caches.
 - Store ciphertext objects with a generic content type such as `application/octet-stream`. Do not rely on B2 object metadata for private filenames or media details.
 - Keep the bucket private. Configure restrictive CORS for the exact SentryIQ origin and only the required methods/headers.
-- Introduce a storage adapter so Gallery logic is not coupled to one Backblaze API. Choose the concrete authorization mechanism (B2 S3-compatible presigned URLs or native B2 upload/download authorization) after checking available PHP dependencies and the hosting environment.
+- Introduce a storage adapter so Gallery logic is not coupled to one Backblaze API. Use the B2 S3-compatible API with AWS Signature Version 4 presigned PUT/GET URLs. B2 supports SigV4 presigning; sign the exact regional host, bucket/object path, HTTP method and required headers. Do not use browser-based presigned POST. Keep URL expiry short and validate the final hosting/runtime implementation.
 
 ### Key lifecycle and recovery
 
