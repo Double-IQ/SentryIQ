@@ -33,6 +33,7 @@
     async function refreshPhotos() {
         grid.replaceChildren();
         photoCards = [];
+        updateAlbumFilter();
         const page = document.querySelector('main[data-b2-configured]');
         if (page && page.dataset.b2Configured !== '1') {
             setStatus('secure-gallery-workspace-status', 'Gallery keys are ready, but Backblaze B2 is not configured yet. Follow the setup guide before uploading or listing photos.', 'error');
@@ -110,6 +111,8 @@
                 await SentryIQGalleryStorage.deletePhoto(photo.photoId);
                 SentryIQGalleryStorage.revokeObjectUrl(photo.thumbnailUrl);
                 card.remove();
+                photoCards = photoCards.filter(function (item) { return item.card !== card; });
+                updateAlbumFilter();
                 setStatus('secure-gallery-workspace-status', 'Photo deleted.', 'success');
             } catch (error) {
                 setStatus('secure-gallery-workspace-status', error.message || 'Unable to delete this photo.', 'error');
