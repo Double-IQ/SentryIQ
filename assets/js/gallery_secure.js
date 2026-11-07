@@ -97,13 +97,12 @@
     async function unlock() {
         lock();
         const verified = await verifyNewPasskey();
+        if (!verified.identity) {
+            pendingSetup = { credentialId: verified.credentialId, prfOutput: verified.prfOutput, accountSalt: verified.accountSalt };
+            return { status: 'uninitialized' };
+        }
+        recoveryIdentity = verified.identity;
         try {
-            if (!verified.identity) {
-                recoveryIdentity = null;
-                pendingSetup = { credentialId: verified.credentialId, prfOutput: verified.prfOutput, accountSalt: verified.accountSalt };
-                throw new Error('Secure Gallery has not been initialized on this installation yet.');
-            }
-            recoveryIdentity = verified.identity;
             if (!verified.identity.credentialEnvelope) {
                 throw new Error('This passkey is not enrolled for Gallery. Unlock with your recovery code or another enrolled passkey.');
             }
@@ -171,12 +170,14 @@
             })
         });
         await readJson(response);
-        unlockedPrivateKey = await cryptoApi().unlockIdentity(
+        const activeKeys = await cryptoApi().unlockIdentity(
             identity.privateKeyEnvelope,
             identity.credentialEnvelope,
             pendingSetup.prfOutput,
             pendingSetup.credentialId
-        ).then(function (value) { return value.privateKey; });
+        );
+        unlockedPrivateKey = activeKeys.privateKey;
+        cryptoApi().clearSecret(activeKeys.rootKey);
         unlockedRootKey = identity.rootKey;
         unlockedPublicKey = identity.publicKey;
         cryptoApi().clearSecret(pendingSetup.prfOutput);
@@ -215,7 +216,8 @@
         if (!unlockedRootKey) throw new Error('Unlock secure Gallery before adding another passkey.');
         const verified = await verifyNewPasskey();
         try {
-            if (verified.identity && verified.identity.credentialEnvelope) {
+            if (!verified.identity) throw new Error('Secure Gallery is not initialized on this installation.');
+            if (verified.identity.credentialEnvelope) {
                 throw new Error('This passkey already has a Gallery key envelope.');
             }
             const credentialEnvelope = await cryptoApi().wrapRootKeyForPasskey(
