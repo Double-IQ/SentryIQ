@@ -132,6 +132,20 @@ try {
     if ($action === 'cancel') {
         $photoId = (string)($request['photoId'] ?? '');
         $record = $objectStore->find($photoId);
+        if (!is_array($record) || ($record['status'] ?? '') !== 'pending') {
+            gallery_storage_json(['status' => 'ok', 'deleteUrls' => []]);
+        }
+        $deleteUrls = [];
+        foreach ((array)($record['objects'] ?? []) as $role => $object) {
+            if (!is_array($object) || !is_string($object['key'] ?? null)) continue;
+            $deleteUrls[$role] = $signer->presign('DELETE', $object['key'], 300);
+        }
+        gallery_storage_json(['status' => 'ok', 'deleteUrls' => $deleteUrls, 'expiresIn' => 300]);
+    }
+
+    if ($action === 'confirm_cancel') {
+        $photoId = (string)($request['photoId'] ?? '');
+        $record = $objectStore->find($photoId);
         if (is_array($record) && ($record['status'] ?? '') === 'pending') $objectStore->remove($photoId);
         gallery_storage_json(['status' => 'ok']);
     }
