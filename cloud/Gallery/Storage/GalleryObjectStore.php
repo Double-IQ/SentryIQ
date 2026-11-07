@@ -91,6 +91,20 @@ final class GalleryObjectStore
         return $active;
     }
 
+    public function stalePending(int $minimumAgeSeconds = 600): array
+    {
+        $threshold = time() - max(600, $minimumAgeSeconds);
+        $records = $this->read();
+        $pending = [];
+        foreach ($records as $photoId => $record) {
+            if (is_string($photoId) && is_array($record) && ($record['status'] ?? '') === 'pending'
+                && (int)($record['created_at'] ?? 0) <= $threshold) {
+                $pending[$photoId] = $record;
+            }
+        }
+        return $pending;
+    }
+
     public function remove(string $photoId): ?array
     {
         $this->validatePhotoId($photoId);
