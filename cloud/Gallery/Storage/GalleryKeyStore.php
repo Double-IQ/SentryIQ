@@ -15,7 +15,7 @@ final class GalleryKeyStore
         }
         $directory = realpath(dirname($this->file));
         $documentRoot = isset($_SERVER['DOCUMENT_ROOT']) ? realpath((string)$_SERVER['DOCUMENT_ROOT']) : false;
-        if ($directory === false || (is_string($documentRoot) && $documentRoot !== ''
+        if ($directory === false || is_link(dirname($this->file)) || (is_string($documentRoot) && $documentRoot !== ''
             && ($directory === $documentRoot || str_starts_with($directory . DIRECTORY_SEPARATOR, rtrim($documentRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)))) {
             throw new RuntimeException('Gallery key storage must be outside the public web root.');
         }
@@ -121,6 +121,10 @@ final class GalleryKeyStore
     {
         if (!is_file($this->file)) return [];
         if (is_link($this->file) || !is_readable($this->file)) throw new RuntimeException('Gallery key storage is unavailable.');
+        $permissions = @fileperms($this->file);
+        if (is_int($permissions) && (($permissions & 0077) !== 0)) {
+            throw new RuntimeException('Gallery key storage permissions must be owner-only (0600).');
+        }
         $raw = @file_get_contents($this->file);
         $decoded = is_string($raw) ? json_decode($raw, true) : null;
         if (!is_array($decoded) || ($decoded['version'] ?? null) !== 1
