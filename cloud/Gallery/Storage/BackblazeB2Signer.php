@@ -74,6 +74,11 @@ final class BackblazeB2Signer
         return new self($configuration);
     }
 
+    public function endpointHost(): string
+    {
+        return $this->host;
+    }
+
     public static function newObjectKey(string $role): string
     {
         if (!in_array($role, ['original', 'thumbnail', 'preview', 'metadata'], true)) {
