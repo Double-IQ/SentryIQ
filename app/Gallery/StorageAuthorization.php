@@ -11,9 +11,11 @@ header('X-Content-Type-Options: nosniff');
 
 require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/BackblazeB2Signer.php';
 require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryObjectStore.php';
+require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryKeyStore.php';
 
 use SentryIQCloud\Gallery\Storage\BackblazeB2Signer;
 use SentryIQCloud\Gallery\Storage\GalleryObjectStore;
+use SentryIQCloud\Gallery\Storage\GalleryKeyStore;
 
 function gallery_storage_json(array $payload, int $status = 200): never
 {
@@ -54,6 +56,7 @@ function gallery_storage_request(): array
 try {
     $dataDirectory = gallery_storage_data_directory();
     $objectStore = new GalleryObjectStore($dataDirectory . '/gallery_objects.json');
+    $galleryKeys = new GalleryKeyStore($dataDirectory . '/gallery_keys.json');
     $signer = BackblazeB2Signer::fromRuntimeDirectory($dataDirectory);
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'cleanup_pending') {
@@ -82,6 +85,7 @@ try {
     $action = (string)($request['action'] ?? '');
 
     if ($action === 'allocate') {
+        if (!$galleryKeys->isInitialized()) gallery_storage_json(['status' => 'error', 'message' => 'Initialize secure Gallery before uploading photos.'], 409);
         $photoId = bin2hex(random_bytes(16));
         $objectKeys = [];
         $uploadUrls = [];
@@ -101,6 +105,7 @@ try {
     }
 
     if ($action === 'commit') {
+        if (!$galleryKeys->isInitialized()) gallery_storage_json(['status' => 'error', 'message' => 'Secure Gallery identity is unavailable.'], 409);
         $photoId = (string)($request['photoId'] ?? '');
         $envelopes = is_array($request['envelopes'] ?? null) ? $request['envelopes'] : [];
         $sizes = is_array($request['sizes'] ?? null) ? $request['sizes'] : [];
