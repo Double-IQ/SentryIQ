@@ -164,7 +164,7 @@ final class GalleryKeyStore
     {
         if (($key['kty'] ?? '') !== 'RSA' || ($key['alg'] ?? '') !== 'RSA-OAEP-256'
             || !is_string($key['n'] ?? null) || !is_string($key['e'] ?? null)
-            || !preg_match('/^[A-Za-z0-9_-]{500,600}$/', $key['n'])
+            || !preg_match('/^[A-Za-z0-9_-]{512}$/', $key['n'])
             || ($key['e'] !== 'AQAB')) {
             throw new RuntimeException('Invalid Gallery public key.');
         }
