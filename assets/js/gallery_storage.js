@@ -175,7 +175,7 @@
             for (const role of roles) envelopes[role] = encrypted[role].envelope;
             await post('commit', { photoId: photoId, envelopes: envelopes, sizes: sizes });
             committed = true;
-            return { photoId: photoId, metadata: metadata };
+            return { photoId: photoId };
         } finally {
             if (!committed) {
                 try { await cancelPending(photoId); }
