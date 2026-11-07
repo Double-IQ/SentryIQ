@@ -113,7 +113,7 @@ final class GalleryKeyStore
     public function removeCredentialEnvelope(string $credentialId): void
     {
         $this->validateCredentialId($credentialId);
-        $this->mutate(function (array &$store) use ($credentialId): void {
+        $this->mutate(function (array &$store) use ($credentialId): bool {
             if ($store === [] || !isset($store['credential_envelopes'][$credentialId])) return false;
             if (count($store['credential_envelopes']) <= 1) {
                 throw new RuntimeException('The last Gallery passkey envelope cannot be removed.');
