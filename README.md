@@ -239,6 +239,25 @@ Architecture decisions are recorded under `docs/adr/`. Repository structure and 
 
 ---
 
+## Credits and acknowledgements
+
+SentryIQ is built with help from a wider ecosystem of tools, standards, services and communities. With thanks to:
+
+- [Backblaze](https://www.backblaze.com/cloud-storage) — Backblaze B2 is the planned object-storage home for encrypted Gallery photos.
+- [OpenAI](https://openai.com/) — ChatGPT assistance with planning, architecture, implementation and technical review.
+- [Git](https://git-scm.com/) — distributed version control.
+- [GitHub](https://github.com/) — repository hosting, issue tracking, collaboration and automated checks.
+- [Linux](https://www.linux.org/) — the Linux ecosystem and its open-source contributors.
+- [PHP](https://www.php.net/) — the server-side language and runtime.
+- [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) — browser-native cryptographic primitives.
+- [W3C WebAuthn](https://www.w3.org/TR/webauthn-3/) and the [FIDO Alliance](https://fidoalliance.org/passkeys/) — open standards and ecosystem work behind passkey authentication.
+
+These are acknowledgements of tools, services or contributions, not claims of sponsorship, endorsement or official partnership. Names and trademarks belong to their respective owners.
+
+A fuller acknowledgements page is available in the application at [Credits & Acknowledgements](credits.php).
+
+---
+
 ## Project philosophy
 
 SentryIQ is being developed with a simple principle:
