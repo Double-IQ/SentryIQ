@@ -7,6 +7,17 @@ sentryiq_security_bootstrap();
 sentryiq_require_auth();
 
 $csrf = sentryiq_csrf_token();
+$dataDirectory = sentryiq_data_dir();
+$b2Configured = false;
+if (is_string($dataDirectory) && $dataDirectory !== '') {
+    require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/BackblazeB2Signer.php';
+    try {
+        \SentryIQCloud\Gallery\Storage\BackblazeB2Signer::fromRuntimeDirectory($dataDirectory);
+        $b2Configured = true;
+    } catch (Throwable) {
+        $b2Configured = false;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -64,7 +75,7 @@ $csrf = sentryiq_csrf_token();
         <button class="tab-btn" type="button" onclick="window.location.href='index.php?pane=settings'">⚙️ System</button>
     </div>
 
-    <main class="secure-gallery">
+    <main class="secure-gallery" data-b2-configured="<?php echo $b2Configured ? 1 : 0; ?>">
         <section id="secure-gallery-unlock-panel" class="secure-gallery-panel">
             <h2>🔐 Unlock your private photos</h2>
             <p>Photos are encrypted in this browser before they are sent directly to your private Backblaze B2 bucket. The server stores encrypted key envelopes and photo metadata, not readable images.</p>
@@ -101,10 +112,11 @@ $csrf = sentryiq_csrf_token();
                 </div>
             </div>
             <p>Image resizing, thumbnails, previews and encryption happen locally in your browser. Only encrypted objects are uploaded to Backblaze.</p>
+            <div id="secure-gallery-b2-warning" class="secure-gallery-status error" <?php if ($b2Configured) echo 'hidden'; ?>>Backblaze B2 is not configured. Follow docs/operations/backblaze-b2-gallery-setup.md to add the protected runtime credentials file before uploading photos.</div>
             <div class="secure-gallery-row">
                 <input id="secure-gallery-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,image/avif,image/heic,image/heif">
                 <input id="secure-gallery-album" type="text" maxlength="80" placeholder="Album name (optional)">
-                <button id="secure-gallery-upload" class="btn btn-primary" type="button">Encrypt &amp; upload</button>
+                <button id="secure-gallery-upload" class="btn btn-primary" type="button" <?php if (!$b2Configured) echo 'disabled'; ?>>Encrypt &amp; upload</button>
             </div>
             <div id="secure-gallery-workspace-status" class="secure-gallery-status" role="status" aria-live="polite"></div>
             <div id="secure-gallery-grid" class="secure-gallery-grid"></div>
