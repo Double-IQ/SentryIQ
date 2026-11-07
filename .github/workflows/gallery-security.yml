@@ -18,6 +18,13 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Check browser Gallery scripts
+        run: |
+          node --check assets/js/gallery_crypto.js
+          node --check assets/js/gallery_secure.js
+          node --check assets/js/gallery_storage.js
+          node --check tests/gallery_crypto.test.js
+
       - name: Test browser-side Gallery cryptography
         run: node --test tests/gallery_crypto.test.js
 
