@@ -4,6 +4,8 @@
     const VERSION = 1;
     const RSA_ALGORITHM = { name: 'RSA-OAEP', modulusLength: 3072, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' };
     const PRIVATE_KEY_INFO = 'SentryIQ Gallery private-key envelope v1';
+    const CREDENTIAL_KEY_INFO = 'SentryIQ Gallery credential wrapper v1';
+    const RECOVERY_KEY_INFO = 'SentryIQ Gallery recovery wrapper v1';
     const OBJECT_INFO = 'SentryIQ Gallery object v1';
     const encoder = new TextEncoder();
 
@@ -57,7 +59,7 @@
         if (!['original', 'thumbnail', 'preview'].includes(role)) throw new Error('Invalid Gallery object role.');
     }
 
-    async function derivePasskeyWrappingKey(prfOutput, salt, credentialId) {
+    async function derivePrfWrappingKey(prfOutput, salt, credentialId) {
         const subtle = requireCrypto().subtle;
         const prf = bytes(prfOutput);
         const saltBytes = bytes(salt);
@@ -65,7 +67,7 @@
         if (prf.byteLength !== 32 || saltBytes.byteLength !== 32) throw new Error('Invalid passkey key material.');
         const material = await subtle.importKey('raw', prf, 'HKDF', false, ['deriveKey']);
         return subtle.deriveKey(
-            { name: 'HKDF', hash: 'SHA-256', salt: saltBytes, info: encoder.encode(PRIVATE_KEY_INFO + '|' + credentialId) },
+            { name: 'HKDF', hash: 'SHA-256', salt: saltBytes, info: encoder.encode(CREDENTIAL_KEY_INFO + '|' + credentialId) },
             material,
             { name: 'AES-GCM', length: 256 },
             false,
@@ -73,52 +75,71 @@
         );
     }
 
-    async function createIdentity(prfOutput, accountSalt, credentialId) {
+    async function wrapRootKeyForPasskey(rootKey, prfOutput, accountSalt, credentialId) {
         const subtle = requireCrypto().subtle;
+        const root = bytes(rootKey);
+        const salt = bytes(accountSalt);
         validateCredentialId(credentialId);
-        if (bytes(accountSalt).byteLength !== 32) throw new Error('Gallery account salt must be 32 bytes.');
-
-        const pair = await subtle.generateKey(RSA_ALGORITHM, true, ['encrypt', 'decrypt']);
-        const publicKey = await subtle.exportKey('jwk', pair.publicKey);
-        const privateKey = await subtle.exportKey('jwk', pair.privateKey);
-        const wrappingKey = await derivePasskeyWrappingKey(prfOutput, accountSalt, credentialId);
+        if (root.byteLength !== 32 || salt.byteLength !== 32) throw new Error('Invalid Gallery key material.');
+        const wrappingKey = await derivePrfWrappingKey(prfOutput, salt, credentialId);
         const iv = randomBytes(12);
-        const aad = encoder.encode(PRIVATE_KEY_INFO + '|' + credentialId);
-        const plaintext = encoder.encode(JSON.stringify(privateKey));
-        const ciphertext = await subtle.encrypt({ name: 'AES-GCM', iv, additionalData: aad, tagLength: 128 }, wrappingKey, plaintext);
-
+        const aad = encoder.encode(CREDENTIAL_KEY_INFO + '|' + credentialId);
+        const ciphertext = await subtle.encrypt({ name: 'AES-GCM', iv, additionalData: aad, tagLength: 128 }, wrappingKey, root);
         return {
-            publicKey,
-            privateKeyEnvelope: {
-                version: VERSION,
-                algorithm: 'A256GCM',
-                kdf: 'HKDF-SHA-256',
-                salt: toBase64Url(accountSalt),
-                iv: toBase64Url(iv),
-                ciphertext: toBase64Url(ciphertext),
-                credentialId: credentialId
-            }
+            version: VERSION,
+            algorithm: 'A256GCM',
+            kdf: 'HKDF-SHA-256',
+            salt: toBase64Url(salt),
+            iv: toBase64Url(iv),
+            ciphertext: toBase64Url(ciphertext),
+            credentialId: credentialId
         };
     }
 
-    async function unlockIdentity(envelope, prfOutput, credentialId) {
+    async function unwrapRootKeyFromPasskey(envelope, prfOutput, credentialId) {
         const subtle = requireCrypto().subtle;
         if (!envelope || envelope.version !== VERSION || envelope.algorithm !== 'A256GCM' || envelope.kdf !== 'HKDF-SHA-256') {
-            throw new Error('Unsupported Gallery key envelope.');
+            throw new Error('Unsupported Gallery passkey envelope.');
         }
         validateCredentialId(credentialId);
         if (envelope.credentialId !== credentialId) throw new Error('This Gallery key envelope belongs to a different passkey.');
         const salt = fromBase64Url(envelope.salt);
         const iv = fromBase64Url(envelope.iv);
         const ciphertext = fromBase64Url(envelope.ciphertext);
-        if (salt.byteLength !== 32 || iv.byteLength !== 12 || ciphertext.byteLength < 17) throw new Error('Invalid Gallery key envelope.');
-        const wrappingKey = await derivePasskeyWrappingKey(prfOutput, salt, credentialId);
-        const aad = encoder.encode(PRIVATE_KEY_INFO + '|' + credentialId);
-        let plaintext;
+        if (salt.byteLength !== 32 || iv.byteLength !== 12 || ciphertext.byteLength !== 48) throw new Error('Invalid Gallery passkey envelope.');
+        const wrappingKey = await derivePrfWrappingKey(prfOutput, salt, credentialId);
+        const aad = encoder.encode(CREDENTIAL_KEY_INFO + '|' + credentialId);
         try {
-            plaintext = await subtle.decrypt({ name: 'AES-GCM', iv, additionalData: aad, tagLength: 128 }, wrappingKey, ciphertext);
+            const rootKey = await subtle.decrypt({ name: 'AES-GCM', iv, additionalData: aad, tagLength: 128 }, wrappingKey, ciphertext);
+            if (rootKey.byteLength !== 32) throw new Error('Invalid Gallery root key.');
+            return new Uint8Array(rootKey);
         } catch (_) {
             throw new Error('Unable to unlock the Gallery with this passkey.');
+        }
+    }
+
+    async function encryptPrivateKey(privateKeyJwk, rootKey) {
+        const subtle = requireCrypto().subtle;
+        const key = await subtle.importKey('raw', bytes(rootKey), { name: 'AES-GCM' }, false, ['encrypt']);
+        const iv = randomBytes(12);
+        const aad = encoder.encode(PRIVATE_KEY_INFO);
+        const plaintext = encoder.encode(JSON.stringify(privateKeyJwk));
+        const ciphertext = await subtle.encrypt({ name: 'AES-GCM', iv, additionalData: aad, tagLength: 128 }, key, plaintext);
+        return { version: VERSION, algorithm: 'A256GCM', iv: toBase64Url(iv), ciphertext: toBase64Url(ciphertext) };
+    }
+
+    async function decryptPrivateKey(envelope, rootKey) {
+        const subtle = requireCrypto().subtle;
+        if (!envelope || envelope.version !== VERSION || envelope.algorithm !== 'A256GCM') throw new Error('Unsupported Gallery private-key envelope.');
+        const iv = fromBase64Url(envelope.iv);
+        const ciphertext = fromBase64Url(envelope.ciphertext);
+        if (iv.byteLength !== 12 || ciphertext.byteLength < 17) throw new Error('Invalid Gallery private-key envelope.');
+        const key = await subtle.importKey('raw', bytes(rootKey), { name: 'AES-GCM' }, false, ['decrypt']);
+        let plaintext;
+        try {
+            plaintext = await subtle.decrypt({ name: 'AES-GCM', iv, additionalData: encoder.encode(PRIVATE_KEY_INFO), tagLength: 128 }, key, ciphertext);
+        } catch (_) {
+            throw new Error('Unable to unlock the Gallery private key.');
         }
         let jwk;
         try {
@@ -129,8 +150,90 @@
         return subtle.importKey('jwk', jwk, { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['decrypt']);
     }
 
+    async function createIdentity(prfOutput, accountSalt, credentialId) {
+        const subtle = requireCrypto().subtle;
+        validateCredentialId(credentialId);
+        if (bytes(accountSalt).byteLength !== 32) throw new Error('Gallery account salt must be 32 bytes.');
+
+        const pair = await subtle.generateKey(RSA_ALGORITHM, true, ['encrypt', 'decrypt']);
+        const publicKey = await subtle.exportKey('jwk', pair.publicKey);
+        const privateKeyJwk = await subtle.exportKey('jwk', pair.privateKey);
+        const rootKey = randomBytes(32);
+        const privateKeyEnvelope = await encryptPrivateKey(privateKeyJwk, rootKey);
+        const credentialEnvelope = await wrapRootKeyForPasskey(rootKey, prfOutput, accountSalt, credentialId);
+        return { publicKey, privateKeyEnvelope, credentialEnvelope, rootKey };
+    }
+
+    async function unlockIdentity(privateKeyEnvelope, credentialEnvelope, prfOutput, credentialId) {
+        const rootKey = await unwrapRootKeyFromPasskey(credentialEnvelope, prfOutput, credentialId);
+        try {
+            const privateKey = await decryptPrivateKey(privateKeyEnvelope, rootKey);
+            return { privateKey, rootKey };
+        } catch (error) {
+            rootKey.fill(0);
+            throw error;
+        }
+    }
+
+    async function createRecoveryKey() {
+        return randomBytes(32);
+    }
+
+    async function wrapRootKeyForRecovery(rootKey, recoveryKey, recoverySalt) {
+        const subtle = requireCrypto().subtle;
+        const root = bytes(rootKey);
+        const recovery = bytes(recoveryKey);
+        const salt = bytes(recoverySalt);
+        if (root.byteLength !== 32 || recovery.byteLength !== 32 || salt.byteLength !== 32) throw new Error('Invalid Gallery recovery material.');
+        const material = await subtle.importKey('raw', recovery, 'HKDF', false, ['deriveKey']);
+        const wrappingKey = await subtle.deriveKey(
+            { name: 'HKDF', hash: 'SHA-256', salt, info: encoder.encode(RECOVERY_KEY_INFO) },
+            material,
+            { name: 'AES-GCM', length: 256 },
+            false,
+            ['encrypt']
+        );
+        const iv = randomBytes(12);
+        const ciphertext = await subtle.encrypt({ name: 'AES-GCM', iv, additionalData: encoder.encode(RECOVERY_KEY_INFO), tagLength: 128 }, wrappingKey, root);
+        return { version: VERSION, algorithm: 'A256GCM', kdf: 'HKDF-SHA-256', salt: toBase64Url(salt), iv: toBase64Url(iv), ciphertext: toBase64Url(ciphertext) };
+    }
+
+    async function unwrapRootKeyFromRecovery(envelope, recoveryKey) {
+        const subtle = requireCrypto().subtle;
+        if (!envelope || envelope.version !== VERSION || envelope.algorithm !== 'A256GCM' || envelope.kdf !== 'HKDF-SHA-256') throw new Error('Unsupported Gallery recovery envelope.');
+        const salt = fromBase64Url(envelope.salt);
+        const iv = fromBase64Url(envelope.iv);
+        const ciphertext = fromBase64Url(envelope.ciphertext);
+        const recovery = bytes(recoveryKey);
+        if (salt.byteLength !== 32 || iv.byteLength !== 12 || ciphertext.byteLength !== 48 || recovery.byteLength !== 32) throw new Error('Invalid Gallery recovery material.');
+        const material = await subtle.importKey('raw', recovery, 'HKDF', false, ['deriveKey']);
+        const wrappingKey = await subtle.deriveKey(
+            { name: 'HKDF', hash: 'SHA-256', salt, info: encoder.encode(RECOVERY_KEY_INFO) },
+            material,
+            { name: 'AES-GCM', length: 256 },
+            false,
+            ['decrypt']
+        );
+        try {
+            return new Uint8Array(await subtle.decrypt({ name: 'AES-GCM', iv, additionalData: encoder.encode(RECOVERY_KEY_INFO), tagLength: 128 }, wrappingKey, ciphertext));
+        } catch (_) {
+            throw new Error('The Gallery recovery key is incorrect.');
+        }
+    }
+
+    async function unlockIdentityWithRecovery(privateKeyEnvelope, recoveryEnvelope, recoveryKey) {
+        const rootKey = await unwrapRootKeyFromRecovery(recoveryEnvelope, recoveryKey);
+        try {
+            const privateKey = await decryptPrivateKey(privateKeyEnvelope, rootKey);
+            return { privateKey, rootKey };
+        } catch (error) {
+            rootKey.fill(0);
+            throw error;
+        }
+    }
+
     async function importGalleryPublicKey(jwk) {
-        if (!jwk || jwk.kty !== 'RSA' || jwk.alg && jwk.alg !== 'RSA-OAEP-256') throw new Error('Invalid Gallery public key.');
+        if (!jwk || jwk.kty !== 'RSA' || (jwk.alg && jwk.alg !== 'RSA-OAEP-256')) throw new Error('Invalid Gallery public key.');
         return requireCrypto().subtle.importKey('jwk', jwk, { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['encrypt']);
     }
 
@@ -146,22 +249,25 @@
         const aad = objectAad(photoId, role);
         const dekRaw = randomBytes(32);
         const nonce = randomBytes(12);
-        const dek = await subtle.importKey('raw', dekRaw, { name: 'AES-GCM' }, false, ['encrypt']);
-        const ciphertext = await subtle.encrypt({ name: 'AES-GCM', iv: nonce, additionalData: aad, tagLength: 128 }, dek, bytes(plaintext));
-        const wrappedDek = await subtle.encrypt({ name: 'RSA-OAEP' }, publicKey, dekRaw);
-        dekRaw.fill(0);
-        return {
-            ciphertext: new Uint8Array(ciphertext),
-            envelope: {
-                version: VERSION,
-                algorithm: 'A256GCM',
-                keyWrap: 'RSA-OAEP-256',
-                nonce: toBase64Url(nonce),
-                wrappedDek: toBase64Url(wrappedDek),
-                photoId: photoId,
-                role: role
-            }
-        };
+        try {
+            const dek = await subtle.importKey('raw', dekRaw, { name: 'AES-GCM' }, false, ['encrypt']);
+            const ciphertext = await subtle.encrypt({ name: 'AES-GCM', iv: nonce, additionalData: aad, tagLength: 128 }, dek, bytes(plaintext));
+            const wrappedDek = await subtle.encrypt({ name: 'RSA-OAEP' }, publicKey, dekRaw);
+            return {
+                ciphertext: new Uint8Array(ciphertext),
+                envelope: {
+                    version: VERSION,
+                    algorithm: 'A256GCM',
+                    keyWrap: 'RSA-OAEP-256',
+                    nonce: toBase64Url(nonce),
+                    wrappedDek: toBase64Url(wrappedDek),
+                    photoId: photoId,
+                    role: role
+                }
+            };
+        } finally {
+            dekRaw.fill(0);
+        }
     }
 
     async function decryptObject(ciphertext, envelope, privateKey, expectedPhotoId, expectedRole) {
@@ -173,7 +279,7 @@
         const aad = objectAad(expectedPhotoId, expectedRole);
         const nonce = fromBase64Url(envelope.nonce);
         const wrappedDek = fromBase64Url(envelope.wrappedDek);
-        if (nonce.byteLength !== 12 || wrappedDek.byteLength < 256) throw new Error('Invalid Gallery object envelope.');
+        if (nonce.byteLength !== 12 || wrappedDek.byteLength !== 384) throw new Error('Invalid Gallery object envelope.');
         let dekRaw;
         try {
             dekRaw = await subtle.decrypt({ name: 'RSA-OAEP' }, privateKey, wrappedDek);
@@ -181,19 +287,27 @@
             throw new Error('Unable to unlock this Gallery object.');
         }
         if (dekRaw.byteLength !== 32) throw new Error('Invalid Gallery object key.');
-        const dek = await subtle.importKey('raw', dekRaw, { name: 'AES-GCM' }, false, ['decrypt']);
-        new Uint8Array(dekRaw).fill(0);
         try {
-            return await subtle.decrypt({ name: 'AES-GCM', iv: nonce, additionalData: aad, tagLength: 128 }, dek, bytes(ciphertext));
-        } catch (_) {
-            throw new Error('Gallery object authentication failed. The data may have been changed.');
+            const dek = await subtle.importKey('raw', dekRaw, { name: 'AES-GCM' }, false, ['decrypt']);
+            try {
+                return await subtle.decrypt({ name: 'AES-GCM', iv: nonce, additionalData: aad, tagLength: 128 }, dek, bytes(ciphertext));
+            } catch (_) {
+                throw new Error('Gallery object authentication failed. The data may have been changed.');
+            }
+        } finally {
+            new Uint8Array(dekRaw).fill(0);
         }
     }
 
     root.SentryIQGalleryCrypto = Object.freeze({
         createAccountSalt: function () { return randomBytes(32); },
+        createRecoveryKey: createRecoveryKey,
         createIdentity: createIdentity,
         unlockIdentity: unlockIdentity,
+        wrapRootKeyForPasskey: wrapRootKeyForPasskey,
+        wrapRootKeyForRecovery: wrapRootKeyForRecovery,
+        unlockIdentityWithRecovery: unlockIdentityWithRecovery,
+        clearSecret: function (secret) { if (secret instanceof Uint8Array) secret.fill(0); },
         encryptObject: encryptObject,
         decryptObject: decryptObject,
         toBase64Url: toBase64Url,
