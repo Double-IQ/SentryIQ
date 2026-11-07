@@ -1,0 +1,38 @@
+name: Gallery Security Checks
+
+on:
+  push:
+    branches: [feature/zero-knowledge-gallery-storage]
+  pull_request:
+    branches: [main]
+
+jobs:
+  gallery-security:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test browser-side Gallery cryptography
+        run: node --test tests/gallery_crypto.test.js
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+
+      - name: Lint PHP files
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            php -l "$file"
+          done < <(find . -type f -name '*.php' -not -path './.git/*' -print0)
+
+      - name: Test Gallery storage and authorization primitives
+        run: php tests/gallery_storage.test.php
