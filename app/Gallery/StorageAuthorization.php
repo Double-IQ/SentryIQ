@@ -56,6 +56,19 @@ try {
     $objectStore = new GalleryObjectStore($dataDirectory . '/gallery_objects.json');
     $signer = BackblazeB2Signer::fromRuntimeDirectory($dataDirectory);
 
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'cleanup_pending') {
+        $cleanup = [];
+        foreach ($objectStore->stalePending() as $photoId => $record) {
+            $deleteUrls = [];
+            foreach ((array)($record['objects'] ?? []) as $role => $object) {
+                if (!is_array($object) || !is_string($object['key'] ?? null)) continue;
+                $deleteUrls[$role] = $signer->presign('DELETE', $object['key'], 300);
+            }
+            $cleanup[$photoId] = $deleteUrls;
+        }
+        gallery_storage_json(['status' => 'ok', 'pending' => $cleanup]);
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'list') {
         gallery_storage_json(['status' => 'ok', 'photos' => $objectStore->all()]);
     }
