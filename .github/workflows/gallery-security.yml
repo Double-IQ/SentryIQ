@@ -2,7 +2,7 @@ name: Gallery Security Checks
 
 on:
   push:
-    branches: [feature/zero-knowledge-gallery-storage]
+    branches: [main, feature/zero-knowledge-gallery-storage]
   pull_request:
     branches: [main]
 
