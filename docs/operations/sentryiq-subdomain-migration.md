@@ -1,12 +1,23 @@
 # SentryIQ subdomain migration runbook
 
-Status: planning only. No DNS, hosting, runtime configuration, or production files have been changed.
+Status: subdomain provisioning and B2 CORS preparation completed (user-confirmed); application deployment and runtime migration have not started. No production application files or runtime configuration have been changed.
 
 ## Target
 
 - Current application URL observed in tracked page metadata: `https://bichet.co.za/SentryIQ`
 - Proposed canonical application origin: `https://sentryiq.bichet.co.za`
 - The old URL should remain available during a controlled transition. Do not redirect it until the new origin has passed the complete authentication and storage test plan.
+
+## Provisioning status (2026-11-08)
+
+The following items have been confirmed by the operator:
+
+- The new hostname `https://sentryiq.bichet.co.za` resolves to the hosting account.
+- The operator reports that HTTPS loads without a browser certificate warning.
+- Directory indexing was disabled with `Options -Indexes`; the empty document root now returns HTTP 403 rather than an index listing. The host's configured `ErrorDocument` also returned 403; this is a hosting presentation issue to tidy later, not evidence that the application is deployed.
+- Backblaze bucket `SentryIQ-G1` remains private (`allPrivate`) and its CORS rule now allows both exact origins: `https://bichet.co.za` and `https://sentryiq.bichet.co.za`. Allowed operations are GET, HEAD, PUT and DELETE; allowed headers are authorization, range and content-type. No wildcard origin is configured.
+
+These checks do **not** establish that the new document root is ready for application files or that the application works there. Before deployment, obtain the exact document-root path and verify the protected runtime directory can remain outside it. Do not run first-run setup.
 
 ## Important findings from the repository audit
 
@@ -16,7 +27,7 @@ Status: planning only. No DNS, hosting, runtime configuration, or production fil
 4. **Gallery passkeys are coupled too.** Gallery passkey verification derives its RP ID and expected origin in `app/Auth/GalleryPasskeyAuth.php`. Test Gallery key-envelope recovery and passkey re-enrolment, not just ordinary vault login.
 5. **Session cookies are host-only.** The security bootstrap sets Secure, HttpOnly, SameSite=Strict, path=/ cookies without a Domain attribute. Users should expect to authenticate again at the new hostname. Do not set a parent-domain cookie just to carry sessions across hosts.
 6. **Backblaze B2 CORS is origin-specific.** The operations guide requires the exact application origin, and the current bucket policy was configured for `https://bichet.co.za`. Add `https://sentryiq.bichet.co.za` as an exact allowed origin before testing browser transfers; retain the old origin during transition only if still needed. Do not use wildcard origins. Verify PUT, GET, HEAD (if used), and DELETE.
-7. **Absolute old-origin metadata exists.** The main page contains absolute Open Graph image URLs pointing to `https://bichet.co.za/SentryIQ`. Replace these with safe origin-relative or canonical new-origin URLs as part of the release. Audit all other generated links and email templates before cutover.
+7. **Open Graph metadata is being made deployment-origin aware.** The migration-preparation branch changes the main page's Open Graph and Twitter image URLs to derive from the protected `base_url` setting instead of hard-coding the old origin. This change must be reviewed, merged, and deployed before cutover. Continue auditing other generated links and email templates.
 8. **Application URLs are otherwise largely relative.** The passkey browser requests use same-origin relative paths, which is good. The B2 endpoint is derived from protected storage configuration and its host is added to Gallery CSP dynamically.
 9. **No tracked service worker or web-app manifest was found in the repository tree at the time of this audit.** If one is added before migration, its scope, start URL, cache contents, and update behavior must be included in the migration test.
 
