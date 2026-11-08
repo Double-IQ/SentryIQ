@@ -10,6 +10,15 @@ Status: subdomain provisioning and B2 CORS preparation completed (user-confirmed
 
 ## Provisioning status (2026-11-08)
 
+The hosting control panel reports the new subdomain document root as:
+
+```text
+/home/bicheveb/sentryiq.bichet.co.za
+```
+
+Treat this path as public web root. The protected runtime/configuration directory must be a separate sibling or otherwise outside this path, with restrictive filesystem permissions. Confirm the hosting account's writable paths and PHP open_basedir restrictions before choosing the protected directory. Do not place secrets, key material, session data, or private application data beneath the document root.
+
+
 The following items have been confirmed by the operator:
 
 - The new hostname `https://sentryiq.bichet.co.za` resolves to the hosting account.
