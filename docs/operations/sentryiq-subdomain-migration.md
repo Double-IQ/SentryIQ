@@ -26,7 +26,7 @@ These checks do **not** establish that the new document root is ready for applic
 3. **Recommended security posture:** use the new host as its own RP ID and re-enrol passkeys after authenticating through the existing recovery/password flow. This gives the app a narrower WebAuthn scope. First inspect only the credential count and confirm a tested recovery path; never export or expose credential secrets. If preserving existing credentials is required, separately assess an explicit parent-domain RP ID (`bichet.co.za`) as a compatibility exception, including the expanded subdomain trust boundary and exact-origin server validation. Do not silently broaden the RP ID.
 4. **Gallery passkeys are coupled too.** Gallery passkey verification derives its RP ID and expected origin in `app/Auth/GalleryPasskeyAuth.php`. Test Gallery key-envelope recovery and passkey re-enrolment, not just ordinary vault login.
 5. **Session cookies are host-only.** The security bootstrap sets Secure, HttpOnly, SameSite=Strict, path=/ cookies without a Domain attribute. Users should expect to authenticate again at the new hostname. Do not set a parent-domain cookie just to carry sessions across hosts.
-6. **Backblaze B2 CORS is origin-specific.** The operations guide requires the exact application origin, and the current bucket policy was configured for `https://bichet.co.za`. Add `https://sentryiq.bichet.co.za` as an exact allowed origin before testing browser transfers; retain the old origin during transition only if still needed. Do not use wildcard origins. Verify PUT, GET, HEAD (if used), and DELETE.
+6. **Backblaze B2 CORS is origin-specific.** The operator has updated the private bucket policy to allow both exact origins, `https://bichet.co.za` and `https://sentryiq.bichet.co.za`, with GET, HEAD, PUT and DELETE plus the required authorization, range and content-type headers. Verify actual browser transfers from the new origin before cutover; do not use wildcard origins.
 7. **Open Graph metadata is being made deployment-origin aware.** The migration-preparation branch changes the main page's Open Graph and Twitter image URLs to derive from the protected `base_url` setting instead of hard-coding the old origin. This change must be reviewed, merged, and deployed before cutover. Continue auditing other generated links and email templates.
 8. **Application URLs are otherwise largely relative.** The passkey browser requests use same-origin relative paths, which is good. The B2 endpoint is derived from protected storage configuration and its host is added to Gallery CSP dynamically.
 9. **No tracked service worker or web-app manifest was found in the repository tree at the time of this audit.** If one is added before migration, its scope, start URL, cache contents, and update behavior must be included in the migration test.
@@ -35,12 +35,12 @@ These checks do **not** establish that the new document root is ready for applic
 
 - [ ] Confirm the hosting plan supports the subdomain and identify the exact document root for `sentryiq.bichet.co.za`.
 - [ ] Confirm the new document root will contain only the intended SentryIQ public application files; keep the protected data directory outside it.
-- [ ] Confirm DNS A/AAAA/CNAME records and HTTPS certificate for the new hostname. Do not change the old hostname yet.
+- [x] Operator confirms the new hostname resolves and HTTPS loads without a browser certificate warning. Do not change the old hostname yet.
 - [ ] Take and verify a backup of the application files, database (if applicable), and complete protected runtime directory. Keep secrets out of Git and support tickets.
 - [ ] Confirm the exact installed `base_url` values in the root pointer config and protected runtime config without disclosing their contents.
 - [ ] Record only the number of registered vault passkeys and Gallery passkey envelopes. Confirm password/recovery access before changing RP ID.
 - [ ] Decide and document whether passkeys will be re-enrolled under RP ID `sentryiq.bichet.co.za` (preferred) or whether a parent-domain RP ID compatibility exception is justified.
-- [ ] Update exact B2 CORS origins and test encrypted upload, download, and delete from the new origin.
+- [x] Add the new exact B2 CORS origin while retaining the old origin. Browser upload, download and delete from the new origin remain to be tested.
 - [ ] Review CSP, redirects, cookie settings, email links, update endpoints, and all absolute URLs.
 - [ ] Test password + 2FA unlock, passkey registration/login, recovery, vault lock/logout, CSRF-protected actions, Gallery passkey unlock/recovery, B2 operations, and iPhone Safari.
 - [ ] Confirm both Integrity Nodes monitor the new canonical origin and signed release manifest before cutover.
