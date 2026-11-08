@@ -68,6 +68,7 @@ if (($_GET['setup'] ?? '') === 'complete' && isset($_SESSION['first_run_recovery
     <?php
     exit;
 }
+$ogImageUrl = rtrim((string)($config['base_url'] ?? ''), '/') . '/sentryiq-og.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -81,7 +82,7 @@ if (($_GET['setup'] ?? '') === 'complete' && isset($_SESSION['first_run_recovery
 <meta property="og:type" content="website">
 <meta property="og:title" content="SentryIQ">
 <meta property="og:description" content="SentryIQ — private personal information and content platform.">
-<meta property="og:image" content="https://bichet.co.za/SentryIQ/sentryiq-og.php">
+<meta property="og:image" content="<?php echo htmlspecialchars($ogImageUrl, ENT_QUOTES, 'UTF-8'); ?>">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="1200">
@@ -89,7 +90,7 @@ if (($_GET['setup'] ?? '') === 'complete' && isset($_SESSION['first_run_recovery
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="SentryIQ">
 <meta name="twitter:description" content="SentryIQ — private personal information and content platform.">
-<meta name="twitter:image" content="https://bichet.co.za/SentryIQ/sentryiq-og.php">
+<meta name="twitter:image" content="<?php echo htmlspecialchars($ogImageUrl, ENT_QUOTES, 'UTF-8'); ?>">
 <meta name="csrf-token" content="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
 <meta name="description" content="SentryIQ secure password vault and credential management.">
 <title>SentryIQ</title><link rel="stylesheet" href="assets/css/sentryiq.css?v=20260922-2">
