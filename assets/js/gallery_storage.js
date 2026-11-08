@@ -38,29 +38,45 @@
         return jsonResponse(response);
     }
 
-    function canvasBlob(canvas, quality) {
-        return new Promise(function (resolve, reject) {
-            canvas.toBlob(function (blob) {
-                if (blob && blob.type === 'image/webp') resolve(blob);
-                else reject(new Error('This browser could not create a WebP image.'));
-            }, 'image/webp', quality);
+    function canvasBlob(canvas, type, quality) {
+        return new Promise(function (resolve) {
+            canvas.toBlob(resolve, type, quality);
         });
     }
 
-    async function makeWebp(bitmap, maxDimension, quality) {
+    function fallbackImageType(sourceType) {
+        const type = String(sourceType || '').toLowerCase();
+        if (['image/jpeg', 'image/heic', 'image/heif', 'image/avif'].includes(type)) return 'image/jpeg';
+        return 'image/png';
+    }
+
+    async function makeImage(bitmap, maxDimension, quality, fallbackType) {
         const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
         const width = Math.max(1, Math.round(bitmap.width * scale));
         const height = Math.max(1, Math.round(bitmap.height * scale));
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
-        const context = canvas.getContext('2d', { alpha: true });
-        if (!context) throw new Error('Image processing is unavailable in this browser.');
-        context.drawImage(bitmap, 0, 0, width, height);
-        const blob = await canvasBlob(canvas, quality);
-        canvas.width = 1;
-        canvas.height = 1;
-        return { blob: blob, width: width, height: height };
+        try {
+            const context = canvas.getContext('2d', { alpha: true });
+            if (!context) throw new Error('Image processing is unavailable in this browser.');
+            context.drawImage(bitmap, 0, 0, width, height);
+            let blob = await canvasBlob(canvas, 'image/webp', quality);
+            if (!blob || blob.type !== 'image/webp') {
+                blob = await canvasBlob(canvas, fallbackType, quality);
+            }
+            if (!blob || !['image/webp', 'image/jpeg', 'image/png'].includes(blob.type)) {
+                throw new Error('This browser could not encode the photo locally. Update Safari and try a smaller image.');
+            }
+            return { blob: blob, width: width, height: height, type: blob.type };
+        } finally {
+            canvas.width = 1;
+            canvas.height = 1;
+        }
+    }
+
+    function storedImageType(value) {
+        return ['image/webp', 'image/jpeg', 'image/png'].includes(value) ? value : 'image/webp';
     }
 
     async function prepareImage(file) {
@@ -75,9 +91,10 @@
             if (!bitmap.width || !bitmap.height || bitmap.width > 20000 || bitmap.height > 20000 || bitmap.width * bitmap.height > 40000000) {
                 throw new Error('The image dimensions are invalid or too large.');
             }
-            const saved = await makeWebp(bitmap, 8000, 0.90);
-            const preview = await makeWebp(bitmap, 1800, 0.84);
-            const thumbnail = await makeWebp(bitmap, 520, 0.80);
+            const fallbackType = fallbackImageType(file.type);
+            const saved = await makeImage(bitmap, 8000, 0.90, fallbackType);
+            const preview = await makeImage(bitmap, 1800, 0.84, fallbackType);
+            const thumbnail = await makeImage(bitmap, 520, 0.80, fallbackType);
             return {
                 saved: saved,
                 preview: preview,
@@ -141,6 +158,9 @@
                 height: prepared.sourceHeight,
                 storedWidth: prepared.saved.width,
                 storedHeight: prepared.saved.height,
+                storedType: prepared.saved.type,
+                previewType: prepared.preview.type,
+                thumbnailType: prepared.thumbnail.type,
                 createdAt: Date.now()
             };
             const plainObjects = {
@@ -239,15 +259,19 @@
         try { metadata = JSON.parse(new TextDecoder().decode(metadataBytes)); }
         catch (_) { throw new Error('The encrypted Gallery photo metadata is invalid.'); }
         const thumbnailBytes = await download(photoId, 'thumbnail');
-        const thumbnailBlob = new Blob([thumbnailBytes], { type: 'image/webp' });
+        const thumbnailBlob = new Blob([thumbnailBytes], { type: storedImageType(metadata.thumbnailType) });
         const thumbnailUrl = URL.createObjectURL(thumbnailBlob);
         objectUrls.add(thumbnailUrl);
         return { photoId: photoId, metadata: metadata, thumbnailUrl: thumbnailUrl };
     }
 
     async function openPreview(photoId) {
+        const metadataBytes = await download(photoId, 'metadata');
+        let metadata;
+        try { metadata = JSON.parse(new TextDecoder().decode(metadataBytes)); }
+        catch (_) { throw new Error('The encrypted Gallery photo metadata is invalid.'); }
         const bytes = await download(photoId, 'preview');
-        const url = URL.createObjectURL(new Blob([bytes], { type: 'image/webp' }));
+        const url = URL.createObjectURL(new Blob([bytes], { type: storedImageType(metadata.previewType) }));
         objectUrls.add(url);
         return url;
     }
