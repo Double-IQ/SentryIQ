@@ -30,6 +30,13 @@ These checks do **not** establish that the new document root is ready for applic
 
 ## Important findings from the repository audit
 
+## Critical first-run path behavior for this deployment
+
+The new document root is `/home/bicheveb/sentryiq.bichet.co.za`. In `app/Security/FirstRun.php`, `first_run_data_dir()` currently uses `dirname(__DIR__, 4) . '/private_data'`. With the application deployed directly at this document root, that resolves to `/home/private_data`, **not** the existing `/home/bicheveb/private_data` and not the reserved `/home/bicheveb/sentryiq-private`. The first-run code also expects bootstrap source files in a `private_data` directory under the application root. Do not run first-run setup on this subdomain.
+
+For the new deployment, provision the root pointer config before the first public request, with `data_dir` explicitly set to `/home/bicheveb/sentryiq-private` and `base_url` set to `https://sentryiq.bichet.co.za`. Provision the protected runtime config and required runtime files there from a verified backup/release process. Confirm file ownership, restrictive permissions, PHP readability/writability, and `open_basedir` compatibility. If the pointer config is absent, the current `index.php` can invoke `first_run.php`; therefore the deployment must fail closed rather than expose first-run setup. Never initialize a fresh vault as a migration shortcut.
+
+
 1. **The installed origin is stored in protected runtime configuration.** First-run setup derives `base_url` from `SERVER_NAME` and the deployed script path, then writes it into both the root `sentryiq_config.php` pointer and the protected runtime configuration. The passkey handlers read the root pointer configuration. These files are not tracked in Git and must be handled as protected production configuration, not overwritten by a code deployment.
 2. **WebAuthn origin and RP ID are coupled today.** `app/Auth/PasskeyAuth.php` and `app/Auth/GalleryPasskeyAuth.php` derive both the expected browser origin and WebAuthn RP ID from `base_url`. The old host yields RP ID `bichet.co.za`; the new host would yield `sentryiq.bichet.co.za`. Existing passkey credentials are scoped to the old RP ID and will not work with the new RP ID. Do not change `base_url` before choosing and testing a passkey migration strategy.
 3. **Recommended security posture:** use the new host as its own RP ID and re-enrol passkeys after authenticating through the existing recovery/password flow. This gives the app a narrower WebAuthn scope. First inspect only the credential count and confirm a tested recovery path; never export or expose credential secrets. If preserving existing credentials is required, separately assess an explicit parent-domain RP ID (`bichet.co.za`) as a compatibility exception, including the expanded subdomain trust boundary and exact-origin server validation. Do not silently broaden the RP ID.
@@ -46,7 +53,7 @@ These checks do **not** establish that the new document root is ready for applic
 - [ ] Confirm the new document root will contain only the intended SentryIQ public application files; keep the protected data directory outside it.
 - [x] Operator confirms the new hostname resolves and HTTPS loads without a browser certificate warning. Do not change the old hostname yet.
 - [ ] Take and verify a backup of the application files, database (if applicable), and complete protected runtime directory. Keep secrets out of Git and support tickets.
-- [ ] Confirm the exact installed `base_url` values in the root pointer config and protected runtime config without disclosing their contents.
+- [ ] Provision and verify the new root pointer config before the first public request; set its protected `data_dir` explicitly to `/home/bicheveb/sentryiq-private` and `base_url` to `https://sentryiq.bichet.co.za`. Verify protected runtime config without disclosing contents.
 - [ ] Record only the number of registered vault passkeys and Gallery passkey envelopes. Confirm password/recovery access before changing RP ID.
 - [ ] Decide and document whether passkeys will be re-enrolled under RP ID `sentryiq.bichet.co.za` (preferred) or whether a parent-domain RP ID compatibility exception is justified.
 - [x] Add the new exact B2 CORS origin while retaining the old origin. Browser upload, download and delete from the new origin remain to be tested.
