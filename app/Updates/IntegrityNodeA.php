@@ -38,7 +38,8 @@ final class IntegrityNodeA
 
     /**
      * @param list<string> $publicPaths Explicit relative URLs to check, e.g. ["index.php","assets/app.js"].
-     * @param string $nonce Fresh 32-byte event-plane challenge as 64 hexadecimal characters.\n     * @return array{approved:bool,report:string,checked_paths:list<string>,mismatches:list<array{path:string,reason:string}>,manifest_sha256:string,artifact_sha256:string}
+     * @param string $nonce Fresh 32-byte event-plane challenge as 64 hexadecimal characters.
+     * @return array{approved:bool,report:string,checked_paths:list<string>,mismatches:list<array{path:string,reason:string}>,manifest_sha256:string,artifact_sha256:string}
      */
     public function verify(
         string $manifestPath,
@@ -47,12 +48,17 @@ final class IntegrityNodeA
         string $commit,
         string $installedVersion,
         string $origin,
-        array $publicPaths
+        array $publicPaths,
+        string $nonce
     ): array {
         $manifestReal = $this->regularFile($manifestPath);
         $artifactReal = $this->regularFile($artifactPath);
         $version = $this->normalizeVersion($releaseVersion);
-        $commit = strtolower(trim($commit));\n        $nonce = strtolower(trim($nonce));\n        if (!preg_match('/^[a-f0-9]{64}$/', $nonce)) {\n            throw new RuntimeException('A fresh 32-byte event-plane nonce is required.');\n        }
+        $commit = strtolower(trim($commit));
+        $nonce = strtolower(trim($nonce));
+        if (!preg_match('/^[a-f0-9]{64}$/', $nonce)) {
+            throw new RuntimeException('A fresh 32-byte event-plane nonce is required.');
+        }
 
         if (!preg_match('/^[a-f0-9]{40}$/', $commit)) {
             throw new RuntimeException('Release commit must be a full Git SHA.');
