@@ -202,7 +202,7 @@ final class IntegrityNodeC
             CURLOPT_TIMEOUT => 25,
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
-            CURLOPT_USERAGENT => 'SentryIQ-Integrity-Node-B/1.0',
+            CURLOPT_USERAGENT => 'SentryIQ-Integrity-Node-C/1.0',
             CURLOPT_WRITEFUNCTION => static function ($curl, string $chunk) use (&$body): int {
                 if (strlen($body) + strlen($chunk) > 10_000_000) {
                     return 0;
