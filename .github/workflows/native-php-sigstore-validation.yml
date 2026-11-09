@@ -1,0 +1,87 @@
+name: Native PHP Sigstore verifier evaluation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/native-php-sigstore-validation.yml'
+      - 'scripts/validate-native-php-sigstore.php'
+      - 'docs/security/native-php-sigstore-verifier.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  attestations: read
+
+concurrency:
+  group: native-php-sigstore-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-real-release:
+    name: Cross-check genuine v0.1.2 attestations
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_VERSION: '0.1.2'
+      RELEASE_COMMIT: '9c639a4792cadd5421f01ed198ba2a9261c5145f'
+    steps:
+      - name: Checkout evaluation harness
+        uses: actions/checkout@v4
+
+      - name: Set up PHP and Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: openssl, sodium, curl
+          tools: composer:v2
+          coverage: none
+
+      - name: Install pinned verifier candidate in an isolated directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .native-verifier
+          cd .native-verifier
+          composer require --no-interaction --no-progress --prefer-dist 'k2gl/sigstore-verify:1.6.1'
+
+      - name: Download the exact published v0.1.2 assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release download "v${RELEASE_VERSION}" \
+            --repo Double-IQ/SentryIQ \
+            --pattern "sentryiq-${RELEASE_VERSION}.zip"
+
+      - name: Download genuine Sigstore bundles from GitHub
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACKAGE="sentryiq-${RELEASE_VERSION}.zip"
+          gh attestation download "$PACKAGE" \
+            --repo Double-IQ/SentryIQ \
+            --predicate-type https://slsa.dev/provenance/v1
+          PACKAGE_DIGEST="$(sha256sum "$PACKAGE" | awk '{print $1}')"
+          test -s "sha256:${PACKAGE_DIGEST}.jsonl"
+          echo "PACKAGE_BUNDLE=sha256:${PACKAGE_DIGEST}.jsonl" >> "$GITHUB_ENV"
+
+      - name: Verify ZIP with native PHP and negative controls
+        run: |
+          php scripts/validate-native-php-sigstore.php \
+            "sentryiq-${RELEASE_VERSION}.zip" \
+            "$PACKAGE_BUNDLE" \
+            "$RELEASE_VERSION" \
+            "$RELEASE_COMMIT"
+
+      - name: Independently cross-check ZIP using GitHub's maintained verifier
+        run: |
+          gh attestation verify "sentryiq-${RELEASE_VERSION}.zip" \
+            --repo Double-IQ/SentryIQ \
+            --signer-workflow Double-IQ/SentryIQ/.github/workflows/release.yml \
+            --cert-oidc-issuer https://token.actions.githubusercontent.com \
+            --source-ref "refs/tags/v${RELEASE_VERSION}" \
+            --source-digest "$RELEASE_COMMIT" \
+            --predicate-type https://slsa.dev/provenance/v1 \
+            --deny-self-hosted-runners
+
