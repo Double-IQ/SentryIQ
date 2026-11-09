@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SentryIQ\\Updates;
+namespace SentryIQ\Updates;
 
 use RuntimeException;
 
@@ -53,7 +53,7 @@ final class GitHubCliAttestationVerifier
         if (str_starts_with($version, 'v')) {
             $version = substr($version, 1);
         }
-        if (!preg_match('/^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$/', $version)) {
+        if (!preg_match('/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/', $version)) {
             throw new RuntimeException('Release version must use stable MAJOR.MINOR.PATCH format.');
         }
         $expectedCommit = strtolower(trim($expectedCommit));
@@ -90,7 +90,7 @@ final class GitHubCliAttestationVerifier
 
         try {
             $results = json_decode($stdout, true, 64, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException $exception) {
+        } catch (\JsonException $exception) {
             throw new RuntimeException('GitHub CLI returned invalid verification JSON.', 0, $exception);
         }
         if (!is_array($results) || $results === [] || array_is_list($results) === false) {
@@ -109,7 +109,7 @@ final class GitHubCliAttestationVerifier
                     $installedVersion
                 );
                 return;
-            } catch (\\Throwable $exception) {
+            } catch (\Throwable $exception) {
                 $lastFailure = $exception;
             }
         }
