@@ -22,7 +22,7 @@ PHP library. It then checks the authenticated SLSA provenance for:
 - SLSA provenance v1 predicate;
 - exact subject SHA-256;
 - repository URI and immutable repository ID `1345956206`;
-- tag-push event and GitHub-hosted builder identity;
+- tag-push event and exact SLSA builder workflow identity;
 - exact release tag, workflow path, and source commit.
 
 It also runs negative controls for a tampered subject digest and an unrelated
