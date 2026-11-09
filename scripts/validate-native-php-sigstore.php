@@ -96,11 +96,15 @@ function assertSentryIqProvenance(array $statement, string $version, string $com
         throw new RuntimeException('Authenticated provenance repository ID or event does not match policy.');
     }
 
+    // SLSA builder.id identifies the trusted build platform/workflow, not
+    // the individual GitHub-hosted runner image. Match the exact workflow
+    // identity here; do not infer runner type from this field.
     $runDetails = is_array($predicate) ? ($predicate['runDetails'] ?? null) : null;
     $builder = is_array($runDetails) ? ($runDetails['builder'] ?? null) : null;
+    $expectedBuilder = $repoUri . '/' . $workflow . '@' . $ref;
     if (!is_array($builder)
-        || ($builder['id'] ?? null) !== 'https://github.com/actions/runner/github-hosted') {
-        throw new RuntimeException('Provenance builder id is not approved: ' . json_encode($builder['id'] ?? null, JSON_UNESCAPED_SLASHES));
+        || ($builder['id'] ?? null) !== $expectedBuilder) {
+        throw new RuntimeException('Provenance builder workflow identity does not match policy: ' . json_encode($builder['id'] ?? null, JSON_UNESCAPED_SLASHES));
     }
 
     $dependencies = is_array($definition) ? ($definition['resolvedDependencies'] ?? null) : null;
