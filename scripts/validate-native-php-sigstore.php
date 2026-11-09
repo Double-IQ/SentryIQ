@@ -182,9 +182,9 @@ function assertSentryIqCertificateClaims(
     string $expectedRepo = 'Double-IQ/SentryIQ',
     string $expectedRunner = 'github-hosted'
 ): void {
-    $pem = "-----BEGIN CERTIFICATE-----\\n"
-        . chunk_split(base64_encode($leafDer), 64, "\\n")
-        . "-----END CERTIFICATE-----\\n";
+    $pem = "-----BEGIN CERTIFICATE-----\n"
+        . chunk_split(base64_encode($leafDer), 64, "\n")
+        . "-----END CERTIFICATE-----\n";
     $certificate = openssl_x509_read($pem);
     $parsed = $certificate !== false ? openssl_x509_parse($certificate, false) : false;
     $extensions = is_array($parsed) ? ($parsed['extensions'] ?? null) : null;
