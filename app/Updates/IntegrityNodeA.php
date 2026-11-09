@@ -161,3 +161,69 @@ final class IntegrityNodeA
             $approved ? 'approve' : 'reject'
         );
 
+
+        return [
+            'approved' => $approved,
+            'report' => $report,
+            'checked_paths' => $checked,
+            'mismatches' => $mismatches,
+            'manifest_sha256' => $manifestDigest,
+            'artifact_sha256' => $artifactDigest,
+        ];
+    }
+
+    private function regularFile(string $path): string
+    {
+        $real = realpath($path);
+        if ($real === false || !is_file($real) || is_link($path) || !is_readable($real)) {
+            throw new RuntimeException('Integrity Node input must be a readable regular file.');
+        }
+        return $real;
+    }
+
+    private function fetchHttps(string $url): string
+    {
+        if (!function_exists('curl_init')) {
+            throw new RuntimeException('PHP cURL is required by Integrity Node A.');
+        }
+        $handle = curl_init($url);
+        if ($handle === false) {
+            throw new RuntimeException('Unable to initialize HTTPS request.');
+        }
+        $body = '';
+        curl_setopt_array($handle, [
+            CURLOPT_RETURNTRANSFER => false,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT => 25,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_USERAGENT => 'SentryIQ-Integrity-Node-A/1.0',
+            CURLOPT_WRITEFUNCTION => static function ($curl, string $chunk) use (&$body): int {
+                if (strlen($body) + strlen($chunk) > 10_000_000) {
+                    return 0;
+                }
+                $body .= $chunk;
+                return strlen($chunk);
+            },
+        ]);
+        $ok = curl_exec($handle);
+        $status = (int)curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
+        curl_close($handle);
+        if ($ok !== true || $status !== 200) {
+            throw new RuntimeException('Public-origin request failed or returned a non-200 response.');
+        }
+        return $body;
+    }
+
+    private function normalizeVersion(string $version): string
+    {
+        $version = trim($version);
+        if (str_starts_with($version, 'v')) $version = substr($version, 1);
+        if (!preg_match('/^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$/', $version)) {
+            throw new RuntimeException('Release version must use stable MAJOR.MINOR.PATCH format.');
+        }
+        return $version;
+    }
+}
