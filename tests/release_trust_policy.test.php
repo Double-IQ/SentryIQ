@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Updates/ReleaseTrustPolicy.php';
 
-use SentryIQ\\Updates\\ReleaseTrustPolicy;
+use SentryIQ\Updates\ReleaseTrustPolicy;
 
 function trustCheck(bool $condition, string $message): void
 {
@@ -81,4 +81,4 @@ trustReject(
     'Policy must reject an invalid expected commit.'
 );
 
-echo "Release trust policy tests passed.\\n";
+echo "Release trust policy tests passed.\n";
