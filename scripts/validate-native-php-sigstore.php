@@ -188,7 +188,8 @@ try {
 
     if ($verified < 1) {
         throw new RuntimeException(
-            'No Sigstore bundle passed cryptographic verification and SentryIQ provenance policy.',
+            'No Sigstore bundle passed cryptographic verification and SentryIQ provenance policy: '
+                . ($lastFailure instanceof Throwable ? get_class($lastFailure) . ': ' . $lastFailure->getMessage() : 'unknown failure'),
             0,
             $lastFailure
         );
