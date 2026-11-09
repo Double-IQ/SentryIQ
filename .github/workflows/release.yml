@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   release:
@@ -59,13 +61,18 @@ jobs:
               "public_files": public_files,
               "runtime_files": runtime_files
           }
-          (root / 'update-manifest.json').write_text(json.dumps(manifest, indent=2) + "\n", encoding='utf-8')
+          (root / 'update-manifest.json').write_text(json.dumps(manifest, indent=2) + "\\n", encoding='utf-8')
           PY
           (
             cd "$WORK"
             zip -qr "../$PACKAGE" .
           )
           sha256sum "$PACKAGE" > "$PACKAGE.sha256"
+
+      - name: Attest release package provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: sentryiq-*.zip
 
       - name: Publish GitHub release
         env:
