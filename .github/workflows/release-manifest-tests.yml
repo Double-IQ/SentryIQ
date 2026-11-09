@@ -1,0 +1,28 @@
+name: Release Manifest Tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/build-release-manifest.py'
+      - 'tests/build_release_manifest.test.py'
+      - '.github/workflows/release-manifest-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/build-release-manifest.py'
+      - 'tests/build_release_manifest.test.py'
+      - '.github/workflows/release-manifest-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  release-manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Run canonical release manifest tests
+        run: python3 tests/build_release_manifest.test.py
