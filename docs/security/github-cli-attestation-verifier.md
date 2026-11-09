@@ -40,7 +40,7 @@ The caller must resolve the release tag to a full commit SHA through a separatel
 
 ## Runtime prerequisites and limitations
 
-- A supported, current GitHub CLI with `gh attestation verify` support must be installed on the host.
+- A supported, current GitHub CLI with `gh attestation verify` support must be installed on the host. Configure its administrator-controlled absolute executable path; the adapter rejects relative paths and symlink binaries.
 - The CLI must be able to reach GitHub and Sigstore trust services; any authentication needed for the repository's attestation API must be configured securely.
 - Shared hosting may not permit installing or executing GitHub CLI. Do not enable this adapter there without verifying the actual runtime and process permissions.
 - The adapter's test runner seam is only for contract tests. Synthetic JSON fixtures do not test cryptography.
