@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SentryIQ\\Updates;
+namespace SentryIQ\Updates;
 
 use RuntimeException;
 
@@ -137,7 +137,7 @@ final class IntegrityReportVerifier
     {
         try {
             $envelope = json_decode($json, true, 16, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException $exception) {
+        } catch (\JsonException $exception) {
             throw new RuntimeException('Integrity Node report envelope is not valid JSON.', 0, $exception);
         }
         if (!is_array($envelope) || !is_string($envelope['payload'] ?? null)
@@ -154,7 +154,7 @@ final class IntegrityReportVerifier
 
         try {
             $payload = json_decode($rawPayload, true, 32, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException $exception) {
+        } catch (\JsonException $exception) {
             throw new RuntimeException('Signed Integrity Node payload is not valid JSON.', 0, $exception);
         }
         if (!is_array($payload) || array_is_list($payload)) {
@@ -178,7 +178,7 @@ final class IntegrityReportVerifier
     {
         $version = trim($version);
         if (str_starts_with($version, 'v')) $version = substr($version, 1);
-        if (!preg_match('/^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$/', $version)) {
+        if (!preg_match('/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/', $version)) {
             throw new RuntimeException('Release version must use stable MAJOR.MINOR.PATCH format.');
         }
         return $version;
