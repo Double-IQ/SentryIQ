@@ -47,3 +47,6 @@ jobs:
 
       - name: Test release trust policy decisions
         run: php tests/release_trust_policy.test.php
+
+      - name: Test GitHub CLI attestation adapter contract
+        run: php tests/github_cli_attestation_verifier.test.php
