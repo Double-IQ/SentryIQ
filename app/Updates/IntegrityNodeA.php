@@ -38,7 +38,7 @@ final class IntegrityNodeA
 
     /**
      * @param list<string> $publicPaths Explicit relative URLs to check, e.g. ["index.php","assets/app.js"].
-     * @return array{approved:bool,report:string,checked_paths:list<string>,manifest_sha256:string,artifact_sha256:string}
+     * @param string $nonce Fresh 32-byte event-plane challenge as 64 hexadecimal characters.\n     * @return array{approved:bool,report:string,checked_paths:list<string>,mismatches:list<array{path:string,reason:string}>,manifest_sha256:string,artifact_sha256:string}
      */
     public function verify(
         string $manifestPath,
@@ -52,7 +52,7 @@ final class IntegrityNodeA
         $manifestReal = $this->regularFile($manifestPath);
         $artifactReal = $this->regularFile($artifactPath);
         $version = $this->normalizeVersion($releaseVersion);
-        $commit = strtolower(trim($commit));
+        $commit = strtolower(trim($commit));\n        $nonce = strtolower(trim($nonce));\n        if (!preg_match('/^[a-f0-9]{64}$/', $nonce)) {\n            throw new RuntimeException('A fresh 32-byte event-plane nonce is required.');\n        }
 
         if (!preg_match('/^[a-f0-9]{40}$/', $commit)) {
             throw new RuntimeException('Release commit must be a full Git SHA.');
@@ -140,95 +140,18 @@ final class IntegrityNodeA
             }
         }
 
-        if ($mismatches !== []) {
-            // A rejection is signed too, so the event plane can distinguish
-            // a real negative verdict from a missing or unsigned report.
-            $nonce = bin2hex(random_bytes(32));
-            $report = $this->signer->createReport(
-                $version,
-                $commit,
-                hash_file('sha256', $artifactReal),
-                $nonce,
-                'reject'
-            );
-            throw new RuntimeException(
-                'Public-origin verification failed: ' . json_encode($mismatches, JSON_UNESCAPED_SLASHES)
-            );
-        }
-
         $artifactDigest = hash_file('sha256', $artifactReal);
         $manifestDigest = hash('sha256', $manifestBytes);
         if (!is_string($artifactDigest)) {
             throw new RuntimeException('Unable to calculate release artifact digest.');
         }
 
-        // The caller supplies a fresh challenge nonce from the event/control
-        // plane in the production integration. This local nonce is a prototype
-        // placeholder and must not be used as replay protection.
-        $nonce = bin2hex(random_bytes(32));
-        $report = $this->signer->createReport($version, $commit, $artifactDigest, $nonce);
+        $approved = $mismatches === [];
+        $report = $this->signer->createReport(
+            $version,
+            $commit,
+            $artifactDigest,
+            $nonce,
+            $approved ? 'approve' : 'reject'
+        );
 
-        return [
-            'approved' => true,
-            'report' => $report,
-            'checked_paths' => $checked,
-            'manifest_sha256' => $manifestDigest,
-            'artifact_sha256' => $artifactDigest,
-        ];
-    }
-
-    private function regularFile(string $path): string
-    {
-        $real = realpath($path);
-        if ($real === false || !is_file($real) || is_link($path) || !is_readable($real)) {
-            throw new RuntimeException('Integrity Node input must be a readable regular file.');
-        }
-        return $real;
-    }
-
-    private function fetchHttps(string $url): string
-    {
-        if (!function_exists('curl_init')) {
-            throw new RuntimeException('PHP cURL is required by Integrity Node A.');
-        }
-        $handle = curl_init($url);
-        if ($handle === false) {
-            throw new RuntimeException('Unable to initialize HTTPS request.');
-        }
-        $body = '';
-        curl_setopt_array($handle, [
-            CURLOPT_RETURNTRANSFER => false,
-            CURLOPT_FOLLOWLOCATION => false,
-            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
-            CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_TIMEOUT => 25,
-            CURLOPT_SSL_VERIFYPEER => true,
-            CURLOPT_SSL_VERIFYHOST => 2,
-            CURLOPT_USERAGENT => 'SentryIQ-Integrity-Node-A/1.0',
-            CURLOPT_WRITEFUNCTION => static function ($curl, string $chunk) use (&$body): int {
-                if (strlen($body) + strlen($chunk) > 10_000_000) {
-                    return 0;
-                }
-                $body .= $chunk;
-                return strlen($chunk);
-            },
-        ]);
-        $ok = curl_exec($handle);
-        $status = (int)curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
-        curl_close($handle);
-        if ($ok !== true || $status !== 200) {
-            throw new RuntimeException('Public-origin request failed or returned a non-200 response.');
-        }
-        return $body;
-    }
-
-    private function normalizeVersion(string $version): string
-    {
-        $version = trim($version);
-        if (str_starts_with($version, 'v')) $version = substr($version, 1);
-        if (!preg_match('/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/', $version)) {
-            throw new RuntimeException('Release version must use stable MAJOR.MINOR.PATCH format.');
-        }
-        return $version;
-    }
-}
