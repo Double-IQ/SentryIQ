@@ -45,6 +45,11 @@ final class IntegrityReportSigner
         $this->clock = $clock ?? static fn(): int => time();
     }
 
+    public function nodeId(): string
+    {
+        return $this->nodeId;
+    }
+
     /**
      * @param string $releaseVersion Stable MAJOR.MINOR.PATCH version, with optional leading v.
      * @param string $commit Full lowercase or uppercase Git commit SHA.
