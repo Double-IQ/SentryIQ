@@ -34,24 +34,7 @@ The bundle is temporary test material, not a production release.
 
 ## Run on the actual HelioHost account without SSH
 
-1. Download the workflow artifact ZIP from the successful GitHub Actions run.
-2. In Plesk File Manager, navigate to the directory **containing** `httpdocs`.
-   Extract the ZIP there, not inside `httpdocs`.
-3. Rename the extracted `private` directory to
-   `sentryiq-probe-private`. It must be a sibling of `httpdocs`, not inside
-   the public web root. Its final autoloader path should be
-   `../sentryiq-probe-private/vendor/autoload.php` relative to `httpdocs`.
-4. Move only `httpdocs/probe.php` into the actual `httpdocs` directory.
-   Rename it to an unpredictable temporary filename, for example
-   `probe-<random-long-string>.php`. Do not share that URL publicly.
-5. Open that temporary URL once in your browser. The script returns a JSON
-   report and schedules itself for deletion when the request ends. If PHP
-   terminates the request before shutdown (for example, a hard execution
-   timeout), manually delete the endpoint in Plesk File Manager.
-6. Copy the JSON result into the project chat. Do not share hosting passwords,
-   API tokens, private keys, or the contents of the hosting account.
-7. Delete `sentryiq-probe-private` and the extracted bundle files after
-   testing.
+undefined
 
 **Important:** do not put the `vendor` directory under `httpdocs`, do not
 leave the endpoint online, and do not upload this bundle into the SentryIQ
