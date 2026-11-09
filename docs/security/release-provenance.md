@@ -14,7 +14,7 @@ Install a current GitHub CLI with attestation support, download the ZIP from the
 gh attestation verify sentryiq-VERSION.zip --repo Double-IQ/SentryIQ
 ```
 
-Replace `VERSION` with the actual release version. Verification must succeed before treating the provenance as valid. Review the verified source repository, workflow identity, source ref, and commit against the expected SentryIQ release.
+Replace `VERSION` with the actual release version. Verification must succeed before treating the provenance as valid. Review the verified source repository, workflow identity, source ref, and commit against the expected SentryIQ release. For the stricter verifier flags and certificate-extension checks used by the PHP prototype, see [GitHub CLI attestation verifier adapter](github-cli-attestation-verifier.md).
 
 The existing SHA-256 sidecar remains useful for detecting accidental corruption, but it is not an independent trust anchor if an attacker can replace both the ZIP and checksum through the same release channel.
 
