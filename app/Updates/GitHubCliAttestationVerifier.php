@@ -146,8 +146,12 @@ final class GitHubCliAttestationVerifier
             throw new RuntimeException('Verified attestation has no independently verified timestamp evidence.');
         }
 
+        $subjects = $statement['subject'] ?? null;
+        if (!is_array($subjects) || $subjects === []) {
+            throw new RuntimeException('Verified attestation has no subject entries.');
+        }
         $subjectMatches = false;
-        foreach (($statement['subject'] ?? []) as $subject) {
+        foreach ($subjects as $subject) {
             $digest = is_array($subject) ? ($subject['digest']['sha256'] ?? null) : null;
             if (is_string($digest) && hash_equals($artifactDigest, strtolower($digest))) {
                 $subjectMatches = true;
@@ -223,6 +227,13 @@ final class GitHubCliAttestationVerifier
             return [(int)$result[0], (string)$result[1], (string)$result[2]];
         }
 
+        if ($this->ghBinary === '' || !str_starts_with($this->ghBinary, '/')) {
+            throw new RuntimeException('Configure GitHub CLI using an administrator-controlled absolute binary path.');
+        }
+        if (!is_file($this->ghBinary) || !is_executable($this->ghBinary) || is_link($this->ghBinary)) {
+            throw new RuntimeException('Configured GitHub CLI binary is missing, non-executable, or a symbolic link.');
+        }
+
         $descriptors = [
             0 => ['pipe', 'r'],
             1 => ['pipe', 'w'],
@@ -263,6 +274,8 @@ final class GitHubCliAttestationVerifier
                         throw new RuntimeException('GitHub CLI verification output exceeded the configured limit.');
                     }
                 }
+            } else {
+                usleep(100000);
             }
 
             $status = proc_get_status($process);
