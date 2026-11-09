@@ -5,8 +5,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/../app/Updates/ReleaseTrustPolicy.php';
 require_once __DIR__ . '/../app/Updates/GitHubCliAttestationVerifier.php';
 
-use SentryIQ\\Updates\\GitHubCliAttestationVerifier;
-use SentryIQ\\Updates\\ReleaseTrustPolicy;
+use SentryIQ\Updates\GitHubCliAttestationVerifier;
+use SentryIQ\Updates\ReleaseTrustPolicy;
 
 function cliVerifierReject(callable $operation, string $message): void
 {
@@ -109,4 +109,4 @@ cliVerifierReject(
 );
 
 unlink($temp);
-echo "GitHub CLI attestation adapter contract tests passed.\\n";
+echo "GitHub CLI attestation adapter contract tests passed.\n";
