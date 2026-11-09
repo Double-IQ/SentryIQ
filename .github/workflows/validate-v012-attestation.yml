@@ -9,9 +9,11 @@ on:
       - 'app/Updates/GitHubCliAttestationVerifier.php'
       - 'app/Updates/IntegrityReportVerifier.php'
       - 'app/Updates/IntegrityReportSigner.php'
+      - 'app/Updates/IntegrityNodeA.php'
       - 'tests/github_cli_attestation_verifier.test.php'
       - 'tests/integrity_report_verifier.test.php'
       - 'tests/integrity_report_signer.test.php'
+      - 'tests/integrity_node_a.test.php'
       - 'tests/fixtures/genuine-gh-attestation-v0.1.2.json'
   workflow_dispatch:
 
@@ -48,6 +50,9 @@ jobs:
 
       - name: Run Integrity Node report signer integration tests
         run: php tests/integrity_report_signer.test.php
+
+      - name: Run Integrity Node A origin verifier tests
+        run: php tests/integrity_node_a.test.php
 
       - name: Download the exact published release asset
         shell: bash
