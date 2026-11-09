@@ -26,7 +26,7 @@ The adapter accepts JSON only after the CLI exits with status zero. It then requ
 - Certificate issuer `https://token.actions.githubusercontent.com`.
 - Immutable source repository ID `1345956206` and canonical source repository URI.
 - Source ref equal to the requested version tag.
-- Source commit digest equal to the independently supplied expected full Git commit SHA.
+- Source commit digest equal to the independently supplied expected full Git commit SHA. The certificate's source, signer, and workflow-configuration commit digests must all agree.
 - Exact release workflow identity in the certificate SAN, build signer URI, and build config URI.
 - `push` build trigger and GitHub-hosted runner.
 - At least one independently verified timestamp.
