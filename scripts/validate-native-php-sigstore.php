@@ -142,7 +142,7 @@ function readJsonLines(string $path): array
     return array_values(array_filter($lines, static fn(string $line): bool => trim($line) !== ''));
 }
 
-if ($argc !== 4) {
+if ($argc !== 5) {
     fail('Usage: php validate-native-php-sigstore.php ARTIFACT BUNDLE.jsonl VERSION COMMIT');
 }
 [, $artifactPath, $bundlePath, $version, $commit] = $argv;
@@ -170,6 +170,7 @@ try {
     );
     $subject = new SubjectPolicy('sha256', $digest);
     $verified = 0;
+    $acceptedBundleJson = null;
     $lastFailure = null;
 
     foreach (readJsonLines($bundlePath) as $line) {
@@ -179,6 +180,7 @@ try {
             $statement = readStatement($envelope->payload);
             assertSentryIqProvenance($statement, $version, $commit, $digest);
             $verified++;
+            $acceptedBundleJson ??= $line;
         } catch (Throwable $exception) {
             $lastFailure = $exception;
         }
@@ -194,7 +196,10 @@ try {
 
     // Negative controls: the same authentic bundle must fail for a wrong
     // artifact digest and for a different workflow identity.
-    $firstBundle = Bundle::fromJson(readJsonLines($bundlePath)[0]);
+    if (!is_string($acceptedBundleJson)) {
+        throw new RuntimeException('Internal error: no accepted bundle was retained for negative controls.');
+    }
+    $firstBundle = Bundle::fromJson($acceptedBundleJson);
     $tamperRejected = false;
     try {
         $verifier->verify(
