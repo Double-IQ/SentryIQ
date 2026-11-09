@@ -31,7 +31,7 @@ $verifiedOutput = [[
         'signature' => [
             'certificate' => [
                 'issuer' => 'https://token.actions.githubusercontent.com',
-                'subjectAlternativeName' => ['type' => 'URI', 'value' => $workflowUri],
+                'subjectAlternativeName' => $workflowUri,
                 'sourceRepositoryIdentifier' => '1345956206',
                 'sourceRepositoryURI' => 'https://github.com/Double-IQ/SentryIQ',
                 'sourceRepositoryDigest' => $commit,
@@ -117,6 +117,7 @@ $certificateMutations = [
     'wrong issuer' => ['issuer' => 'https://attacker.example'],
     'wrong runner' => ['runnerEnvironment' => 'self-hosted'],
     'wrong workflow signer' => ['buildSignerURI' => 'https://github.com/attacker/repo/.github/workflows/release.yml@refs/tags/v1.2.3'],
+    'wrong certificate SAN' => ['subjectAlternativeName' => 'https://github.com/attacker/repo/.github/workflows/release.yml@refs/tags/v1.2.3'],
 ];
 foreach ($certificateMutations as $label => $changes) {
     $mutated = $verifiedOutput;

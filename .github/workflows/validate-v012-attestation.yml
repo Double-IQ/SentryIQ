@@ -6,6 +6,9 @@ on:
     paths:
       - '.github/workflows/validate-v012-attestation.yml'
       - 'scripts/validate-v012-attestation.py'
+      - 'app/Updates/GitHubCliAttestationVerifier.php'
+      - 'tests/github_cli_attestation_verifier.test.php'
+      - 'tests/fixtures/genuine-gh-attestation-v0.1.2.json'
   workflow_dispatch:
 
 permissions:
@@ -29,6 +32,12 @@ jobs:
 
       - name: Confirm GitHub CLI is available
         run: gh --version
+
+      - name: Regression-check captured genuine verifier fixture
+        run: python3 scripts/validate-v012-attestation.py tests/fixtures/genuine-gh-attestation-v0.1.2.json
+
+      - name: Run PHP attestation adapter contract tests
+        run: php tests/github_cli_attestation_verifier.test.php
 
       - name: Download the exact published release asset
         shell: bash

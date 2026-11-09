@@ -1,0 +1,28 @@
+[
+{
+  "verificationResult": {
+    "signature": {
+      "certificate": {
+        "certificateIssuer": "CN=sigstore-intermediate,O=sigstore.dev",
+        "subjectAlternativeName": "https://github.com/Double-IQ/SentryIQ/.github/workflows/release.yml@refs/tags/v0.1.2",
+        "issuer": "https://token.actions.githubusercontent.com",
+        "buildSignerURI": "https://github.com/Double-IQ/SentryIQ/.github/workflows/release.yml@refs/tags/v0.1.2",
+        "buildSignerDigest": "9c639a4792cadd5421f01ed198ba2a9261c5145f",
+        "runnerEnvironment": "github-hosted",
+        "sourceRepositoryURI": "https://github.com/Double-IQ/SentryIQ",
+        "sourceRepositoryDigest": "9c639a4792cadd5421f01ed198ba2a9261c5145f",
+        "sourceRepositoryRef": "refs/tags/v0.1.2",
+        "sourceRepositoryIdentifier": "1345956206",
+        "buildConfigURI": "https://github.com/Double-IQ/SentryIQ/.github/workflows/release.yml@refs/tags/v0.1.2",
+        "buildConfigDigest": "9c639a4792cadd5421f01ed198ba2a9261c5145f",
+        "buildTrigger": "push"
+      }
+    },
+    "verifiedTimestamps": [{"type":"Tlog","uri":"https://rekor.sigstore.dev","timestamp":"2026-11-09T05:26:31Z"}],
+    "statement": {
+      "subject": [{"name":"sentryiq-0.1.2.zip","digest":{"sha256":"41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e"}}],
+      "predicateType": "https://slsa.dev/provenance/v1"
+    }
+  }
+}
+]
