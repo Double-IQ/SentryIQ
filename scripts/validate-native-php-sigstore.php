@@ -50,10 +50,9 @@ function readStatement(string $payload): array
  *
  * @param array<string, mixed> $statement
  */
-function assertSentryIqProvenance(array $statement, string $version, string $commit, string $digest): void
+function assertSentryIqProvenance(array $statement, string $version, string $commit, string $digest, string $expectedRepo = 'Double-IQ/SentryIQ'): void
 {
-    $repo = 'Double-IQ/SentryIQ';
-    $repoUri = 'https://github.com/Double-IQ/SentryIQ';
+    $repoUri = 'https://github.com/' . $expectedRepo;
     $workflow = '.github/workflows/release.yml';
     $ref = 'refs/tags/v' . $version;
 
@@ -239,8 +238,60 @@ try {
         throw new RuntimeException('Negative control failed: wrong signer identity was accepted.');
     }
 
+    // Tamper with the DSSE signature bytes while preserving a syntactically
+    // valid bundle. The cryptographic verifier must reject it.
+    $tamperedSignatureRejected = false;
+    $tamperedData = json_decode($acceptedBundleJson, true, 64, JSON_THROW_ON_ERROR);
+    if (!is_array($tamperedData)
+        || !is_array($tamperedData['dsseEnvelope']['signatures'][0] ?? null)
+        || !is_string($tamperedData['dsseEnvelope']['signatures'][0]['sig'] ?? null)) {
+        throw new RuntimeException('Unexpected DSSE bundle structure; cannot run signature-tamper negative control.');
+    }
+    $tamperedData['dsseEnvelope']['signatures'][0]['sig'] = base64_encode(str_repeat("\\0", 64));
+    $tamperedJson = json_encode($tamperedData, JSON_THROW_ON_ERROR);
+    try {
+        $verifier->verify(Bundle::fromJson($tamperedJson), $trustedRoot, $identity, $subject);
+    } catch (Throwable) {
+        $tamperedSignatureRejected = true;
+    }
+    if (!$tamperedSignatureRejected) {
+        throw new RuntimeException('Negative control failed: altered DSSE signature was accepted.');
+    }
+
+    // The authenticated statement must not validate against a different
+    // repository, source commit, or release tag policy.
+    $wrongRepositoryRejected = false;
+    try {
+        assertSentryIqProvenance($statement, $version, $commit, $digest, 'attacker/other-repository');
+    } catch (Throwable) {
+        $wrongRepositoryRejected = true;
+    }
+    if (!$wrongRepositoryRejected) {
+        throw new RuntimeException('Negative control failed: wrong provenance repository was accepted.');
+    }
+
+    $wrongCommitRejected = false;
+    try {
+        assertSentryIqProvenance($statement, $version, str_repeat('0', 40), $digest);
+    } catch (Throwable) {
+        $wrongCommitRejected = true;
+    }
+    if (!$wrongCommitRejected) {
+        throw new RuntimeException('Negative control failed: wrong source commit was accepted.');
+    }
+
+    $wrongTagRejected = false;
+    try {
+        assertSentryIqProvenance($statement, '9.9.9', $commit, $digest);
+    } catch (Throwable) {
+        $wrongTagRejected = true;
+    }
+    if (!$wrongTagRejected) {
+        throw new RuntimeException('Negative control failed: wrong release tag was accepted.');
+    }
+
     echo "PASS: {$verified} bundle(s) passed native PHP Sigstore verification and SentryIQ provenance policy.\n";
-    echo "PASS: wrong-digest and wrong-signer negative controls were rejected.\n";
+    echo "PASS: wrong digest, signer, DSSE signature, repository, source commit, and release tag were rejected.\n";
     echo "Artifact SHA-256: {$digest}\n";
 } catch (Throwable $exception) {
     fail($exception->getMessage());
