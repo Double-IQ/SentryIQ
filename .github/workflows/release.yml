@@ -27,7 +27,7 @@ jobs:
           VERSION="$(tr -d '\r\n' < VERSION)"
           test "$TAG" = "$VERSION"
 
-      - name: Build update package
+      - name: Build package and canonical inventory manifest
         shell: bash
         run: |
           set -euo pipefail
@@ -42,37 +42,33 @@ jobs:
           cp private_data/vault_engine.php "$WORK/runtime/vault_engine.php"
           cp private_data/email_template.php "$WORK/runtime/email_template.php"
           cp private_data/vault_icon_cache.php "$WORK/runtime/vault_icon_cache.php"
-          python3 - "$WORK" "$VERSION" <<'PY'
-          import json, os, pathlib, sys
-          root = pathlib.Path(sys.argv[1])
-          version = sys.argv[2]
-          public_files = []
-          for path in sorted(root.rglob('*')):
-              if not path.is_file():
-                  continue
-              rel = path.relative_to(root).as_posix()
-              if rel == 'update-manifest.json' or rel.startswith('runtime/'):
-                  continue
-              public_files.append(rel)
-          runtime_files = [p.relative_to(root / 'runtime').as_posix() for p in sorted((root / 'runtime').iterdir()) if p.is_file()]
-          manifest = {
-              "format": 1,
-              "version": version,
-              "public_files": public_files,
-              "runtime_files": runtime_files
-          }
-          (root / 'update-manifest.json').write_text(json.dumps(manifest, indent=2) + "\n", encoding='utf-8')
-          PY
+
+          python3 scripts/build-release-manifest.py \
+            --root "$WORK" \
+            --version "$VERSION" \
+            --commit "$GITHUB_SHA" \
+            --repository "$GITHUB_REPOSITORY" \
+            --repository-id "1345956206" \
+            --workflow-path ".github/workflows/release.yml" \
+            --output "$WORK/update-manifest.json"
+
+          cp "$WORK/update-manifest.json" release-manifest.json
           (
             cd "$WORK"
             zip -qr "../$PACKAGE" .
           )
           sha256sum "$PACKAGE" > "$PACKAGE.sha256"
+          sha256sum release-manifest.json > release-manifest.json.sha256
 
-      - name: Attest release package provenance
+      - name: Test canonical release manifest builder
+        run: python3 -m unittest tests/build_release_manifest.test.py
+
+      - name: Attest release package and inventory manifest provenance
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: sentryiq-*.zip
+          subject-path: |
+            sentryiq-*.zip
+            release-manifest.json
 
       - name: Publish GitHub release
         env:
@@ -81,8 +77,14 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$(tr -d '\r\n' < VERSION)"
+          ASSETS=(
+            "sentryiq-${VERSION}.zip"
+            "sentryiq-${VERSION}.zip.sha256"
+            "release-manifest.json"
+            "release-manifest.json.sha256"
+          )
           if gh release view "v${VERSION}" >/dev/null 2>&1; then
-            gh release upload "v${VERSION}" "sentryiq-${VERSION}.zip" "sentryiq-${VERSION}.zip.sha256" --clobber
+            gh release upload "v${VERSION}" "${ASSETS[@]}" --clobber
           else
-            gh release create "v${VERSION}" "sentryiq-${VERSION}.zip" "sentryiq-${VERSION}.zip.sha256" --title "SentryIQ ${VERSION}" --generate-notes
+            gh release create "v${VERSION}" "${ASSETS[@]}" --title "SentryIQ ${VERSION}" --generate-notes
           fi
