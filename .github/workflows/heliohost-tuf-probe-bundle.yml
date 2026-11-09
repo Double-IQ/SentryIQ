@@ -1,0 +1,64 @@
+name: Build HelioHost TUF probe bundle
+
+on:
+  pull_request:
+    paths:
+      - "tools/heliohost-tuf-probe/**"
+      - ".github/workflows/heliohost-tuf-probe-bundle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out probe source
+        uses: actions/checkout@v4
+
+      - name: Set up PHP and Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.5"
+          tools: composer:v2
+          coverage: none
+
+      - name: Validate and install pinned dependencies
+        working-directory: tools/heliohost-tuf-probe
+        run: |
+          composer validate --strict
+          composer install --no-interaction --no-dev --prefer-dist --classmap-authoritative
+          composer check-platform-reqs --no-dev
+
+      - name: Assemble private/public upload bundle
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+        working-directory: tools/heliohost-tuf-probe
+        run: |
+          set -euo pipefail
+          rm -rf bundle
+          mkdir -p bundle/httpdocs bundle/private
+          cp probe.php bundle/httpdocs/probe.php
+          cp README.md bundle/README.md
+          cp -a vendor bundle/private/vendor
+          {
+            printf 'source_commit=%s\n' "$SOURCE_COMMIT"
+            printf 'php_build_version=%s\n' "$(php -r 'echo PHP_VERSION;')"
+            printf 'sigstore_verify_version=%s\n' "$(composer show k2gl/sigstore-verify --format=json | php -r '$j=json_decode(stream_get_contents(STDIN), true); echo $j["versions"][0] ?? "unknown";')"
+          } > bundle/BUILD-INFO.txt
+          (
+            cd bundle
+            find . -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+            zip -qr ../sentryiq-heliohost-tuf-probe.zip .
+          )
+          sha256sum sentryiq-heliohost-tuf-probe.zip
+
+      - name: Upload temporary probe bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentryiq-heliohost-tuf-probe
+          path: tools/heliohost-tuf-probe/sentryiq-heliohost-tuf-probe.zip
+          if-no-files-found: error
+          retention-days: 7
