@@ -27,9 +27,11 @@ of this initial real-release test. It checks the authenticated SLSA provenance f
 - exact release tag, workflow path, and source commit.
 
 It also runs negative controls for a wrong subject digest, unrelated signer,
-tampered DSSE signature, wrong repository, wrong source commit, and wrong
-release tag. The native PHP result and all negative controls passed in CI, and
-the same ZIP independently passed GitHub's maintained `gh attestation verify`.
+tampered DSSE signature, wrong repository, wrong source commit, wrong release
+tag, wrong runner, wrong certificate repository/commit, and malformed DER
+UTF8String encodings. The native PHP result and all negative controls passed in
+CI, and the same ZIP independently passed GitHub's maintained
+`gh attestation verify`.
 
 The package is installed in a temporary CI-only directory. No dependency is
 added to the SentryIQ application, release ZIP, or production runtime by this PR.
