@@ -115,7 +115,7 @@ def main() -> None:
 
         reports.append({
             "certificate_issuer": certificate.get("issuer"),
-            "certificate_san": (certificate.get("subjectAlternativeName") or {}).get("value"),
+            "certificate_san": certificate.get("subjectAlternativeName"),
             "build_signer_uri": certificate.get("buildSignerURI"),
             "build_config_uri": certificate.get("buildConfigURI"),
             "repository_id": certificate.get("sourceRepositoryIdentifier"),
