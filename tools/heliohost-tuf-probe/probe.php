@@ -12,7 +12,22 @@ declare(strict_types=1);
 
 use K2gl\Sigstore\TrustedRoot;
 
-$autoload = __DIR__ . '/vendor/autoload.php';
+// The bundle keeps Composer dependencies outside the public document root.
+// For CLI runs, retain the convenient local vendor/ fallback.
+$privateAutoload = dirname(__DIR__) . '/sentryiq-probe-private/vendor/autoload.php';
+$localAutoload = __DIR__ . '/vendor/autoload.php';
+$autoload = is_file($privateAutoload) ? $privateAutoload : $localAutoload;
+
+// When invoked through the web server, remove this one-shot endpoint after
+// the response finishes. Rename it to an unpredictable filename before upload.
+register_shutdown_function(static function (): void {
+    if (PHP_SAPI !== 'cli' && isset($_SERVER['SCRIPT_FILENAME'])) {
+        $script = (string) $_SERVER['SCRIPT_FILENAME'];
+        if ($script !== '' && is_file($script)) {
+            @unlink($script);
+        }
+    }
+});
 if (!is_file($autoload)) {
     fwrite(STDERR, "FAIL: Composer dependencies are not installed in this probe directory.\n");
     exit(2);
