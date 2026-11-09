@@ -165,7 +165,7 @@ try {
     $verifier = new SigstoreVerifier();
     $identity = IdentityPolicy::githubActions(
         'Double-IQ/SentryIQ',
-        '.github/workflows/release.yml',
+        'release.yml',
         'refs/tags/v' . $version
     );
     $subject = new SubjectPolicy('sha256', $digest);
@@ -223,7 +223,7 @@ try {
             $trustedRoot,
             IdentityPolicy::githubActions(
                 'attacker/other-repository',
-                '.github/workflows/release.yml',
+                'release.yml',
                 'refs/tags/v' . $version
             ),
             $subject
