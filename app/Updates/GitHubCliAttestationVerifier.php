@@ -179,6 +179,13 @@ final class GitHubCliAttestationVerifier
             throw new RuntimeException('Release attestation was not produced on a GitHub-hosted runner.');
         }
 
+        $sourceCommit = strtolower((string)($certificate['sourceRepositoryDigest'] ?? ''));
+        $signerCommit = strtolower((string)($certificate['buildSignerDigest'] ?? ''));
+        $configCommit = strtolower((string)($certificate['buildConfigDigest'] ?? ''));
+        if ($sourceCommit === '' || $signerCommit !== $sourceCommit || $configCommit !== $sourceCommit) {
+            throw new RuntimeException('Source, signer, and workflow configuration commits do not agree.');
+        }
+
         return [
             // This flag is created only after the real verifier exited successfully.
             'cryptographically_verified' => true,
