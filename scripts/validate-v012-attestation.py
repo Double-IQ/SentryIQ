@@ -64,8 +64,8 @@ def main() -> None:
 
         checks = {
             "certificate.issuer": (certificate.get("issuer"), EXPECTED["issuer"]),
-            "certificate.subjectAlternativeName.value": (
-                (certificate.get("subjectAlternativeName") or {}).get("value"),
+            "certificate.subjectAlternativeName": (
+                certificate.get("subjectAlternativeName"),
                 EXPECTED["workflow_uri"],
             ),
             "certificate.buildSignerURI": (certificate.get("buildSignerURI"), EXPECTED["workflow_uri"]),
