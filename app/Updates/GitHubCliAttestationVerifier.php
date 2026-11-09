@@ -171,7 +171,9 @@ final class GitHubCliAttestationVerifier
         if ($buildSignerUri !== $expectedWorkflowUri || $buildConfigUri !== $expectedWorkflowUri) {
             throw new RuntimeException('Certificate workflow identity does not match the approved release workflow.');
         }
-        $san = $certificate['subjectAlternativeName']['value'] ?? '';
+        // GitHub CLI emits subjectAlternativeName as a plain URI string.
+        // Do not assume the object shape used by our earlier synthetic fixture.
+        $san = $certificate['subjectAlternativeName'] ?? '';
         if (!is_string($san) || $san !== $expectedWorkflowUri) {
             throw new RuntimeException('Certificate subject alternative name does not match the approved workflow.');
         }
