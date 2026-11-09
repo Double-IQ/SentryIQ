@@ -57,7 +57,7 @@ try {
     } catch (RuntimeException) {
         $wrongIdentityRejected = true;
     }
-    nodeCAssert($wrongIdentityRejected, 'Node C must reject a signer configured with another node's identity.');
+    nodeCAssert($wrongIdentityRejected, 'Node C must reject a signer configured with another node identity.');
 
     $node = new IntegrityNodeC($signer, $verifier, $fetch);
     $approved = $node->verify(
