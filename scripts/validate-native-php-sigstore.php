@@ -448,6 +448,24 @@ try {
         throw new RuntimeException('Negative control failed: wrong certificate repository was accepted.');
     }
 
+    foreach ([
+        "truncated" => "\\x0c\\x02A",
+        "trailing bytes" => "\\x0c\\x01A\\x00",
+        "non-minimal length" => "\\x0c\\x81\\x01A",
+        "indefinite length" => "\\x0c\\x80\\x00\\x00",
+        "invalid UTF-8" => "\\x0c\\x01\\xff",
+    ] as $case => $malformedDer) {
+        $malformedRejected = false;
+        try {
+            decodeFulcioUtf8Extension($malformedDer, $case);
+        } catch (Throwable) {
+            $malformedRejected = true;
+        }
+        if (!$malformedRejected) {
+            throw new RuntimeException("Negative control failed: malformed DER {$case} was accepted.");
+        }
+    }
+
     echo "PASS: {$verified} bundle(s) passed native PHP Sigstore verification and SentryIQ provenance policy.\n";
     echo "PASS: wrong digest, signer, DSSE signature, repository, source commit, and release tag were rejected.\n";
     echo "Artifact SHA-256: {$digest}\n";
