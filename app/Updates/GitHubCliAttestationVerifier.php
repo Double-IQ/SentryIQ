@@ -185,7 +185,7 @@ final class GitHubCliAttestationVerifier
             'repository_id' => (string)($certificate['sourceRepositoryIdentifier'] ?? ''),
             'repository' => $this->repositoryName((string)($certificate['sourceRepositoryURI'] ?? '')),
             'source_ref' => (string)($certificate['sourceRepositoryRef'] ?? ''),
-            'source_commit' => strtolower((string)($certificate['sourceRepositoryDigest'] ?? '')),
+            'source_commit' => $sourceCommit,\n            'workflow_commit' => $signerCommit,
             'workflow_path' => self::WORKFLOW_PATH,
             'workflow_ref' => self::REPOSITORY . '/' . self::WORKFLOW_PATH . '@' . (string)($certificate['sourceRepositoryRef'] ?? ''),
             'source_event' => (string)($certificate['buildTrigger'] ?? ''),
