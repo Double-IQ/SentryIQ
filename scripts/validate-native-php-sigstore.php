@@ -200,16 +200,20 @@ try {
 
     // CI-only certificate inspection to establish which signed Fulcio
     // extension claims PHP exposes. Values are public certificate metadata.
-    if ($bundle instanceof Bundle && is_string($bundle->leafCertificate)) {
-        $pem = "-----BEGIN CERTIFICATE-----\\n"
-            . chunk_split(base64_encode($bundle->leafCertificate), 64, "\\n")
-            . "-----END CERTIFICATE-----\\n";
+    if (is_string($acceptedBundleJson)) {
+        $inspectionBundle = Bundle::fromJson($acceptedBundleJson);
+        if (!is_string($inspectionBundle->leafCertificate)) {
+            throw new RuntimeException('Verified bundle has no Fulcio leaf certificate.');
+        }
+        $pem = "-----BEGIN CERTIFICATE-----\n"
+            . chunk_split(base64_encode($inspectionBundle->leafCertificate), 64, "\n")
+            . "-----END CERTIFICATE-----\n";
         $certificate = openssl_x509_read($pem);
         $parsedCertificate = $certificate !== false ? openssl_x509_parse($certificate, false) : false;
         if (!is_array($parsedCertificate) || !is_array($parsedCertificate['extensions'] ?? null)) {
             throw new RuntimeException('Unable to inspect authenticated Fulcio leaf certificate extensions.');
         }
-        echo "CERTIFICATE EXTENSIONS: " . json_encode($parsedCertificate['extensions'], JSON_UNESCAPED_SLASHES) . "\\n";
+        echo "CERTIFICATE EXTENSIONS: " . json_encode($parsedCertificate['extensions'], JSON_UNESCAPED_SLASHES) . "\n";
     }
 
     // Negative controls: the same authentic bundle must fail for a wrong
