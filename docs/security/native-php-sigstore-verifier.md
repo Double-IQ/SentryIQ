@@ -58,7 +58,7 @@ added to the SentryIQ application, release ZIP, or production runtime by this PR
 ## Activation rule
 
 Node C remains fail-closed and non-operational until all of the following are
-complete: successful real-artifact CI cross-check; reviewed dependency lock and
+complete: successful real-artifact CI cross-check; a separately attested manifest in a subsequent release; reviewed dependency lock and
 deployment packaging; full parity with the existing SentryIQ trust policy;
 HelioHost runtime test; and adversarial tests for malformed bundles, wrong
 identities, wrong repositories, wrong commits, invalid Rekor evidence, stale
