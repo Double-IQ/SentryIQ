@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Updates/IntegrityReportVerifier.php';
 
-use SentryIQ\\Updates\\IntegrityReportVerifier;
+use SentryIQ\Updates\IntegrityReportVerifier;
 
 function integrityReject(callable $operation, string $message): void
 {
@@ -107,4 +107,4 @@ integrityReject(
     'The verifier must not start with fewer than two configured node keys.'
 );
 
-echo "Dual Integrity Node report verifier tests passed.\\n";
+echo "Dual Integrity Node report verifier tests passed.\n";
