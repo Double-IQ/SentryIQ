@@ -14,9 +14,10 @@ substitute for independent review or a successful SentryIQ-specific cross-check.
 
 ## What this PR tests
 
-The workflow downloads the exact published v0.1.2 ZIP and release manifest,
-downloads their genuine Sigstore bundles from GitHub, and verifies both with the
-PHP library. It then checks the authenticated SLSA provenance for:
+The workflow downloads the exact published v0.1.2 ZIP and its genuine Sigstore
+bundle from GitHub, then verifies it with the PHP library. The v0.1.2 release
+predates the separately published manifest asset, so the manifest is not part
+of this initial real-release test. It checks the authenticated SLSA provenance for:
 
 - exact workflow SAN identity and GitHub Actions OIDC issuer;
 - SLSA provenance v1 predicate;
@@ -25,9 +26,10 @@ PHP library. It then checks the authenticated SLSA provenance for:
 - tag-push event and exact SLSA builder workflow identity;
 - exact release tag, workflow path, and source commit.
 
-It also runs negative controls for a tampered subject digest and an unrelated
-signer identity, then cross-checks the ZIP with GitHub's maintained
-`gh attestation verify` implementation.
+It also runs negative controls for a wrong subject digest, unrelated signer,
+tampered DSSE signature, wrong repository, wrong source commit, and wrong
+release tag. The native PHP result and all negative controls passed in CI, and
+the same ZIP independently passed GitHub's maintained `gh attestation verify`.
 
 The package is installed in a temporary CI-only directory. No dependency is
 added to the SentryIQ application, release ZIP, or production runtime by this PR.
@@ -58,8 +60,9 @@ added to the SentryIQ application, release ZIP, or production runtime by this PR
 ## Activation rule
 
 Node C remains fail-closed and non-operational until all of the following are
-complete: successful real-artifact CI cross-check; a separately attested manifest in a subsequent release; reviewed dependency lock and
-deployment packaging; full parity with the existing SentryIQ trust policy;
-HelioHost runtime test; and adversarial tests for malformed bundles, wrong
-identities, wrong repositories, wrong commits, invalid Rekor evidence, stale
-trust roots, and modified artifacts.
+complete: successful real-artifact CI cross-check; a separately attested manifest in a
+subsequent release; reviewed dependency lock and deployment packaging; full
+parity with the existing SentryIQ certificate/provenance policy; independent
+security review of the candidate dependency; HelioHost runtime test; and
+adversarial tests for malformed bundles, wrong identities, wrong repositories,
+wrong commits, invalid Rekor evidence, stale trust roots, and modified artifacts.
