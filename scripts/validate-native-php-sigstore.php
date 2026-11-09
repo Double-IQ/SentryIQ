@@ -100,7 +100,7 @@ function assertSentryIqProvenance(array $statement, string $version, string $com
     $builder = is_array($runDetails) ? ($runDetails['builder'] ?? null) : null;
     if (!is_array($builder)
         || ($builder['id'] ?? null) !== 'https://github.com/actions/runner/github-hosted') {
-        throw new RuntimeException('Provenance was not produced by the approved GitHub-hosted runner.');
+        throw new RuntimeException('Provenance builder id is not approved: ' . json_encode($builder['id'] ?? null, JSON_UNESCAPED_SLASHES));
     }
 
     $dependencies = is_array($definition) ? ($definition['resolvedDependencies'] ?? null) : null;
