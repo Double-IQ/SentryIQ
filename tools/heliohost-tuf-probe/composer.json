@@ -1,0 +1,15 @@
+{
+  "name": "sentryiq/heliohost-tuf-runtime-probe",
+  "description": "Temporary, isolated HelioHost runtime probe for the SentryIQ Sigstore TUF verifier candidate",
+  "type": "project",
+  "require": {
+    "php": ">=8.1",
+    "k2gl/sigstore-verify": "1.6.1"
+  },
+  "config": {
+    "allow-plugins": false,
+    "sort-packages": true
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
