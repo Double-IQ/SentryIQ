@@ -130,6 +130,128 @@ function assertSentryIqProvenance(array $statement, string $version, string $com
 }
 
 /**
+ * Decode one DER-encoded UTF8String as returned by openssl_x509_parse() for
+ * GitHub's Fulcio certificate extensions. Reject BER, truncation, and trailing
+ * bytes rather than accepting ambiguous encodings.
+ */
+function decodeFulcioUtf8Extension(string $raw, string $field): string
+{
+    $size = strlen($raw);
+    if ($size < 2 || ord($raw[0]) !== 0x0c) {
+        throw new RuntimeException("Fulcio certificate extension {$field} is not a DER UTF8String.");
+    }
+
+    $firstLength = ord($raw[1]);
+    $offset = 2;
+    if (($firstLength & 0x80) === 0) {
+        $length = $firstLength;
+    } else {
+        $lengthBytes = $firstLength & 0x7f;
+        if ($lengthBytes < 1 || $lengthBytes > 4 || $size < 2 + $lengthBytes || ord($raw[2]) === 0) {
+            throw new RuntimeException("Fulcio certificate extension {$field} has an invalid DER length.");
+        }
+        $length = 0;
+        for ($i = 0; $i < $lengthBytes; $i++) {
+            $length = ($length << 8) | ord($raw[2 + $i]);
+        }
+        if ($length < 0x80) {
+            throw new RuntimeException("Fulcio certificate extension {$field} uses a non-minimal DER length.");
+        }
+        $offset += $lengthBytes;
+    }
+
+    if ($length < 1 || $offset + $length !== $size) {
+        throw new RuntimeException("Fulcio certificate extension {$field} has a truncated value or trailing bytes.");
+    }
+    $value = substr($raw, $offset, $length);
+    if (preg_match('//u', $value) !== 1) {
+        throw new RuntimeException("Fulcio certificate extension {$field} is not valid UTF-8.");
+    }
+    return $value;
+}
+
+/**
+ * Read and enforce the signed GitHub-specific claims from the verified leaf
+ * certificate. This complements, rather than replaces, Sigstore's chain,
+ * signature, transparency-log, and SAN/issuer verification.
+ */
+function assertSentryIqCertificateClaims(
+    string $leafDer,
+    string $version,
+    string $commit,
+    string $expectedRepo = 'Double-IQ/SentryIQ',
+    string $expectedRunner = 'github-hosted'
+): void {
+    $pem = "-----BEGIN CERTIFICATE-----\\n"
+        . chunk_split(base64_encode($leafDer), 64, "\\n")
+        . "-----END CERTIFICATE-----\\n";
+    $certificate = openssl_x509_read($pem);
+    $parsed = $certificate !== false ? openssl_x509_parse($certificate, false) : false;
+    $extensions = is_array($parsed) ? ($parsed['extensions'] ?? null) : null;
+    if (!is_array($extensions)) {
+        throw new RuntimeException('Unable to parse authenticated Fulcio leaf certificate extensions.');
+    }
+
+    $oids = [
+        'issuer_v1' => '1.3.6.1.4.1.57264.1.1',
+        'issuer_v2' => '1.3.6.1.4.1.57264.1.8',
+        'build_signer_uri' => '1.3.6.1.4.1.57264.1.9',
+        'build_signer_digest' => '1.3.6.1.4.1.57264.1.10',
+        'runner_environment' => '1.3.6.1.4.1.57264.1.11',
+        'source_repository_uri' => '1.3.6.1.4.1.57264.1.12',
+        'source_repository_digest' => '1.3.6.1.4.1.57264.1.13',
+        'source_repository_ref' => '1.3.6.1.4.1.57264.1.14',
+        'source_repository_identifier' => '1.3.6.1.4.1.57264.1.15',
+        'build_config_uri' => '1.3.6.1.4.1.57264.1.18',
+        'build_config_digest' => '1.3.6.1.4.1.57264.1.19',
+        'build_trigger' => '1.3.6.1.4.1.57264.1.20',
+    ];
+
+    $claims = [];
+    foreach ($oids as $name => $oid) {
+        if (!is_string($extensions[$oid] ?? null) || $extensions[$oid] === '') {
+            throw new RuntimeException("Fulcio certificate is missing required signed claim {$name}.");
+        }
+        $claims[$name] = $name === 'issuer_v1'
+            ? $extensions[$oid]
+            : decodeFulcioUtf8Extension($extensions[$oid], $name);
+    }
+
+    $repoUri = 'https://github.com/' . $expectedRepo;
+    $tagRef = 'refs/tags/v' . $version;
+    $workflowUri = $repoUri . '/.github/workflows/release.yml@' . $tagRef;
+    $expected = [
+        'issuer_v1' => 'https://token.actions.githubusercontent.com',
+        'issuer_v2' => 'https://token.actions.githubusercontent.com',
+        'build_signer_uri' => $workflowUri,
+        'build_signer_digest' => $commit,
+        'runner_environment' => $expectedRunner,
+        'source_repository_uri' => $repoUri,
+        'source_repository_digest' => $commit,
+        'source_repository_ref' => $tagRef,
+        'source_repository_identifier' => '1345956206',
+        'build_config_uri' => $workflowUri,
+        'build_config_digest' => $commit,
+        'build_trigger' => 'push',
+    ];
+    $claims['issuer_v2'] = decodeFulcioUtf8Extension(
+        $extensions[$oids['issuer_v2']] ?? '',
+        'issuer_v2'
+    );
+
+    foreach ($expected as $name => $value) {
+        if (!hash_equals($value, $claims[$name])) {
+            throw new RuntimeException("Fulcio certificate claim {$name} does not match SentryIQ release policy.");
+        }
+    }
+
+    $expectedSan = 'URI:' . $workflowUri;
+    if (($extensions['subjectAltName'] ?? null) !== $expectedSan) {
+        throw new RuntimeException('Fulcio certificate SAN does not match the exact release workflow identity.');
+    }
+}
+
+/**
  * @return list<string>
  */
 function readJsonLines(string $path): array
@@ -198,23 +320,11 @@ try {
         );
     }
 
-    // CI-only certificate inspection to establish which signed Fulcio
-    // extension claims PHP exposes. Values are public certificate metadata.
-    if (is_string($acceptedBundleJson)) {
-        $inspectionBundle = Bundle::fromJson($acceptedBundleJson);
-        if (!is_string($inspectionBundle->leafCertificate)) {
-            throw new RuntimeException('Verified bundle has no Fulcio leaf certificate.');
-        }
-        $pem = "-----BEGIN CERTIFICATE-----\n"
-            . chunk_split(base64_encode($inspectionBundle->leafCertificate), 64, "\n")
-            . "-----END CERTIFICATE-----\n";
-        $certificate = openssl_x509_read($pem);
-        $parsedCertificate = $certificate !== false ? openssl_x509_parse($certificate, false) : false;
-        if (!is_array($parsedCertificate) || !is_array($parsedCertificate['extensions'] ?? null)) {
-            throw new RuntimeException('Unable to inspect authenticated Fulcio leaf certificate extensions.');
-        }
-        echo "CERTIFICATE EXTENSIONS: " . json_encode($parsedCertificate['extensions'], JSON_UNESCAPED_SLASHES) . "\n";
+    $inspectionBundle = Bundle::fromJson($acceptedBundleJson);
+    if (!is_string($inspectionBundle->leafCertificate)) {
+        throw new RuntimeException('Verified bundle has no Fulcio leaf certificate.');
     }
+    assertSentryIqCertificateClaims($inspectionBundle->leafCertificate, $version, $commit);
 
     // Negative controls: the same authentic bundle must fail for a wrong
     // artifact digest and for a different workflow identity.
@@ -306,6 +416,36 @@ try {
     }
     if (!$wrongTagRejected) {
         throw new RuntimeException('Negative control failed: wrong release tag was accepted.');
+    }
+
+    $wrongRunnerRejected = false;
+    try {
+        assertSentryIqCertificateClaims($inspectionBundle->leafCertificate, $version, $commit, 'Double-IQ/SentryIQ', 'self-hosted');
+    } catch (Throwable) {
+        $wrongRunnerRejected = true;
+    }
+    if (!$wrongRunnerRejected) {
+        throw new RuntimeException('Negative control failed: wrong runner environment was accepted.');
+    }
+
+    $wrongCertificateCommitRejected = false;
+    try {
+        assertSentryIqCertificateClaims($inspectionBundle->leafCertificate, $version, str_repeat('0', 40));
+    } catch (Throwable) {
+        $wrongCertificateCommitRejected = true;
+    }
+    if (!$wrongCertificateCommitRejected) {
+        throw new RuntimeException('Negative control failed: wrong certificate source/build commit was accepted.');
+    }
+
+    $wrongCertificateRepositoryRejected = false;
+    try {
+        assertSentryIqCertificateClaims($inspectionBundle->leafCertificate, $version, $commit, 'attacker/other-repository');
+    } catch (Throwable) {
+        $wrongCertificateRepositoryRejected = true;
+    }
+    if (!$wrongCertificateRepositoryRejected) {
+        throw new RuntimeException('Negative control failed: wrong certificate repository was accepted.');
     }
 
     echo "PASS: {$verified} bundle(s) passed native PHP Sigstore verification and SentryIQ provenance policy.\n";
