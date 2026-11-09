@@ -7,7 +7,9 @@ on:
       - '.github/workflows/validate-v012-attestation.yml'
       - 'scripts/validate-v012-attestation.py'
       - 'app/Updates/GitHubCliAttestationVerifier.php'
+      - 'app/Updates/IntegrityReportVerifier.php'
       - 'tests/github_cli_attestation_verifier.test.php'
+      - 'tests/integrity_report_verifier.test.php'
       - 'tests/fixtures/genuine-gh-attestation-v0.1.2.json'
   workflow_dispatch:
 
@@ -21,7 +23,7 @@ concurrency:
 
 jobs:
   verify-real-release:
-    name: Verify published v0.1.2 ZIP with GitHub CLI
+    name: Verify release attestation and dual-node report contract
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -38,6 +40,9 @@ jobs:
 
       - name: Run PHP attestation adapter contract tests
         run: php tests/github_cli_attestation_verifier.test.php
+
+      - name: Run dual Integrity Node Ed25519 report tests
+        run: php tests/integrity_report_verifier.test.php
 
       - name: Download the exact published release asset
         shell: bash
