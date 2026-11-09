@@ -25,8 +25,6 @@ $required = [
     'openssl_extension' => extension_loaded('openssl'),
     'json_extension' => extension_loaded('json'),
     'sodium_extension' => extension_loaded('sodium'),
-    'curl_extension' => extension_loaded('curl'),
-    'allow_url_fopen' => filter_var(ini_get('allow_url_fopen'), FILTER_VALIDATE_BOOL),
 ];
 $report = [
     'probe' => 'sentryiq-heliohost-tuf-runtime',
@@ -52,7 +50,8 @@ $report = [
     'tuf_refresh' => null,
 ];
 
-$transportAvailable = extension_loaded('curl') || $required['allow_url_fopen'];
+$transportAvailable = extension_loaded('curl')
+    || filter_var(ini_get('allow_url_fopen'), FILTER_VALIDATE_BOOL);
 $report['requirements']['https_transport_available'] = $transportAvailable;
 $requirementsPassed = !in_array(false, $report['requirements'], true);
 
