@@ -449,11 +449,11 @@ try {
     }
 
     foreach ([
-        "truncated" => "\\x0c\\x02A",
-        "trailing bytes" => "\\x0c\\x01A\\x00",
-        "non-minimal length" => "\\x0c\\x81\\x01A",
-        "indefinite length" => "\\x0c\\x80\\x00\\x00",
-        "invalid UTF-8" => "\\x0c\\x01\\xff",
+        "truncated" => "\x0c\x02A",
+        "trailing bytes" => "\x0c\x01A\x00",
+        "non-minimal length" => "\x0c\x81\x01A",
+        "indefinite length" => "\x0c\x80\x00\x00",
+        "invalid UTF-8" => "\x0c\x01\xff",
     ] as $case => $malformedDer) {
         $malformedRejected = false;
         try {
@@ -467,7 +467,7 @@ try {
     }
 
     echo "PASS: {$verified} bundle(s) passed native PHP Sigstore verification and SentryIQ provenance policy.\n";
-    echo "PASS: wrong digest, signer, DSSE signature, repository, source commit, and release tag were rejected.\n";
+    echo "PASS: wrong digest, signer, DSSE signature, repository, source commit, release tag, runner, certificate commit/repository, and malformed DER were rejected.\n";
     echo "Artifact SHA-256: {$digest}\n";
 } catch (Throwable $exception) {
     fail($exception->getMessage());
