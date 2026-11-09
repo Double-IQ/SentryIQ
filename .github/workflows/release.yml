@@ -61,7 +61,7 @@ jobs:
           sha256sum release-manifest.json > release-manifest.json.sha256
 
       - name: Test canonical release manifest builder
-        run: python3 -m unittest tests/build_release_manifest.test.py
+        run: python3 tests/build_release_manifest.test.py
 
       - name: Attest release package and inventory manifest provenance
         uses: actions/attest-build-provenance@v2
