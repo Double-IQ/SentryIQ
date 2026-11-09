@@ -89,6 +89,11 @@ try {
     check($store->credentialEnvelope($credentialTwo) !== null, 'Additional passkey envelope should be stored.');
     $store->removeCredentialEnvelope($credentialOne);
     check($store->credentialEnvelope($credentialOne) === null, 'Removed passkey envelope should no longer be available.');
+    expectFailure(
+        fn() => $store->removeCredentialEnvelope($credentialTwo),
+        'The final Gallery passkey envelope must not be removable.'
+    );
+    check($store->credentialEnvelope($credentialTwo) !== null, 'The final passkey envelope must remain after a rejected removal.');
     check($store->accountSalt() === str_repeat('C', 43), 'Removing one passkey must preserve the Gallery PRF salt for remaining credentials.');
     expectFailure(
         fn() => $store->initialize($publicKey, $privateEnvelope, $credentialOne, $makeCredentialEnvelope($credentialOne), $recoveryEnvelope),
@@ -117,6 +122,20 @@ try {
     }
     $objectStore->createPending($photoId, $objectKeys);
     check(($objectStore->find($photoId)['status'] ?? '') === 'pending', 'New object reservation must be pending.');
+    check($objectStore->all() === [], 'Pending objects must never appear in the active Gallery listing.');
+    $invalidEnvelopes = $envelopes;
+    $invalidEnvelopes['original']['role'] = 'thumbnail';
+    expectFailure(
+        fn() => $objectStore->commit($photoId, $invalidEnvelopes, $sizes),
+        'The object store must reject an envelope bound to the wrong role.'
+    );
+    check(($objectStore->find($photoId)['status'] ?? '') === 'pending', 'A rejected commit must leave the reservation pending.');
+    $invalidSizes = $sizes;
+    $invalidSizes['original'] = 0;
+    expectFailure(
+        fn() => $objectStore->commit($photoId, $envelopes, $invalidSizes),
+        'The object store must reject an invalid ciphertext size.'
+    );
     $objectStore->commit($photoId, $envelopes, $sizes);
     check(($objectStore->find($photoId)['status'] ?? '') === 'active', 'Committed ciphertext objects must be active.');
     check(count($objectStore->all()) === 1, 'Active Gallery objects must be listed.');
