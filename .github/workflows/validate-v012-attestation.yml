@@ -8,8 +8,10 @@ on:
       - 'scripts/validate-v012-attestation.py'
       - 'app/Updates/GitHubCliAttestationVerifier.php'
       - 'app/Updates/IntegrityReportVerifier.php'
+      - 'app/Updates/IntegrityReportSigner.php'
       - 'tests/github_cli_attestation_verifier.test.php'
       - 'tests/integrity_report_verifier.test.php'
+      - 'tests/integrity_report_signer.test.php'
       - 'tests/fixtures/genuine-gh-attestation-v0.1.2.json'
   workflow_dispatch:
 
@@ -43,6 +45,9 @@ jobs:
 
       - name: Run dual Integrity Node Ed25519 report tests
         run: php tests/integrity_report_verifier.test.php
+
+      - name: Run Integrity Node report signer integration tests
+        run: php tests/integrity_report_signer.test.php
 
       - name: Download the exact published release asset
         shell: bash
