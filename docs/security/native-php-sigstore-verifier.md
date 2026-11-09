@@ -64,5 +64,5 @@ complete: successful real-artifact CI cross-check; a separately attested manifes
 subsequent release; reviewed dependency lock and deployment packaging; full
 parity with the existing SentryIQ certificate/provenance policy; independent
 security review of the candidate dependency; HelioHost runtime test; and
-adversarial tests for malformed bundles, wrong identities, wrong repositories,
+adversarial tests for malformed bundles/DER, wrong identities, wrong repositories,
 wrong commits, invalid Rekor evidence, stale trust roots, and modified artifacts.
