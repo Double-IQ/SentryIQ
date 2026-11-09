@@ -1,0 +1,90 @@
+name: Validate v0.1.2 release attestation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/validate-v012-attestation.yml'
+      - 'scripts/validate-v012-attestation.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  attestations: read
+
+concurrency:
+  group: validate-v012-attestation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-real-release:
+    name: Verify published v0.1.2 ZIP with GitHub CLI
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout validation code
+        uses: actions/checkout@v4
+
+      - name: Confirm GitHub CLI is available
+        run: gh --version
+
+      - name: Download the exact published release asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release download v0.1.2 \
+            --repo Double-IQ/SentryIQ \
+            --pattern sentryiq-0.1.2.zip \
+            --dir "$RUNNER_TEMP"
+          echo "PACKAGE=$RUNNER_TEMP/sentryiq-0.1.2.zip" >> "$GITHUB_ENV"
+
+      - name: Check published asset digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s  %s\n' \
+            '41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e' \
+            "$PACKAGE" | sha256sum --check -
+
+      - name: Run genuine Sigstore attestation verification
+        id: verify
+        shell: bash
+        run: |
+          set +e
+          gh attestation verify "$PACKAGE" \
+            --repo Double-IQ/SentryIQ \
+            --signer-workflow Double-IQ/SentryIQ/.github/workflows/release.yml \
+            --cert-oidc-issuer https://token.actions.githubusercontent.com \
+            --source-ref refs/tags/v0.1.2 \
+            --predicate-type https://slsa.dev/provenance/v1 \
+            --deny-self-hosted-runners \
+            --format json \
+            > "$RUNNER_TEMP/verification.json" \
+            2> "$RUNNER_TEMP/verification.stderr"
+          status=$?
+          set -e
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          if [ "$status" -ne 0 ]; then
+            cat "$RUNNER_TEMP/verification.stderr"
+            exit "$status"
+          fi
+
+      - name: Compare genuine certificate and provenance fields with adapter assumptions
+        if: steps.verify.outputs.exit_code == '0'
+        run: |
+          python3 scripts/validate-v012-attestation.py \
+            "$RUNNER_TEMP/verification.json" \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Preserve genuine verifier output for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentryiq-v0.1.2-attestation-verification
+          path: |
+            ${{ runner.temp }}/verification.json
+            ${{ runner.temp }}/verification.stderr
+          if-no-files-found: warn
+          retention-days: 7
