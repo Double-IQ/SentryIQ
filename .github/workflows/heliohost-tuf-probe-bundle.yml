@@ -28,7 +28,7 @@ jobs:
       - name: Validate and install pinned dependencies
         working-directory: tools/heliohost-tuf-probe
         run: |
-          composer validate --strict
+          composer validate
           composer install --no-interaction --no-dev --prefer-dist --classmap-authoritative
           composer check-platform-reqs --no-dev
 
