@@ -108,5 +108,29 @@ cliVerifierReject(
     'Missing verified timestamp evidence must be rejected.'
 );
 
+$certificateMutations = [
+    'wrong source ref' => ['sourceRepositoryRef' => 'refs/heads/main'],
+    'wrong source commit' => ['sourceRepositoryDigest' => str_repeat('b', 40)],
+    'wrong signer commit' => ['buildSignerDigest' => str_repeat('b', 40)],
+    'wrong workflow config commit' => ['buildConfigDigest' => str_repeat('b', 40)],
+    'wrong event' => ['buildTrigger' => 'workflow_dispatch'],
+    'wrong issuer' => ['issuer' => 'https://attacker.example'],
+    'wrong runner' => ['runnerEnvironment' => 'self-hosted'],
+    'wrong workflow signer' => ['buildSignerURI' => 'https://github.com/attacker/repo/.github/workflows/release.yml@refs/tags/v1.2.3'],
+];
+foreach ($certificateMutations as $label => $changes) {
+    $mutated = $verifiedOutput;
+    $mutated[0]['verificationResult']['signature']['certificate'] = array_replace(
+        $mutated[0]['verificationResult']['signature']['certificate'],
+        $changes
+    );
+    $mutatedRunner = static fn(array $command): array => [0, json_encode($mutated, JSON_THROW_ON_ERROR), ''];
+    $mutatedVerifier = new GitHubCliAttestationVerifier(new ReleaseTrustPolicy(), 'gh', $mutatedRunner);
+    cliVerifierReject(
+        fn() => $mutatedVerifier->assertTrustedArtifact($temp, $version, $commit, '1.2.2'),
+        'Certificate policy must reject ' . $label . '.'
+    );
+}
+
 unlink($temp);
 echo "GitHub CLI attestation adapter contract tests passed.\n";
