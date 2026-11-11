@@ -63,6 +63,18 @@ jobs:
           echo "package_digest=$PACKAGE_DIGEST" >> "$GITHUB_OUTPUT"
           echo "bundle_file=$BUNDLE" >> "$GITHUB_OUTPUT"
 
+      - name: Execute the same native PHP verifier against the genuine release
+        env:
+          SENTRYIQ_SIGSTORE_VENDOR: ${{ github.workspace }}/tools/heliohost-attestation/vendor
+        run: |
+          set -euo pipefail
+          PACKAGE="sentryiq-${RELEASE_VERSION}.zip"
+          php tools/heliohost-attestation/validate-native-php-sigstore.php \
+            "$PACKAGE" \
+            "${{ steps.attestation.outputs.bundle_file }}" \
+            "$RELEASE_VERSION" \
+            "$RELEASE_COMMIT"
+
       - name: Assemble private/public HelioHost upload bundle
         env:
           SOURCE_COMMIT: ${{ github.sha }}
