@@ -81,6 +81,9 @@ jobs:
             printf 'source_commit=%s\n' "$SOURCE_COMMIT"
             printf 'php_build_version=%s\n' "$(php -r 'echo PHP_VERSION;')"
             printf 'sigstore_verify_version=%s\n' "$(composer show k2gl/sigstore-verify --format=json | php -r '$j=json_decode(stream_get_contents(STDIN), true); echo $j["versions"][0] ?? "unknown";')"
+            printf 'tuf_version=%s\n' "$(php -r '$j=json_decode(file_get_contents("vendor/composer/installed.json"), true); foreach (($j["packages"] ?? $j) as $p) { if (($p["name"] ?? "") === "k2gl/tuf") { echo $p["version"]; break; } }')"
+            printf 'tuf_source_reference=%s\n' "$(php -r '$j=json_decode(file_get_contents("vendor/composer/installed.json"), true); foreach (($j["packages"] ?? $j) as $p) { if (($p["name"] ?? "") === "k2gl/tuf") { echo $p["source"]["reference"] ?? "unknown"; break; } }')"
+            printf 'tuf_patch_sha256=%s\n' "$(sha256sum patches/k2gl-tuf-1.2.1-root-404.patch | cut -d' ' -f1)"
           } > bundle/BUILD-INFO.txt
           (
             cd bundle
