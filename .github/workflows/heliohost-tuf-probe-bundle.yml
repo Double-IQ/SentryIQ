@@ -32,6 +32,40 @@ jobs:
           composer install --no-interaction --no-dev --prefer-dist --classmap-authoritative
           composer check-platform-reqs --no-dev
 
+      - name: Verify and patch the exact TUF dependency
+        working-directory: tools/heliohost-tuf-probe
+        run: |
+          set -euo pipefail
+          php -r '
+          $installed = json_decode(file_get_contents("vendor/composer/installed.json"), true, 512, JSON_THROW_ON_ERROR);
+          $packages = $installed["packages"] ?? $installed;
+          $tuf = null;
+          foreach ($packages as $package) {
+              if (($package["name"] ?? null) === "k2gl/tuf") {
+                  $tuf = $package;
+                  break;
+              }
+          }
+          if (!is_array($tuf)
+              || ($tuf["version"] ?? null) !== "1.2.1"
+              || ($tuf["source"]["reference"] ?? null) !== "0c324cd765e04c9d47d01fe0e9887d6ab8153bfd") {
+              fwrite(STDERR, "Unexpected k2gl/tuf package version or source commit.\n");
+              exit(1);
+          }
+          '
+          patch --dry-run -p1 -d vendor/k2gl/tuf < patches/k2gl-tuf-1.2.1-root-404.patch
+          patch -p1 -d vendor/k2gl/tuf < patches/k2gl-tuf-1.2.1-root-404.patch
+          php -r '
+          require "vendor/autoload.php";
+          if (!class_exists(\K2gl\Tuf\Exception\NotFoundException::class)
+              || !class_exists(\K2gl\Tuf\HttpFetcher::class)) {
+              fwrite(STDERR, "Patched TUF classes did not autoload.\n");
+              exit(1);
+          }
+          '
+          grep -q 'catch (NotFoundException)' vendor/k2gl/tuf/src/Updater.php
+          grep -q 'NotFoundException' vendor/k2gl/tuf/src/HttpFetcher.php
+
       - name: Assemble private/public upload bundle
         env:
           SOURCE_COMMIT: ${{ github.sha }}
