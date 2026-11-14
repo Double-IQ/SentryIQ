@@ -94,7 +94,6 @@ final class SigstoreProvenance
                 $sourceCommits[] = strtolower($commit);
             }
         }
-        $sourceCommits = array_values(array_unique($sourceCommits));
         if (count($sourceCommits) !== 1 || preg_match('/^[a-f0-9]{40}$/', $sourceCommits[0]) !== 1) {
             throw new RuntimeException('SLSA provenance does not identify exactly one full source commit for this release tag.');
         }
