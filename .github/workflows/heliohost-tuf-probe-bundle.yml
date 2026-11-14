@@ -55,6 +55,7 @@ jobs:
           '
           patch --dry-run -p1 -d vendor/k2gl/tuf < patches/k2gl-tuf-1.2.1-vendor.patch
           patch -p1 -d vendor/k2gl/tuf < patches/k2gl-tuf-1.2.1-vendor.patch
+          composer dump-autoload --no-dev --classmap-authoritative
           php -r '
           require "vendor/autoload.php";
           if (!class_exists(\K2gl\Tuf\Exception\NotFoundException::class)
