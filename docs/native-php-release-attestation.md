@@ -14,8 +14,9 @@ Add this key to the existing private `sentryiq_config.php` array:
 ```
 
 The path must point to a Composer autoloader outside the public web root and
-must load the pinned `k2gl/sigstore-verify` and patched `k2gl/tuf`
-dependencies. Keep the entire vendor directory private. Never copy Composer
+must load exactly `k2gl/sigstore-verify 1.6.1` and patched
+`k2gl/tuf 1.2.1`; the updater checks these installed package versions at
+runtime and fails closed on a mismatch. Keep the entire vendor directory private. Never copy Composer
 dependencies into `httpdocs`.
 
 The updater creates its persistent TUF root store at
