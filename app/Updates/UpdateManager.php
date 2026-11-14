@@ -9,7 +9,7 @@ use ZipArchive;
 
 final class UpdateManager
 {
-    private const REPOSITORY = 'BTM-SA/SentryIQ';
+    private const REPOSITORY = 'Double-IQ/SentryIQ';
     private const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
     private const CACHE_TTL = 21600;
 
