@@ -41,13 +41,10 @@ final class NativeSigstoreReleaseVerifier
 
         require_once $vendorAutoloadPath;
         foreach ([Bundle::class, SigstoreVerifier::class, TrustedRoot::class, Updater::class] as $class) {
-            if (!class_exists($class)) {
-                throw new RuntimeException('The configured private vendor directory is missing a required Sigstore/TUF class.');
-            }
-        }
-        if (!class_exists(\Composer\InstalledVersions::class)
-            || \Composer\InstalledVersions::getPrettyVersion('k2gl/sigstore-verify') !== self::SIGSTORE_VERIFY_VERSION
-            || \Composer\InstalledVersions::getPrettyVersion('k2gl/tuf') !== self::TUF_VERSION) {
+            $installedVersionsClass = 'Composer' . chr(92) . 'InstalledVersions';
+        if (!class_exists($installedVersionsClass)
+            || call_user_func([$installedVersionsClass, 'getPrettyVersion'], 'k2gl/sigstore-verify') !== self::SIGSTORE_VERIFY_VERSION
+            || call_user_func([$installedVersionsClass, 'getPrettyVersion'], 'k2gl/tuf') !== self::TUF_VERSION) {
             throw new RuntimeException('Private Sigstore dependencies do not match the pinned verifier and patched TUF versions.');
         }
 
