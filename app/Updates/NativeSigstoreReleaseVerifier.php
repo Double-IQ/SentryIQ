@@ -104,7 +104,7 @@ final class NativeSigstoreReleaseVerifier
                 $envelope = $verifier->verify($bundle, $trustedRoot, $identity);
                 $claims = SigstoreProvenance::claims($envelope, $version, $digest);
                 if (!hash_equals($tagCommit, $claims['source_commit'])) {
-                    throw new RuntimeException('Attested source commit does not match the current immutable Git tag resolution.');
+                    throw new RuntimeException('Attested source commit does not match GitHub's current resolution of the release tag.');
                 }
                 return $claims;
             } catch (Throwable $exception) {
