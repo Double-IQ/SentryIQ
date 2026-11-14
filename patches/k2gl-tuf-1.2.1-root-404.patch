@@ -394,7 +394,7 @@ new file mode 100644
 index 0000000..0000000
 --- /dev/null
 +++ b/tests/UpdaterRootRotationSecurityTest.php
-@@ -0,0 +1,81 @@
+@@ -0,0 +1,77 @@
 +<?php
 +
 +declare(strict_types=1);
