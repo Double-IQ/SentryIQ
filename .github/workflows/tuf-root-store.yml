@@ -14,6 +14,7 @@ on:
     paths:
       - 'app/Updates/TufRootStore.php'
       - 'tests/tuf_root_store.test.php'
+      - 'tools/heliohost-tuf-persistence-probe/**'
       - '.github/workflows/tuf-root-store.yml'
 
 permissions:
