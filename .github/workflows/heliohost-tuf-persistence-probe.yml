@@ -33,6 +33,7 @@ jobs:
           mkdir -p tools/heliohost-tuf-persistence-probe/bundle/private
           cp tools/heliohost-tuf-persistence-probe/httpdocs/*.php tools/heliohost-tuf-persistence-probe/bundle/httpdocs/
           cp tools/heliohost-tuf-persistence-probe/private/*.php tools/heliohost-tuf-persistence-probe/bundle/private/
+          cp app/Updates/TufRootStore.php tools/heliohost-tuf-persistence-probe/bundle/private/TufRootStore.php
           cp tools/heliohost-tuf-persistence-probe/README.md tools/heliohost-tuf-persistence-probe/bundle/README.md
           (
             cd tools/heliohost-tuf-persistence-probe/bundle
