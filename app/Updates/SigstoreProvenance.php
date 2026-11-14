@@ -25,20 +25,30 @@ final class SigstoreProvenance
     public static function claims(Envelope $envelope, string $expectedVersion, string $expectedDigest): array
     {
         $statement = Statement::fromEnvelope($envelope);
-        if ($statement->predicateType !== self::PREDICATE_TYPE) {
+        return self::claimsFromArray($statement->toArray(), $expectedVersion, $expectedDigest);
+    }
+
+    /** @param array<string, mixed> $statement */
+    public static function claimsFromArray(array $statement, string $expectedVersion, string $expectedDigest): array
+    {
+        if (($statement['predicateType'] ?? null) !== self::PREDICATE_TYPE) {
             throw new RuntimeException('Release attestation does not contain SLSA Provenance v1.');
         }
 
-        if (count($statement->subject) !== 1) {
+        $subjects = $statement['subject'] ?? null;
+        if (!is_array($subjects) || count($subjects) !== 1 || !is_array($subjects[0] ?? null)) {
             throw new RuntimeException('Release attestation must identify exactly one artifact subject.');
         }
-        $subject = $statement->subject[0];
+        $subject = $subjects[0];
         if ($subject->name !== 'sentryiq-' . $expectedVersion . '.zip'
             || strtolower((string)($subject->digest['sha256'] ?? '')) !== strtolower($expectedDigest)) {
             throw new RuntimeException('Attestation subject name or digest does not match the downloaded release ZIP.');
         }
 
-        $predicate = $statement->predicate;
+        $predicate = $statement['predicate'] ?? null;
+        if (!is_array($predicate)) {
+            throw new RuntimeException('SLSA provenance predicate is missing or invalid.');
+        }
         $definition = $predicate['buildDefinition'] ?? null;
         $external = is_array($definition) ? ($definition['externalParameters'] ?? null) : null;
         $workflow = is_array($external) ? ($external['workflow'] ?? null) : null;
