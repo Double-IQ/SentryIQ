@@ -1,0 +1,82 @@
+name: Validate pinned TUF patch
+
+on:
+  push:
+    branches:
+      - security/tuf-1.2.1-root-rotation-fail-closed
+    paths:
+      - 'patches/k2gl-tuf-1.2.1-root-404.patch'
+      - 'docs/security/k2gl-tuf-1.2.1-root-rotation.md'
+      - '.github/workflows/tuf-patch-validation.yml'
+  pull_request:
+    paths:
+      - 'patches/k2gl-tuf-1.2.1-root-404.patch'
+      - 'docs/security/k2gl-tuf-1.2.1-root-rotation.md'
+      - '.github/workflows/tuf-patch-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upstream:
+    name: PHP ${{ matrix.php }} / upstream checks
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.2', '8.3', '8.4', '8.5']
+
+    steps:
+      - name: Check out SentryIQ patch
+        uses: actions/checkout@v4
+
+      - name: Check out pinned upstream TUF source
+        uses: actions/checkout@v4
+        with:
+          repository: k2gl/tuf
+          ref: 0c324cd765e04c9d47d01fe0e9887d6ab8153bfd
+          path: upstream-tuf
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          tools: composer:v2
+          coverage: none
+
+      - name: Verify and apply patch
+        working-directory: upstream-tuf
+        run: |
+          git apply --check ../patches/k2gl-tuf-1.2.1-root-404.patch
+          git apply ../patches/k2gl-tuf-1.2.1-root-404.patch
+
+      - name: Validate Composer metadata
+        working-directory: upstream-tuf
+        run: composer validate --strict
+
+      - name: Work around current PHP 8.1 advisory metadata floor
+        if: matrix.php == '8.1'
+        working-directory: upstream-tuf
+        run: |
+          php -r '$c=json_decode(file_get_contents("composer.json"), true, 512, JSON_THROW_ON_ERROR); unset($c["require-dev"]["roave/security-advisories"]); file_put_contents("composer.json", json_encode($c, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);'
+
+      - name: Install dependencies
+        working-directory: upstream-tuf
+        run: composer install --prefer-dist --no-progress
+
+      - name: PHPUnit
+        working-directory: upstream-tuf
+        run: composer test
+
+      - name: Exercise stream transport fallback
+        working-directory: upstream-tuf
+        run: php -d disable_functions=curl_init,curl_setopt,curl_exec,curl_getinfo,curl_error,curl_close vendor/bin/phpunit tests/HttpFetcherTest.php
+
+      - name: PHPStan
+        working-directory: upstream-tuf
+        run: composer phpstan
+
+      - name: Coding standards
+        working-directory: upstream-tuf
+        run: composer cs
