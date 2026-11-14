@@ -40,8 +40,8 @@ final class SigstoreProvenance
             throw new RuntimeException('Release attestation must identify exactly one artifact subject.');
         }
         $subject = $subjects[0];
-        if ($subject->name !== 'sentryiq-' . $expectedVersion . '.zip'
-            || strtolower((string)($subject->digest['sha256'] ?? '')) !== strtolower($expectedDigest)) {
+        if (($subject['name'] ?? null) !== 'sentryiq-' . $expectedVersion . '.zip'
+            || strtolower((string)(($subject['digest']['sha256'] ?? ''))) !== strtolower($expectedDigest)) {
             throw new RuntimeException('Attestation subject name or digest does not match the downloaded release ZIP.');
         }
 
@@ -88,7 +88,7 @@ final class SigstoreProvenance
             $uri = $dependency['uri'] ?? null;
             $commit = $dependency['digest']['gitCommit'] ?? null;
             if (is_string($uri) && is_string($commit)
-                && str_starts_with($uri, 'git+https://github.com/' . self::REPOSITORY . '@' . $expectedRef)) {
+                && $uri === 'git+https://github.com/' . self::REPOSITORY . '@' . $expectedRef) {
                 $sourceCommits[] = strtolower($commit);
             }
         }
