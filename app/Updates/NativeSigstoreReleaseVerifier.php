@@ -24,6 +24,8 @@ final class NativeSigstoreReleaseVerifier
     private const TUF_TARGETS_URL = 'https://tuf-repo-cdn.sigstore.dev/targets';
     private const MAX_API_BYTES = 2_000_000;
     private const MAX_BUNDLE_BYTES = 8_000_000;
+    private const SIGSTORE_VERIFY_VERSION = '1.6.1';
+    private const TUF_VERSION = '1.2.1';
 
     private readonly TufRootStore $rootStore;
 
@@ -43,6 +45,11 @@ final class NativeSigstoreReleaseVerifier
                 throw new RuntimeException('The configured private vendor directory is missing a required Sigstore/TUF class.');
             }
         }
+        if (!class_exists(\\Composer\\InstalledVersions::class)
+            || \\Composer\\InstalledVersions::getPrettyVersion('k2gl/sigstore-verify') !== self::SIGSTORE_VERIFY_VERSION
+            || \\Composer\\InstalledVersions::getPrettyVersion('k2gl/tuf') !== self::TUF_VERSION) {
+            throw new RuntimeException('Private Sigstore dependencies do not match the pinned verifier and patched TUF versions.');
+        }
 
         $storeDirectory = rtrim($privateDataDirectory, '/') . '/sigstore-tuf';
         if (!is_dir($storeDirectory) && !@mkdir($storeDirectory, 0700)) {
@@ -56,7 +63,7 @@ final class NativeSigstoreReleaseVerifier
     }
 
     /**
-     * @return array<string, string> authenticated and policy-ready claims
+     * @return array<string, mixed> authenticated and policy-ready claims
      */
     public function verifyRelease(string $zipPath, string $version): array
     {
@@ -204,7 +211,10 @@ final class NativeSigstoreReleaseVerifier
             CURLOPT_RETURNTRANSFER => false,
             CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_CONNECTTIMEOUT => 12,
-            CURLOPT_TIMEOUT => 30,
+            CURLOPT_TIMEOUT => 20,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
             CURLOPT_HTTPHEADER => $hostType === 'api'
                 ? ['Accept: application/vnd.github+json', 'X-GitHub-Api-Version: 2022-11-28', 'User-Agent: SentryIQ-Updater/1.0']
                 : ['Accept: application/json', 'User-Agent: SentryIQ-Updater/1.0'],
