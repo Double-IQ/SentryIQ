@@ -14,7 +14,7 @@ use K2gl\Sigstore\TrustedRoot;
 
 // The bundle keeps Composer dependencies outside the public document root.
 // For CLI runs, retain the convenient local vendor/ fallback.
-$privateAutoload = dirname(__DIR__) . '/sentryiq-probe-private/vendor/autoload.php';
+$privateAutoload = dirname(__DIR__) . '/sentryiq-tuf-patched-private/vendor/autoload.php';
 $localAutoload = __DIR__ . '/vendor/autoload.php';
 $autoload = is_file($privateAutoload) ? $privateAutoload : $localAutoload;
 
