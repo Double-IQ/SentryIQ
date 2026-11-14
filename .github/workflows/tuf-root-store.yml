@@ -1,0 +1,37 @@
+name: TUF Root Persistence Boundary
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app/Updates/TufRootStore.php'
+      - 'tests/tuf_root_store.test.php'
+      - '.github/workflows/tuf-root-store.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app/Updates/TufRootStore.php'
+      - 'tests/tuf_root_store.test.php'
+      - '.github/workflows/tuf-root-store.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  persistence:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.2', '8.3', '8.4', '8.5']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+      - name: Lint root store and test
+        run: |
+          php -l app/Updates/TufRootStore.php
+          php -l tests/tuf_root_store.test.php
+      - name: Run persistence boundary tests
+        run: php tests/tuf_root_store.test.php
