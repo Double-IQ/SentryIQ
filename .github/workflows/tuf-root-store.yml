@@ -34,3 +34,11 @@ jobs:
           php -l tests/tuf_root_store.test.php
       - name: Run persistence boundary tests
         run: php tests/tuf_root_store.test.php
+
+      - name: Verify root reload in a separate PHP process
+        run: |
+          private_dir="$(mktemp -d)"
+          chmod 700 "$private_dir"
+          trap 'rm -rf "$private_dir"' EXIT
+          php tests/tuf_root_store_process.php write "$private_dir"
+          php tests/tuf_root_store_process.php read "$private_dir"
