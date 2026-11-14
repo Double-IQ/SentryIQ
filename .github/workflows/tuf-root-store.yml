@@ -2,13 +2,12 @@ name: TUF Root Persistence Boundary
 
 on:
   pull_request:
-    branches: [main]
     paths:
       - 'app/Updates/TufRootStore.php'
       - 'tests/tuf_root_store.test.php'
       - '.github/workflows/tuf-root-store.yml'
   push:
-    branches: [main]
+    branches: [test/tuf-root-persistence-boundary]
     paths:
       - 'app/Updates/TufRootStore.php'
       - 'tests/tuf_root_store.test.php'
