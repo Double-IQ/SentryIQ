@@ -1,0 +1,54 @@
+name: Native PHP Release Attestation
+
+on:
+  pull_request:
+    paths:
+      - 'app/Updates/NativeSigstoreReleaseVerifier.php'
+      - 'app/Updates/SigstoreProvenance.php'
+      - 'app/Updates/ReleaseTrustPolicy.php'
+      - 'app/Updates/UpdateManager.php'
+      - 'update_apply.php'
+      - 'tests/release_trust_policy.test.php'
+      - 'tests/sigstore_provenance.test.php'
+      - '.github/workflows/native-release-attestation.yml'
+  push:
+    branches: [security/native-php-release-attestation]
+    paths:
+      - 'app/Updates/NativeSigstoreReleaseVerifier.php'
+      - 'app/Updates/SigstoreProvenance.php'
+      - 'app/Updates/ReleaseTrustPolicy.php'
+      - 'app/Updates/UpdateManager.php'
+      - 'update_apply.php'
+      - 'tests/release_trust_policy.test.php'
+      - 'tests/sigstore_provenance.test.php'
+      - '.github/workflows/native-release-attestation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.2', '8.3', '8.4', '8.5']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+      - name: Lint native verifier and updater
+        run: |
+          php -l app/Updates/NativeSigstoreReleaseVerifier.php
+          php -l app/Updates/SigstoreProvenance.php
+          php -l app/Updates/ReleaseTrustPolicy.php
+          php -l app/Updates/TufRootStore.php
+          php -l app/Updates/UpdateManager.php
+          php -l update_apply.php
+          php -l tests/release_trust_policy.test.php
+          php -l tests/sigstore_provenance.test.php
+      - name: Run release trust policy tests
+        run: php tests/release_trust_policy.test.php
+      - name: Run SLSA provenance parser tests
+        run: php tests/sigstore_provenance.test.php
