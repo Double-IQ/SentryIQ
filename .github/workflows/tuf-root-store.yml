@@ -7,6 +7,7 @@ on:
       - 'tests/tuf_root_store.test.php'
       - 'tests/tuf_updater_persistence.integration.php'
       - 'tests/tuf_root_store_process.php'
+      - 'tools/heliohost-tuf-persistence-probe/**'
       - '.github/workflows/tuf-root-store.yml'
   push:
     branches: [test/tuf-root-persistence-boundary]
@@ -65,3 +66,29 @@ jobs:
           trap 'rm -rf "$private_dir"' EXIT
           php tests/tuf_root_store_process.php write "$private_dir"
           php tests/tuf_root_store_process.php read "$private_dir"
+
+      - name: Build HelioHost two-request persistence probe bundle
+        if: matrix.php == '8.5'
+        run: |
+          set -euo pipefail
+          rm -rf probe-bundle
+          mkdir -p probe-bundle/httpdocs probe-bundle/private
+          cp tools/heliohost-tuf-persistence-probe/httpdocs/*.php probe-bundle/httpdocs/
+          cp tools/heliohost-tuf-persistence-probe/private/probe-common.php probe-bundle/private/
+          cp app/Updates/TufRootStore.php probe-bundle/private/TufRootStore.php
+          cp tools/heliohost-tuf-persistence-probe/README.md probe-bundle/README.md
+          (
+            cd probe-bundle
+            find . -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+            zip -qr ../sentryiq-heliohost-tuf-persistence-probe.zip .
+          )
+          sha256sum sentryiq-heliohost-tuf-persistence-probe.zip
+
+      - name: Upload HelioHost two-request persistence probe
+        if: matrix.php == '8.5'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentryiq-heliohost-tuf-persistence-probe
+          path: sentryiq-heliohost-tuf-persistence-probe.zip
+          if-no-files-found: error
+          retention-days: 7
