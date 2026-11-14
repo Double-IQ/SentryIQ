@@ -11,7 +11,7 @@ use K2gl\Tuf\Tests\Support\SigningKey;
 use K2gl\Tuf\Updater;
 use SentryIQ\Updates\TufRootStore;
 
-require_once __DIR__ . '/../../upstream-tuf/vendor/autoload.php';
+require_once __DIR__ . '/../upstream-tuf/vendor/autoload.php';
 
 const META_URL = 'https://example.test/metadata';
 const TARGET_URL = 'https://example.test/targets';
