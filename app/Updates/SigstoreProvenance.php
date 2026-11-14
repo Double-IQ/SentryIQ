@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace SentryIQ\\Updates;
+namespace SentryIQ\Updates;
 
-use K2gl\\Dsse\\Envelope;
-use K2gl\\InToto\\Statement;
+use K2gl\Dsse\Envelope;
+use K2gl\InToto\Statement;
 use RuntimeException;
 
 /**
@@ -21,7 +21,7 @@ final class SigstoreProvenance
     public const REPOSITORY_ID = '1345956206';
     public const WORKFLOW_PATH = '.github/workflows/release.yml';
 
-    /** @return array<string, string> */
+    /** @return array<string, mixed> */
     public static function claims(Envelope $envelope, string $expectedVersion, string $expectedDigest): array
     {
         $statement = Statement::fromEnvelope($envelope);
@@ -88,7 +88,7 @@ final class SigstoreProvenance
         }
 
         return [
-            'cryptographically_verified' => 'true',
+            'cryptographically_verified' => true,
             'repository' => self::REPOSITORY,
             'repository_id' => self::REPOSITORY_ID,
             'source_ref' => $expectedRef,
