@@ -49,12 +49,12 @@ The bundle is temporary test material, not a production release.
 3. Upload `httpdocs/probe.php` into the HelioHost `httpdocs` directory,
    using a fresh, unpredictable filename for the one-shot endpoint.
 4. Upload the extracted `private` directory beside `httpdocs`, then rename it
-   to `sentryiq-probe-private`. Its final path must be
-   `../sentryiq-probe-private/vendor/autoload.php` relative to the web root.
+   to `sentryiq-tuf-patched-private`. Its final path must be
+   `../sentryiq-tuf-patched-private/vendor/autoload.php` relative to the web root.
 5. Request the one-shot endpoint once and save its complete JSON response.
    The script deletes itself after the response. Do not leave a copy in
    `httpdocs`.
-6. Remove the `sentryiq-probe-private` directory after the test unless a
+6. Remove the `sentryiq-tuf-patched-private` directory after the test unless a
    further explicitly approved test needs it.
 
 If Plesk File Manager cannot access the parent directory of `httpdocs`, stop.
