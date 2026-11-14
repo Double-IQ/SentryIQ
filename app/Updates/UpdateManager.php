@@ -16,6 +16,7 @@ final class UpdateManager
     public function __construct(
         private readonly string $applicationRoot,
         private readonly string $dataDir,
+        private readonly ?string $sigstoreAutoloadPath = null,
     ) {
         if ($this->applicationRoot === '' || !str_starts_with($this->applicationRoot, '/') || !is_dir($this->applicationRoot)) {
             throw new RuntimeException('Invalid SentryIQ application root.');
@@ -143,6 +144,25 @@ final class UpdateManager
             if (!is_string($actualHash) || !hash_equals(strtolower($matches[1]), strtolower($actualHash))) {
                 throw new RuntimeException('The release package checksum does not match.');
             }
+
+            // Cryptographic provenance verification MUST precede ZIP extraction.
+            if ($this->sigstoreAutoloadPath === null || $this->sigstoreAutoloadPath === '') {
+                throw new RuntimeException('Native Sigstore verification is not configured; refusing to install an unattested release.');
+            }
+            require_once __DIR__ . '/TufRootStore.php';
+            require_once __DIR__ . '/ReleaseTrustPolicy.php';
+            require_once __DIR__ . '/SigstoreProvenance.php';
+            require_once __DIR__ . '/NativeSigstoreReleaseVerifier.php';
+            $nativeVerifier = new NativeSigstoreReleaseVerifier($this->sigstoreAutoloadPath, $this->dataDir);
+            $verifiedClaims = $nativeVerifier->verifyRelease($zipPath, $latest);
+            $trustPolicy = new ReleaseTrustPolicy();
+            $trustPolicy->assertTrustedRelease(
+                $verifiedClaims,
+                $latest,
+                (string)($verifiedClaims['source_commit'] ?? ''),
+                $actualHash,
+                $current,
+            );
 
             $this->extractAndValidate($zipPath, $stagingPath, $latest);
             $manifest = json_decode((string)@file_get_contents($stagingPath . '/update-manifest.json'), true);
