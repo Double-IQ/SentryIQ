@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace SentryIQ\\Updates;
+namespace SentryIQ\Updates;
 
-use K2gl\\Sigstore\\Bundle;
-use K2gl\\Sigstore\\IdentityPolicy;
-use K2gl\\Sigstore\\SigstoreVerifier;
-use K2gl\\Sigstore\\TrustedRoot;
-use K2gl\\Tuf\\HttpFetcher;
-use K2gl\\Tuf\\Updater;
+use K2gl\Sigstore\Bundle;
+use K2gl\Sigstore\IdentityPolicy;
+use K2gl\Sigstore\SigstoreVerifier;
+use K2gl\Sigstore\TrustedRoot;
+use K2gl\Tuf\HttpFetcher;
+use K2gl\Tuf\Updater;
 use RuntimeException;
 use Throwable;
 
@@ -172,7 +172,7 @@ final class NativeSigstoreReleaseVerifier
         $body = $this->httpsGet(self::API_BASE . $path, self::MAX_API_BYTES, 'api');
         try {
             $data = json_decode($body, true, 64, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException $exception) {
+        } catch (\JsonException $exception) {
             throw new RuntimeException('GitHub API returned invalid JSON.', 0, $exception);
         }
         if (!is_array($data)) {
