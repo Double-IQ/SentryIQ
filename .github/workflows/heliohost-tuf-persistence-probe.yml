@@ -1,0 +1,49 @@
+name: Build HelioHost TUF persistence probe
+
+on:
+  pull_request:
+    paths:
+      - 'tools/heliohost-tuf-persistence-probe/**'
+      - '.github/workflows/heliohost-tuf-persistence-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+      - name: Lint probe files
+        run: |
+          php -l tools/heliohost-tuf-persistence-probe/private/TufRootStore.php
+          php -l tools/heliohost-tuf-persistence-probe/private/probe-common.php
+          php -l tools/heliohost-tuf-persistence-probe/httpdocs/refresh-root.php
+          php -l tools/heliohost-tuf-persistence-probe/httpdocs/reload-root.php
+      - name: Assemble upload bundle
+        run: |
+          set -euo pipefail
+          rm -rf tools/heliohost-tuf-persistence-probe/bundle
+          mkdir -p tools/heliohost-tuf-persistence-probe/bundle/httpdocs
+          mkdir -p tools/heliohost-tuf-persistence-probe/bundle/private
+          cp tools/heliohost-tuf-persistence-probe/httpdocs/*.php tools/heliohost-tuf-persistence-probe/bundle/httpdocs/
+          cp tools/heliohost-tuf-persistence-probe/private/*.php tools/heliohost-tuf-persistence-probe/bundle/private/
+          cp tools/heliohost-tuf-persistence-probe/README.md tools/heliohost-tuf-persistence-probe/bundle/README.md
+          (
+            cd tools/heliohost-tuf-persistence-probe/bundle
+            find . -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+            zip -qr ../sentryiq-heliohost-tuf-persistence-probe.zip .
+          )
+          sha256sum tools/heliohost-tuf-persistence-probe/sentryiq-heliohost-tuf-persistence-probe.zip
+      - name: Upload temporary probe bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentryiq-heliohost-tuf-persistence-probe
+          path: tools/heliohost-tuf-persistence-probe/sentryiq-heliohost-tuf-persistence-probe.zip
+          if-no-files-found: error
+          retention-days: 7
