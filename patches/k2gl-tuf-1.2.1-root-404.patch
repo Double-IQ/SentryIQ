@@ -399,18 +399,18 @@ index 0000000..0000000
 +
 +declare(strict_types=1);
 +
-+namespace K2gl\\Tuf\\Tests;
++namespace K2gl\Tuf\Tests;
 +
-+use K2gl\\Tuf\\Exception\\ExpiredMetadataException;
-+use K2gl\\Tuf\\Exception\\UnsignedMetadataException;
-+use K2gl\\Tuf\\Tests\\Support\\LocalFetcher;
-+use K2gl\\Tuf\\Tests\\Support\\RepoBuilder;
-+use K2gl\\Tuf\\Tests\\Support\\SigningKey;
-+use K2gl\\Tuf\\Updater;
++use K2gl\Tuf\Exception\ExpiredMetadataException;
++use K2gl\Tuf\Exception\UnsignedMetadataException;
++use K2gl\Tuf\Tests\Support\LocalFetcher;
++use K2gl\Tuf\Tests\Support\RepoBuilder;
++use K2gl\Tuf\Tests\Support\SigningKey;
++use K2gl\Tuf\Updater;
 +use DateTimeImmutable;
 +use DateTimeZone;
 +
-+final class UpdaterRootRotationSecurityTest extends \\PHPUnit\\Framework\\TestCase
++final class UpdaterRootRotationSecurityTest extends \PHPUnit\Framework\TestCase
 +{
 +    private const META_URL = 'https://example.test/metadata';
 +    private const TARGET_URL = 'https://example.test/targets';
