@@ -77,7 +77,7 @@ $mutations = [
     'wrong event' => static function (array &$s): void { $s['predicate']['buildDefinition']['internalParameters']['github']['event_name'] = 'workflow_dispatch'; },
     'wrong runner' => static function (array &$s): void { $s['predicate']['buildDefinition']['internalParameters']['github']['runner_environment'] = 'self-hosted'; },
     'wrong builder identity' => static function (array &$s): void { $s['predicate']['runDetails']['builder']['id'] = 'https://example.test/builder'; },
-    'wrong source commit' => static function (array &$s): void { $s['predicate']['buildDefinition']['resolvedDependencies'][0]['digest']['gitCommit'] = str_repeat('b', 40); },
+    'wrong source commit' => static function (array &$s): void { $s['predicate']['buildDefinition']['resolvedDependencies'][0]['digest']['gitCommit'] = str_repeat('b', 39); },
     'wrong source URI' => static function (array &$s): void { $s['predicate']['buildDefinition']['resolvedDependencies'][0]['uri'] = 'git+https://github.com/attacker/SentryIQ@refs/tags/v0.1.2'; },
     'duplicate source dependencies' => static function (array &$s): void { $s['predicate']['buildDefinition']['resolvedDependencies'][] = $s['predicate']['buildDefinition']['resolvedDependencies'][0]; },
     'multiple subjects' => static function (array &$s): void { $s['subject'][] = $s['subject'][0]; },
