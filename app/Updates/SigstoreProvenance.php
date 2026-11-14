@@ -25,7 +25,9 @@ final class SigstoreProvenance
     public static function claims(Envelope $envelope, string $expectedVersion, string $expectedDigest): array
     {
         $statement = Statement::fromEnvelope($envelope);
-        return self::claimsFromArray($statement->toArray(), $expectedVersion, $expectedDigest);
+        $claims = self::claimsFromArray($statement->toArray(), $expectedVersion, $expectedDigest);
+        $claims['cryptographically_verified'] = true;
+        return $claims;
     }
 
     /** @param array<string, mixed> $statement */
@@ -98,7 +100,6 @@ final class SigstoreProvenance
         }
 
         return [
-            'cryptographically_verified' => true,
             'repository' => self::REPOSITORY,
             'repository_id' => self::REPOSITORY_ID,
             'source_ref' => $expectedRef,
