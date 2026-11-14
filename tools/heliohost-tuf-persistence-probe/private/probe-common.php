@@ -12,39 +12,32 @@ require_once __DIR__ . '/TufRootStore.php';
 
 function sentryIqBootstrapRoot(): string
 {
-    $packageDirectory = __DIR__ . '/vendor/k2gl/sigstore-verify';
-    if (!is_dir($packageDirectory)) {
-        throw new RuntimeException('Pinned Sigstore verifier package is missing.');
+    // k2gl/sigstore-verify 1.6.1 stores its pinned TUF bootstrap metadata
+    // at this exact package resource path (not as a file named root.json).
+    $rootPath = __DIR__ . '/vendor/k2gl/sigstore-verify/resources/sigstore-tuf-root.json';
+    if (!is_file($rootPath) || is_link($rootPath) || !is_readable($rootPath)) {
+        throw new RuntimeException('Pinned Sigstore TUF bootstrap root is missing or unreadable.');
     }
 
-    $matches = [];
-    $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($packageDirectory, FilesystemIterator::SKIP_DOTS),
-    );
-    foreach ($iterator as $file) {
-        if (!$file->isFile() || $file->getFilename() !== 'root.json') {
-            continue;
-        }
-        $bytes = file_get_contents($file->getPathname());
-        if (!is_string($bytes)) {
-            continue;
-        }
-        try {
-            $document = json_decode($bytes, true, 64, JSON_THROW_ON_ERROR);
-        } catch (JsonException) {
-            continue;
-        }
-        if (($document['signed']['_type'] ?? null) === 'root'
-            && is_int($document['signed']['version'] ?? null)) {
-            $matches[] = $bytes;
-        }
+    $bytes = file_get_contents($rootPath);
+    if (!is_string($bytes)) {
+        throw new RuntimeException('Could not read the pinned Sigstore TUF bootstrap root.');
     }
 
-    if (count($matches) !== 1) {
-        throw new RuntimeException('Could not identify exactly one bundled Sigstore TUF bootstrap root.');
+    try {
+        $document = json_decode($bytes, true, 64, JSON_THROW_ON_ERROR);
+    } catch (JsonException $exception) {
+        throw new RuntimeException('Pinned Sigstore TUF bootstrap root is not valid JSON.', 0, $exception);
     }
 
-    return $matches[0];
+    if (!is_array($document)
+        || ($document['signed']['_type'] ?? null) !== 'root'
+        || !is_int($document['signed']['version'] ?? null)
+        || $document['signed']['version'] < 1) {
+        throw new RuntimeException('Pinned Sigstore TUF bootstrap root has invalid root metadata.');
+    }
+
+    return $bytes;
 }
 
 function sentryIqRootVersion(string $bytes): int
