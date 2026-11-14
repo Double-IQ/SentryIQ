@@ -59,10 +59,9 @@ function runSentryIqTufPersistenceProbe(string $mode): never
     try {
         $store = new TufRootStore(__DIR__);
         $persistedBefore = $store->load();
-        $bootstrap = sentryIqBootstrapRoot();
 
         if ($mode === 'refresh') {
-            $startingRoot = $persistedBefore ?? $bootstrap;
+            $startingRoot = $persistedBefore ?? sentryIqBootstrapRoot();
             $startingSource = $persistedBefore === null ? 'bundled_bootstrap' : 'persisted_root';
         } elseif ($mode === 'reload') {
             if ($persistedBefore === null) {
