@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Updates/SigstoreProvenance.php';
 
-use SentryIQ\\Updates\\SigstoreProvenance;
+use SentryIQ\Updates\SigstoreProvenance;
 
 function provenanceAssert(bool $condition, string $message): void
 {
@@ -64,7 +64,7 @@ $statement = [
 $claims = SigstoreProvenance::claimsFromArray($statement, '0.1.2', str_repeat('a', 64));
 provenanceAssert($claims['source_commit'] === $commit, 'Source commit must be extracted from the SLSA resolved dependency.');
 provenanceAssert($claims['repository_id'] === '1345956206', 'Repository ID must be pinned.');
-provenanceAssert($claims['cryptographically_verified'] === true, 'Claims are only marked verified after this method is called on a verified envelope.');
+provenanceAssert(!array_key_exists('cryptographically_verified', $claims), 'Unverified parsed JSON must never be marked cryptographically verified.');
 
 $mutations = [
     'wrong subject name' => static function (array &$s): void { $s['subject'][0]['name'] = 'other.zip'; },
@@ -89,4 +89,4 @@ foreach ($mutations as $label => $mutate) {
     provenanceReject($tampered, 'Provenance parser must reject ' . $label . '.');
 }
 
-echo "SLSA provenance claim tests passed.\\n";
+echo "SLSA provenance claim tests passed.\n";
