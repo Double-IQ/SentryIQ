@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Updates/TufRootStore.php';
 
-use SentryIQ\\Updates\\TufRootStore;
+use SentryIQ\Updates\TufRootStore;
 
 function rootStoreAssert(bool $condition, string $message): void
 {
