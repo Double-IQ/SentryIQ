@@ -5,6 +5,8 @@ on:
     paths:
       - 'app/Updates/TufRootStore.php'
       - 'tests/tuf_root_store.test.php'
+      - 'tests/tuf_updater_persistence.integration.php'
+      - 'tests/tuf_root_store_process.php'
       - '.github/workflows/tuf-root-store.yml'
   push:
     branches: [test/tuf-root-persistence-boundary]
@@ -32,8 +34,29 @@ jobs:
         run: |
           php -l app/Updates/TufRootStore.php
           php -l tests/tuf_root_store.test.php
+          php -l tests/tuf_updater_persistence.integration.php
       - name: Run persistence boundary tests
         run: php tests/tuf_root_store.test.php
+
+      - name: Check out pinned TUF source and apply the fail-closed patch
+        uses: actions/checkout@v4
+        with:
+          repository: k2gl/tuf
+          ref: 0c324cd765e04c9d47d01fe0e9887d6ab8153bfd
+          path: upstream-tuf
+
+      - name: Apply SentryIQ TUF patch and install test autoload
+        working-directory: upstream-tuf
+        run: |
+          git apply --check ../patches/k2gl-tuf-1.2.1-root-404.patch
+          git apply ../patches/k2gl-tuf-1.2.1-root-404.patch
+          if [ "${{ matrix.php }}" = "8.1" ]; then
+            php -r '$c=json_decode(file_get_contents("composer.json"), true, 512, JSON_THROW_ON_ERROR); unset($c["require-dev"]["roave/security-advisories"]); file_put_contents("composer.json", json_encode($c, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);'
+          fi
+          composer install --prefer-dist --no-progress
+
+      - name: Exercise real TUF updater with durable root storage
+        run: php tests/tuf_updater_persistence.integration.php
 
       - name: Verify root reload in a separate PHP process
         run: |
