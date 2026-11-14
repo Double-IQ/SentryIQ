@@ -1,0 +1,390 @@
+diff --git a/src/Exception/NotFoundException.php b/src/Exception/NotFoundException.php
+new file mode 100644
+index 0000000..7ae19fb
+--- /dev/null
++++ b/src/Exception/NotFoundException.php
+@@ -0,0 +1,10 @@
++<?php
++
++declare(strict_types=1);
++
++namespace K2gl\Tuf\Exception;
++
++/**
++ * The requested repository object does not exist (HTTP 404).
++ */
++final class NotFoundException extends DownloadException {}
+diff --git a/src/Fetcher.php b/src/Fetcher.php
+index e3a38b7..811ce6b 100644
+--- a/src/Fetcher.php
++++ b/src/Fetcher.php
+@@ -13,8 +13,9 @@ use K2gl\Tuf\Exception\DownloadException;
+  *
+  * Implementations MUST enforce {@see $maxLength} to defend against endless-data
+  * attacks, and MUST throw {@see DownloadException} for any failure — including a
+- * "not found" response, which {@see Updater} relies on to detect the end of the
+- * root version chain.
++ * "not found" response. A missing object MUST be reported as
++ * {@see \K2gl\Tuf\Exception\NotFoundException}, which {@see Updater} uses to
++ * detect the end of the root version chain without hiding other failures.
+  */
+ interface Fetcher
+ {
+diff --git a/src/HttpFetcher.php b/src/HttpFetcher.php
+index 36c65ad..4c8f68d 100644
+--- a/src/HttpFetcher.php
++++ b/src/HttpFetcher.php
+@@ -5,6 +5,7 @@ declare(strict_types=1);
+ namespace K2gl\Tuf;
+ 
+ use K2gl\Tuf\Exception\DownloadException;
++use K2gl\Tuf\Exception\NotFoundException;
+ 
+ /**
+  * The default {@see Fetcher}: an HTTPS client built on cURL when available,
+@@ -62,7 +63,7 @@ final class HttpFetcher implements Fetcher
+         }
+ 
+         if ($status < 200 || $status >= 300) {
+-            throw new DownloadException(\sprintf('Fetching "%s" returned HTTP %d.', $url, $status));
++            $this->throwHttpStatus($url, $status);
+         }
+ 
+         return $body;
+@@ -71,7 +72,13 @@ final class HttpFetcher implements Fetcher
+     private function fetchWithStream(string $url, int $maxLength): string
+     {
+         $context = stream_context_create([
+-            'http' => ['method' => 'GET', 'timeout' => $this->timeoutSeconds, 'ignore_errors' => true],
++            'http' => [
++                'method' => 'GET',
++                'timeout' => $this->timeoutSeconds,
++                'ignore_errors' => true,
++                'follow_location' => 0,
++                'max_redirects' => 0,
++            ],
+         ]);
+         $stream = @fopen($url, 'rb', false, $context);
+ 
+@@ -85,6 +92,11 @@ final class HttpFetcher implements Fetcher
+         if ($body === false) {
+             throw new DownloadException(\sprintf('Failed to read "%s".', $url));
+         }
++
++        if (\strlen($body) > $maxLength) {
++            throw new DownloadException(\sprintf('Response for "%s" exceeds %d bytes.', $url, $maxLength));
++        }
++
+         $this->assertOkStatus($url, $meta['wrapper_data'] ?? null);
+ 
+         return $body;
+@@ -101,9 +112,20 @@ final class HttpFetcher implements Fetcher
+                 $status = (int) $m[1];
+ 
+                 if ($status < 200 || $status >= 300) {
+-                    throw new DownloadException(\sprintf('Fetching "%s" returned HTTP %d.', $url, $status));
++                    $this->throwHttpStatus($url, $status);
+                 }
+             }
+         }
+     }
++
++    private function throwHttpStatus(string $url, int $status): never
++    {
++        $message = \sprintf('Fetching "%s" returned HTTP %d.', $url, $status);
++
++        if ($status === 404) {
++            throw new NotFoundException($message);
++        }
++
++        throw new DownloadException($message);
++    }
+ }
+diff --git a/src/Updater.php b/src/Updater.php
+index 5636faf..fa943dc 100644
+--- a/src/Updater.php
++++ b/src/Updater.php
+@@ -4,7 +4,7 @@ declare(strict_types=1);
+ 
+ namespace K2gl\Tuf;
+ 
+-use K2gl\Tuf\Exception\DownloadException;
++use K2gl\Tuf\Exception\NotFoundException;
+ use K2gl\Tuf\Exception\RepositoryException;
+ use K2gl\Tuf\Metadata\DelegatedRole;
+ use K2gl\Tuf\Metadata\TargetFile;
+@@ -109,7 +109,7 @@ final class Updater
+         for ($next = $current + 1; $next <= $current + self::MAX_ROOT_ROTATIONS; ++$next) {
+             try {
+                 $bytes = $this->fetcher->fetch($this->metadataUrl($next . '.root.json'), self::ROOT_MAX_LENGTH);
+-            } catch (DownloadException) {
++            } catch (NotFoundException) {
+                 return; // no further root version available
+             }
+             $set->updateRoot($bytes);
+diff --git a/tests/Support/LocalFetcher.php b/tests/Support/LocalFetcher.php
+index f89a464..719427f 100644
+--- a/tests/Support/LocalFetcher.php
++++ b/tests/Support/LocalFetcher.php
+@@ -5,6 +5,7 @@ declare(strict_types=1);
+ namespace K2gl\Tuf\Tests\Support;
+ 
+ use K2gl\Tuf\Exception\DownloadException;
++use K2gl\Tuf\Exception\NotFoundException;
+ use K2gl\Tuf\Fetcher;
+ 
+ /**
+@@ -24,7 +25,7 @@ final class LocalFetcher implements Fetcher
+ 
+     public function fetch(string $url, int $maxLength): string
+     {
+-        $bytes = $this->files[$url] ?? throw new DownloadException(\sprintf('Not found: %s', $url));
++        $bytes = $this->files[$url] ?? throw new NotFoundException(\sprintf('Not found: %s', $url));
+ 
+         if (\strlen($bytes) > $maxLength) {
+             throw new DownloadException(\sprintf('Response for "%s" exceeds %d bytes.', $url, $maxLength));
+diff --git a/tests/UpdaterRootFetchFailureTest.php b/tests/UpdaterRootFetchFailureTest.php
+new file mode 100644
+index 0000000..7ad9142
+--- /dev/null
++++ b/tests/UpdaterRootFetchFailureTest.php
+@@ -0,0 +1,60 @@
++<?php
++
++declare(strict_types=1);
++
++namespace K2gl\Tuf\Tests;
++
++use K2gl\Tuf\Exception\DownloadException;
++use K2gl\Tuf\Fetcher;
++use K2gl\Tuf\Tests\Support\LocalFetcher;
++use K2gl\Tuf\Tests\Support\RepoBuilder;
++use K2gl\Tuf\Updater;
++
++final class UpdaterRootFetchFailureTest extends \PHPUnit\Framework\TestCase
++{
++    private const META_URL = 'https://example.test/metadata';
++    private const TARGET_URL = 'https://example.test/targets';
++
++    public function testMissingNextRootEndsRotationAndRefreshContinues(): void
++    {
++        $repo = new RepoBuilder;
++        $fetcher = $this->publish($repo);
++        $updater = new Updater($repo->rootDoc(), self::META_URL, self::TARGET_URL, $fetcher);
++
++        $updater->refresh();
++
++        self::assertNotSame('', $updater->getTrustedRootBytes());
++    }
++
++    public function testServerFailureDuringRootRotationAbortsRefresh(): void
++    {
++        $repo = new RepoBuilder;
++        $inner = $this->publish($repo);
++        $fetcher = new class ($inner) implements Fetcher {
++            public function __construct(private readonly LocalFetcher $inner) {}
++
++            public function fetch(string $url, int $maxLength): string
++            {
++                if (str_ends_with($url, '/2.root.json')) {
++                    throw new DownloadException('HTTP 500');
++                }
++
++                return $this->inner->fetch($url, $maxLength);
++            }
++        };
++        $updater = new Updater($repo->rootDoc(), self::META_URL, self::TARGET_URL, $fetcher);
++
++        $this->expectException(DownloadException::class);
++        $updater->refresh();
++    }
++
++    private function publish(RepoBuilder $repo): LocalFetcher
++    {
++        $fetcher = new LocalFetcher;
++        $fetcher->put(self::META_URL . '/timestamp.json', $repo->timestampDoc());
++        $fetcher->put(self::META_URL . '/' . $repo->snapshotVersion . '.snapshot.json', $repo->snapshotDoc());
++        $fetcher->put(self::META_URL . '/' . $repo->targetsVersion . '.targets.json', $repo->targetsDoc());
++
++        return $fetcher;
++    }
++}
+diff --git a/tests/HttpFetcherTest.php b/tests/HttpFetcherTest.php
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/tests/HttpFetcherTest.php
+@@ -0,0 +1,173 @@
++<?php
++
++declare(strict_types=1);
++
++namespace K2gl\Tuf\Tests;
++
++use K2gl\Tuf\Exception\DownloadException;
++use K2gl\Tuf\Exception\NotFoundException;
++use K2gl\Tuf\HttpFetcher;
++use PHPUnit\Framework\TestCase;
++
++final class HttpFetcherTest extends TestCase
++{
++    private string $baseUrl;
++
++    private string $directory;
++
++    /** @var resource|false|null */
++    private $server = null;
++
++    protected function setUp(): void
++    {
++        if (! function_exists('proc_open')) {
++            self::markTestSkipped('The local HTTP test server requires proc_open.');
++        }
++
++        $this->directory = sys_get_temp_dir() . '/tuf-http-' . bin2hex(random_bytes(8));
++        mkdir($this->directory, 0700);
++        $router = $this->directory . '/router.php';
++        file_put_contents($router, <<<'PHP'
++        <?php
++
++        $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
++
++        switch ($path) {
++            case '/404':
++                http_response_code(404);
++                echo 'missing';
++                break;
++            case '/500':
++                http_response_code(500);
++                echo 'server error';
++                break;
++            case '/redirect':
++                http_response_code(302);
++                header('Location: /ok');
++                echo 'redirect';
++                break;
++            case '/oversized-404':
++                http_response_code(404);
++                echo str_repeat('x', 64);
++                break;
++            default:
++                echo 'ok';
++                break;
++        }
++        PHP);
++
++        $socket = stream_socket_server('tcp://127.0.0.1:0', $errno, $errstr);
++
++        if ($socket === false) {
++            self::fail(sprintf('Could not reserve a local test port: %s', $errstr));
++        }
++        $address = stream_socket_get_name($socket, false);
++        fclose($socket);
++
++        if (! is_string($address)) {
++            self::fail('Could not determine the local test port.');
++        }
++        $separator = strrpos($address, ':');
++
++        if ($separator === false) {
++            self::fail('The local test server returned an invalid address.');
++        }
++        $port = (int) substr($address, $separator + 1);
++        $this->baseUrl = sprintf('http://127.0.0.1:%d', $port);
++        $pipes = [];
++        $this->server = proc_open(
++            [PHP_BINARY, '-S', sprintf('127.0.0.1:%d', $port), $router],
++            [0 => ['pipe', 'r'], 1 => ['file', '/dev/null', 'a'], 2 => ['file', '/dev/null', 'a']],
++            $pipes,
++        );
++
++        if (isset($pipes[0]) && is_resource($pipes[0])) {
++            fclose($pipes[0]);
++        }
++
++        if (! is_resource($this->server)) {
++            self::fail('Could not start the local HTTP test server.');
++        }
++
++        $ready = false;
++
++        for ($attempt = 0; $attempt < 100; ++$attempt) {
++            $connection = @fsockopen('127.0.0.1', $port, $connectError, $connectMessage, 0.1);
++
++            if ($connection !== false) {
++                fclose($connection);
++                $ready = true;
++                break;
++            }
++            usleep(20_000);
++        }
++
++        self::assertTrue($ready, 'The local HTTP test server did not become ready.');
++    }
++
++    protected function tearDown(): void
++    {
++        if (is_resource($this->server)) {
++            proc_terminate($this->server);
++            proc_close($this->server);
++        }
++
++        if (isset($this->directory)) {
++            @unlink($this->directory . '/router.php');
++            @rmdir($this->directory);
++        }
++
++        parent::tearDown();
++    }
++
++    public function testHttp404IsReportedAsNotFound(): void
++    {
++        try {
++            (new HttpFetcher)->fetch($this->baseUrl . '/404', 128);
++            self::fail('HTTP 404 must be reported as NotFoundException.');
++        } catch (NotFoundException $exception) {
++            self::assertStringContainsString('HTTP 404', $exception->getMessage());
++        }
++    }
++
++    public function testHttp500RemainsAFatalDownloadFailure(): void
++    {
++        try {
++            (new HttpFetcher)->fetch($this->baseUrl . '/500', 128);
++            self::fail('HTTP 500 must be reported as a download failure.');
++        } catch (NotFoundException) {
++            self::fail('HTTP 500 must not be classified as not found.');
++        } catch (DownloadException $exception) {
++            self::assertStringContainsString('HTTP 500', $exception->getMessage());
++        }
++    }
++
++    public function testRedirectRemainsAFatalDownloadFailure(): void
++    {
++        try {
++            (new HttpFetcher)->fetch($this->baseUrl . '/redirect', 128);
++            self::fail('Redirects must not be followed.');
++        } catch (NotFoundException) {
++            self::fail('A redirect must not be classified as not found.');
++        } catch (DownloadException $exception) {
++            self::assertStringContainsString('HTTP 302', $exception->getMessage());
++        }
++    }
++
++    public function testOversized404RemainsAFatalDownloadFailure(): void
++    {
++        try {
++            (new HttpFetcher)->fetch($this->baseUrl . '/oversized-404', 4);
++            self::fail('An oversized 404 response must be rejected.');
++        } catch (NotFoundException) {
++            self::fail('An oversized 404 response must not end root rotation normally.');
++        } catch (DownloadException) {
++            return;
++        }
++    }
++
++    public function testSuccessfulResponseIsReturned(): void
++    {
++        self::assertSame('ok', (new HttpFetcher)->fetch($this->baseUrl . '/ok', 128));
++    }
++}
