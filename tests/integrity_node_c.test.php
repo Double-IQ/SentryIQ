@@ -99,6 +99,75 @@ try {
     }
     nodeCAssert($unsafeRejected, 'Path traversal must be rejected.');
 
+    // Fail closed if attestation verification of the manifest fails.
+    $fetchCalls = 0;
+    $manifestFailureNode = new IntegrityNodeC(
+        $signer,
+        static function (string $path, string $version, string $commit, string $installed): void {
+            throw new RuntimeException('simulated trust-root refresh failure');
+        },
+        static function (string $url) use (&$fetchCalls): string {
+            $fetchCalls++;
+            return $publicBody;
+        }
+    );
+    $manifestFailureRejected = false;
+    try {
+        $manifestFailureNode->verify(
+            $manifestPath, $artifactPath, '0.1.3', str_repeat('a', 40), '0.1.2',
+            'https://example.invalid/SentryIQ', ['index.php'], str_repeat('f', 64)
+        );
+    } catch (RuntimeException) {
+        $manifestFailureRejected = true;
+    }
+    nodeCAssert($manifestFailureRejected, 'Manifest attestation failure must abort verification.');
+    nodeCAssert($fetchCalls === 0, 'No origin fetch may occur after manifest attestation failure.');
+
+    // Fail closed independently if the artifact attestation fails after the manifest passes.
+    $attestationCall = 0;
+    $artifactFailureNode = new IntegrityNodeC(
+        $signer,
+        static function (string $path, string $version, string $commit, string $installed) use (&$attestationCall): void {
+            $attestationCall++;
+            if ($attestationCall === 2) {
+                throw new RuntimeException('simulated artifact attestation failure');
+            }
+        },
+        static function (string $url) use (&$fetchCalls): string {
+            $fetchCalls++;
+            return $publicBody;
+        }
+    );
+    $artifactFailureRejected = false;
+    try {
+        $artifactFailureNode->verify(
+            $manifestPath, $artifactPath, '0.1.3', str_repeat('a', 40), '0.1.2',
+            'https://example.invalid/SentryIQ', ['index.php'], str_repeat('1', 64)
+        );
+    } catch (RuntimeException) {
+        $artifactFailureRejected = true;
+    }
+    nodeCAssert($artifactFailureRejected, 'Artifact attestation failure must abort verification.');
+    nodeCAssert($fetchCalls === 0, 'No origin fetch may occur after artifact attestation failure.');
+
+    // An origin outage is represented as a signed rejection, never approval.
+    $offlineNode = new IntegrityNodeC(
+        $signer,
+        $verifier,
+        static function (string $url): string {
+            throw new RuntimeException('simulated network outage');
+        }
+    );
+    $offline = $offlineNode->verify(
+        $manifestPath, $artifactPath, '0.1.3', str_repeat('a', 40), '0.1.2',
+        'https://example.invalid/SentryIQ', ['index.php'], str_repeat('2', 64)
+    );
+    nodeCAssert($offline['approved'] === false, 'Origin network failure must never approve.');
+    nodeCAssert(
+        ($offline['mismatches'][0]['reason'] ?? null) === 'fetch_failed',
+        'Origin network failure must be recorded as fetch_failed.'
+    );
+
     echo "Integrity Node C tests passed.\n";
 } finally {
     @unlink($manifestPath);
