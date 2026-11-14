@@ -23,7 +23,7 @@ require_once __DIR__ . '/app/Updates/NativeSigstoreReleaseVerifier.php';
 require_once __DIR__ . '/app/Updates/UpdateManager.php';
 
 try {
-    $manager = new SentryIQ\Updates\UpdateManager(__DIR__, $dataDir);
+    $manager = new SentryIQ\Updates\UpdateManager(__DIR__, $dataDir, $sigstoreAutoload !== '' ? $sigstoreAutoload : null);
     $result = $manager->applyLatest();
 
     if (function_exists('log_security_event') && function_exists('get_visitor_ip')) {
