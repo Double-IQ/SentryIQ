@@ -45,9 +45,9 @@ final class NativeSigstoreReleaseVerifier
                 throw new RuntimeException('The configured private vendor directory is missing a required Sigstore/TUF class.');
             }
         }
-        if (!class_exists(\\Composer\\InstalledVersions::class)
-            || \\Composer\\InstalledVersions::getPrettyVersion('k2gl/sigstore-verify') !== self::SIGSTORE_VERIFY_VERSION
-            || \\Composer\\InstalledVersions::getPrettyVersion('k2gl/tuf') !== self::TUF_VERSION) {
+        if (!class_exists(\Composer\InstalledVersions::class)
+            || \Composer\InstalledVersions::getPrettyVersion('k2gl/sigstore-verify') !== self::SIGSTORE_VERIFY_VERSION
+            || \Composer\InstalledVersions::getPrettyVersion('k2gl/tuf') !== self::TUF_VERSION) {
             throw new RuntimeException('Private Sigstore dependencies do not match the pinned verifier and patched TUF versions.');
         }
 
