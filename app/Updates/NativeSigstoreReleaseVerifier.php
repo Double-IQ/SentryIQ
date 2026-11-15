@@ -132,7 +132,7 @@ final class NativeSigstoreReleaseVerifier
     {
         $root = $this->rootStore->load();
         if ($root === null) {
-            $bootstrap = dirname((new \\ReflectionClass(TrustedRoot::class))->getFileName()) . '/../resources/sigstore-tuf-root.json';
+            $bootstrap = dirname((new \ReflectionClass(TrustedRoot::class))->getFileName()) . '/../resources/sigstore-tuf-root.json';
             $bootstrap = realpath($bootstrap) ?: '';
             if ($bootstrap === '' || !is_file($bootstrap) || is_link($bootstrap) || !is_readable($bootstrap)) {
                 throw new RuntimeException('The pinned Sigstore TUF bootstrap root is missing from the private vendor package.');
