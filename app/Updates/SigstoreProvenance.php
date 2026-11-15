@@ -22,16 +22,16 @@ final class SigstoreProvenance
     public const WORKFLOW_PATH = '.github/workflows/release.yml';
 
     /** @return array<string, mixed> */
-    public static function claims(Envelope $envelope, string $expectedVersion, string $expectedDigest): array
+    public static function claims(Envelope $envelope, string $workflowCommit, string $expectedVersion, string $expectedDigest): array
     {
         $statement = Statement::fromEnvelope($envelope);
-        $claims = self::claimsFromArray($statement->toArray(), $expectedVersion, $expectedDigest);
+        $claims = self::claimsFromArray($statement->toArray(), $workflowCommit, $expectedVersion, $expectedDigest);
         $claims['cryptographically_verified'] = true;
         return $claims;
     }
 
     /** @param array<string, mixed> $statement */
-    public static function claimsFromArray(array $statement, string $expectedVersion, string $expectedDigest): array
+    public static function claimsFromArray(array $statement, string $workflowCommit, string $expectedVersion, string $expectedDigest): array
     {
         if (($statement['predicateType'] ?? null) !== self::PREDICATE_TYPE) {
             throw new RuntimeException('Release attestation does not contain SLSA Provenance v1.');
@@ -77,11 +77,12 @@ final class SigstoreProvenance
             throw new RuntimeException('SLSA provenance GitHub repository or execution context is not trusted.');
         }
 
-        // SLSA's GitHub-specific workflow_sha identifies the commit from which
-        // GitHub loaded the workflow definition; do not infer it from the tag ref.
-        $workflowCommit = strtolower((string)($github['workflow_sha'] ?? ''));
+        // The workflow definition digest is authenticated in Fulcio's leaf
+        // certificate (Build Config Digest, OID 1.3.6.1.4.1.57264.1.19).
+        // It is supplied only after SigstoreVerifier authenticates that certificate.
+        $workflowCommit = strtolower($workflowCommit);
         if (preg_match('/^[a-f0-9]{40}$/', $workflowCommit) !== 1) {
-            throw new RuntimeException('SLSA provenance does not contain a full GitHub workflow definition commit.');
+            throw new RuntimeException('Authenticated Fulcio Build Config Digest is not a full workflow commit SHA.');
         }
 
         $expectedBuilder = 'https://github.com/' . self::REPOSITORY . '/' . self::WORKFLOW_PATH . '@' . $expectedRef;
