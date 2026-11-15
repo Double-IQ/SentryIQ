@@ -8,8 +8,14 @@ on:
       - 'app/Updates/ReleaseTrustPolicy.php'
       - 'app/Updates/UpdateManager.php'
       - 'update_apply.php'
+      - 'app/Security/FirstRun.php'
+      - 'app/Security/FirstRunPaths.php'
+      - 'tests/first_run_paths.test.php'
       - 'tests/release_trust_policy.test.php'
       - 'tests/sigstore_provenance.test.php'
+      - 'app/Security/FirstRun.php'
+      - 'app/Security/FirstRunPaths.php'
+      - 'tests/first_run_paths.test.php'
       - '.github/workflows/native-release-attestation.yml'
   push:
     branches: [security/native-php-release-attestation]
@@ -46,9 +52,14 @@ jobs:
           php -l app/Updates/TufRootStore.php
           php -l app/Updates/UpdateManager.php
           php -l update_apply.php
+          php -l app/Security/FirstRun.php
+          php -l app/Security/FirstRunPaths.php
+          php -l tests/first_run_paths.test.php
           php -l tests/release_trust_policy.test.php
           php -l tests/sigstore_provenance.test.php
       - name: Run release trust policy tests
         run: php tests/release_trust_policy.test.php
       - name: Run SLSA provenance parser tests
         run: php tests/sigstore_provenance.test.php
+      - name: Run first-run private path tests
+        run: php tests/first_run_paths.test.php
