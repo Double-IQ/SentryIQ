@@ -77,6 +77,13 @@ final class SigstoreProvenance
             throw new RuntimeException('SLSA provenance GitHub repository or execution context is not trusted.');
         }
 
+        // SLSA's GitHub-specific workflow_sha identifies the commit from which
+        // GitHub loaded the workflow definition; do not infer it from the tag ref.
+        $workflowCommit = strtolower((string)($github['workflow_sha'] ?? ''));
+        if (preg_match('/^[a-f0-9]{40}$/', $workflowCommit) !== 1) {
+            throw new RuntimeException('SLSA provenance does not contain a full GitHub workflow definition commit.');
+        }
+
         $expectedBuilder = 'https://github.com/' . self::REPOSITORY . '/' . self::WORKFLOW_PATH . '@' . $expectedRef;
         if (($builder['id'] ?? null) !== $expectedBuilder) {
             throw new RuntimeException('SLSA provenance builder identity is not the approved release workflow.');
@@ -103,6 +110,7 @@ final class SigstoreProvenance
             'repository_id' => self::REPOSITORY_ID,
             'source_ref' => $expectedRef,
             'source_commit' => $sourceCommits[0],
+            'workflow_commit' => $workflowCommit,
             'workflow_path' => self::WORKFLOW_PATH,
             'workflow_ref' => self::REPOSITORY . '/' . self::WORKFLOW_PATH . '@' . $expectedRef,
             'source_event' => 'push',
