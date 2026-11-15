@@ -33,11 +33,23 @@ try {
     assert_same_value('', FirstRunPaths::sigstoreAutoload($security), 'symlinked autoloader is rejected');
     unlink($vendor . '/autoload.php');
 
+    $external = $root . '/external-dependencies';
+    mkdir($external . '/vendor', 0700, true);
+    file_put_contents($external . '/vendor/autoload.php', "<?php // external test autoloader\\n");
+    rmdir($vendor);
+    symlink($external, $root . '/sentryiq-tuf-patched-private');
+    assert_same_value('', FirstRunPaths::sigstoreAutoload($security), 'symlinked dependency root is rejected');
+    unlink($root . '/sentryiq-tuf-patched-private');
+
     echo "First-run private path tests passed.\n";
 } finally {
     if (is_file($vendor . '/autoload.php') || is_link($vendor . '/autoload.php')) unlink($vendor . '/autoload.php');
     @rmdir($vendor);
     @rmdir($root . '/sentryiq-tuf-patched-private');
+    @unlink($root . '/sentryiq-tuf-patched-private');
+    @unlink($external . '/vendor/autoload.php');
+    @rmdir($external . '/vendor');
+    @rmdir($external);
     @rmdir($security);
     @rmdir(dirname($security));
     @rmdir(dirname(dirname($security)));
