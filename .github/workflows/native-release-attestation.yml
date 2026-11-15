@@ -13,9 +13,6 @@ on:
       - 'tests/first_run_paths.test.php'
       - 'tests/release_trust_policy.test.php'
       - 'tests/sigstore_provenance.test.php'
-      - 'app/Security/FirstRun.php'
-      - 'app/Security/FirstRunPaths.php'
-      - 'tests/first_run_paths.test.php'
       - '.github/workflows/native-release-attestation.yml'
   push:
     branches: [security/native-php-release-attestation]
@@ -25,6 +22,9 @@ on:
       - 'app/Updates/ReleaseTrustPolicy.php'
       - 'app/Updates/UpdateManager.php'
       - 'update_apply.php'
+      - 'app/Security/FirstRun.php'
+      - 'app/Security/FirstRunPaths.php'
+      - 'tests/first_run_paths.test.php'
       - 'tests/release_trust_policy.test.php'
       - 'tests/sigstore_provenance.test.php'
       - '.github/workflows/native-release-attestation.yml'
