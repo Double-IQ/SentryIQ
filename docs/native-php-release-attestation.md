@@ -46,7 +46,7 @@ closed; it is never silently replaced with the bundled bootstrap root.
 7. Parse the authenticated in-toto Statement and require SLSA Provenance v1,
    the exact ZIP subject name/digest, canonical repository ID/name, release
    workflow path, tag ref, `push` event, GitHub-hosted runner, builder identity,
-   the full GitHub `workflow_sha` commit, and exactly one matching source commit.
+   the full workflow-definition commit extracted from the authenticated Fulcio leaf certificate's Build Config Digest extension (OID `1.3.6.1.4.1.57264.1.19`), and exactly one matching source commit. The digest accepts GitHub's documented `sha1:` prefix and is normalized to a full 40-character SHA-1; it is never inferred from the deprecated certificate `.1.3` claim or from the SLSA statement.
 8. Compare the attested source commit to GitHub's current resolution of the
    release tag, then apply the release trust policy.
 9. Only after every check passes does the updater extract and validate the ZIP.
