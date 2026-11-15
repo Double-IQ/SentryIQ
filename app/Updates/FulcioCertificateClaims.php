@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace SentryIQ\\Updates;
+namespace SentryIQ\Updates;
 
 use RuntimeException;
 
 /** Extracts the authenticated Fulcio Build Config Digest from a leaf certificate. */
 final class FulcioCertificateClaims
 {
-    private const OID_WORKFLOW_SHA_DER = "\\x06\\x0a\\x2b\\x06\\x01\\x04\\x01\\x83\\xbf\\x30\\x01\\x13";
+    private const OID_WORKFLOW_SHA_DER = "\x06\x0a\x2b\x06\x01\x04\x01\x83\xbf\x30\x01\x13";
 
     public static function workflowCommit(string $certificateDer): string
     {
@@ -49,7 +49,7 @@ final class FulcioCertificateClaims
             $valueField = $fields[1];
             if ($valueField['tag'] === 0x01 && count($fields) === 3) {
                 if ($valueField['length'] !== 1
-                    || substr($certificateDer, $valueField['content'], 1) !== "\\xff") {
+                    || substr($certificateDer, $valueField['content'], 1) !== "\xff") {
                     throw new RuntimeException('Fulcio Build Config Digest critical flag is not canonical DER TRUE.');
                 }
                 $valueField = $fields[2];
