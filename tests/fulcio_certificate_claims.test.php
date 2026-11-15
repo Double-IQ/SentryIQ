@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Updates/FulcioCertificateClaims.php';
+require_once __DIR__ . '/../app/Updates/SnappyBlockDecoder.php';
 
 use SentryIQ\Updates\FulcioCertificateClaims;
 
@@ -90,4 +91,27 @@ fulcioReject(fulcioCert(str_repeat('a', 39)), 'short SHA');
 fulcioReject(fulcioCert('sha256:' . str_repeat('a', 64)), 'unsupported digest algorithm');
 fulcioReject(fulcioCert($sha, false, true), 'duplicate extension');
 fulcioReject(substr(fulcioCert($sha), 0, -1), 'truncated certificate');
+
+function snappyReject(string $input, string $label): void {
+    try { \SentryIQ\Updates\SnappyBlockDecoder::decode($input, 1024); }
+    catch (Throwable) { return; }
+    throw new RuntimeException('Expected Snappy rejection: ' . $label);
+}
+$snappy = \SentryIQ\Updates\SnappyBlockDecoder::class;
+if ($snappy::decode("\x0b\x28hello world", 1024) !== 'hello world') {
+    throw new RuntimeException('Snappy literal block did not decode.');
+}
+if ($snappy::decode("\x0c\x08abc\x22\x03\x00", 1024) !== 'abcabcabcabc') {
+    throw new RuntimeException('Snappy overlapping two-byte copy did not decode.');
+}
+if ($snappy::decode("\x08\x0cabcd\x01\x04", 1024) !== 'abcdabcd') {
+    throw new RuntimeException('Snappy one-byte copy did not decode.');
+}
+if ($snappy::decode("\x08\x0cabcd\x03\x04\x00\x00\x00", 1024) !== 'abcdabcd') {
+    throw new RuntimeException('Snappy four-byte copy did not decode.');
+}
+snappyReject("\x80\x00", 'overlong length varint');
+snappyReject("\x05\x10abc", 'truncated literal');
+snappyReject("\x04\x02\x01\x00", 'copy before output');
+snappyReject("\x05\x28hello", 'declared output mismatch');
 echo "Fulcio certificate claim tests passed.\n";
