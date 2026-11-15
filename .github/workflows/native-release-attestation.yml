@@ -20,6 +20,7 @@ on:
     branches: [security/native-php-release-attestation]
     paths:
       - 'app/Updates/NativeSigstoreReleaseVerifier.php'
+      - 'app/Updates/FulcioCertificateClaims.php'
       - 'app/Updates/SigstoreProvenance.php'
       - 'app/Updates/ReleaseTrustPolicy.php'
       - 'app/Updates/UpdateManager.php'
