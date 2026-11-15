@@ -86,7 +86,7 @@ final class NativeSigstoreReleaseVerifier
 
         $identity = IdentityPolicy::githubActions(
             SigstoreProvenance::REPOSITORY,
-            SigstoreProvenance::WORKFLOW_PATH,
+            basename(SigstoreProvenance::WORKFLOW_PATH),
             'refs/tags/v' . $version,
         );
         $verifier = new SigstoreVerifier();
