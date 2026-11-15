@@ -13,11 +13,15 @@ Add this key to the existing private `sentryiq_config.php` array:
 'sigstore_vendor_autoload' => '/absolute/private/path/to/vendor/autoload.php',
 ```
 
-The path must point to a Composer autoloader outside the public web root and
-must load exactly `k2gl/sigstore-verify 1.6.1` and patched
+This setting belongs in the **private** configuration file
+`<data_dir>/sentryiq_config.php`, created by SentryIQ first-run setup. The
+small `httpdocs/sentryiq_config.php` pointer file contains only the private
+`data_dir` and base URL; do not put Sigstore settings in that public-web-root
+pointer. The path must point to a Composer autoloader outside the public web
+root and must load exactly `k2gl/sigstore-verify 1.6.1` and patched
 `k2gl/tuf 1.2.1`; the updater checks these installed package versions at
-runtime and fails closed on a mismatch. Keep the entire vendor directory private. Never copy Composer
-dependencies into `httpdocs`.
+runtime and fails closed on a mismatch. Keep the entire vendor directory
+private. Never copy Composer dependencies into `httpdocs`.
 
 The updater creates its persistent TUF root store at
 `<data_dir>/sigstore-tuf/`, with private directory/file permissions. The
@@ -52,14 +56,20 @@ check; it is not treated as a signature or provenance substitute.
 
 ## HelioHost configuration example
 
-If the private directory `sentryiq-tuf-patched-private` remains beside
-`httpdocs`, the config value can be set to:
+With the existing directory layout where `sentryiq-tuf-patched-private`
+sits beside `httpdocs`, and the private data directory is also outside
+`httpdocs`, add the setting to the private
+`<data_dir>/sentryiq_config.php` array using the absolute path to the
+existing Composer autoloader. For example (adjust the account path to the
+actual HelioHost account path):
 
 ```php
-'sigstore_vendor_autoload' => dirname(__DIR__) . '/sentryiq-tuf-patched-private/vendor/autoload.php',
+'sigstore_vendor_autoload' => '/home/ACCOUNT/sentryiq-tuf-patched-private/vendor/autoload.php',
 ```
 
-Confirm that exact path exists and is readable before enabling updates. Do not
+Do not use `dirname(__DIR__)` here: the private config is nested under the
+data directory, not beside `httpdocs`. Confirm the exact absolute path is
+readable before enabling updates. Do not
 move or merge the separate `sentryiq-attestation-private`,
 `sentryiq-probe-private`, or TUF private directories as part of this change.
 
