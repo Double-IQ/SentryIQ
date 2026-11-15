@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SentryIQ\Updates;
 
 require_once __DIR__ . '/FulcioCertificateClaims.php';
+require_once __DIR__ . '/SnappyBlockDecoder.php';
 
 use K2gl\Sigstore\Bundle;
 use K2gl\Sigstore\IdentityPolicy;
@@ -101,7 +102,8 @@ final class NativeSigstoreReleaseVerifier
             }
 
             try {
-                $bundleJson = $this->httpsGet($bundleUrl, self::MAX_BUNDLE_BYTES, 'blob');
+                $compressedBundle = $this->httpsGet($bundleUrl, self::MAX_BUNDLE_BYTES, 'blob');
+                $bundleJson = SnappyBlockDecoder::decode($compressedBundle, self::MAX_BUNDLE_BYTES);
                 $bundle = Bundle::fromJson($bundleJson);
                 $envelope = $verifier->verify($bundle, $trustedRoot, $identity);
 
