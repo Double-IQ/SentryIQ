@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Updates/ReleaseDownloadPolicy.php';
 
-use SentryIQ\\Updates\\ReleaseDownloadPolicy;
+use SentryIQ\Updates\ReleaseDownloadPolicy;
 
 function downloadPolicyAssert(bool $condition, string $message): void
 {
@@ -37,4 +37,4 @@ foreach ($rejected as $url) {
     downloadPolicyAssert(!ReleaseDownloadPolicy::isAllowedUrl($url), 'Expected unapproved URL to be rejected: ' . $url);
 }
 
-echo "Release download redirect policy tests passed.\\n";
+echo "Release download redirect policy tests passed.\n";
