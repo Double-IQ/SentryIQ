@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SentryIQ\Updates;
 
+require_once __DIR__ . '/FulcioCertificateClaims.php';
+
 use K2gl\Sigstore\Bundle;
 use K2gl\Sigstore\IdentityPolicy;
 use K2gl\Sigstore\SigstoreVerifier;
@@ -102,7 +104,11 @@ final class NativeSigstoreReleaseVerifier
                 $bundleJson = $this->httpsGet($bundleUrl, self::MAX_BUNDLE_BYTES, 'blob');
                 $bundle = Bundle::fromJson($bundleJson);
                 $envelope = $verifier->verify($bundle, $trustedRoot, $identity);
-                $claims = SigstoreProvenance::claims($envelope, $version, $digest);
+
+                // Use the exact leaf certificate authenticated by verify() above.
+                // Fulcio OID .1.19 is Build Config Digest (GitHub workflow_sha).
+                $workflowCommit = FulcioCertificateClaims::workflowCommit($bundle->leafCertificate);
+                $claims = SigstoreProvenance::claims($envelope, $workflowCommit, $version, $digest);
                 if (!hash_equals($tagCommit, $claims['source_commit'])) {
                     throw new RuntimeException("Attested source commit does not match GitHub's current resolution of the release tag.");
                 }
