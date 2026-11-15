@@ -22,6 +22,7 @@ on:
     paths:
       - 'app/Updates/NativeSigstoreReleaseVerifier.php'
       - 'app/Updates/FulcioCertificateClaims.php'
+      - 'app/Updates/SnappyBlockDecoder.php'
       - 'app/Updates/SigstoreProvenance.php'
       - 'app/Updates/ReleaseTrustPolicy.php'
       - 'app/Updates/UpdateManager.php'
