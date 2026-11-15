@@ -16,6 +16,7 @@ on:
       - 'tests/sigstore_provenance.test.php'
       - 'tests/fulcio_certificate_claims.test.php'
       - 'tests/release_download_policy.test.php'
+      - 'tests/native_release_attestation.integration.php'
       - '.github/workflows/native-release-attestation.yml'
   push:
     branches: [security/native-php-release-attestation]
@@ -73,3 +74,29 @@ jobs:
         run: php tests/fulcio_certificate_claims.test.php
       - name: Run release download redirect policy tests
         run: php tests/release_download_policy.test.php
+
+  native-v0-1-2-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: curl, openssl, sodium, json
+          tools: composer
+      - name: Install pinned native verifier dependencies
+        run: |
+          mkdir -p "$RUNNER_TEMP/sentryiq-verifier"
+          composer require --working-dir="$RUNNER_TEMP/sentryiq-verifier" --no-interaction --no-progress --no-scripts k2gl/sigstore-verify:1.6.1 k2gl/tuf:1.2.1
+      - name: Download the published v0.1.2 release ZIP
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/Double-IQ/SentryIQ/releases/download/v0.1.2/sentryiq-0.1.2.zip \
+            --output "$RUNNER_TEMP/sentryiq-0.1.2.zip"
+          echo "41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e  $RUNNER_TEMP/sentryiq-0.1.2.zip" | sha256sum --check
+      - name: Verify the actual GitHub attestation end to end
+        run: |
+          php tests/native_release_attestation.integration.php \
+            "$RUNNER_TEMP/sentryiq-verifier/vendor/autoload.php" \
+            "$RUNNER_TEMP/sentryiq-0.1.2.zip" \
+            "$RUNNER_TEMP/sentryiq-private-data"
