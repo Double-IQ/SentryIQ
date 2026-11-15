@@ -66,6 +66,7 @@ jobs:
           php -l tests/sigstore_provenance.test.php
           php -l tests/fulcio_certificate_claims.test.php
           php -l tests/release_download_policy.test.php
+          php -l tests/native_release_attestation.integration.php
       - name: Run release trust policy tests
         run: php tests/release_trust_policy.test.php
       - name: Run SLSA provenance parser tests
