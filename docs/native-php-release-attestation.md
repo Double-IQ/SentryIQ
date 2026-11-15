@@ -14,8 +14,13 @@ Add this key to the existing private `sentryiq_config.php` array:
 ```
 
 This setting belongs in the **private** configuration file
-`<data_dir>/sentryiq_config.php`, created by SentryIQ first-run setup. The
-small `httpdocs/sentryiq_config.php` pointer file contains only the private
+`<data_dir>/sentryiq_config.php`, created by SentryIQ first-run setup. When
+the sibling `sentryiq-tuf-patched-private/vendor/autoload.php` exists beside
+`httpdocs`, first-run setup discovers that exact private autoloader and writes
+its resolved absolute path into the private config. If it is absent or unsafe,
+the setting is written as empty and update installation remains fail-closed
+until a valid private path is configured. The small
+`httpdocs/sentryiq_config.php` pointer file contains only the private
 `data_dir` and base URL; do not put Sigstore settings in that public-web-root
 pointer. The path must point to a Composer autoloader outside the public web
 root and must load exactly `k2gl/sigstore-verify 1.6.1` and patched
@@ -57,11 +62,11 @@ check; it is not treated as a signature or provenance substitute.
 ## HelioHost configuration example
 
 With the existing directory layout where `sentryiq-tuf-patched-private`
-sits beside `httpdocs`, and the private data directory is also outside
-`httpdocs`, add the setting to the private
-`<data_dir>/sentryiq_config.php` array using the absolute path to the
-existing Composer autoloader. For example (adjust the account path to the
-actual HelioHost account path):
+sits beside `httpdocs`, first-run setup will discover the Composer autoloader
+and store its resolved path in the private config. The secure data directory
+is created at `<account-root>/private_data`, outside `httpdocs`. If discovery
+is unavailable, configure the key manually in the private config using the
+actual absolute path, for example (adjust the account path):
 
 ```php
 'sigstore_vendor_autoload' => '/home/ACCOUNT/sentryiq-tuf-patched-private/vendor/autoload.php',
