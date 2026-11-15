@@ -9,9 +9,12 @@ on:
       - 'app/Updates/UpdateManager.php'
       - 'app/Updates/TufRootStore.php'
       - 'app/Updates/ReleaseDownloadPolicy.php'
+      - 'app/Updates/TufRootStore.php'
+      - 'app/Updates/ReleaseDownloadPolicy.php'
       - 'update_apply.php'
       - 'tests/release_trust_policy.test.php'
       - 'tests/sigstore_provenance.test.php'
+      - 'tests/release_download_policy.test.php'
       - 'tests/release_download_policy.test.php'
       - '.github/workflows/native-release-attestation.yml'
   push:
