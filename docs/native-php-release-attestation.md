@@ -37,8 +37,9 @@ closed; it is never silently replaced with the bundled bootstrap root.
 2. Resolve the release tag through GitHub's commit API.
 3. Query GitHub's attestations API using the ZIP SHA-256 digest.
 4. Accept only an attestation entry whose repository ID is the canonical
-   SentryIQ repository ID, and download its bundle from an HTTPS Azure Blob
-   host without following redirects.
+   SentryIQ repository ID, and download its raw-Snappy-compressed bundle from
+   an HTTPS Azure Blob host without following redirects. Decompress it with
+   the bounded native PHP Snappy block decoder before parsing bundle JSON.
 5. Refresh Sigstore TUF metadata using the persisted root or bundled bootstrap.
 6. Verify the bundle's Fulcio certificate chain, exact GitHub Actions workflow
    identity and tag ref, DSSE signature, Rekor transparency-log evidence, and
@@ -83,7 +84,10 @@ absent, update installation fails closed.
 ## Validation boundary
 
 The parser unit tests use synthetic statements and prove that malformed or
-misbound claims are rejected. They do not simulate cryptographic verification.
+misbound claims are rejected. The Fulcio parser is also tested against the
+actual v0.1.2 release certificate. The Snappy decoder tests cover literal and
+copy operations, overlapping copies, malformed lengths, and output bounds.
+These tests do not simulate cryptographic verification.
 Cryptographic verification is performed only by `SigstoreVerifier::verify()`;
 the parser's trusted-claims entry point receives the resulting authenticated
 DSSE envelope. Live HelioHost native verifier and TUF persistence evidence is
