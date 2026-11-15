@@ -44,7 +44,8 @@ final class SnappyBlockDecoder
                         $lengthMinusOne |= ord($input[$offset++]) << (8 * $i);
                     }
                     $length = $lengthMinusOne + 1;
-                    if ($lengthBytes > 1 && $lengthMinusOne < (1 << (8 * ($lengthBytes - 1)))) {
+                    if (($lengthBytes === 1 && $lengthMinusOne < 60)
+                        || ($lengthBytes > 1 && $lengthMinusOne < (1 << (8 * ($lengthBytes - 1))))) {
                         throw new RuntimeException('Snappy literal length is not minimally encoded.');
                     }
                 }
