@@ -7,9 +7,12 @@ on:
       - 'app/Updates/SigstoreProvenance.php'
       - 'app/Updates/ReleaseTrustPolicy.php'
       - 'app/Updates/UpdateManager.php'
+      - 'app/Updates/TufRootStore.php'
+      - 'app/Updates/ReleaseDownloadPolicy.php'
       - 'update_apply.php'
       - 'tests/release_trust_policy.test.php'
       - 'tests/sigstore_provenance.test.php'
+      - 'tests/release_download_policy.test.php'
       - '.github/workflows/native-release-attestation.yml'
   push:
     branches: [security/native-php-release-attestation]
@@ -45,10 +48,14 @@ jobs:
           php -l app/Updates/ReleaseTrustPolicy.php
           php -l app/Updates/TufRootStore.php
           php -l app/Updates/UpdateManager.php
+          php -l app/Updates/ReleaseDownloadPolicy.php
           php -l update_apply.php
           php -l tests/release_trust_policy.test.php
           php -l tests/sigstore_provenance.test.php
+          php -l tests/release_download_policy.test.php
       - name: Run release trust policy tests
         run: php tests/release_trust_policy.test.php
       - name: Run SLSA provenance parser tests
         run: php tests/sigstore_provenance.test.php
+      - name: Run release download redirect policy tests
+        run: php tests/release_download_policy.test.php
