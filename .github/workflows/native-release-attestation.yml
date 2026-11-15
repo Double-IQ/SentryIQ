@@ -68,9 +68,7 @@ jobs:
         run: php tests/release_trust_policy.test.php
       - name: Run SLSA provenance parser tests
         run: php tests/sigstore_provenance.test.php
-      - name: Run Fulcio certificate claim tests
-        run: php tests/fulcio_certificate_claims.test.php
-      - name: Run Snappy block decoder tests
+      - name: Run Fulcio certificate and Snappy decoder tests
         run: php tests/fulcio_certificate_claims.test.php
       - name: Run release download redirect policy tests
         run: php tests/release_download_policy.test.php
