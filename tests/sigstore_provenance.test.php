@@ -24,6 +24,7 @@ function provenanceReject(array $statement, string $message): void
 }
 
 $commit = '9c639a4792cadd5421f01ed198ba2a9261c5145f';
+$GLOBALS['provenanceCommit'] = $commit;
 $statement = [
     '_type' => 'https://in-toto.io/Statement/v1',
     'subject' => [[
@@ -93,7 +94,7 @@ foreach ($mutations as $label => $mutate) {
 try {
     SigstoreProvenance::claimsFromArray($statement, str_repeat('a', 39), '0.1.2', str_repeat('a', 64));
 } catch (Throwable) {
-    echo "SLSA provenance claim tests passed.\\n";
+    echo "SLSA provenance claim tests passed.\n";
     exit(0);
 }
 throw new RuntimeException('Provenance parser must reject a malformed authenticated workflow commit.');
