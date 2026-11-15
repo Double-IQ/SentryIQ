@@ -46,13 +46,16 @@ closed; it is never silently replaced with the bundled bootstrap root.
 7. Parse the authenticated in-toto Statement and require SLSA Provenance v1,
    the exact ZIP subject name/digest, canonical repository ID/name, release
    workflow path, tag ref, `push` event, GitHub-hosted runner, builder identity,
-   and exactly one matching source commit.
+   the full GitHub `workflow_sha` commit, and exactly one matching source commit.
 8. Compare the attested source commit to GitHub's current resolution of the
    release tag, then apply the release trust policy.
 9. Only after every check passes does the updater extract and validate the ZIP.
 
-All failures reject the update. The checksum remains a transport/integrity
-check; it is not treated as a signature or provenance substitute.
+The release ZIP and checksum downloads follow redirects only when each `Location`
+header is HTTPS and targets the explicit GitHub release-asset host allowlist.
+The GitHub API request does not follow redirects. All failures reject the update.
+The checksum remains a transport/integrity check; it is not treated as a
+signature or provenance substitute.
 
 ## HelioHost configuration example
 
