@@ -92,8 +92,8 @@ fulcioReject(fulcioCert('sha256:' . str_repeat('a', 64)), 'unsupported digest al
 fulcioReject(fulcioCert($sha, false, true), 'duplicate extension');
 fulcioReject(substr(fulcioCert($sha), 0, -1), 'truncated certificate');
 
-function snappyReject(string $input, string $label): void {
-    try { \SentryIQ\Updates\SnappyBlockDecoder::decode($input, 1024); }
+function snappyReject(string $input, string $label, int $maximumOutputBytes = 1024): void {
+    try { \SentryIQ\Updates\SnappyBlockDecoder::decode($input, $maximumOutputBytes); }
     catch (Throwable) { return; }
     throw new RuntimeException('Expected Snappy rejection: ' . $label);
 }
