@@ -114,4 +114,6 @@ snappyReject("\x80\x00", 'overlong length varint');
 snappyReject("\x05\x10abc", 'truncated literal');
 snappyReject("\x04\x02\x01\x00", 'copy before output');
 snappyReject("\x05\x28hello", 'declared output mismatch');
+snappyReject("\x0b\x28hello world", 'output limit', 10);
+snappyReject("\x04\x01", 'truncated one-byte copy offset');
 echo "Fulcio certificate claim tests passed.\n";
