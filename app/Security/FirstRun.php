@@ -119,7 +119,7 @@ function first_run_direct_crypto_verify(string $password, string $dataFile): voi
 
 function first_run_cleanup(): bool
 {
-    $dir = dirname(__DIR__, 2) . '/private_data';
+    $dir = FirstRunPaths::bundledPrivateDirectory(__DIR__);
     if (!is_dir($dir)) return true;
 
     foreach (['vault_engine.php', 'email_template.php', 'vault_icon_cache.php'] as $name) {
