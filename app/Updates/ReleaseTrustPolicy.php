@@ -61,6 +61,9 @@ final class ReleaseTrustPolicy
         if ((string)($verifiedClaims['source_commit'] ?? '') !== $expectedCommit) {
             throw new RuntimeException('Release attestation source commit does not match the approved release commit.');
         }
+        if ((string)($verifiedClaims['workflow_commit'] ?? '') !== $expectedCommit) {
+            throw new RuntimeException('Release workflow definition was not pinned to the approved release commit.');
+        }
         if ((string)($verifiedClaims['workflow_path'] ?? '') !== self::WORKFLOW_PATH
             || (string)($verifiedClaims['workflow_ref'] ?? '') !== $expectedWorkflowRef) {
             throw new RuntimeException('Release attestation workflow identity is not approved.');
