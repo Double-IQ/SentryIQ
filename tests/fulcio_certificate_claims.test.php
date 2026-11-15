@@ -111,6 +111,7 @@ if ($snappy::decode("\x08\x0cabcd\x0f\x04\x00\x00\x00", 1024) !== 'abcdabcd') {
     throw new RuntimeException('Snappy four-byte copy did not decode.');
 }
 snappyReject("\x80\x00", 'overlong length varint');
+snappyReject("\x01\xf0\x00a", 'non-canonical extended literal length');
 snappyReject("\x05\x10abc", 'truncated literal');
 snappyReject("\x04\x02\x01\x00", 'copy before output');
 snappyReject("\x05\x28hello", 'declared output mismatch');
