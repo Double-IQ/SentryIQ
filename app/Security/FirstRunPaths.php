@@ -31,11 +31,12 @@ final class FirstRunPaths
     public static function sigstoreAutoload(string $securityDirectory): string
     {
         $accountRoot = self::accountRoot($securityDirectory);
-        $vendorDirectory = $accountRoot . '/sentryiq-tuf-patched-private/vendor';
+        $dependencyDirectory = $accountRoot . '/sentryiq-tuf-patched-private';
+        $vendorDirectory = $dependencyDirectory . '/vendor';
         $autoload = $vendorDirectory . '/autoload.php';
         $publicRoot = rtrim(dirname($securityDirectory, 2), '/') . '/';
 
-        if (is_link($accountRoot) || is_link($vendorDirectory) || is_link($autoload)
+        if (is_link($accountRoot) || is_link($dependencyDirectory) || is_link($vendorDirectory) || is_link($autoload)
             || !is_dir($vendorDirectory) || !is_file($autoload) || !is_readable($autoload)) {
             return '';
         }
