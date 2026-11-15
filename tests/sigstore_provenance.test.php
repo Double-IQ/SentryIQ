@@ -23,7 +23,7 @@ function provenanceReject(array $statement, string $message): void
     throw new RuntimeException($message);
 }
 
-$commit = '9c639a4792cadd5421f01ed198ba2a9261c5145f';\n$GLOBALS['provenanceCommit'] = $commit;
+$commit = '9c639a4792cadd5421f01ed198ba2a9261c5145f';
 $statement = [
     '_type' => 'https://in-toto.io/Statement/v1',
     'subject' => [[
