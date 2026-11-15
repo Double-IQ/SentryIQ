@@ -107,7 +107,7 @@ if ($snappy::decode("\x0c\x08abc\x22\x03\x00", 1024) !== 'abcabcabcabc') {
 if ($snappy::decode("\x08\x0cabcd\x01\x04", 1024) !== 'abcdabcd') {
     throw new RuntimeException('Snappy one-byte copy did not decode.');
 }
-if ($snappy::decode("\x08\x0cabcd\x03\x04\x00\x00\x00", 1024) !== 'abcdabcd') {
+if ($snappy::decode("\x08\x0cabcd\x0f\x04\x00\x00\x00", 1024) !== 'abcdabcd') {
     throw new RuntimeException('Snappy four-byte copy did not decode.');
 }
 snappyReject("\x80\x00", 'overlong length varint');
