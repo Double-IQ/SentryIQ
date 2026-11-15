@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'app/Updates/NativeSigstoreReleaseVerifier.php'
+      - 'app/Updates/FulcioCertificateClaims.php'
       - 'app/Updates/SigstoreProvenance.php'
       - 'app/Updates/ReleaseTrustPolicy.php'
       - 'app/Updates/UpdateManager.php'
@@ -12,6 +13,7 @@ on:
       - 'update_apply.php'
       - 'tests/release_trust_policy.test.php'
       - 'tests/sigstore_provenance.test.php'
+      - 'tests/fulcio_certificate_claims.test.php'
       - 'tests/release_download_policy.test.php'
       - '.github/workflows/native-release-attestation.yml'
   push:
@@ -26,6 +28,7 @@ on:
       - 'update_apply.php'
       - 'tests/release_trust_policy.test.php'
       - 'tests/sigstore_provenance.test.php'
+      - 'tests/fulcio_certificate_claims.test.php'
       - 'tests/release_download_policy.test.php'
       - '.github/workflows/native-release-attestation.yml'
 
@@ -47,6 +50,7 @@ jobs:
       - name: Lint native verifier and updater
         run: |
           php -l app/Updates/NativeSigstoreReleaseVerifier.php
+          php -l app/Updates/FulcioCertificateClaims.php
           php -l app/Updates/SigstoreProvenance.php
           php -l app/Updates/ReleaseTrustPolicy.php
           php -l app/Updates/TufRootStore.php
@@ -55,10 +59,13 @@ jobs:
           php -l update_apply.php
           php -l tests/release_trust_policy.test.php
           php -l tests/sigstore_provenance.test.php
+          php -l tests/fulcio_certificate_claims.test.php
           php -l tests/release_download_policy.test.php
       - name: Run release trust policy tests
         run: php tests/release_trust_policy.test.php
       - name: Run SLSA provenance parser tests
         run: php tests/sigstore_provenance.test.php
+      - name: Run Fulcio certificate claim tests
+        run: php tests/fulcio_certificate_claims.test.php
       - name: Run release download redirect policy tests
         run: php tests/release_download_policy.test.php
