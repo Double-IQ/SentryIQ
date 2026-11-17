@@ -71,14 +71,19 @@ try {
         static fn() => call_user_func($adapter, $unexpected, '1.2.3', $commit, '1.2.2'),
         'Adapter must reject artifacts outside the approved subject set.'
     );
+    call_user_func($adapter, $zip, '1.2.3', $commit, '1.2.3');
+
+    $olderZip = $directory . '/sentryiq-1.2.2.zip';
+    file_put_contents($olderZip, 'older-test-zip-bytes');
     adapterReject(
-        static fn() => call_user_func($adapter, $zip, '1.2.3', $commit, '1.2.3'),
-        'Adapter must reject rollback or same-version replay.'
+        static fn() => call_user_func($adapter, $olderZip, '1.2.2', $commit, '1.2.3'),
+        'Integrity adapter must reject a release older than the installed version.'
     );
 } finally {
     @unlink($manifest ?? '');
     @unlink($zip ?? '');
     @unlink($unexpected ?? '');
+    @unlink($olderZip ?? '');
     @rmdir($directory);
 }
 
