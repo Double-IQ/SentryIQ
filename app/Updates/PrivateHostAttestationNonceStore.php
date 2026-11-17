@@ -118,7 +118,7 @@ final class PrivateHostAttestationNonceStore
                 if (!@fflush($handle) || !@fsync($handle)) {
                     throw new RuntimeException('Unable to flush attestation nonce state to storage.');
                 }
-            } catch (\\Throwable $exception) {
+            } catch (\Throwable $exception) {
                 fclose($handle);
                 @unlink($temporary);
                 throw $exception;
