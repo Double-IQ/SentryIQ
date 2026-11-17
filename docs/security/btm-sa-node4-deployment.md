@@ -60,8 +60,7 @@ return [
 
 Before enabling the endpoint, create the dedicated storage directory under
 `data_dir`, outside `httpdocs`, owned by the SentryIQ PHP account and writable
-only by that account (mode 0700 is enforced). The state and lock files are created
-with mode 0600 under a restrictive umask, and existing files with broader permissions are rejected. The endpoint refuses a storage directory outside the resolved
+only by that account (mode 0700 is enforced). Create the lock file once during provisioning with `install -m 0600 /dev/null /absolute/path/to/integrity-events.lock`. Pre-provision `integrity-events.lock` as a regular file with exact mode 0600 before starting the endpoint; the store refuses to create or chmod this operator-supplied lock. The state file is created through exclusive temporary-file creation and atomic rename with exact mode 0600. Existing lock/state files with any other mode or a symlinked path are rejected. The endpoint refuses a storage directory outside the resolved
 private data directory. Keep the per-node tokens and private signing keys out
 of Git, release ZIPs, webroot, and shared configuration exports.
 
