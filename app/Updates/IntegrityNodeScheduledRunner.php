@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SentryIQ\\Updates;
+namespace SentryIQ\Updates;
 
 use RuntimeException;
 use Throwable;
@@ -69,7 +69,7 @@ final class IntegrityNodeScheduledRunner
                 || !is_string($release['version'] ?? null)
                 || !is_string($release['commit'] ?? null)
                 || !is_string($release['installed_version'] ?? null)
-                || !preg_match('/^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$/', ltrim($release['version'], 'v'))
+                || !preg_match('/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/', ltrim($release['version'], 'v'))
                 || !preg_match('/^[a-f0-9]{40}$/i', $release['commit'])) {
                 throw new RuntimeException('Release resolver must return a stable version, full commit SHA and installed version.');
             }
