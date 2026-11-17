@@ -133,6 +133,35 @@ try {
         && in_array('unexpected', array_column($unexpectedResult['mismatches'], 'reason'), true),
         'Collector must reject files outside the fixed release inventory in monitored directories.');
 
+    mkdir($private . '/outside', 0700);
+    mkdir($private . '/outside/subdir', 0700);
+    file_put_contents($private . '/outside/subdir/secret-name.php', 'must not be inventoried through a symlink');
+    symlink($private . '/outside', $web . '/app/redirect');
+    $ancestorSymlinkCollector = new PrivateHostAttestationCollector(
+        'sentryiq-host-attestor',
+        $web,
+        $private,
+        $keyPath,
+        ['app/release.php' => $fileDigest],
+        ['private-bootstrap' => ['path' => 'runtime/bootstrap.php', 'sha256' => $configDigest]],
+        'https://sentryiq.bichet.co.za',
+        static fn(): int => $now,
+        ['app/redirect/subdir']
+    );
+    $ancestorEnvelope = json_encode(
+        $ancestorSymlinkCollector->collect($nonce, '1.2.3', $commit, $manifest, $artifact),
+        JSON_THROW_ON_ERROR
+    );
+    $ancestorResult = $verifier->assertAttested(
+        $ancestorEnvelope, $nonce, '1.2.3', $commit, $manifest, $artifact,
+        ['app/release.php' => $fileDigest],
+        ['private-bootstrap' => $configDigest]
+    );
+    collectorAssert($ancestorResult['approved'] === false
+        && ($ancestorResult['mismatches'][0]['path'] ?? null) === 'app/redirect/subdir',
+        'A symlinked ancestor must fail the monitored directory policy without traversing its target.');
+    unlink($web . '/app/redirect');
+
     collectorReject(
         fn() => new PrivateHostAttestationCollector(
             'sentryiq-host-attestor', $web, $web, $keyPath,
