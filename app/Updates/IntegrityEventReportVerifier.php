@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace SentryIQ\Updates;
 
-require_once __DIR__ . '/IntegrityEventRequestDecoder.php';
-
 use RuntimeException;
+
+require_once __DIR__ . '/IntegrityEventRequestDecoder.php';
 
 /**
  * Verifies one independently signed Node A/B event report for BTM-SA.
