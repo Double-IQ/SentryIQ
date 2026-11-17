@@ -143,14 +143,15 @@ This is an injection point, not a configured transport: no email/webhook provide
 
 ## Independent release asset retrieval
 
-Before a node calls its verifier, it must stage the exact tagged release assets from the canonical GitHub Release. `IntegrityReleaseArtifactFetcher` downloads `release-manifest.json` and `sentryiq-<version>.zip` into a private per-release directory. It restricts downloads and redirects to HTTPS GitHub release-asset hosts, rejects unsafe versions and symlinked staging directories, bounds the manifest to 5 MB and the ZIP to 250 MB, and writes files with private permissions. The node must then run the native Sigstore adapter against both files before using the manifest. The fetcher does not treat checksums or downloaded content as trusted by themselves.
+Before a node calls its verifier, it must stage the exact tagged release assets from the canonical GitHub Release. `IntegrityReleaseArtifactFetcher` downloads `release-manifest.json` and `sentryiq-<version>.zip` into a private per-release directory. The caller must supply the node's actual public webroot; the fetcher rejects any staging path inside it and rejects symlinked path components. It restricts downloads and redirects to HTTPS GitHub release-asset hosts on port 443, rejects unsafe versions, bounds the manifest to 5 MB and the ZIP to 250 MB, and writes files with private permissions. The node must then run the native Sigstore adapter against both files before using the manifest. The fetcher does not treat checksums or downloaded content as trusted by themselves.
 
 Example staging step (run independently on each node):
 
 ```php
 $assets = (new IntegrityReleaseArtifactFetcher())->fetch(
     $releaseVersion,
-    $privateDataDirectory . '/integrity-releases/' . $releaseVersion
+    $privateDataDirectory . '/integrity-releases/' . $releaseVersion,
+    $publicWebRoot
 );
 // Pass $assets['manifest_path'] and $assets['artifact_path'] to the node verifier.
 ```
