@@ -98,3 +98,14 @@ Before this capability is called operational, prove all of the following:
 ## Deployment boundary
 
 This contract applies only to the production SentryIQ application host. It is not a task for HelioHost Node C and not a claim that BTM-SA / Node 4 is independently hosted. Implementation requires confirmation of the application host's supported process identities, filesystem ACLs, scheduler and service/endpoint capabilities. No host configuration or deployment is performed by this document.
+
+
+## Collector core implementation status
+
+`app/Updates/PrivateHostAttestationCollector.php` now implements the read-only signing core for the schema above. Its administrator-supplied policy is fixed at construction: public-webroot-relative file paths and SHA-256 digests, private-data-root-relative configuration paths and approved digests, a collector ID, and a protected Ed25519 secret-key file. A request can provide only the nonce and release identity fields; it cannot choose paths or retrieve file contents. The collector returns a detached signature over the exact JSON payload bytes and signs a rejection when a pinned file or configuration digest differs, is missing, is unreadable, or is symlinked.
+
+The signing-key file must reside inside the private data directory and have no group/other permissions. The private data directory must resolve outside the public webroot. The class deliberately does not create an HTTP listener, accept arbitrary remote requests, provision OS identities, or choose its own policy. A host adapter must run it under a dedicated OS identity that cannot write the application or policy and whose key is unreadable to PHP-FPM. Do not load this class from the public application request path.
+
+This is a collector core, not yet a deployable host service. The current core does not yet discover unexpected files or enforce per-file mode/ownership baselines, and its PHP filesystem checks do not replace OS-level isolation against a hostile privileged process. Those controls, a host-supported authenticated transport, collector key provisioning, and a verified deployment-to-policy generation process remain acceptance blockers. The existing verifier continues to fail closed on unexpected entries and permission-mismatch evidence, but this core does not yet emit those result classes.
+
+The collector regression test exercises a clean signed approval, a signed digest-mismatch rejection, invalid challenge rejection, and refusal to place private storage inside the webroot. The native integrity CI workflow now lints and executes that test on PHP 8.1 through 8.5. Passing this test does not establish host isolation or production deployment.
