@@ -68,7 +68,7 @@ final class FileIntegrityEventStore
         $parts = parse_url($targetOrigin);
         if (!is_array($parts) || ($parts['scheme'] ?? null) !== 'https' || empty($parts['host'])
             || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])
-            || rtrim($targetOrigin, '/') !== $targetOrigin) {
+            || isset($parts['path']) || rtrim($targetOrigin, '/') !== $targetOrigin) {
             throw new RuntimeException('Challenge target origin must be a canonical HTTPS origin.');
         }
         if (!preg_match('/^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$/', $releaseVersion)
