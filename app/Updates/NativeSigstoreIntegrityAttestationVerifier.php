@@ -16,7 +16,7 @@ use RuntimeException;
 final class NativeSigstoreIntegrityAttestationVerifier
 {
     public function __construct(
-        private readonly NativeSigstoreReleaseVerifier $verifier,
+        private readonly ReleaseArtifactVerifier $verifier,
         private readonly ReleaseTrustPolicy $policy,
     ) {
     }
