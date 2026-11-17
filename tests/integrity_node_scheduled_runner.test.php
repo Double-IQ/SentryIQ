@@ -40,7 +40,7 @@ $runner = new IntegrityNodeScheduledRunner(
     $private,
     $webroot,
     'https://sentryiq.bichet.co.za',
-    ['index.php'],
+    ['assets/app.js'],
     $releaseState
 );
 
@@ -53,7 +53,7 @@ try {
         static fn(): array => [],
         static fn(): array => [],
         static function (): void {},
-        $private, $webroot, 'https://sentryiq.bichet.co.za', ['index.php'], $releaseState, null
+        $private, $webroot, 'https://sentryiq.bichet.co.za', ['assets/app.js'], $releaseState, null
     );
 } catch (RuntimeException) {
     $rejectedA = true;
@@ -67,7 +67,7 @@ try {
         static fn(): array => [],
         static fn(): array => [],
         static function (): void {},
-        $private, $webroot, 'https://sentryiq.bichet.co.za', ['index.php'], $releaseState,
+        $private, $webroot, 'https://sentryiq.bichet.co.za', ['assets/app.js'], $releaseState,
         new SentryIQ\Updates\IntegrityNodeEventRunner(
             new SentryIQ\Updates\IntegrityEventClient(
                 'https://sentryiq.bichet.co.za/integrity_event.php',
