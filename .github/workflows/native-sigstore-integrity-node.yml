@@ -81,6 +81,11 @@ jobs:
             app/Updates/IntegrityNodeAlertedException.php \
             app/Updates/IntegrityNodeScheduledRunner.php \
             app/Updates/IntegrityNodeEventRunner.php \
+            app/Updates/IntegrityNodeA.php \
+            app/Updates/IntegrityNodeB.php \
+            app/Updates/IntegrityNodeC.php \
+            app/Updates/IntegrityPublicAssetPolicy.php \
+            app/Updates/IntegrityOriginSecurityHeaderVerifier.php \
             tests/native_sigstore_integrity_adapter.test.php \
             tests/release_trust_policy.test.php \
             tests/sigstore_provenance.test.php \
