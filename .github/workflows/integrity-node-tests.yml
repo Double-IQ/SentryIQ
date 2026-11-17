@@ -2,11 +2,24 @@ name: Integrity Node Tests
 
 on:
   pull_request:
-    branches: [main, 'feat/signed-integrity-event-evidence']
+    branches: [main]
     paths:
       - 'app/Updates/IntegrityNode*.php'
       - 'app/Updates/IntegrityReport*.php'
+      - 'app/Updates/IntegrityEventReportVerifier.php'
+      - 'app/Updates/FileIntegrityEventStore.php'
+      - 'app/Updates/IntegrityIncidentCorrelator.php'
+      - 'app/Updates/IntegrityAlertDispatcher.php'
+      - 'app/Updates/IntegrityEventClient.php'
+      - 'app/Updates/IntegrityNodeEventRunner.php'
+      - 'app/Updates/IntegrityNode4Monitor.php'
       - 'tests/integrity_*.test.php'
+      - 'tests/file_integrity_event_store.test.php'
+      - 'tests/integrity_incident_correlator.test.php'
+      - 'tests/integrity_alert_dispatcher.test.php'
+      - 'tests/integrity_event_client.test.php'
+      - 'tests/integrity_node_event_runner.test.php'
+      - 'tests/integrity_node4_monitor.test.php'
       - '.github/workflows/integrity-node-tests.yml'
   push:
     branches: [main]
@@ -38,6 +51,13 @@ jobs:
           set -euo pipefail
           php tests/integrity_report_signer.test.php
           php tests/integrity_report_verifier.test.php
+          php tests/integrity_event_report_verifier.test.php
+          php tests/file_integrity_event_store.test.php
+          php tests/integrity_incident_correlator.test.php
+          php tests/integrity_alert_dispatcher.test.php
+          php tests/integrity_event_client.test.php
+          php tests/integrity_node_event_runner.test.php
+          php tests/integrity_node4_monitor.test.php
           php tests/integrity_node_a.test.php
           php tests/integrity_node_b.test.php
           php tests/integrity_node_c.test.php
