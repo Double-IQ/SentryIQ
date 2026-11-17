@@ -64,6 +64,11 @@ class ReleaseManifestTests(unittest.TestCase):
         result = self.run_builder()
         self.assertNotEqual(result.returncode, 0)
 
+    def test_rejects_unsafe_asset_paths(self):
+        (self.root / "app" / "bad%name.js").write_bytes(b"unsafe path")
+        result = self.run_builder()
+        self.assertNotEqual(result.returncode, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
