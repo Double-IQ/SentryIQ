@@ -90,6 +90,16 @@ try {
         'A consumed challenge must not accept a replay.'
     );
 
+    $store->issueChallenge(
+        'integrity-a',
+        $origin,
+        $version,
+        $commit,
+        $artifact,
+        $manifest,
+        time() - 600
+    );
+
     $wrongBinding = $store->issueChallenge(
         'integrity-a',
         $origin,
