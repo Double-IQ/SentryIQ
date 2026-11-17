@@ -12,6 +12,8 @@ on:
       - 'app/Updates/IntegrityAlertDispatcher.php'
       - 'app/Updates/IntegrityEventClient.php'
       - 'app/Updates/IntegrityNodeEventRunner.php'
+      - 'app/Updates/IntegrityReleaseArtifactFetcher.php'
+      - 'tests/integrity_release_artifact_fetcher.test.php'
       - 'app/Updates/IntegrityNode4Monitor.php'
       - 'tests/integrity_*.test.php'
       - 'tests/file_integrity_event_store.test.php'
@@ -57,6 +59,7 @@ jobs:
           php tests/integrity_alert_dispatcher.test.php
           php tests/integrity_event_client.test.php
           php tests/integrity_node_event_runner.test.php
+          php tests/integrity_release_artifact_fetcher.test.php
           php tests/integrity_node4_monitor.test.php
           php tests/integrity_node_a.test.php
           php tests/integrity_node_b.test.php
