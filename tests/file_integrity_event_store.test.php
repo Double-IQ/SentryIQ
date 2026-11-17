@@ -43,7 +43,7 @@ try {
     file_put_contents($lockPath, '');
     chmod($lockPath, 0600);
     $store = new FileIntegrityEventStore($directory);
-    $weakLockDirectory = $directory . '-weak-lock';
+    $weakLockDirectory = $directory . '/weak-lock';
     mkdir($weakLockDirectory, 0700);
     file_put_contents($weakLockDirectory . '/integrity-events.lock', '');
     chmod($weakLockDirectory . '/integrity-events.lock', 0640);
@@ -52,9 +52,9 @@ try {
         'Node 4 store must reject a lock file without exact 0600 permissions.'
     );
 
-    $symlinkLockDirectory = $directory . '-symlink-lock';
+    $symlinkLockDirectory = $directory . '/symlink-lock';
     mkdir($symlinkLockDirectory, 0700);
-    $lockTarget = $directory . '-lock-target';
+    $lockTarget = $directory . '/lock-target';
     file_put_contents($lockTarget, 'do-not-touch');
     chmod($lockTarget, 0600);
     symlink($lockTarget, $symlinkLockDirectory . '/integrity-events.lock');
@@ -65,11 +65,11 @@ try {
     storeAssert(file_get_contents($lockTarget) === 'do-not-touch',
         'A symlinked Node 4 lock must never redirect writes.');
 
-    $symlinkStateDirectory = $directory . '-symlink-state';
+    $symlinkStateDirectory = $directory . '/symlink-state';
     mkdir($symlinkStateDirectory, 0700);
     file_put_contents($symlinkStateDirectory . '/integrity-events.lock', '');
     chmod($symlinkStateDirectory . '/integrity-events.lock', 0600);
-    $stateTarget = $directory . '-state-target';
+    $stateTarget = $directory . '/state-target';
     file_put_contents($stateTarget, 'do-not-touch');
     chmod($stateTarget, 0600);
     symlink($stateTarget, $symlinkStateDirectory . '/integrity-events.json');
@@ -199,12 +199,14 @@ try {
     $cooldownDuplicate = $store->queueAlert($incident);
     storeAssert($cooldownDuplicate['created'] === false, 'Recently delivered incidents must be suppressed during the alert cooldown.');
 } finally {
-    foreach (glob($directory . DIRECTORY_SEPARATOR . '*') ?: [] as $file) {
-        if (is_link($file) || is_file($file)) {
-            unlink($file);
-        }
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($iterator as $item) {
+        $item->isDir() ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
     }
-    rmdir($directory);
+    @rmdir($directory);
 }
 
 echo "File-backed Node 4 event store tests passed.\n";
