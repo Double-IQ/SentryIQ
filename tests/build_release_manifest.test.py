@@ -17,6 +17,7 @@ class ReleaseManifestTests(unittest.TestCase):
         (self.root / "app").mkdir(parents=True)
         (self.root / "runtime").mkdir()
         (self.root / "app" / "index.php").write_bytes(b"<?php echo 'ok';")
+        (self.root / "app" / "app.js").write_bytes(b"console.log('ok');")
         (self.root / "runtime" / "vault.php").write_bytes(b"<?php // runtime")
         self.output = Path(self.temp.name) / "release-manifest.json"
 
@@ -44,7 +45,8 @@ class ReleaseManifestTests(unittest.TestCase):
         expected = b"<?php echo 'ok';"
         self.assertEqual(files["app/index.php"]["size"], len(expected))
         self.assertEqual(files["app/index.php"]["sha256"], hashlib.sha256(expected).hexdigest())
-        self.assertEqual(manifest["public_files"], ["app/index.php"])
+        self.assertEqual(manifest["public_files"], ["app/app.js", "app/index.php"])
+        self.assertEqual(manifest["public_http_files"], ["app/app.js"])
         self.assertEqual(manifest["runtime_files"], ["vault.php"])
 
     def test_manifest_is_deterministic(self):
