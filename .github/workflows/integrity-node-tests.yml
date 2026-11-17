@@ -17,8 +17,10 @@ on:
       - 'bin/integrity-node-run.php'
       - 'app/Updates/IntegrityDeployedReleaseResolver.php'
       - 'app/Updates/IntegrityNodeReleaseStateStore.php'
+      - 'app/Updates/IntegrityNodeKeyGenerator.php'
       - 'tests/integrity_deployed_release_resolver.test.php'
       - 'tests/integrity_node_release_state.test.php'
+      - 'tests/integrity_node_key_generator.test.php'
       - 'app/Updates/NativeSigstoreIntegrityAttestationVerifier.php'
       - 'app/Updates/NativeSigstoreReleaseVerifier.php'
       - 'app/Updates/ReleaseArtifactVerifier.php'
@@ -87,6 +89,7 @@ jobs:
           php -l app/Updates/IntegrityNodeReleaseStateStore.php
           php tests/integrity_deployed_release_resolver.test.php
           php tests/integrity_node_release_state.test.php
+          php tests/integrity_node_key_generator.test.php
           php tests/integrity_release_artifact_fetcher.test.php
           php tests/integrity_node4_monitor.test.php
           php tests/integrity_node4_runtime_config.test.php
@@ -95,6 +98,7 @@ jobs:
           php tests/integrity_node_c.test.php
           php tests/integrity_public_asset_policy.test.php
           php -l bin/integrity-node-run.php
+          php -l bin/integrity-node-keygen.php
           php -l app/Updates/TufRootStore.php
           php -l app/Updates/ReleaseArtifactVerifier.php
           php -l app/Updates/SigstoreProvenance.php
