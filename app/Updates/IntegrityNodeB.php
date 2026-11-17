@@ -174,6 +174,12 @@ final class IntegrityNodeB
             || ($headerResult['approved'] !== ($headerResult['mismatches'] === []))) {
             throw new RuntimeException('Origin security-header verifier returned an invalid result.');
         }
+        foreach ($headerResult['mismatches'] as $headerMismatch) {
+            if (!is_string($headerMismatch) || $headerMismatch === '' || strlen($headerMismatch) > 128
+                || preg_match('/[\\x00-\\x1f]/', $headerMismatch)) {
+                throw new RuntimeException('Origin security-header verifier returned an unsafe mismatch value.');
+            }
+        }
         $checked[] = '@origin-headers';
         $headerMismatchNames = $headerResult['mismatches'];
         if ($headerResult['approved'] !== true) {
