@@ -22,7 +22,8 @@ if (!is_string($config)) {
 $configBody = <<<'PHP_CONFIG'
 <?php
 if (!class_exists('SentryIQ' . chr(92) . 'Updates' . chr(92) . 'PrivateHostAttestationClient')
-    || !class_exists('SentryIQ' . chr(92) . 'Updates' . chr(92) . 'PrivateHostAttestationVerifier')) {
+    || !class_exists('SentryIQ' . chr(92) . 'Updates' . chr(92) . 'PrivateHostAttestationVerifier')
+    || !class_exists('SentryIQ' . chr(92) . 'Updates' . chr(92) . 'IntegrityNodeVerifierBinding')) {
     throw new RuntimeException('Private-host attestation classes were not preloaded.');
 }
 return null;
@@ -78,5 +79,5 @@ integrityCliAssert($status === 1, 'CLI must reject a config that does not return
 integrityCliAssert(str_contains((string)$stderr, 'Integrity node run failed: RuntimeException'),
     'CLI config must execute after all required classes are preloaded; stderr: ' . $stderr);
 integrityCliAssert(!str_contains((string)$stderr, 'Private-host attestation classes were not preloaded'),
-    'CLI must preload the private-host client and verifier before requiring private config.');
+    'CLI must preload private-host trust and concrete node-verifier binding classes before requiring private config.');
 echo "Integrity node CLI bootstrap tests passed.\n";
