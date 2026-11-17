@@ -17,7 +17,7 @@ use Throwable;
  * Verifies a release ZIP using the native PHP Sigstore verifier and Sigstore
  * TUF trust metadata. No shell, exec, proc_open, or GitHub CLI is used.
  */
-final class NativeSigstoreReleaseVerifier
+final class NativeSigstoreReleaseVerifier implements ReleaseArtifactVerifier
 {
     private const API_BASE = 'https://api.github.com';
     private const TUF_METADATA_URL = 'https://tuf-repo-cdn.sigstore.dev';
