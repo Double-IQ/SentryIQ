@@ -7,7 +7,7 @@ The release workflow now generates a deterministic JSON inventory in two places:
 - `update-manifest.json` inside the update ZIP;
 - `release-manifest.json` as a separate GitHub Release asset.
 
-The inventory binds the release version, source repository and immutable repository ID, source commit, workflow path, and every packaged file's relative path, byte length, and SHA-256 digest. Runtime files are inventoried separately from public files. The manifest builder rejects symbolic links and incomplete packages.
+The inventory binds the release version, source repository and immutable repository ID, source commit, workflow path, and every packaged file's relative path, byte length, and SHA-256 digest. Runtime files are inventoried separately from public files. It also emits `public_http_files`, a narrower signed list of static assets whose HTTP response bytes can be compared directly (CSS, JavaScript, images, fonts, static HTML, and similar files). Dynamic PHP endpoints are deliberately excluded: an HTTP response from `index.php` is rendered output, not the packaged PHP source. Integrity Nodes use this list by default and reject configured paths outside it. The manifest builder rejects symbolic links and incomplete packages.
 
 The workflow requests GitHub build-provenance attestations for both the ZIP and the external inventory manifest. The manifest is also published with a SHA-256 sidecar for transport diagnostics.
 
