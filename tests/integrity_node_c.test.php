@@ -142,6 +142,25 @@ nodeCAssert($missingAlertRejected, 'Node C must refuse startup without a direct 
     nodeCAssert($attestationRejected && $attestationAlerts === [['integrity-c', 'release_attestation_rejected']],
         'Node C must directly alert its owner when release attestation is rejected.');
 
+    $headerMismatchNode = new IntegrityNodeC(
+        $signer,
+        $verifier,
+        $fetch,
+        $alertNoop,
+        static fn(string $origin): array => [
+            'approved' => false,
+            'mismatches' => ['x-frame-options'],
+            'headers' => [],
+        ]
+    );
+    $headerRejected = $headerMismatchNode->verify(
+        $manifestPath, $artifactPath, '0.1.3', str_repeat('a', 40), '0.1.2',
+        'https://example.invalid/SentryIQ', ['assets/app.js'], str_repeat('9', 64)
+    );
+    nodeCAssert($headerRejected['approved'] === false
+        && in_array(['path' => '@origin-headers', 'reason' => 'security_header_mismatch'], $headerRejected['mismatches'], true),
+        'Origin security-header mismatch must become signed rejection evidence.');
+
     echo "Integrity Node C tests passed.\n";
 } finally {
     @unlink($manifestPath);
