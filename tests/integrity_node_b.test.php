@@ -122,13 +122,13 @@ try {
     }
     nodeBAssert($wrongIdentityRejected, 'Node B must reject a signer configured with Node A identity.');
 $missingAlertRejected = false;
-try { new IntegrityNodeB($signer, $verifier, $fetch); } catch (RuntimeException) { $missingAlertRejected = true; }
+try { new IntegrityNodeB($signer, $verifier, null, $fetch); } catch (RuntimeException) { $missingAlertRejected = true; }
 nodeBAssert($missingAlertRejected, 'Node B must refuse startup without a direct owner-alert transport.');
 $missingPrivateHostRejected = false;
-try { new IntegrityNodeB($signer, $verifier, $fetch, $alertNoop, $headerNoop, null); } catch (RuntimeException) { $missingPrivateHostRejected = true; }
+try { new IntegrityNodeB($signer, $verifier, null, $fetch, $alertNoop, $headerNoop); } catch (RuntimeException) { $missingPrivateHostRejected = true; }
 nodeBAssert($missingPrivateHostRejected, 'Node B must refuse startup without private-host attestation.');
 
-    $node = new IntegrityNodeB($signer, $verifier, $fetch, $alertNoop, $headerNoop, nodeBPrivateHostGate());
+    $node = new IntegrityNodeB($signer, $verifier, nodeBPrivateHostGate(), $fetch, $alertNoop, $headerNoop);
     $approved = $node->verify(
         $manifestPath,
         $artifactPath,
@@ -143,7 +143,7 @@ nodeBAssert($missingPrivateHostRejected, 'Node B must refuse startup without pri
     $signedEnvelope = json_decode($approved['report'], true, 16, JSON_THROW_ON_ERROR);
     $signedPayload = json_decode(base64_decode($signedEnvelope['payload'], true), true, 32, JSON_THROW_ON_ERROR);
     nodeBAssert(($signedPayload['schema_version'] ?? null) === 2, 'Node report must use the signed event-evidence schema.');
-    nodeBAssert(($signedPayload['target_origin'] ?? null) === 'https://example.invalid/SentryIQ', 'Signed report must bind the monitored origin.');
+    nodeBAssert(($signedPayload['target_origin'] ?? null) === 'https://sentryiq.bichet.co.za', 'Signed report must bind the monitored origin.');
     nodeBAssert(($signedPayload['manifest_sha256'] ?? null) === $approved['manifest_sha256'], 'Signed report must bind the manifest digest.');
     nodeBAssert(($signedPayload['checked_paths'] ?? null) === ['assets/app.js', '@origin-headers', '@private-host-attestation'], 'Signed report must include checked paths.');
     nodeBAssert(($signedPayload['mismatches'] ?? null) === [], 'Signed report must include mismatch evidence.');
@@ -155,12 +155,13 @@ nodeBAssert($missingPrivateHostRejected, 'Node B must refuse startup without pri
     $tamperedNode = new IntegrityNodeB(
         $signer,
         $verifier,
+        nodeBPrivateHostGate(),
         static fn(string $url): string => 'tampered',
         static function (string $nodeId, string $reason, array $context) use (&$alerts): void {
             $alerts[] = [$nodeId, $reason, $context];
         },
         $headerNoop,
-        $privateHostNoop
+        nodeBPrivateHostGate()
     );
     $rejected = $tamperedNode->verify(
         $manifestPath,
@@ -168,7 +169,7 @@ nodeBAssert($missingPrivateHostRejected, 'Node B must refuse startup without pri
         '0.1.3',
         str_repeat('a', 40),
         '0.1.2',
-        'https://example.invalid/SentryIQ',
+        'https://sentryiq.bichet.co.za',
         ['assets/app.js'],
         str_repeat('d', 64)
     );
@@ -179,16 +180,16 @@ nodeBAssert($missingPrivateHostRejected, 'Node B must refuse startup without pri
     $privateHostRejectedNode = new IntegrityNodeB(
         $signer,
         $verifier,
+        nodeBPrivateHostGate(false),
         $fetch,
         static function (string $nodeId, string $reason, array $context) use (&$privateHostAlerts): void {
             $privateHostAlerts[] = [$nodeId, $reason, $context];
         },
-        $headerNoop,
-nodeBPrivateHostGate(false)
+        $headerNoop
     );
     $privateHostRejected = $privateHostRejectedNode->verify(
         $manifestPath, $artifactPath, '0.1.3', str_repeat('a', 40), '0.1.2',
-        'https://example.invalid/SentryIQ', ['assets/app.js'], str_repeat('f', 64)
+        'https://sentryiq.bichet.co.za', ['assets/app.js'], str_repeat('f', 64)
     );
     nodeBAssert($privateHostRejected['approved'] === false
         && in_array(['path' => '@private-host-attestation', 'reason' => 'private_host_attestation_failed'], $privateHostRejected['mismatches'], true),
@@ -200,7 +201,7 @@ nodeBPrivateHostGate(false)
     try {
         $node->verify(
             $manifestPath, $artifactPath, '0.1.3', str_repeat('a', 40), '0.1.2',
-            'https://example.invalid/SentryIQ', ['../config.php'], str_repeat('e', 64)
+            'https://sentryiq.bichet.co.za', ['../config.php'], str_repeat('e', 64)
         );
     } catch (RuntimeException) {
         $unsafeRejected = true;
