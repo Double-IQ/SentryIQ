@@ -32,8 +32,10 @@ final class IntegrityNodeReleaseStateStore
         if ($private === $web || str_starts_with($private . DIRECTORY_SEPARATOR, rtrim($web, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
             throw new RuntimeException('Integrity release state must be stored outside the public webroot.');
         }
-        if (!@chmod($private, 0700) || ((fileperms($private) ?: 0) & 0077) !== 0) {
-            throw new RuntimeException('Integrity release state directory must have private 0700 permissions.');
+        $directoryStat = @lstat($private);
+        if (!is_array($directoryStat) || (($directoryStat['mode'] & 0170000) !== 0040000)
+            || (($directoryStat['mode'] & 0777) !== 0700)) {
+            throw new RuntimeException('Integrity release state directory must be pre-provisioned as an exact 0700 directory.');
         }
 
         $this->directory = $private;
@@ -50,14 +52,23 @@ final class IntegrityNodeReleaseStateStore
         if ($this->runLockHeld) {
             throw new RuntimeException('Integrity release state lock is already held by this runner.');
         }
-        if (is_link($this->lockPath)) {
-            throw new RuntimeException('Integrity release state lock must not be a symlink.');
+        $lockStat = @lstat($this->lockPath);
+        if (!is_array($lockStat) || (($lockStat['mode'] & 0170000) !== 0100000)
+            || (($lockStat['mode'] & 0777) !== 0600)) {
+            throw new RuntimeException('Integrity release state lock must be pre-provisioned as a regular 0600 file.');
         }
-        $handle = @fopen($this->lockPath, 'c');
-        if ($handle === false || !@chmod($this->lockPath, 0600)
-            || ((fileperms($this->lockPath) ?: 0) & 0077) !== 0) {
-            if (is_resource($handle)) fclose($handle);
-            throw new RuntimeException('Unable to create a private integrity release state lock.');
+        $handle = @fopen($this->lockPath, 'r+b');
+        if ($handle === false) {
+            throw new RuntimeException('Unable to open the pre-provisioned integrity release state lock.');
+        }
+        $openedStat = @fstat($handle);
+        if (!is_array($openedStat)
+            || $openedStat['dev'] !== $lockStat['dev']
+            || $openedStat['ino'] !== $lockStat['ino']
+            || (($openedStat['mode'] & 0170000) !== 0100000)
+            || (($openedStat['mode'] & 0777) !== 0600)) {
+            fclose($handle);
+            throw new RuntimeException('Integrity release state lock changed during open or has unsafe metadata.');
         }
         if (!flock($handle, LOCK_EX | LOCK_NB)) {
             fclose($handle);
@@ -101,11 +112,35 @@ final class IntegrityNodeReleaseStateStore
     /** @return array{version:string,commit:string,manifest_sha256:string,artifact_sha256:string,approved_at:int} */
     public function current(): array
     {
-        if (is_link($this->statePath) || !is_file($this->statePath)
-            || (((fileperms($this->statePath) ?: 0) & 0077) !== 0)) {
-            throw new RuntimeException('Integrity release baseline is missing or has unsafe permissions; initialize it explicitly.');
+        $stateStat = @lstat($this->statePath);
+        if (!is_array($stateStat) || (($stateStat['mode'] & 0170000) !== 0100000)
+            || (($stateStat['mode'] & 0777) !== 0600)) {
+            throw new RuntimeException('Integrity release baseline is missing or is not a regular 0600 file; initialize it explicitly.');
         }
-        $bytes = @file_get_contents($this->statePath);
+        $stateHandle = @fopen($this->statePath, 'rb');
+        if ($stateHandle === false) {
+            throw new RuntimeException('Integrity release baseline cannot be opened.');
+        }
+        $openedStateStat = @fstat($stateHandle);
+        if (!is_array($openedStateStat)
+            || $openedStateStat['dev'] !== $stateStat['dev']
+            || $openedStateStat['ino'] !== $stateStat['ino']
+            || (($openedStateStat['mode'] & 0170000) !== 0100000)
+            || (($openedStateStat['mode'] & 0777) !== 0600)) {
+            fclose($stateHandle);
+            throw new RuntimeException('Integrity release baseline changed during open or has unsafe metadata.');
+        }
+        $bytes = stream_get_contents($stateHandle, 4097);
+        $finalStateStat = @fstat($stateHandle);
+        fclose($stateHandle);
+        if (!is_array($finalStateStat)
+            || $finalStateStat['dev'] !== $openedStateStat['dev']
+            || $finalStateStat['ino'] !== $openedStateStat['ino']
+            || $finalStateStat['size'] !== $openedStateStat['size']
+            || $finalStateStat['mtime'] !== $openedStateStat['mtime']
+            || $finalStateStat['ctime'] !== $openedStateStat['ctime']) {
+            throw new RuntimeException('Integrity release baseline changed while being read.');
+        }
         if (!is_string($bytes) || $bytes === '' || strlen($bytes) > 4096) {
             throw new RuntimeException('Integrity release baseline is unreadable or invalid in size.');
         }
@@ -193,9 +228,29 @@ final class IntegrityNodeReleaseStateStore
             'approved_at' => time(),
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n";
         $temporary = $this->statePath . '.tmp-' . bin2hex(random_bytes(8));
-        $written = @file_put_contents($temporary, $bytes, LOCK_EX);
-        if ($written !== strlen($bytes) || !@chmod($temporary, 0600)
-            || !@rename($temporary, $this->statePath) || !@chmod($this->statePath, 0600)) {
+        $handle = @fopen($temporary, 'x+b');
+        if ($handle === false) {
+            throw new RuntimeException('Unable to create an exclusive integrity release state temporary file.');
+        }
+        $ok = @chmod($temporary, 0600);
+        $offset = 0;
+        while ($ok && $offset < strlen($bytes)) {
+            $count = @fwrite($handle, substr($bytes, $offset));
+            if (!is_int($count) || $count < 1) {
+                $ok = false;
+                break;
+            }
+            $offset += $count;
+        }
+        if ($ok) $ok = @fflush($handle);
+        if ($ok && function_exists('fsync')) $ok = @fsync($handle);
+        $temporaryStat = @fstat($handle);
+        $ok = $ok && is_array($temporaryStat)
+            && (($temporaryStat['mode'] & 0170000) === 0100000)
+            && (($temporaryStat['mode'] & 0777) === 0600)
+            && $offset === strlen($bytes);
+        fclose($handle);
+        if (!$ok || !@rename($temporary, $this->statePath)) {
             @unlink($temporary);
             throw new RuntimeException('Atomic integrity release state update failed.');
         }
