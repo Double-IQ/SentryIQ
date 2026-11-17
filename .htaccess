@@ -1,5 +1,8 @@
 RewriteEngine On
 
+# Bootstrap runtime files are copied to private storage on first run; never serve them over HTTP.
+RewriteRule ^runtime(?:/|$) - [F,L]
+
 # Keep existing deployed endpoint URLs working while implementations live under app/.
 RewriteRule ^document_delete\.php$ app/Documents/Delete.php [L]
 RewriteRule ^document_download\.php$ app/Documents/Download.php [L]
