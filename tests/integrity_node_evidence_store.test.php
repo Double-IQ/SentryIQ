@@ -61,7 +61,8 @@ try {
         base64_decode(json_decode($report, true, 8, JSON_THROW_ON_ERROR)['payload'], true),
         $public
     ), 'Stored report signature must verify with the node public key.');
-    evidenceStoreReject(fn() => $store->append($report), 'A repeated nonce/report must not overwrite an existing evidence record.');
+    evidenceStoreReject(fn() => $store->append($report, '1.2.3', $commit, $manifestDigest, $artifactDigest, true), 'A repeated nonce/report must not overwrite an existing evidence record.');
+    evidenceStoreReject(fn() => $store->append($report, '1.2.3', $commit, $manifestDigest, $artifactDigest, false), 'The signed decision must match the scheduler approval result.');
 
     $rejectedReport = $signer->createReport(
         '1.2.3',
