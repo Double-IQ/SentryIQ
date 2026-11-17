@@ -18,22 +18,23 @@ function publicAssetReject(callable $operation, string $message): void
 }
 
 $entries = [
+    'VERSION' => ['path' => 'VERSION', 'size' => 6, 'sha256' => str_repeat('d', 64)],
     'assets/app.js' => ['path' => 'assets/app.js', 'size' => 10, 'sha256' => str_repeat('a', 64)],
     'index.php' => ['path' => 'index.php', 'size' => 100, 'sha256' => str_repeat('b', 64)],
     'runtime/secret.php' => ['path' => 'runtime/secret.php', 'size' => 20, 'sha256' => str_repeat('c', 64)],
 ];
 $manifest = [
-    'public_files' => ['assets/app.js', 'index.php'],
-    'public_http_files' => ['assets/app.js'],
+    'public_files' => ['VERSION', 'assets/app.js', 'index.php'],
+    'public_http_files' => ['VERSION', 'assets/app.js'],
     'runtime_files' => ['secret.php'],
 ];
 publicAssetAssert(
-    IntegrityPublicAssetPolicy::resolve($manifest, $entries, []) === ['assets/app.js'],
+    IntegrityPublicAssetPolicy::resolve($manifest, $entries, []) === ['VERSION', 'assets/app.js'],
     'Empty config must use the complete signed static asset allowlist.'
 );
 publicAssetAssert(
-    IntegrityPublicAssetPolicy::resolve($manifest, $entries, ['assets/app.js']) === ['assets/app.js'],
-    'An explicit static subset should be accepted.'
+    IntegrityPublicAssetPolicy::resolve($manifest, $entries, ['VERSION']) === ['VERSION'],
+    'The exact root VERSION marker should be accepted as a signed static asset.'
 );
 publicAssetReject(
     fn() => IntegrityPublicAssetPolicy::resolve($manifest, $entries, ['index.php']),
@@ -44,9 +45,9 @@ publicAssetReject(
     'Private runtime files must never be included in public HTTP checks.'
 );
 
-$legacy = ['public_files' => ['assets/app.js', 'index.php', 'runtime/secret.php']];
+$legacy = ['public_files' => ['VERSION', 'assets/app.js', 'index.php', 'runtime/secret.php']];
 publicAssetAssert(
-    IntegrityPublicAssetPolicy::resolve($legacy, $entries, []) === ['assets/app.js'],
+    IntegrityPublicAssetPolicy::resolve($legacy, $entries, []) === ['VERSION', 'assets/app.js'],
     'Legacy format-2 manifests must safely derive static assets without including PHP.'
 );
 
