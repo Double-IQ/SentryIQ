@@ -50,6 +50,12 @@ final class IntegrityReportSigner
         return $this->nodeId;
     }
 
+    /** Public verification key for this node's signed reports; safe to publish. */
+    public function publicKeyBase64(): string
+    {
+        return base64_encode(sodium_crypto_sign_publickey_from_secretkey($this->secretKey));
+    }
+
     /**
      * @param string $releaseVersion Stable MAJOR.MINOR.PATCH version, with optional leading v.
      * @param string $commit Full lowercase or uppercase Git commit SHA.
