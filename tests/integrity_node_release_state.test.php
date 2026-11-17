@@ -33,6 +33,7 @@ try {
     $manifestB = str_repeat('e', 64);
     $artifactB = str_repeat('f', 64);
     $store->initializeBaseline('v1.2.3', $commitA);
+    $store->runExclusive(fn() => $store->recordApproved('1.2.3', $commitA, $manifestA, $artifactA));
     releaseStateAssert($store->current()['version'] === '1.2.3', 'Explicit baseline should be persisted.');
     $store->assertCandidate('1.2.3', $commitA, $manifestA, $artifactA);
     $store->assertCandidate('1.2.4', $commitB, $manifestB, $artifactB);
