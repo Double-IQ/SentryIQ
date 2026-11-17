@@ -158,7 +158,13 @@ final class IntegrityNodeA
             $commit,
             $artifactDigest,
             $nonce,
-            $approved ? 'approve' : 'reject'
+            $approved ? 'approve' : 'reject',
+            [
+                'target_origin' => rtrim($origin, '/'),
+                'manifest_sha256' => $manifestDigest,
+                'checked_paths' => $checked,
+                'mismatches' => $mismatches,
+            ]
         );
 
 
