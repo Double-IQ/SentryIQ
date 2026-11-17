@@ -63,6 +63,7 @@ jobs:
           php tests/integrity_alert_dispatcher.test.php
           php tests/integrity_event_client.test.php
           php tests/integrity_node_event_runner.test.php
+          php tests/integrity_node_scheduled_runner.test.php
           php tests/integrity_release_artifact_fetcher.test.php
           php tests/integrity_node4_monitor.test.php
           php tests/integrity_node4_runtime_config.test.php
