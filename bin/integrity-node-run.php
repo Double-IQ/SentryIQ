@@ -33,6 +33,7 @@ require_once __DIR__ . '/../app/Updates/NativeSigstoreReleaseVerifier.php';
 require_once __DIR__ . '/../app/Updates/NativeSigstoreIntegrityAttestationVerifier.php';
 require_once __DIR__ . '/../app/Updates/PrivateHostAttestationClient.php';
 require_once __DIR__ . '/../app/Updates/PrivateHostAttestationVerifier.php';
+require_once __DIR__ . '/../app/Updates/PrivateHostAttestationGate.php';
 
 $configPath = getenv('SENTRYIQ_INTEGRITY_NODE_CONFIG');
 if (!is_string($configPath) || $configPath === '' || !str_starts_with($configPath, DIRECTORY_SEPARATOR)
