@@ -6,7 +6,10 @@ on:
     paths:
       - 'app/Updates/IntegrityNode*.php'
       - 'app/Updates/IntegrityReport*.php'
+      - 'app/Updates/IntegrityEventReportVerifier.php'
+      - 'app/Updates/FileIntegrityEventStore.php'
       - 'tests/integrity_*.test.php'
+      - 'tests/file_integrity_event_store.test.php'
       - '.github/workflows/integrity-node-tests.yml'
   push:
     branches: [main]
@@ -38,6 +41,8 @@ jobs:
           set -euo pipefail
           php tests/integrity_report_signer.test.php
           php tests/integrity_report_verifier.test.php
+          php tests/integrity_event_report_verifier.test.php
+          php tests/file_integrity_event_store.test.php
           php tests/integrity_node_a.test.php
           php tests/integrity_node_b.test.php
           php tests/integrity_node_c.test.php
