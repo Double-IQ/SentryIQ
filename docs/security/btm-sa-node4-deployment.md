@@ -125,17 +125,26 @@ Node 4 shares the SentryIQ host and is not a failure-independent alert destinati
 
 The A/B constructors require a fourth argument `$notifyFailure` for attestation rejection and origin mismatch. Node C has the same mandatory direct-alert requirement. A node cannot be constructed without a separately configured owner-alert transport. The event runner requires a direct alert callback and invokes it if Node 4 cannot issue a challenge or accept the signed report:
 
+**On Node A only** (its own host, credentials and schedule):
+
 ```php
-$notifyFailure = static function (string $nodeId, string $reason, array $context): void {
-    // Send to this node's independently configured owner-alert destination.
-    // Do not forward solely to BTM-SA / Node 4.
+$nodeAOwnerAlert = static function (string $nodeId, string $reason, array $context): void {
+    // Deliver directly from Node A's provider to the owner.
 };
+$nodeA = new IntegrityNodeA($signerA, $verifyAttestation, null, $nodeAOwnerAlert);
+$clientA = new IntegrityEventClient($node4Endpoint, 'integrity-a', $node4BearerTokenA);
+$runnerA = new IntegrityNodeEventRunner($clientA, $nodeAOwnerAlert);
+```
 
-$nodeA = new IntegrityNodeA($signerA, $verifyAttestation, null, $notifyFailure);
-$nodeB = new IntegrityNodeB($signerB, $verifyAttestation, null, $notifyFailure);
+**On Node B only** (a different provider/account, with no Node A secrets):
 
-$client = new IntegrityEventClient($node4Endpoint, $nodeId, $node4BearerToken);
-$runner = new IntegrityNodeEventRunner($client, $notifyFailure);
+```php
+$nodeBOwnerAlert = static function (string $nodeId, string $reason, array $context): void {
+    // Deliver directly from Node B's provider to the owner.
+};
+$nodeB = new IntegrityNodeB($signerB, $verifyAttestation, null, $nodeBOwnerAlert);
+$clientB = new IntegrityEventClient($node4Endpoint, 'integrity-b', $node4BearerTokenB);
+$runnerB = new IntegrityNodeEventRunner($clientB, $nodeBOwnerAlert);
 ```
 
 This is an injection point, not a configured transport: no email/webhook provider, credentials, or recipient are fabricated by the code. A/B are not production-ready until each host supplies and tests its own direct transport. Node 4's own alert sender also remains a separate required configuration item.
