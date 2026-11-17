@@ -28,6 +28,9 @@ final class IntegrityNodeB
     /** @var callable(string,string,array<string,mixed>):void|null */
     private $notifyFailure;
 
+    /** @var callable(string):array{approved:bool,mismatches:list<string>} */
+    private $verifyOriginHeaders;
+
     /**
      * @param callable(string,string,string,string):void $verifyAttestation
      *        Arguments: artifact path, release version, source commit, installed version.
@@ -38,7 +41,8 @@ final class IntegrityNodeB
         private readonly IntegrityReportSigner $signer,
         callable $verifyAttestation,
         ?callable $fetch = null,
-        ?callable $notifyFailure = null
+        ?callable $notifyFailure = null,
+        ?callable $verifyOriginHeaders = null
     ) {
         if ($this->signer->nodeId() !== 'integrity-b') {
             throw new RuntimeException('Integrity Node B requires its own integrity-b signing identity.');
@@ -46,9 +50,13 @@ final class IntegrityNodeB
         if ($notifyFailure === null) {
             throw new RuntimeException('Integrity Node B requires an independent direct owner-alert transport.');
         }
+        if ($verifyOriginHeaders === null) {
+            throw new RuntimeException('Integrity Node B requires an origin security-header verifier.');
+        }
         $this->verifyAttestation = $verifyAttestation;
         $this->fetch = $fetch ?? fn(string $url): string => $this->fetchHttps($url);
         $this->notifyFailure = $notifyFailure;
+        $this->verifyOriginHeaders = $verifyOriginHeaders;
     }
 
     /**
@@ -157,6 +165,22 @@ final class IntegrityNodeB
                 || strlen($body) !== $entries[$path]['size']) {
                 $mismatches[] = ['path' => $path, 'reason' => 'content_mismatch'];
             }
+        }
+
+        $headerResult = ($this->verifyOriginHeaders)($origin);
+        if (!is_array($headerResult) || !is_bool($headerResult['approved'] ?? null)
+            || !is_array($headerResult['mismatches'] ?? null) || !array_is_list($headerResult['mismatches'])
+            || count($headerResult['mismatches']) > 32
+            || ($headerResult['approved'] !== ($headerResult['mismatches'] === []))) {
+            throw new RuntimeException('Origin security-header verifier returned an invalid result.');
+        }
+        $checked[] = '@origin-headers';
+        if ($headerResult['approved'] !== true) {
+            $mismatches[] = ['path' => '@origin-headers', 'reason' => 'security_header_mismatch'];
+            $this->alertFailure('origin_integrity_mismatch', [
+                'target_origin' => rtrim($origin, '/'),
+                'header_mismatches' => $headerResult['mismatches'],
+            ]);
         }
 
         $artifactDigest = hash_file('sha256', $artifactReal);
