@@ -106,6 +106,13 @@ try {
         'Content-Type' => 'application/json',
     ], $request)['status'] === 401,
         'Duplicate case-insensitive Authorization headers must be rejected as ambiguous.');
+    $duplicateFieldRequest = str_replace(
+        '"node_id":"integrity-a"',
+        '"node_id":"integrity-a","node_id":"integrity-b"',
+        $request
+    );
+    hostHandlerAssert($handler->handle('POST', $headers, $duplicateFieldRequest)['status'] === 400,
+        'Duplicate top-level JSON fields must be rejected before request interpretation.');
     $crossNode = json_decode($request, true, 8, JSON_THROW_ON_ERROR);
     $crossNode['node_id'] = 'integrity-b';
     hostHandlerAssert($handler->handle('POST', ['Authorization' => 'Bearer ' . $tokenA, 'Content-Type' => 'application/json'],
