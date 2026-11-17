@@ -124,6 +124,35 @@ try {
     );
     hostHandlerAssert((fileperms($sharedPrivate) & 0777) === 0750,
         'Nonce storage constructor must not change permissions on an operator-supplied directory.');
+
+    $lockAttackDirectory = $base . '/lock-symlink-private';
+    mkdir($lockAttackDirectory, 0700);
+    $lockTarget = $base . '/lock-target';
+    file_put_contents($lockTarget, 'do-not-touch');
+    chmod($lockTarget, 0600);
+    symlink($lockTarget, $lockAttackDirectory . '/private-host-nonces.lock');
+    $lockAttackStore = new PrivateHostAttestationNonceStore($lockAttackDirectory, $web);
+    hostHandlerReject(
+        fn() => $lockAttackStore->consume('integrity-a', str_repeat('c', 64), time() + 120),
+        'Nonce storage must reject a symlinked lock path.'
+    );
+    hostHandlerAssert(file_get_contents($lockTarget) === 'do-not-touch',
+        'A symlinked lock path must never redirect writes to its target.');
+
+    $stateAttackDirectory = $base . '/state-symlink-private';
+    mkdir($stateAttackDirectory, 0700);
+    $stateTarget = $base . '/state-target';
+    file_put_contents($stateTarget, 'do-not-touch');
+    chmod($stateTarget, 0600);
+    symlink($stateTarget, $stateAttackDirectory . '/private-host-nonces.json');
+    $stateAttackStore = new PrivateHostAttestationNonceStore($stateAttackDirectory, $web);
+    hostHandlerReject(
+        fn() => $stateAttackStore->consume('integrity-a', str_repeat('d', 64), time() + 120),
+        'Nonce storage must reject a symlinked state path.'
+    );
+    hostHandlerAssert(file_get_contents($stateTarget) === 'do-not-touch',
+        'A symlinked state path must never redirect reads or writes to its target.');
+
     sodium_memzero($secret);
     echo "Private host attestation request handler tests passed.\n";
 } finally {
