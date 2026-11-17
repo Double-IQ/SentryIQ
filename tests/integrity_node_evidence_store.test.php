@@ -48,7 +48,7 @@ try {
             'mismatches' => [],
         ]
     );
-    $stored = $store->append($report, '1.2.3', $commit, $manifestDigest, $artifactDigest);
+    $stored = $store->append($report, '1.2.3', $commit, $manifestDigest, $artifactDigest, true);
     $record = json_decode((string)file_get_contents($stored['evidence_path']), true, 16, JSON_THROW_ON_ERROR);
     evidenceStoreAssert(is_file($stored['evidence_path']), 'Signed Node C evidence must be durably stored.');
     evidenceStoreAssert(((fileperms($stored['evidence_path']) ?: 0) & 0077) === 0, 'Evidence records must be private mode 0600.');
@@ -76,7 +76,7 @@ try {
             'mismatches' => [['path' => '@origin-headers', 'reason' => 'security_header_mismatch']],
         ]
     );
-    $rejectedStored = $store->append($rejectedReport, '1.2.3', $commit, $manifestDigest, $artifactDigest);
+    $rejectedStored = $store->append($rejectedReport, '1.2.3', $commit, $manifestDigest, $artifactDigest, false);
     $rejectedRecord = json_decode((string)file_get_contents($rejectedStored['evidence_path']), true, 16, JSON_THROW_ON_ERROR);
     evidenceStoreAssert($rejectedRecord['decision'] === 'reject'
         && $rejectedRecord['mismatches'] === [['path' => '@origin-headers', 'reason' => 'security_header_mismatch']],
@@ -84,7 +84,7 @@ try {
 
     $tampered = json_decode($report, true, 8, JSON_THROW_ON_ERROR);
     $tampered['signature'] = base64_encode(str_repeat("x", SODIUM_CRYPTO_SIGN_BYTES));
-    evidenceStoreReject(fn() => $store->append(json_encode($tampered, JSON_THROW_ON_ERROR), '1.2.3', $commit, $manifestDigest, $artifactDigest),
+    evidenceStoreReject(fn() => $store->append(json_encode($tampered, JSON_THROW_ON_ERROR), '1.2.3', $commit, $manifestDigest, $artifactDigest, true),
         'Invalid report signatures must be rejected before persistence.');
 
     $otherSigner = new IntegrityReportSigner('integrity-b', base64_encode($secret));
@@ -97,7 +97,7 @@ try {
             'mismatches' => [],
         ]
     );
-    evidenceStoreReject(fn() => $store->append($otherReport, '1.2.3', $commit, $manifestDigest, $artifactDigest), 'Evidence from another node identity must be rejected.');
+    evidenceStoreReject(fn() => $store->append($otherReport, '1.2.3', $commit, $manifestDigest, $artifactDigest, true), 'Evidence from another node identity must be rejected.');
 
     $insideWebrootRejected = false;
     try {
