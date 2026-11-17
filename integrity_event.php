@@ -48,10 +48,14 @@ if ($contentLength < 1 || $contentLength > 32768) {
     integrityEventRespond(413, ['status' => 'error', 'message' => 'Request size is invalid.']);
 }
 
-$configFile = __DIR__ . '/sentryiq_config.php';
-$config = is_file($configFile) && !is_link($configFile) ? require $configFile : [];
-$eventConfig = is_array($config) ? ($config['integrity_event'] ?? null) : null;
-$dataDir = is_array($config) ? (string)($config['data_dir'] ?? '') : '';
+require_once __DIR__ . '/app/Updates/IntegrityNode4RuntimeConfig.php';
+try {
+    $config = SentryIQ\\Updates\\IntegrityNode4RuntimeConfig::load(__DIR__ . '/sentryiq_config.php');
+} catch (Throwable) {
+    integrityEventRespond(503, ['status' => 'error', 'message' => 'Node 4 private runtime configuration is unavailable.']);
+}
+$eventConfig = $config['integrity_event'] ?? null;
+$dataDir = (string)($config['data_dir'] ?? '');
 $storageDir = is_array($eventConfig) ? (string)($eventConfig['storage_dir'] ?? '') : '';
 $realDataDir = $dataDir !== '' ? realpath($dataDir) : false;
 $realStorageDir = $storageDir !== '' ? realpath($storageDir) : false;
