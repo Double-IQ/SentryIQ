@@ -29,6 +29,15 @@ final class IntegrityPublicAssetPolicy
             throw new RuntimeException('Configured public asset paths must be a list.');
         }
 
+        $publicFiles = $manifest['public_files'] ?? null;
+        $publicFileSet = null;
+        if ($publicFiles !== null) {
+            if (!is_array($publicFiles) || !array_is_list($publicFiles)) {
+                throw new RuntimeException('Release manifest public file inventory is invalid.');
+            }
+            $publicFileSet = array_fill_keys(array_filter($publicFiles, 'is_string'), true);
+        }
+
         $manifestPaths = $manifest['public_http_files'] ?? null;
         if ($manifestPaths === null) {
             // Backward compatibility for older format-2 manifests: derive the
@@ -51,7 +60,8 @@ final class IntegrityPublicAssetPolicy
         $allowed = [];
         foreach ($manifestPaths as $path) {
             if (!is_string($path) || !self::isSafePath($path) || !self::isStaticPath($path)
-                || !isset($entries[$path]) || isset($allowed[$path])) {
+                || str_starts_with($path, 'runtime/') || !isset($entries[$path])
+                || ($publicFileSet !== null && !isset($publicFileSet[$path])) || isset($allowed[$path])) {
                 throw new RuntimeException('Release manifest contains an unsafe, dynamic or unknown public HTTP asset path.');
             }
             $allowed[$path] = true;
@@ -79,6 +89,6 @@ final class IntegrityPublicAssetPolicy
     {
         return $path !== '' && strlen($path) <= 512 && !str_starts_with($path, '/')
             && !str_contains($path, '\\') && !preg_match('~(^|/)\.\.?(/|$)~', $path)
-            && !preg_match('/[?#\\x00-\\x1f]/', $path);
+            && !preg_match('/[%?#\\x00-\\x1f]/', $path);
     }
 }
