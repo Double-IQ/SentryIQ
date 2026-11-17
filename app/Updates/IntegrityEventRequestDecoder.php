@@ -15,10 +15,10 @@ final class IntegrityEventRequestDecoder
     /** @return array<string,mixed> */
     public static function decode(string $json, int $maxBytes = 32768): array
     {
-        if ($json === '' || strlen($json) > $maxBytes || !self::isSingleObject($json)
-            || self::hasDuplicateTopLevelKeys($json)) {
+        if ($json === '' || strlen($json) > $maxBytes || !self::isSingleObject($json)) {
             throw new RuntimeException('Integrity event request JSON is empty, oversized, ambiguous or not an object.');
         }
+        self::assertNoDuplicateObjectKeys($json);
         try {
             $decoded = json_decode($json, true, 16, JSON_THROW_ON_ERROR);
         } catch (\JsonException $exception) {
@@ -47,13 +47,20 @@ final class IntegrityEventRequestDecoder
         return str_starts_with($trimmed, '{') && str_ends_with($trimmed, '}');
     }
 
-    private static function hasDuplicateTopLevelKeys(string $json): bool
+    /** Reject duplicate keys in every JSON object, not just the outer request. */
+    public static function assertNoDuplicateObjectKeys(string $json): void
+    {
+        if (self::hasDuplicateObjectKeys($json)) {
+            throw new RuntimeException('JSON contains duplicate object keys.');
+        }
+    }
+
+    private static function hasDuplicateObjectKeys(string $json): bool
     {
         $length = strlen($json);
-        $depth = 0;
+        $stack = [];
         $inString = false;
         $escaped = false;
-        $keys = [];
         $stringStart = 0;
 
         for ($i = 0; $i < $length; $i++) {
@@ -61,11 +68,12 @@ final class IntegrityEventRequestDecoder
             if ($inString) {
                 if ($escaped) {
                     $escaped = false;
-                } elseif ($char === '\\') {
+                } elseif ($char === '\\\\') {
                     $escaped = true;
                 } elseif ($char === '"') {
                     $inString = false;
-                    if ($depth === 1) {
+                    $containerIndex = count($stack) - 1;
+                    if ($containerIndex >= 0 && ($stack[$containerIndex]['type'] ?? null) === 'object') {
                         $end = $i + 1;
                         while ($end < $length && ctype_space($json[$end])) $end++;
                         if ($end < $length && $json[$end] === ':') {
@@ -79,8 +87,8 @@ final class IntegrityEventRequestDecoder
                             } catch (\JsonException) {
                                 return true;
                             }
-                            if (!is_string($key) || isset($keys[$key])) return true;
-                            $keys[$key] = true;
+                            if (!is_string($key) || isset($stack[$containerIndex]['keys'][$key])) return true;
+                            $stack[$containerIndex]['keys'][$key] = true;
                         }
                     }
                 }
@@ -90,12 +98,15 @@ final class IntegrityEventRequestDecoder
             if ($char === '"') {
                 $inString = true;
                 $stringStart = $i;
-            } elseif ($char === '{' || $char === '[') {
-                $depth++;
+            } elseif ($char === '{') {
+                $stack[] = ['type' => 'object', 'keys' => []];
+            } elseif ($char === '[') {
+                $stack[] = ['type' => 'array'];
             } elseif ($char === '}' || $char === ']') {
-                $depth--;
+                if ($stack === []) return true;
+                array_pop($stack);
             }
         }
-        return false;
+        return $inString || $stack !== [];
     }
 }
