@@ -123,7 +123,7 @@ does not replace those checks.
 
 Node 4 shares the SentryIQ host and is not a failure-independent alert destination. Each separately hosted node must therefore configure its own direct owner-alert callback, with credentials and destination held in that node's private configuration and delivery performed from that node's own provider. The callback is invoked for attestation rejection and public-origin content mismatch; a callback delivery failure fails the node run rather than silently treating the alert as delivered.
 
-The A/B constructors accept the optional fourth argument `$notifyFailure`:
+The A/B constructors accept an optional fourth argument `$notifyFailure` for attestation rejection and origin mismatch. The event runner requires a direct alert callback and invokes it if Node 4 cannot issue a challenge or accept the signed report:
 
 ```php
 $notifyFailure = static function (string $nodeId, string $reason, array $context): void {
@@ -133,6 +133,9 @@ $notifyFailure = static function (string $nodeId, string $reason, array $context
 
 $nodeA = new IntegrityNodeA($signerA, $verifyAttestation, null, $notifyFailure);
 $nodeB = new IntegrityNodeB($signerB, $verifyAttestation, null, $notifyFailure);
+
+$client = new IntegrityEventClient($node4Endpoint, $nodeId, $node4BearerToken);
+$runner = new IntegrityNodeEventRunner($client, $notifyFailure);
 ```
 
 This is an injection point, not a configured transport: no email/webhook provider, credentials, or recipient are fabricated by the code. A/B are not production-ready until each host supplies and tests its own direct transport. Node 4's own alert sender also remains a separate required configuration item.
