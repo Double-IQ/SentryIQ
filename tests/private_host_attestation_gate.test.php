@@ -80,7 +80,8 @@ $gate = new PrivateHostAttestationGate(
     ['app/release.php' => $fileDigest],
     ['node-private-config' => $configDigest]
 );
-$result = $gate($version, $commit, $manifest, $artifact, $nonce, [], 'https://sentryiq.bichet.co.za');
+$releaseManifest = ['files' => [['path' => 'app/release.php', 'sha256' => $fileDigest]]];
+$result = $gate($version, $commit, $manifest, $artifact, $nonce, $releaseManifest, 'https://sentryiq.bichet.co.za');
 privateHostGateAssert($result['approved'] === true && $result['mismatches'] === [],
     'A correctly bound transport, collector pin and policy must approve.');
 privateHostGateAssert($gate->nodeId() === 'integrity-a'
@@ -103,8 +104,18 @@ privateHostGateReject(
     'An empty deployed-file policy must fail at bootstrap.'
 );
 privateHostGateReject(
-    fn() => $gate($version, $commit, $manifest, $artifact, $nonce, [], 'https://attacker.invalid'),
+    fn() => $gate($version, $commit, $manifest, $artifact, $nonce, $releaseManifest, 'https://attacker.invalid'),
     'Gate must reject a non-canonical SentryIQ origin.'
+);
+privateHostGateReject(
+    fn() => $gate($version, $commit, $manifest, $artifact, $nonce,
+        ['files' => [['path' => 'app/release.php', 'sha256' => str_repeat('f', 64)]]],
+        'https://sentryiq.bichet.co.za'),
+    'Gate must reject a pinned deployment digest that differs from the verified release manifest.'
+);
+privateHostGateReject(
+    fn() => $gate($version, $commit, $manifest, $artifact, $nonce, [], 'https://sentryiq.bichet.co.za'),
+    'Gate must reject a missing release manifest inventory.'
 );
 
 sodium_memzero($secret);
