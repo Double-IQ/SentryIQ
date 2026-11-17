@@ -18,7 +18,8 @@ require_once __DIR__ . '/../app/Updates/IntegrityNodeScheduledRunner.php';
 
 $configPath = getenv('SENTRYIQ_INTEGRITY_NODE_CONFIG');
 if (!is_string($configPath) || $configPath === '' || !str_starts_with($configPath, DIRECTORY_SEPARATOR)
-    || is_link($configPath) || !is_file($configPath) || !is_readable($configPath)) {
+    || is_link($configPath) || !is_file($configPath) || !is_readable($configPath)
+    || ((fileperms($configPath) ?: 0) & 0077) !== 0) {
     fwrite(STDERR, "A readable absolute private node configuration path is required.\n");
     exit(2);
 }
