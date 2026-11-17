@@ -124,7 +124,11 @@ try {
         );
         throw new RuntimeException('Runner must reject changed verification inputs.');
     } catch (RuntimeException $exception) {
-        runnerAssert(str_contains($exception->getMessage(), 'inputs changed'), 'Input mismatch should fail before report submission.');
+        runnerAssert(
+            str_contains($exception->getMessage(), 'independent owner alert')
+                && in_array(['integrity-b', 'local_verification_failed'], $runnerAlerts, true),
+            'Input mismatch must fail closed and trigger the independent owner alert.'
+        );
     }
     $verificationFailureAlerted = false;
     try {
