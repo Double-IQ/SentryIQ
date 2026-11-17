@@ -54,7 +54,7 @@ final class IntegrityNodeEvidenceStore
      *
      * @return array{evidence_id:string,evidence_path:string,stored_at:int}
      */
-    public function append(string $signedEnvelope, string $expectedVersion, string $expectedCommit, string $expectedManifestDigest, string $expectedArtifactDigest): array
+    public function append(string $signedEnvelope, string $expectedVersion, string $expectedCommit, string $expectedManifestDigest, string $expectedArtifactDigest, bool $expectedApproved): array
     {
         if ($signedEnvelope === '' || strlen($signedEnvelope) > 65536) {
             throw new RuntimeException('Node C signed evidence is empty or exceeds the size limit.');
@@ -101,7 +101,8 @@ final class IntegrityNodeEvidenceStore
         if (!hash_equals(ltrim($expectedVersion, 'v'), $payload['release_version'])
             || !hash_equals(strtolower($expectedCommit), $payload['commit'])
             || !hash_equals(strtolower($expectedManifestDigest), (string)($payload['manifest_sha256'] ?? ''))
-            || !hash_equals(strtolower($expectedArtifactDigest), $payload['artifact_sha256'])) {
+            || !hash_equals(strtolower($expectedArtifactDigest), $payload['artifact_sha256'])
+            || (($payload['decision'] === 'approve') !== $expectedApproved)) {
             throw new RuntimeException('Node C signed evidence does not bind the staged release artifacts.');
         }
 
