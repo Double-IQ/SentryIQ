@@ -195,8 +195,10 @@ final class IntegrityReportVerifier
         }
         foreach ($payload['mismatches'] as $item) {
             if (!is_array($item) || !is_string($item['path'] ?? null) || !$this->isSafeEvidencePath($item['path'])
-                || !in_array($item['reason'] ?? null, ['content_mismatch', 'fetch_failed', 'security_header_mismatch', 'private_host_attestation_failed'], true)) return false;
+                || !in_array($item['reason'] ?? null, ['content_mismatch', 'fetch_failed', 'security_header_mismatch', 'private_host_attestation_failed'], true)
+                || !in_array($item['path'], $payload['checked_paths'], true)) return false;
         }
+        if ((($payload['decision'] ?? null) === 'approve') !== ($payload['mismatches'] === [])) return false;
         return true;
     }
 
