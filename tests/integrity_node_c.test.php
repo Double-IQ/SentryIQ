@@ -79,7 +79,7 @@ nodeCAssert($missingAlertRejected, 'Node C must refuse startup without a direct 
     );
     nodeCAssert($approved['approved'] === true, 'Matching public file should approve.');
     nodeCAssert(count($verifyCalls) === 2, 'Both manifest and ZIP provenance must be verified.');
-    nodeCAssert($approved['checked_paths'] === ['assets/app.js'], 'Configured path should be checked.');
+    nodeCAssert($approved['checked_paths'] === ['assets/app.js', '@origin-headers'], 'Configured path should be checked.');
 
     $alerts = [];
     $tamperedNode = new IntegrityNodeC(
