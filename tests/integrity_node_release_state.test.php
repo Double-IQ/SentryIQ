@@ -42,7 +42,7 @@ try {
     });
     $state = $store->current();
     releaseStateAssert($state['version'] === '1.2.4' && $state['commit'] === $commitB, 'Approved newer release should advance the pin.');
-    releaseStateReject(fn() => $store->runExclusive(static fn() => throw new RuntimeException('nested')), 'The run lock must not be re-entered.');
+    releaseStateReject(fn() => $store->runExclusive(fn() => $store->runExclusive(static fn() => null)), 'The run lock must not be re-entered.');
 } finally {
     @unlink($private . '/integrity-release-state.json');
     @unlink($private . '/integrity-release-state.lock');
