@@ -93,6 +93,7 @@ try {
 
     chmod($web . '/app/release.php', 0644);
     file_put_contents($web . '/app/extra.txt', 'unexpected');
+    file_put_contents($web . '/app/odd name.txt', 'also unexpected');
     $unexpectedEnvelope = json_encode($collector->collect($nonce, '1.2.3', $commit, $manifest, $artifact), JSON_THROW_ON_ERROR);
     $unexpectedResult = $verifier->assertAttested(
         $unexpectedEnvelope, $nonce, '1.2.3', $commit, $manifest, $artifact,
