@@ -23,6 +23,7 @@ require_once __DIR__ . '/../app/Updates/IntegrityPublicAssetPolicy.php';
 require_once __DIR__ . '/../app/Updates/IntegrityOriginSecurityHeaderVerifier.php';
 require_once __DIR__ . '/../app/Updates/IntegrityNodeAlertedException.php';
 require_once __DIR__ . '/../app/Updates/IntegrityNodeReleaseStateStore.php';
+require_once __DIR__ . '/../app/Updates/IntegrityNodeEvidenceStore.php';
 require_once __DIR__ . '/../app/Updates/IntegrityDeployedReleaseResolver.php';
 require_once __DIR__ . '/../app/Updates/ReleaseArtifactVerifier.php';
 require_once __DIR__ . '/../app/Updates/ReleaseTrustPolicy.php';
