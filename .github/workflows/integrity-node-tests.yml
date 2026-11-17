@@ -5,6 +5,8 @@ on:
     branches: [main, feat/signed-integrity-event-evidence, feat/btm-sa-node4-report-ingestion-rebased, feat/native-sigstore-node-artifact-verification-rebased]
     paths:
       - 'docs/security/private-host-attestation-contract.md'
+      - 'app/Updates/PrivateHostAttestationVerifier.php'
+      - 'tests/private_host_attestation_verifier.test.php'
       - 'docs/security/integrity-node-c-heliohost.md'
       - 'docs/security/btm-sa-node4-deployment.md'
       - 'app/Updates/IntegrityNode*.php'
@@ -97,6 +99,8 @@ jobs:
           php tests/integrity_node_release_state.test.php
           php tests/integrity_node_key_generator.test.php
           php tests/integrity_node_evidence_store.test.php
+          php -l app/Updates/PrivateHostAttestationVerifier.php
+          php tests/private_host_attestation_verifier.test.php
           php tests/integrity_release_artifact_fetcher.test.php
           php tests/integrity_node4_monitor.test.php
           php tests/integrity_node4_runtime_config.test.php
