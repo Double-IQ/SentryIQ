@@ -54,7 +54,7 @@ The current collector accepts fixed expected maps supplied by its protected boot
 
 ## Signed response and verifier contract
 
-The collector signs exact UTF-8 JSON payload bytes using Ed25519. The node-side `PrivateHostAttestationVerifier` validates the signature, schema, collector identity, timestamp window, nonce, canonical origin/repository, release identity and digests, expected file/configuration records, and overall decision. A signed rejection is retained as failed evidence; transport, signature, freshness, schema, or replay failures fail the run and activate the node's direct owner-alert route.
+The collector signs exact UTF-8 JSON payload bytes using Ed25519. The node-side `PrivateHostAttestationVerifier` validates the signature, schema, exact `sentryiq-host-attestor` collector identity, timestamp window, nonce, canonical origin/repository, release identity and digests, expected file/configuration records, and overall decision. A signed rejection is retained as failed evidence; transport, signature, freshness, schema, or replay failures fail the run and activate the node's direct owner-alert route.
 
 The payload includes:
 - schema version, collector ID, issue/expiry timestamps, and exact request nonce;
