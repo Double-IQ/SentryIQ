@@ -26,4 +26,4 @@ The existing `GitHubCliAttestationVerifier` invokes GitHub CLI through `proc_ope
 
 ## Status
 
-Prototype implementation and synthetic contract tests only. PR #48 supplies the native PHP attestation adapter, but it remains unmerged and is not installed or wired on HelioHost. No HelioHost account provisioning, key generation, schedule, private evidence store, direct alert transport, or production deployment is included.
+PR #50 adds the native PHP Sigstore runtime wiring and a signature-verified append-only private evidence store for Node C. These are repository implementations and CI-tested contracts only; they are not installed or wired on HelioHost. No HelioHost account provisioning, key generation, schedule, private evidence directory, direct alert transport, or production deployment has been performed.
