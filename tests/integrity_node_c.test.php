@@ -74,7 +74,15 @@ try {
     nodeCAssert(count($verifyCalls) === 2, 'Both manifest and ZIP provenance must be verified.');
     nodeCAssert($approved['checked_paths'] === ['index.php'], 'Configured path should be checked.');
 
-    $tamperedNode = new IntegrityNodeC($signer, $verifier, static fn(string $url): string => 'tampered');
+    $alerts = [];
+    $tamperedNode = new IntegrityNodeC(
+        $signer,
+        $verifier,
+        static fn(string $url): string => 'tampered',
+        static function (string $nodeId, string $reason, array $context) use (&$alerts): void {
+            $alerts[] = [$nodeId, $reason, $context];
+        }
+    );
     $rejected = $tamperedNode->verify(
         $manifestPath,
         $artifactPath,
@@ -87,6 +95,8 @@ try {
     );
     nodeCAssert($rejected['approved'] === false, 'Changed public file must reject.');
     nodeCAssert($rejected['mismatches'][0]['reason'] === 'content_mismatch', 'Mismatch evidence should be retained.');
+    nodeCAssert(count($alerts) === 1 && $alerts[0][0] === 'integrity-c'
+        && $alerts[0][1] === 'origin_integrity_mismatch', 'Node C must directly alert its owner on an origin mismatch.');
 
     $unsafeRejected = false;
     try {
@@ -98,6 +108,30 @@ try {
         $unsafeRejected = true;
     }
     nodeCAssert($unsafeRejected, 'Path traversal must be rejected.');
+
+    $attestationAlerts = [];
+    $attestationRejected = false;
+    $rejectAttestation = static function (): void {
+        throw new RuntimeException('synthetic attestation rejection');
+    };
+    $alertingNode = new IntegrityNodeC(
+        $signer,
+        $rejectAttestation,
+        $fetch,
+        static function (string $nodeId, string $reason, array $context) use (&$attestationAlerts): void {
+            $attestationAlerts[] = [$nodeId, $reason];
+        }
+    );
+    try {
+        $alertingNode->verify(
+            $manifestPath, $artifactPath, '0.1.3', str_repeat('a', 40), '0.1.2',
+            'https://example.invalid/SentryIQ', ['index.php'], str_repeat('f', 64)
+        );
+    } catch (RuntimeException) {
+        $attestationRejected = true;
+    }
+    nodeCAssert($attestationRejected && $attestationAlerts === [['integrity-c', 'release_attestation_rejected']],
+        'Node C must directly alert its owner when release attestation is rejected.');
 
     echo "Integrity Node C tests passed.\n";
 } finally {
