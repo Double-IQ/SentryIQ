@@ -123,7 +123,7 @@ Example Node A callback wiring (Node B uses its own token, public key and pinned
 ```php
 $privateHostClientA = new PrivateHostAttestationClient(
     'integrity-a',
-    $node4PrivateHostTokenA
+    $collectorBearerTokenA
 );
 $privateHostVerifierA = new PrivateHostAttestationVerifier(
     $collectorPublicKeyA
@@ -157,4 +157,4 @@ $verifyPrivateHostA = static function (
 };
 ```
 
-Pass `$verifyPrivateHostA` as the final `IntegrityNodeA` constructor argument. Keep `$node4PrivateHostTokenA`, `$collectorPublicKeyA`, and both expected maps in Node A's private runtime configuration. Node B must independently use `integrity-b` and different credentials/key material. The callback example is wiring only; it cannot succeed against production until the host-side service owns and serves the pinned route.
+Pass `$verifyPrivateHostA` as the final `IntegrityNodeA` constructor argument. Keep `$collectorBearerTokenA`, `$collectorPublicKeyA`, and both expected maps in Node A's private runtime configuration. Node B must independently use `integrity-b` and different credentials/key material. The callback example is wiring only; it cannot succeed against production until the host-side service owns and serves the pinned route.
