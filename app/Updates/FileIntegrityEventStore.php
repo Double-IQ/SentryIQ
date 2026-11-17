@@ -36,6 +36,7 @@ final class FileIntegrityEventStore
             throw new RuntimeException('Node 4 storage directory must already exist and must not be a symlink.');
         }
         $real = realpath($privateDirectory);
+        if (is_string($real)) clearstatcache(true, $real);
         $directoryStat = is_string($real) ? @lstat($real) : false;
         if (!is_string($real) || !is_writable($real) || !is_readable($real)
             || !is_array($directoryStat) || (($directoryStat['mode'] ?? 0) & 0170000) !== 0040000
@@ -46,11 +47,13 @@ final class FileIntegrityEventStore
         $this->statePath = $real . DIRECTORY_SEPARATOR . 'integrity-events.json';
         $this->lockPath = $real . DIRECTORY_SEPARATOR . 'integrity-events.lock';
 
+        clearstatcache(true, $this->lockPath);
         $lockStat = @lstat($this->lockPath);
         if (!is_array($lockStat) || (($lockStat['mode'] ?? 0) & 0170000) !== 0100000
             || (($lockStat['mode'] ?? 0) & 0777) !== 0600) {
             throw new RuntimeException('Node 4 lock file must be pre-provisioned as a regular file with exact 0600 permissions.');
         }
+        clearstatcache(true, $this->statePath);
         $stateStat = @lstat($this->statePath);
         if (is_array($stateStat) && ((($stateStat['mode'] ?? 0) & 0170000) !== 0100000
             || (($stateStat['mode'] ?? 0) & 0777) !== 0600)) {
