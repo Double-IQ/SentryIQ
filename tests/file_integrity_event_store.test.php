@@ -129,6 +129,15 @@ try {
     $snapshot = $store->snapshot();
     storeAssert(count($snapshot['challenges']) === 1, 'Rejected binding must not consume the legitimate challenge.');
     storeAssert(count($snapshot['reports']) === 1, 'Rejected binding must not create evidence.');
+
+    $incident = ['code' => 'node_stale', 'message' => 'integrity-b report is stale.'];
+    $queued = $store->queueAlert($incident);
+    $duplicate = $store->queueAlert($incident);
+    storeAssert($queued['created'] === true && $duplicate['created'] === false, 'Identical incident alerts must be deduplicated.');
+    $pending = $store->pendingAlerts();
+    storeAssert(count($pending) === 1 && $pending[0]['occurrences'] === 2, 'Outbox must retain one pending alert and count occurrences.');
+    $store->markAlertDelivered($queued['id'], time());
+    storeAssert(count($store->pendingAlerts()) === 0, 'Delivered alerts must leave the pending outbox.');
 } finally {
     foreach (glob($directory . DIRECTORY_SEPARATOR . '*') ?: [] as $file) {
         if (is_file($file) && !is_link($file)) {
