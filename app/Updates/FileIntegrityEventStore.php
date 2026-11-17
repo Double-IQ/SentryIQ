@@ -264,7 +264,12 @@ final class FileIntegrityEventStore
      */
     private function transact(callable $operation, bool $write = true): mixed
     {
-        $lock = fopen($this->lockPath, 'c');
+        $oldUmask = umask(0077);
+        try {
+            $lock = fopen($this->lockPath, 'c');
+        } finally {
+            umask($oldUmask);
+        }
         if ($lock === false) {
             throw new RuntimeException('Unable to open Node 4 storage lock.');
         }
@@ -327,7 +332,12 @@ final class FileIntegrityEventStore
             throw new RuntimeException('Node 4 state exceeds its configured size limit.');
         }
         $temporary = $this->directory . DIRECTORY_SEPARATOR . '.integrity-events-' . bin2hex(random_bytes(8)) . '.tmp';
-        $handle = fopen($temporary, 'xb');
+        $oldUmask = umask(0077);
+        try {
+            $handle = fopen($temporary, 'xb');
+        } finally {
+            umask($oldUmask);
+        }
         if ($handle === false) {
             throw new RuntimeException('Unable to create atomic Node 4 state file.');
         }
