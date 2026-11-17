@@ -39,15 +39,21 @@ final class IntegrityNode4RuntimeConfig
             throw new RuntimeException('SentryIQ public pointer does not identify a safe private data directory.');
         }
         $dataDir = realpath($pointer['data_dir']);
+        $dataDirStat = is_string($dataDir) ? @lstat($dataDir) : false;
         if (!is_string($dataDir) || !is_dir($dataDir) || !is_readable($dataDir)
+            || !is_array($dataDirStat) || (($dataDirStat['mode'] ?? 0) & 0170000) !== 0040000
+            || (($dataDirStat['mode'] ?? 0) & 0777) !== 0700
             || $dataDir === $publicRoot
             || str_starts_with($dataDir, rtrim($publicRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
-            throw new RuntimeException('SentryIQ private data directory is missing or inside the public webroot.');
+            throw new RuntimeException('SentryIQ private data directory must exist outside the webroot with exact 0700 permissions.');
         }
 
         $privateFile = $dataDir . DIRECTORY_SEPARATOR . 'sentryiq_config.php';
-        if (is_link($privateFile) || !is_file($privateFile) || !is_readable($privateFile)) {
-            throw new RuntimeException('SentryIQ private runtime configuration is unavailable.');
+        $privateStat = @lstat($privateFile);
+        if (is_link($privateFile) || !is_file($privateFile) || !is_readable($privateFile)
+            || !is_array($privateStat) || (($privateStat['mode'] ?? 0) & 0170000) !== 0100000
+            || (($privateStat['mode'] ?? 0) & 0777) !== 0600) {
+            throw new RuntimeException('SentryIQ private runtime configuration must be a regular file with exact 0600 permissions.');
         }
         $privatePath = realpath($privateFile);
         if (!is_string($privatePath) || !str_starts_with(
