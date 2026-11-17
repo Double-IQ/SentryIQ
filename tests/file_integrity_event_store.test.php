@@ -6,9 +6,9 @@ require_once __DIR__ . '/../app/Updates/IntegrityReportSigner.php';
 require_once __DIR__ . '/../app/Updates/IntegrityEventReportVerifier.php';
 require_once __DIR__ . '/../app/Updates/FileIntegrityEventStore.php';
 
-use SentryIQ\\Updates\\FileIntegrityEventStore;
-use SentryIQ\\Updates\\IntegrityEventReportVerifier;
-use SentryIQ\\Updates\\IntegrityReportSigner;
+use SentryIQ\Updates\FileIntegrityEventStore;
+use SentryIQ\Updates\IntegrityEventReportVerifier;
+use SentryIQ\Updates\IntegrityReportSigner;
 
 function storeAssert(bool $condition, string $message): void
 {
@@ -128,4 +128,4 @@ try {
     rmdir($directory);
 }
 
-echo "File-backed Node 4 event store tests passed.\\n";
+echo "File-backed Node 4 event store tests passed.\n";
