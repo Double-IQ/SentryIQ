@@ -60,6 +60,8 @@ on:
       - 'tests/private_host_attestation_client.test.php'
       - 'tests/private_host_attestation_collector.test.php'
       - 'app/Updates/PrivateHostAttestationVerifier.php'
+      - 'bin/integrity-node-run.php'
+      - 'tests/integrity_node_cli_bootstrap.test.php'
       - 'tests/private_host_attestation_verifier.test.php'
       - '.htaccess'
       - 'tests/origin_security_headers.test.py'
