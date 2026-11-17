@@ -135,7 +135,10 @@ jobs:
             app/Updates/PrivateHostAttestationClient.php \
             app/Updates/PrivateHostAttestationGate.php \
             app/Updates/PrivateHostAttestationRequestHandler.php \
-            app/Updates/PrivateHostAttestationNonceStore.php \\\n            app/Updates/IntegrityEventRequestDecoder.php \\\n            integrity_event.php \\\n            tests/integrity_event_request_decoder.test.php \
+            app/Updates/PrivateHostAttestationNonceStore.php \
+            app/Updates/IntegrityEventRequestDecoder.php \
+            integrity_event.php \
+            tests/integrity_event_request_decoder.test.php \
             app/Updates/IntegrityNodeAlertedException.php \
             app/Updates/IntegrityNodeScheduledRunner.php \
             bin/integrity-node-keygen.php \
