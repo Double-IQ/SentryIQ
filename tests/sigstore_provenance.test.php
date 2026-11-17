@@ -89,6 +89,7 @@ $mutations = [
     'wrong repository id' => static function (array &$s): void { $s['predicate']['buildDefinition']['internalParameters']['github']['repository_id'] = '999'; },
     'wrong event' => static function (array &$s): void { $s['predicate']['buildDefinition']['internalParameters']['github']['event_name'] = 'workflow_dispatch'; },
     'wrong runner' => static function (array &$s): void { $s['predicate']['buildDefinition']['internalParameters']['github']['runner_environment'] = 'self-hosted'; },
+    'wrong workflow sha' => static function (array &$s): void { $s['predicate']['buildDefinition']['internalParameters']['github']['workflow_sha'] = str_repeat('b', 40); },
     'wrong builder identity' => static function (array &$s): void { $s['predicate']['runDetails']['builder']['id'] = 'https://example.test/builder'; },
     'wrong source commit' => static function (array &$s): void { $s['predicate']['buildDefinition']['resolvedDependencies'][0]['digest']['gitCommit'] = str_repeat('b', 39); },
     'wrong source URI' => static function (array &$s): void { $s['predicate']['buildDefinition']['resolvedDependencies'][0]['uri'] = 'git+https://github.com/attacker/SentryIQ@refs/tags/v0.1.2'; },
