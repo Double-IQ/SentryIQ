@@ -9,9 +9,9 @@ if (PHP_SAPI !== 'cli') {
 
 require_once dirname(__DIR__) . '/app/Updates/IntegrityNode4RuntimeConfig.php';
 try {
-    $config = SentryIQ\\Updates\\IntegrityNode4RuntimeConfig::load(dirname(__DIR__) . '/sentryiq_config.php');
+    $config = SentryIQ\Updates\IntegrityNode4RuntimeConfig::load(dirname(__DIR__) . '/sentryiq_config.php');
 } catch (Throwable) {
-    fwrite(STDERR, "Node 4 private runtime configuration is unavailable.\\n");
+    fwrite(STDERR, "Node 4 private runtime configuration is unavailable.\n");
     exit(2);
 }
 $event = $config['integrity_event'] ?? null;
