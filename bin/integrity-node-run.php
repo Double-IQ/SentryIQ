@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use SentryIQ\Updates\IntegrityNodeEventClient;
 use SentryIQ\Updates\IntegrityNodeEventRunner;
 use SentryIQ\Updates\IntegrityNodeScheduledRunner;
 use SentryIQ\Updates\IntegrityReleaseArtifactFetcher;
