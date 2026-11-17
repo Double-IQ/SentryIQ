@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Updates/IntegrityEventReportVerifier.php';
 
-use SentryIQ\\Updates\\IntegrityEventReportVerifier;
+use SentryIQ\Updates\IntegrityEventReportVerifier;
 
 function eventAssert(bool $condition, string $message): void
 {
