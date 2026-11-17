@@ -8,7 +8,7 @@ use RuntimeException;
 
 /**
  * Bounded decoder for machine-to-machine JSON object requests.
- * Rejects duplicate top-level keys before PHP's decoder can collapse them.
+ * Rejects duplicate object keys at every depth before PHP's decoder can collapse them.
  */
 final class IntegrityEventRequestDecoder
 {
