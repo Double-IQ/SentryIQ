@@ -238,10 +238,16 @@ final class PrivateHostAttestationCollector
                 );
                 foreach ($iterator as $item) {
                     $relative = $directory . '/' . str_replace(DIRECTORY_SEPARATOR, '/', substr($item->getPathname(), strlen($absolute) + 1));
-                    if (!$this->safeRelativePath($relative) || isset($seen[$relative])) continue;
+                    if (isset($seen[$relative])) continue;
                     $seen[$relative] = true;
-                    if (isset($expected[$relative])) continue;
-                    if ($item->isLink() || $item->isFile()) $unexpected[$relative] = true;
+                    if ($this->safeRelativePath($relative) && isset($expected[$relative])) continue;
+                    if ($item->isLink() || $item->isFile()) {
+                        // Preserve detection without emitting an unsafe or secret-bearing filename.
+                        $evidencePath = $this->safeRelativePath($relative)
+                            ? $relative
+                            : 'unexpected-item-' . hash('sha256', $relative);
+                        $unexpected[$evidencePath] = true;
+                    }
                     if (count($unexpected) > 5000) {
                         throw new RuntimeException('Collector discovered more unexpected files than its evidence limit.');
                     }
