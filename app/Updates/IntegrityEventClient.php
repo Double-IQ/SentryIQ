@@ -22,8 +22,12 @@ final class IntegrityEventClient
         ?callable $transport = null
     ) {
         $parts = parse_url($endpoint);
-        if (!is_array($parts) || ($parts['scheme'] ?? null) !== 'https' || empty($parts['host'])
-            || isset($parts['user']) || isset($parts['pass']) || isset($parts['fragment'])
+        if (!is_array($parts) || ($parts['scheme'] ?? null) !== 'https'
+            || strtolower((string)($parts['host'] ?? '')) !== 'sentryiq.bichet.co.za'
+            || ($parts['path'] ?? '') !== '/integrity_event.php'
+            || (isset($parts['port']) && $parts['port'] !== 443)
+            || isset($parts['user']) || isset($parts['pass'])
+            || isset($parts['query']) || isset($parts['fragment'])
             || !in_array($nodeId, ['integrity-a', 'integrity-b'], true)
             || !preg_match('/^[A-Za-z0-9_-]{40,128}$/', $bearerToken)) {
             throw new RuntimeException('Node 4 client endpoint or node credentials are invalid.');
