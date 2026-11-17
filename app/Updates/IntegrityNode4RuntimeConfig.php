@@ -25,7 +25,15 @@ final class IntegrityNode4RuntimeConfig
         }
 
         $pointer = require $pointerPath;
-        if (!is_array($pointer) || !is_string($pointer['data_dir'] ?? null)
+        if (!is_array($pointer)) {
+            throw new RuntimeException('SentryIQ public configuration pointer is invalid.');
+        }
+        foreach (['integrity_event', 'node_tokens', 'node_public_keys', 'signing_key', 'private_key', 'alert_sender'] as $secretKey) {
+            if (array_key_exists($secretKey, $pointer)) {
+                throw new RuntimeException('SentryIQ secrets must not be stored in the public configuration pointer.');
+            }
+        }
+        if (!is_string($pointer['data_dir'] ?? null)
             || $pointer['data_dir'] === '' || !str_starts_with($pointer['data_dir'], DIRECTORY_SEPARATOR)
             || is_link($pointer['data_dir'])) {
             throw new RuntimeException('SentryIQ public pointer does not identify a safe private data directory.');
