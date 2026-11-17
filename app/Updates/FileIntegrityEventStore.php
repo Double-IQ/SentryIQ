@@ -288,6 +288,15 @@ final class FileIntegrityEventStore
             if (!flock($lock, LOCK_EX | LOCK_NB)) {
                 throw new RuntimeException('Node 4 evidence store is busy; request fails closed.');
             }
+            clearstatcache(true, $this->lockPath);
+            $lockedPathStat = @lstat($this->lockPath);
+            if (!is_array($lockedPathStat)
+                || ($lockedPathStat['dev'] ?? null) !== ($openedStat['dev'] ?? null)
+                || ($lockedPathStat['ino'] ?? null) !== ($openedStat['ino'] ?? null)
+                || (($lockedPathStat['mode'] ?? 0) & 0170000) !== 0100000
+                || (($lockedPathStat['mode'] ?? 0) & 0777) !== 0600) {
+                throw new RuntimeException('Node 4 lock path changed after acquiring its inode lock.');
+            }
             $state = $this->readState();
             $result = $operation($state);
             if ($write) $this->writeState($state);
@@ -387,9 +396,16 @@ final class FileIntegrityEventStore
                 throw new RuntimeException('Unable to flush Node 4 state to storage.');
             }
             $writtenStat = fstat($handle);
-            if (!is_array($writtenStat) || (($writtenStat['mode'] ?? 0) & 0170000) !== 0100000
-                || (($writtenStat['mode'] ?? 0) & 0777) !== 0600) {
-                throw new RuntimeException('Node 4 state temporary file has unsafe metadata.');
+            clearstatcache(true, $temporary);
+            $temporaryStat = @lstat($temporary);
+            if (!is_array($writtenStat) || !is_array($temporaryStat)
+                || (($writtenStat['mode'] ?? 0) & 0170000) !== 0100000
+                || (($writtenStat['mode'] ?? 0) & 0777) !== 0600
+                || ($temporaryStat['dev'] ?? null) !== ($writtenStat['dev'] ?? null)
+                || ($temporaryStat['ino'] ?? null) !== ($writtenStat['ino'] ?? null)
+                || (($temporaryStat['mode'] ?? 0) & 0170000) !== 0100000
+                || (($temporaryStat['mode'] ?? 0) & 0777) !== 0600) {
+                throw new RuntimeException('Node 4 state temporary file has unsafe or replaced metadata.');
             }
         } catch (\Throwable $exception) {
             fclose($handle);
@@ -403,9 +419,11 @@ final class FileIntegrityEventStore
         }
         clearstatcache(true, $this->statePath);
         $published = @lstat($this->statePath);
-        if (!is_array($published) || (($published['mode'] ?? 0) & 0170000) !== 0100000
+        if (!is_array($published) || ($published['dev'] ?? null) !== ($writtenStat['dev'] ?? null)
+            || ($published['ino'] ?? null) !== ($writtenStat['ino'] ?? null)
+            || (($published['mode'] ?? 0) & 0170000) !== 0100000
             || (($published['mode'] ?? 0) & 0777) !== 0600) {
-            throw new RuntimeException('Published Node 4 state file has unsafe metadata.');
+            throw new RuntimeException('Published Node 4 state file has unsafe or replaced metadata.');
         }
     }
 }
