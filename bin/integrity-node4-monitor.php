@@ -20,7 +20,7 @@ $realStorageDir = $storageDir !== '' ? realpath($storageDir) : false;
 if (!is_array($event) || ($event['enabled'] ?? false) !== true
     || !is_string($realDataDir) || !is_string($realStorageDir)
     || !str_starts_with($realStorageDir, rtrim($realDataDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)
-    || !is_callable($sender) || $targetOrigin === '') {
+    || is_link($storageDir) || !is_callable($sender) || $targetOrigin === '') {
     fwrite(STDERR, "Node 4 monitor is not fully configured.\n");
     exit(2);
 }
