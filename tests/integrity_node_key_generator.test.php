@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Updates/IntegrityNodeKeyGenerator.php';
 
-use SentryIQ\\Updates\\IntegrityNodeKeyGenerator;
+use SentryIQ\Updates\IntegrityNodeKeyGenerator;
 
 function keyGeneratorAssert(bool $condition, string $message): void
 {
