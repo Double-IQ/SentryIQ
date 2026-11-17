@@ -91,6 +91,9 @@ final class IntegrityReportSigner
 
         if ($eventEvidence !== []) {
             $eventEvidence = $this->validateEventEvidence($eventEvidence);
+            if (($decision === 'approve') !== ($eventEvidence['mismatches'] === [])) {
+                throw new RuntimeException('Signed report decision must agree with its mismatch evidence.');
+            }
         }
 
         $payload = [
@@ -166,7 +169,8 @@ final class IntegrityReportSigner
         $normalizedMismatches = [];
         foreach ($mismatches as $item) {
             if (!is_array($item) || !is_string($item['path'] ?? null) || !$this->isSafeEvidencePath($item['path'])
-                || !in_array($item['reason'] ?? null, ['content_mismatch', 'fetch_failed', 'security_header_mismatch', 'private_host_attestation_failed'], true)) {
+                || !in_array($item['reason'] ?? null, ['content_mismatch', 'fetch_failed', 'security_header_mismatch', 'private_host_attestation_failed'], true)
+                || !in_array($item['path'], $checkedPaths, true)) {
                 throw new RuntimeException('Signed event evidence contains an invalid mismatch record.');
             }
             $normalizedMismatches[] = ['path' => $item['path'], 'reason' => $item['reason']];
