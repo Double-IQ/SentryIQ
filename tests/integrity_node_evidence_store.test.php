@@ -48,7 +48,7 @@ try {
             'mismatches' => [],
         ]
     );
-    $stored = $store->append($report, '1.2.3', $commit, $manifestDigest, $artifactDigest, true);
+    $stored = $store->append($report, '1.2.3', $commit, $manifestDigest, $artifactDigest, true, $nonce);
     $record = json_decode((string)file_get_contents($stored['evidence_path']), true, 16, JSON_THROW_ON_ERROR);
     evidenceStoreAssert(is_file($stored['evidence_path']), 'Signed Node C evidence must be durably stored.');
     evidenceStoreAssert(((fileperms($stored['evidence_path']) ?: 0) & 0077) === 0, 'Evidence records must be private mode 0600.');
@@ -62,7 +62,8 @@ try {
         $public
     ), 'Stored report signature must verify with the node public key.');
     evidenceStoreReject(fn() => $store->append($report, '1.2.3', $commit, $manifestDigest, $artifactDigest, true), 'A repeated nonce/report must not overwrite an existing evidence record.');
-    evidenceStoreReject(fn() => $store->append($report, '1.2.3', $commit, $manifestDigest, $artifactDigest, false), 'The signed decision must match the scheduler approval result.');
+    evidenceStoreReject(fn() => $store->append($report, '1.2.3', $commit, $manifestDigest, $artifactDigest, false, $nonce), 'The signed decision must match the scheduler approval result.');
+    evidenceStoreReject(fn() => $store->append($report, '1.2.3', $commit, $manifestDigest, $artifactDigest, true, str_repeat('f', 64)), 'A valid old report must not satisfy a different scheduler challenge nonce.');
 
     $rejectedReport = $signer->createReport(
         '1.2.3',
@@ -77,7 +78,7 @@ try {
             'mismatches' => [['path' => '@origin-headers', 'reason' => 'security_header_mismatch']],
         ]
     );
-    $rejectedStored = $store->append($rejectedReport, '1.2.3', $commit, $manifestDigest, $artifactDigest, false);
+    $rejectedStored = $store->append($rejectedReport, '1.2.3', $commit, $manifestDigest, $artifactDigest, false, str_repeat('e', 64));
     $rejectedRecord = json_decode((string)file_get_contents($rejectedStored['evidence_path']), true, 16, JSON_THROW_ON_ERROR);
     evidenceStoreAssert($rejectedRecord['decision'] === 'reject'
         && $rejectedRecord['mismatches'] === [['path' => '@origin-headers', 'reason' => 'security_header_mismatch']],
@@ -85,7 +86,7 @@ try {
 
     $tampered = json_decode($report, true, 8, JSON_THROW_ON_ERROR);
     $tampered['signature'] = base64_encode(str_repeat("x", SODIUM_CRYPTO_SIGN_BYTES));
-    evidenceStoreReject(fn() => $store->append(json_encode($tampered, JSON_THROW_ON_ERROR), '1.2.3', $commit, $manifestDigest, $artifactDigest, true),
+    evidenceStoreReject(fn() => $store->append(json_encode($tampered, JSON_THROW_ON_ERROR), '1.2.3', $commit, $manifestDigest, $artifactDigest, true, $nonce),
         'Invalid report signatures must be rejected before persistence.');
 
     $otherSigner = new IntegrityReportSigner('integrity-b', base64_encode($secret));
@@ -98,7 +99,7 @@ try {
             'mismatches' => [],
         ]
     );
-    evidenceStoreReject(fn() => $store->append($otherReport, '1.2.3', $commit, $manifestDigest, $artifactDigest, true), 'Evidence from another node identity must be rejected.');
+    evidenceStoreReject(fn() => $store->append($otherReport, '1.2.3', $commit, $manifestDigest, $artifactDigest, true, str_repeat('e', 64)), 'Evidence from another node identity must be rejected.');
 
     $insideWebrootRejected = false;
     try {
