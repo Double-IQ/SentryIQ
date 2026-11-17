@@ -11,7 +11,8 @@ use Throwable;
  * Per-node monotonic release pin stored outside the public webroot.
  *
  * The baseline must be initialized explicitly from a known-good deployed
- * release. It is never silently learned from the public origin.
+ * release. It is never silently learned from the public origin. The exclusive
+ * lock covers resolution, verification, report delivery and state advancement.
  */
 final class IntegrityNodeReleaseStateStore
 {
