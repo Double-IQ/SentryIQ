@@ -58,6 +58,14 @@ try {
         str_repeat('c', 64)
     );
     nodeAAssert($approved['approved'] === true, 'Matching public file should approve.');
+    $signedEnvelope = json_decode($approved['report'], true, 16, JSON_THROW_ON_ERROR);
+    $signedPayload = json_decode(base64_decode($signedEnvelope['payload'], true), true, 32, JSON_THROW_ON_ERROR);
+    nodeAAssert(($signedPayload['schema_version'] ?? null) === 2, 'Node report must use the signed event-evidence schema.');
+    nodeAAssert(($signedPayload['target_origin'] ?? null) === 'https://example.invalid/SentryIQ', 'Signed report must bind the monitored origin.');
+    nodeAAssert(($signedPayload['manifest_sha256'] ?? null) === $approved['manifest_sha256'], 'Signed report must bind the manifest digest.');
+    nodeAAssert(($signedPayload['checked_paths'] ?? null) === ['index.php'], 'Signed report must include checked paths.');
+    nodeAAssert(($signedPayload['mismatches'] ?? null) === [], 'Signed report must include mismatch evidence.');
+
     nodeAAssert(count($verifyCalls) === 2, 'Both manifest and ZIP provenance must be verified.');
     nodeAAssert($approved['checked_paths'] === ['index.php'], 'Configured path should be checked.');
 
