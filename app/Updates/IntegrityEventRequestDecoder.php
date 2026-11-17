@@ -30,6 +30,17 @@ final class IntegrityEventRequestDecoder
         return $decoded;
     }
 
+    /** @param array<string,mixed> $request @param list<string> $expected */
+    public static function assertExactFields(array $request, array $expected): void
+    {
+        $actual = array_keys($request);
+        sort($actual);
+        sort($expected);
+        if ($actual !== $expected) {
+            throw new RuntimeException('Integrity event request fields do not match the selected action.');
+        }
+    }
+
     private static function isSingleObject(string $json): bool
     {
         $trimmed = trim($json);
