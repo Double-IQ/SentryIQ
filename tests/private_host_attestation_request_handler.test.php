@@ -100,6 +100,12 @@ try {
         'Nonce replay history must persist across store instances.');
     hostHandlerAssert($handler->handle('POST', ['Authorization' => 'Bearer wrong', 'Content-Type' => 'application/json'], $request)['status'] === 401,
         'Unknown bearer tokens must be rejected.');
+    hostHandlerAssert($handler->handle('POST', [
+        'Authorization' => 'Bearer ' . $tokenA,
+        'authorization' => 'Bearer ' . $tokenB,
+        'Content-Type' => 'application/json',
+    ], $request)['status'] === 401,
+        'Duplicate case-insensitive Authorization headers must be rejected as ambiguous.');
     $crossNode = json_decode($request, true, 8, JSON_THROW_ON_ERROR);
     $crossNode['node_id'] = 'integrity-b';
     hostHandlerAssert($handler->handle('POST', ['Authorization' => 'Bearer ' . $tokenA, 'Content-Type' => 'application/json'],
