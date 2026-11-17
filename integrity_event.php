@@ -20,8 +20,6 @@ declare(strict_types=1);
  * The tokens and private data directory must never be committed or served.
  */
 
-declare(strict_types=1);
-
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
@@ -106,15 +104,21 @@ try {
         // A signed report is independently authenticated by its Ed25519 node key.
         // The bearer token also protects the public endpoint from unsolicited traffic.
         $tokens = $eventConfig['node_tokens'] ?? [];
+        $envelope = $request['envelope'] ?? null;
         $authenticated = false;
-        if (is_array($tokens)) {
-            foreach (['integrity-a', 'integrity-b'] as $nodeId) {
-                if (is_string($tokens[$nodeId] ?? null) && hash_equals($tokens[$nodeId], $token)) {
-                    $authenticated = true;
-                }
-            }
+        $signedNodeId = null;
+        if (is_string($envelope)) {
+            $outer = json_decode($envelope, true);
+            $raw = is_array($outer) ? base64_decode((string)($outer['payload'] ?? ''), true) : false;
+            $signedPayload = is_string($raw) ? json_decode($raw, true) : null;
+            $signedNodeId = is_array($signedPayload) ? ($signedPayload['node_id'] ?? null) : null;
         }
-        if (!$authenticated || !is_string($request['envelope'] ?? null)) {
+        if (is_string($signedNodeId) && in_array($signedNodeId, ['integrity-a', 'integrity-b'], true)
+            && is_array($tokens) && is_string($tokens[$signedNodeId] ?? null)
+            && hash_equals($tokens[$signedNodeId], $token)) {
+            $authenticated = true;
+        }
+        if (!$authenticated || !is_string($envelope)) {
             integrityEventRespond(401, ['status' => 'error', 'message' => 'Node authentication failed.']);
         }
         $keys = $eventConfig['node_public_keys'] ?? [];
@@ -131,5 +135,5 @@ try {
 
     integrityEventRespond(400, ['status' => 'error', 'message' => 'Unknown event action.']);
 } catch (Throwable $exception) {
-    integrityEventRespond(400, ['status' => 'error', 'message' => $exception->getMessage()]);
+    integrityEventRespond(400, ['status' => 'error', 'message' => 'Integrity event request was rejected.']);
 }
