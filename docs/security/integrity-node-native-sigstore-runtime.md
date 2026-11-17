@@ -6,7 +6,7 @@ This is the concrete composition contract joining the native verifier, the publi
 
 The protected PHP config file loaded by `bin/integrity-node-run.php` must return one `IntegrityNodeScheduledRunner`. It is created independently on each node host. The code below is the shared composition pattern; substitute only that host's private paths, signer key, alert transport, release resolver and (for A/B) Node 4 token. Never copy one node's private configuration or signing key to another node.
 
-The deployed-release resolver reads the live `/VERSION` file from `https://sentryiq.bichet.co.za`, then resolves that exact `v<version>` tag to a full commit in the canonical `Double-IQ/SentryIQ` repository. It never selects GitHub's newest release. The resolver fails closed if the public VERSION file or matching tag cannot be read. The node's `installed_version` anti-rollback baseline comes from its own private monotonic state store, not from the public origin.
+The deployed-release resolver reads the live `/VERSION` file from `https://sentryiq.bichet.co.za`, then resolves that exact `v<version>` tag to a full commit in the canonical `Double-IQ/SentryIQ` repository. The root `VERSION` file is also included in the signed `public_http_files` inventory, so the node checks that the marker bytes actually match the attested release rather than trusting the origin's version claim alone. It never selects GitHub's newest release. The resolver fails closed if the public VERSION file or matching tag cannot be read. The node's `installed_version` anti-rollback baseline comes from its own private monotonic state store, not from the public origin.
 
 ## Common construction pattern
 
