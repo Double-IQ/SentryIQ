@@ -35,7 +35,9 @@ final class IntegrityNodeEventRunner
         if (!is_string($manifestDigest) || !is_string($artifactDigest)) {
             throw new RuntimeException('Unable to bind Node 4 challenge to local release files.');
         }
+        $releaseVersion = trim($releaseVersion);
         $version = str_starts_with($releaseVersion, 'v') ? substr($releaseVersion, 1) : $releaseVersion;
+        $targetOrigin = rtrim($targetOrigin, '/');
         $challenge = $this->client->requestChallenge(
             $targetOrigin,
             $version,
