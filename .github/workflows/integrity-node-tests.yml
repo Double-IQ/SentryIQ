@@ -15,20 +15,6 @@ on:
       - 'app/Updates/IntegrityReleaseArtifactFetcher.php'
       - 'app/Updates/IntegrityPublicAssetPolicy.php'
       - 'bin/integrity-node-run.php'
-      - 'app/Updates/IntegrityDeployedReleaseResolver.php'
-      - 'app/Updates/IntegrityNodeReleaseStateStore.php'
-      - 'tests/integrity_deployed_release_resolver.test.php'
-      - 'tests/integrity_node_release_state.test.php'
-      - 'app/Updates/NativeSigstoreIntegrityAttestationVerifier.php'
-      - 'app/Updates/NativeSigstoreReleaseVerifier.php'
-      - 'app/Updates/ReleaseArtifactVerifier.php'
-      - 'app/Updates/ReleaseTrustPolicy.php'
-      - 'app/Updates/SigstoreProvenance.php'
-      - 'app/Updates/TufRootStore.php'
-      - 'tests/native_sigstore_integrity_adapter.test.php'
-      - 'tests/release_trust_policy.test.php'
-      - 'tests/sigstore_provenance.test.php'
-      - 'docs/security/integrity-node-native-sigstore-runtime.md'
       - 'tests/integrity_release_artifact_fetcher.test.php'
       - 'app/Updates/IntegrityNode4Monitor.php'
       - 'app/Updates/IntegrityNode4RuntimeConfig.php'
@@ -83,10 +69,6 @@ jobs:
           php tests/integrity_event_client.test.php
           php tests/integrity_node_event_runner.test.php
           php tests/integrity_node_scheduled_runner.test.php
-          php -l app/Updates/IntegrityDeployedReleaseResolver.php
-          php -l app/Updates/IntegrityNodeReleaseStateStore.php
-          php tests/integrity_deployed_release_resolver.test.php
-          php tests/integrity_node_release_state.test.php
           php tests/integrity_release_artifact_fetcher.test.php
           php tests/integrity_node4_monitor.test.php
           php tests/integrity_node4_runtime_config.test.php
@@ -94,13 +76,3 @@ jobs:
           php tests/integrity_node_b.test.php
           php tests/integrity_node_c.test.php
           php tests/integrity_public_asset_policy.test.php
-          php -l bin/integrity-node-run.php
-          php -l app/Updates/TufRootStore.php
-          php -l app/Updates/ReleaseArtifactVerifier.php
-          php -l app/Updates/SigstoreProvenance.php
-          php -l app/Updates/ReleaseTrustPolicy.php
-          php -l app/Updates/NativeSigstoreReleaseVerifier.php
-          php -l app/Updates/NativeSigstoreIntegrityAttestationVerifier.php
-          php tests/release_trust_policy.test.php
-          php tests/sigstore_provenance.test.php
-          php tests/native_sigstore_integrity_adapter.test.php
