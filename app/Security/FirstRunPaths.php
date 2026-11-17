@@ -18,7 +18,7 @@ final class FirstRunPaths
         return self::accountRoot($securityDirectory) . '/private_data';
     }
 
-    public static function bundledPrivateDirectory(string $securityDirectory): string
+    public static function bundledRuntimeDirectory(string $securityDirectory): string
     {
         return rtrim(dirname($securityDirectory, 2), '/') . '/runtime';
     }
