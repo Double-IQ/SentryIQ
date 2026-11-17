@@ -21,6 +21,7 @@ use SentryIQ\Updates\IntegrityNodeEventRunner;
 use SentryIQ\Updates\IntegrityOriginSecurityHeaderVerifier;
 use SentryIQ\Updates\IntegrityEventClient;
 use SentryIQ\Updates\IntegrityNodeReleaseStateStore;
+use SentryIQ\Updates\IntegrityNodeEvidenceStore;
 use SentryIQ\Updates\IntegrityDeployedReleaseResolver;
 use SentryIQ\Updates\IntegrityReleaseArtifactFetcher;
 use SentryIQ\Updates\IntegrityReportSigner;
