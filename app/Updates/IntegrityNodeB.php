@@ -31,14 +31,14 @@ final class IntegrityNodeB
     /** @var callable(string):array{approved:bool,mismatches:list<string>} */
     private $verifyOriginHeaders;
 
-    /** @var callable(string,string,string,string,string,array,string):array{approved:bool,mismatches:list<array<string,mixed>>} */
-    private $verifyPrivateHost;
+    private readonly PrivateHostAttestationGate $verifyPrivateHost;
 
     /**
      * @param callable(string,string,string,string):void $verifyAttestation
      *        Arguments: artifact path, release version, source commit, installed version.
      * @param callable(string):string|null $fetch Test seam; production uses HTTPS cURL.
-     * @param callable(string,string,array<string,mixed>):void $notifyFailure (required; null is rejected) Independent direct owner-alert transport; never routes through Node 4.
+     * @param callable(string,string,array<string,mixed>):void $notifyFailure Independent direct owner-alert transport; never routes through Node 4.
+     * @param PrivateHostAttestationGate $verifyPrivateHost Mandatory final gate bound to this node's own collector client, key pin and policy.
      */
     public function __construct(
         private readonly IntegrityReportSigner $signer,
@@ -46,7 +46,7 @@ final class IntegrityNodeB
         ?callable $fetch = null,
         ?callable $notifyFailure = null,
         ?callable $verifyOriginHeaders = null,
-        ?callable $verifyPrivateHost = null
+        PrivateHostAttestationGate $verifyPrivateHost
     ) {
         if ($this->signer->nodeId() !== 'integrity-b') {
             throw new RuntimeException('Integrity Node B requires its own integrity-b signing identity.');
@@ -57,8 +57,8 @@ final class IntegrityNodeB
         if ($verifyOriginHeaders === null) {
             throw new RuntimeException('Integrity Node B requires an origin security-header verifier.');
         }
-        if ($verifyPrivateHost === null) {
-            throw new RuntimeException('Integrity Node B requires independent private-host deployment attestation.');
+        if ($verifyPrivateHost->nodeId() !== 'integrity-b') {
+            throw new RuntimeException('Integrity Node B requires its own node-bound private-host attestation gate.');
         }
         $this->verifyAttestation = $verifyAttestation;
         $this->fetch = $fetch ?? fn(string $url): string => $this->fetchHttps($url);
