@@ -130,6 +130,34 @@ try {
             'Input mismatch must fail closed and trigger the independent owner alert.'
         );
     }
+    $artifactMutationAlerted = false;
+    try {
+        $runner->run(
+            static function (string $nonce) use ($artifactPath, $manifestDigest, $artifactDigest): array {
+                file_put_contents($artifactPath, 'tampered-after-verification');
+                return [
+                    'approved' => true,
+                    'report' => '{"signed":"report"}',
+                    'manifest_sha256' => $manifestDigest,
+                    'artifact_sha256' => $artifactDigest,
+                ];
+            },
+            $manifestPath,
+            $artifactPath,
+            '0.1.3',
+            str_repeat('a', 40),
+            'https://sentryiq.bichet.co.za'
+        );
+    } catch (RuntimeException $exception) {
+        $artifactMutationAlerted = str_contains($exception->getMessage(), 'independent owner alert');
+    }
+    runnerAssert(
+        $artifactMutationAlerted
+            && in_array(['integrity-b', 'local_verification_failed'], $runnerAlerts, true),
+        'Replacing a staged artifact after verification must be detected and directly alerted before Node 4 submission.'
+    );
+    file_put_contents($artifactPath, 'test-artifact');
+
     $verificationFailureAlerted = false;
     try {
         $runner->run(
