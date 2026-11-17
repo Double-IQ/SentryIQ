@@ -34,6 +34,12 @@ final class IntegrityNodeEventRunner
      * @param callable(string):array<string,mixed> $verifyWithNonce
      * @return array<string,mixed> Local verification result plus Node 4 acknowledgement.
      */
+    /** The event-plane identity is fixed by its authenticated Node 4 client. */
+    public function nodeId(): string
+    {
+        return $this->client->nodeId();
+    }
+
     public function run(
         callable $verifyWithNonce,
         string $manifestPath,
