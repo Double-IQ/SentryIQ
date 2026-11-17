@@ -31,6 +31,14 @@ try {
     }
     if (!$rejectedLink) throw new RuntimeException('Fetcher must reject symlinked private staging directories.');
 
+    $rejectedParentLink = false;
+    try {
+        $fetcher->fetch('1.2.3', $link . '/nested-stage');
+    } catch (RuntimeException) {
+        $rejectedParentLink = true;
+    }
+    if (!$rejectedParentLink) throw new RuntimeException('Fetcher must reject symlinked parent components.');
+
     echo "Integrity release artifact fetcher tests passed.\n";
 } finally {
     @rmdir($root . '/linked');
