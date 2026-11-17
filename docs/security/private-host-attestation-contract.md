@@ -116,3 +116,45 @@ The collector regression test exercises a clean signed approval, signed digest a
 `PrivateHostAttestationClient` now implements the node-side authenticated request transport. It accepts only `integrity-a` or `integrity-b`, a distinct URL-safe bearer token, and the pinned HTTPS route `https://sentryiq.bichet.co.za/private-host-attestation`. It sends only the node ID, fresh nonce, release version, source commit, manifest digest and artifact digest. It never sends file paths or expected hashes. Redirects are disabled, TLS peer and hostname validation are mandatory, request timeouts and response sizes are bounded, and non-200 or malformed responses fail closed. The returned envelope bytes are passed unchanged to the independently pinned `PrivateHostAttestationVerifier`.
 
 This defines the A/B-to-host transport contract, not the host-side service. The route must be terminated by a host adapter that authenticates the node token, enforces one-time/fresh challenge handling, invokes the collector under its separate OS identity, and returns only the signed envelope. Do not implement this route as a PHP-FPM script that can read the collector signing key. The host adapter and service isolation remain unimplemented and must be validated against the actual hosting platform before enabling either node callback.
+
+
+Example Node A callback wiring (Node B uses its own token, public key and pinned baselines):
+
+```php
+$privateHostClientA = new PrivateHostAttestationClient(
+    'integrity-a',
+    $node4PrivateHostTokenA
+);
+$privateHostVerifierA = new PrivateHostAttestationVerifier(
+    $collectorPublicKeyA
+);
+$verifyPrivateHostA = static function (
+    string $version,
+    string $commit,
+    string $manifestDigest,
+    string $artifactDigest,
+    string $nonce,
+    array $manifest,
+    string $origin
+) use ($privateHostClientA, $privateHostVerifierA, $expectedFilesA, $expectedPrivateConfigA): array {
+    $envelope = $privateHostClientA->request(
+        $nonce,
+        $version,
+        $commit,
+        $manifestDigest,
+        $artifactDigest
+    );
+    return $privateHostVerifierA->assertAttested(
+        $envelope,
+        $nonce,
+        $version,
+        $commit,
+        $manifestDigest,
+        $artifactDigest,
+        $expectedFilesA,
+        $expectedPrivateConfigA
+    );
+};
+```
+
+Pass `$verifyPrivateHostA` as the final `IntegrityNodeA` constructor argument. Keep `$node4PrivateHostTokenA`, `$collectorPublicKeyA`, and both expected maps in Node A's private runtime configuration. Node B must independently use `integrity-b` and different credentials/key material. The callback example is wiring only; it cannot succeed against production until the host-side service owns and serves the pinned route.
