@@ -17,7 +17,7 @@ on:
       - 'tests/native_sigstore_integrity_adapter.test.php'
       - '.github/workflows/native-release-attestation.yml'
   push:
-    branches: [security/native-php-release-attestation]
+    branches: [security/native-php-release-attestation, fix/first-run-private-paths-rebased, feat/native-sigstore-node-artifact-verification-rebased]
     paths:
       - 'app/Updates/NativeSigstoreReleaseVerifier.php'
       - 'app/Updates/SigstoreProvenance.php'
