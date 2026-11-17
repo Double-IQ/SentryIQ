@@ -40,6 +40,9 @@ final class IntegrityNodeC
         if ($this->signer->nodeId() !== 'integrity-c') {
             throw new RuntimeException('Integrity Node C requires its own integrity-c signing identity.');
         }
+        if ($notifyFailure === null) {
+            throw new RuntimeException('Integrity Node C requires an independent direct owner-alert transport.');
+        }
         $this->verifyAttestation = $verifyAttestation;
         $this->fetch = $fetch ?? fn(string $url): string => $this->fetchHttps($url);
         $this->notifyFailure = $notifyFailure;
