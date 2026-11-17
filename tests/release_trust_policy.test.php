@@ -43,7 +43,8 @@ $claims = [
 ];
 
 $policy->assertTrustedRelease($claims, $version, $commit, $digest, '1.2.2');
-trustCheck(true, 'Valid normalized release claims should pass.');
+$policy->assertTrustedRelease($claims, $version, $commit, $digest, '1.2.3', true);
+trustCheck(true, 'Valid normalized release claims and an explicitly allowed installed release should pass.');
 
 $mutations = [
     'unverified attestation' => ['cryptographically_verified' => false],
