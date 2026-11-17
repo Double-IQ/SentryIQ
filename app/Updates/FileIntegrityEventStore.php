@@ -93,7 +93,12 @@ final class FileIntegrityEventStore
             'expires_at' => $issuedAt + 300,
         ];
 
-        $this->transact(function (array &$state) use ($nonce, $challenge): void {
+        $this->transact(function (array &$state) use ($nonce, $challenge, $issuedAt): void {
+            foreach ($state['challenges'] as $existingKey => $existingChallenge) {
+                if (!is_array($existingChallenge) || ($existingChallenge['expires_at'] ?? 0) <= $issuedAt) {
+                    unset($state['challenges'][$existingKey]);
+                }
+            }
             $key = hash('sha256', $nonce);
             if (isset($state['challenges'][$key])) {
                 throw new RuntimeException('Challenge collision.');
