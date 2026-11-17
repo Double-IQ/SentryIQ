@@ -22,16 +22,16 @@ final class SigstoreProvenance
     public const WORKFLOW_PATH = '.github/workflows/release.yml';
 
     /** @return array<string, mixed> */
-    public static function claims(Envelope $envelope, string $expectedVersion, string $expectedDigest): array
+    public static function claims(Envelope $envelope, string $expectedVersion, string $expectedDigest, string $expectedSubjectName): array
     {
         $statement = Statement::fromEnvelope($envelope);
-        $claims = self::claimsFromArray($statement->toArray(), $expectedVersion, $expectedDigest);
+        $claims = self::claimsFromArray($statement->toArray(), $expectedVersion, $expectedDigest, $expectedSubjectName);
         $claims['cryptographically_verified'] = true;
         return $claims;
     }
 
     /** @param array<string, mixed> $statement */
-    public static function claimsFromArray(array $statement, string $expectedVersion, string $expectedDigest): array
+    public static function claimsFromArray(array $statement, string $expectedVersion, string $expectedDigest, string $expectedSubjectName): array
     {
         if (($statement['predicateType'] ?? null) !== self::PREDICATE_TYPE) {
             throw new RuntimeException('Release attestation does not contain SLSA Provenance v1.');
@@ -42,9 +42,9 @@ final class SigstoreProvenance
             throw new RuntimeException('Release attestation must identify exactly one artifact subject.');
         }
         $subject = $subjects[0];
-        if (($subject['name'] ?? null) !== 'sentryiq-' . $expectedVersion . '.zip'
+        if (($subject['name'] ?? null) !== $expectedSubjectName
             || strtolower((string)(($subject['digest']['sha256'] ?? ''))) !== strtolower($expectedDigest)) {
-            throw new RuntimeException('Attestation subject name or digest does not match the downloaded release ZIP.');
+            throw new RuntimeException('Attestation subject name or digest does not match the expected release artifact.');
         }
 
         $predicate = $statement['predicate'] ?? null;
