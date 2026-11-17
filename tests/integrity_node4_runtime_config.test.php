@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Updates/IntegrityNode4RuntimeConfig.php';
 
-use SentryIQ\\Updates\\IntegrityNode4RuntimeConfig;
+use SentryIQ\Updates\IntegrityNode4RuntimeConfig;
 
 $root = sys_get_temp_dir() . '/sentryiq-node4-config-' . bin2hex(random_bytes(6));
 $public = $root . '/httpdocs';
@@ -51,4 +51,4 @@ try {
     @rmdir($root);
 }
 
-echo "Integrity Node 4 runtime config tests passed.\\n";
+echo "Integrity Node 4 runtime config tests passed.\n";
