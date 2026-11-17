@@ -52,8 +52,13 @@ $configFile = __DIR__ . '/sentryiq_config.php';
 $config = is_file($configFile) && !is_link($configFile) ? require $configFile : [];
 $eventConfig = is_array($config) ? ($config['integrity_event'] ?? null) : null;
 $dataDir = is_array($config) ? (string)($config['data_dir'] ?? '') : '';
+$storageDir = is_array($eventConfig) ? (string)($eventConfig['storage_dir'] ?? '') : '';
+$realDataDir = $dataDir !== '' ? realpath($dataDir) : false;
+$realStorageDir = $storageDir !== '' ? realpath($storageDir) : false;
 if (!is_array($eventConfig) || ($eventConfig['enabled'] ?? false) !== true
-    || $dataDir === '' || !str_starts_with($dataDir, '/') || !is_dir($dataDir) || is_link($dataDir)) {
+    || !is_string($realDataDir) || !is_string($realStorageDir)
+    || !str_starts_with($realStorageDir, rtrim($realDataDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)
+    || !is_dir($realStorageDir) || is_link($storageDir)) {
     integrityEventRespond(503, ['status' => 'error', 'message' => 'Node 4 event service is not configured.']);
 }
 
