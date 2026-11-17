@@ -168,11 +168,24 @@ final class FileIntegrityEventStore
         }
         $fingerprint = hash('sha256', json_encode($incident, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
         return $this->transact(function (array &$state) use ($incident, $fingerprint): array {
+            $matchingId = null;
+            $matching = null;
             foreach ($state['alerts'] as $id => $existing) {
-                if (($existing['fingerprint'] ?? null) === $fingerprint) {
-                    $state['alerts'][$id]['occurrences'] = (int)($existing['occurrences'] ?? 1) + 1;
-                    $state['alerts'][$id]['last_seen'] = time();
-                    return ['id' => $id, 'created' => false];
+                if (($existing['fingerprint'] ?? null) === $fingerprint
+                    && ($matching === null || ($existing['created_at'] ?? 0) > ($matching['created_at'] ?? 0))) {
+                    $matchingId = $id;
+                    $matching = $existing;
+                }
+            }
+            if (is_string($matchingId) && is_array($matching)) {
+                $now = time();
+                $pending = ($matching['status'] ?? null) === 'pending';
+                $withinCooldown = ($matching['status'] ?? null) === 'delivered'
+                    && $now - (int)($matching['delivered_at'] ?? 0) < 1800;
+                if ($pending || $withinCooldown) {
+                    $state['alerts'][$matchingId]['occurrences'] = (int)($matching['occurrences'] ?? 1) + 1;
+                    $state['alerts'][$matchingId]['last_seen'] = $now;
+                    return ['id' => $matchingId, 'created' => false];
                 }
             }
             if (count($state['alerts']) >= 1000) {
