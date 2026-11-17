@@ -31,6 +31,7 @@ file_put_contents($privateConfig, '<?php return ' . var_export([
     'data_dir' => $private,
     'integrity_event' => ['enabled' => true, 'target_origin' => 'https://sentryiq.bichet.co.za', 'node_tokens' => $nodeTokens, 'node_public_keys' => $nodeKeys],
 ], true) . ';');
+chmod($privateConfig, 0600);
 
 try {
     $loaded = IntegrityNode4RuntimeConfig::load($pointer);
@@ -41,6 +42,30 @@ try {
         || ($loaded['data_dir'] ?? null) !== realpath($private)) {
         throw new RuntimeException('Runtime-config loader did not merge the public pointer and private settings.');
     }
+
+    chmod($privateConfig, 0640);
+    $weakPrivateConfigRejected = false;
+    try {
+        IntegrityNode4RuntimeConfig::load($pointer);
+    } catch (RuntimeException) {
+        $weakPrivateConfigRejected = true;
+    }
+    if (!$weakPrivateConfigRejected || (fileperms($privateConfig) & 0777) !== 0640) {
+        throw new RuntimeException('Runtime-config loader must reject, not repair, a private config with weak permissions.');
+    }
+    chmod($privateConfig, 0600);
+
+    chmod($private, 0750);
+    $weakDataDirectoryRejected = false;
+    try {
+        IntegrityNode4RuntimeConfig::load($pointer);
+    } catch (RuntimeException) {
+        $weakDataDirectoryRejected = true;
+    }
+    if (!$weakDataDirectoryRejected || (fileperms($private) & 0777) !== 0750) {
+        throw new RuntimeException('Runtime-config loader must reject, not repair, a private data directory with weak permissions.');
+    }
+    chmod($private, 0700);
 
     $badPointer = $public . '/bad-pointer.php';
     file_put_contents($badPointer, '<?php return ' . var_export(['data_dir' => $public], true) . ';');
