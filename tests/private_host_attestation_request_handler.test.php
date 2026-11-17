@@ -128,6 +128,37 @@ try {
     hostHandlerAssert((fileperms($sharedPrivate) & 0777) === 0750,
         'Nonce storage constructor must not change permissions on an operator-supplied directory.');
 
+    $missingLockDirectory = $base . '/missing-lock-private';
+    mkdir($missingLockDirectory, 0700);
+    $missingLockStore = new PrivateHostAttestationNonceStore($missingLockDirectory, $web);
+    hostHandlerReject(
+        fn() => $missingLockStore->consume('integrity-a', str_repeat('e', 64), time() + 120),
+        'Nonce storage must fail closed when its lock file has not been provisioned.'
+    );
+
+    $weakLockDirectory = $base . '/weak-lock-private';
+    mkdir($weakLockDirectory, 0700);
+    file_put_contents($weakLockDirectory . '/private-host-nonces.lock', '');
+    chmod($weakLockDirectory . '/private-host-nonces.lock', 0640);
+    $weakLockStore = new PrivateHostAttestationNonceStore($weakLockDirectory, $web);
+    hostHandlerReject(
+        fn() => $weakLockStore->consume('integrity-a', str_repeat('f', 64), time() + 120),
+        'Nonce storage must reject a lock file without exact 0600 permissions.'
+    );
+
+    $weakStateDirectory = $base . '/weak-state-private';
+    mkdir($weakStateDirectory, 0700);
+    file_put_contents($weakStateDirectory . '/private-host-nonces.lock', '');
+    chmod($weakStateDirectory . '/private-host-nonces.lock', 0600);
+    $weakStateStore = new PrivateHostAttestationNonceStore($weakStateDirectory, $web);
+    hostHandlerAssert($weakStateStore->consume('integrity-a', str_repeat('1', 64), time() + 120),
+        'A correctly provisioned nonce store must accept its first nonce.');
+    chmod($weakStateDirectory . '/private-host-nonces.json', 0640);
+    hostHandlerReject(
+        fn() => $weakStateStore->consume('integrity-a', str_repeat('2', 64), time() + 120),
+        'Nonce storage must reject an existing state file without exact 0600 permissions.'
+    );
+
     $lockAttackDirectory = $base . '/lock-symlink-private';
     mkdir($lockAttackDirectory, 0700);
     $lockTarget = $base . '/lock-target';
