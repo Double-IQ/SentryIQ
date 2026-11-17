@@ -6,6 +6,7 @@ require_once __DIR__ . '/../app/Updates/IntegrityReleaseArtifactFetcher.php';
 require_once __DIR__ . '/../app/Updates/IntegrityEventClient.php';
 require_once __DIR__ . '/../app/Updates/IntegrityNodeEventRunner.php';
 require_once __DIR__ . '/../app/Updates/IntegrityNodeScheduledRunner.php';
+require_once __DIR__ . '/../app/Updates/IntegrityNodeReleaseStateStore.php';
 
 use SentryIQ\Updates\IntegrityNodeScheduledRunner;
 use SentryIQ\Updates\IntegrityReleaseArtifactFetcher;
@@ -21,12 +22,14 @@ $private = $root . '/private';
 mkdir($webroot, 0700, true);
 mkdir($private, 0700, true);
 $fetcher = new IntegrityReleaseArtifactFetcher();
+$releaseState = new SentryIQ\\Updates\\IntegrityNodeReleaseStateStore($private, $webroot);
+$releaseState->initializeBaseline('0.1.3', str_repeat('a', 40));
 $alerts = [];
 $fetchCalls = 0;
 $runner = new IntegrityNodeScheduledRunner(
     'integrity-c',
     $fetcher,
-    static fn(): array => ['version' => '0.1.3', 'commit' => str_repeat('a', 40), 'installed_version' => '0.1.3'],
+    static fn(): array => ['version' => '0.1.3', 'commit' => str_repeat('a', 40)],
     static function (...$args) use (&$fetchCalls): array {
         $fetchCalls++;
         return ['approved' => true, 'report' => 'signed-envelope'];
@@ -37,7 +40,8 @@ $runner = new IntegrityNodeScheduledRunner(
     $private,
     $webroot,
     'https://sentryiq.bichet.co.za',
-    ['index.php']
+    ['index.php'],
+    $releaseState
 );
 
 // This runner is intentionally not executed: network access is not part of
@@ -49,7 +53,7 @@ try {
         static fn(): array => [],
         static fn(): array => [],
         static function (): void {},
-        $private, $webroot, 'https://sentryiq.bichet.co.za', ['index.php'], null
+        $private, $webroot, 'https://sentryiq.bichet.co.za', ['index.php'], $releaseState, null
     );
 } catch (RuntimeException) {
     $rejectedA = true;
@@ -63,7 +67,7 @@ try {
         static fn(): array => [],
         static fn(): array => [],
         static function (): void {},
-        $private, $webroot, 'https://sentryiq.bichet.co.za', ['index.php'],
+        $private, $webroot, 'https://sentryiq.bichet.co.za', ['index.php'], $releaseState,
         new SentryIQ\Updates\IntegrityNodeEventRunner(
             new SentryIQ\Updates\IntegrityEventClient(
                 'https://sentryiq.bichet.co.za/integrity_event.php',
@@ -79,6 +83,8 @@ try {
 }
 scheduledAssert($rejectedC, 'Node C must not depend on Node 4.');
 
+@unlink($private . '/integrity-release-state.json');
+@unlink($private . '/integrity-release-state.lock');
 rmdir($private);
 rmdir($webroot);
 rmdir($root);
