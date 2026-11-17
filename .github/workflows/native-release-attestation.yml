@@ -50,6 +50,7 @@ jobs:
         run: |
           php -l app/Updates/NativeSigstoreReleaseVerifier.php
           php -l app/Updates/NativeSigstoreIntegrityAttestationVerifier.php
+          php -l app/Updates/ReleaseArtifactVerifier.php
           php -l app/Updates/SigstoreProvenance.php
           php -l app/Updates/ReleaseTrustPolicy.php
           php -l app/Updates/TufRootStore.php
