@@ -4,6 +4,7 @@ on:
   pull_request:
     branches: [main, feat/signed-integrity-event-evidence, feat/btm-sa-node4-report-ingestion-rebased, feat/native-sigstore-node-artifact-verification-rebased]
     paths:
+      - 'docs/security/private-host-attestation-contract.md'
       - 'docs/security/integrity-node-c-heliohost.md'
       - 'docs/security/btm-sa-node4-deployment.md'
       - 'app/Updates/IntegrityNode*.php'
