@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Updates/IntegrityReleaseArtifactFetcher.php';
 
-use SentryIQ\\Updates\\IntegrityReleaseArtifactFetcher;
+use SentryIQ\Updates\IntegrityReleaseArtifactFetcher;
 
 $fetcher = new IntegrityReleaseArtifactFetcher();
 $root = sys_get_temp_dir() . '/sentryiq-release-fetcher-' . bin2hex(random_bytes(6));
@@ -31,7 +31,7 @@ try {
     }
     if (!$rejectedLink) throw new RuntimeException('Fetcher must reject symlinked private staging directories.');
 
-    echo "Integrity release artifact fetcher tests passed.\\n";
+    echo "Integrity release artifact fetcher tests passed.\n";
 } finally {
     @rmdir($root . '/linked');
     @rmdir($root . '/real');
