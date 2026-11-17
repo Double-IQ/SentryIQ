@@ -3,6 +3,10 @@ name: Native PHP Release Attestation
 on:
   pull_request:
     paths:
+      - 'docs/native-php-release-attestation.md'
+      - 'docs/security/k2gl-tuf-1.2.1-root-rotation.md'
+      - '.htaccess'
+      - 'tests/origin_security_headers.test.py'
       - 'app/Updates/NativeSigstoreReleaseVerifier.php'
       - 'app/Updates/NativeSigstoreIntegrityAttestationVerifier.php'
       - 'app/Updates/SigstoreProvenance.php'
