@@ -17,6 +17,7 @@ use SentryIQ\Updates\IntegrityNodeA;
 use SentryIQ\Updates\IntegrityNodeB;
 use SentryIQ\Updates\IntegrityNodeC;
 use SentryIQ\Updates\IntegrityNodeScheduledRunner;
+use SentryIQ\Updates\IntegrityNodeVerifierBinding;
 use SentryIQ\Updates\IntegrityNodeEventRunner;
 use SentryIQ\Updates\IntegrityOriginSecurityHeaderVerifier;
 use SentryIQ\Updates\IntegrityEventClient;
@@ -84,28 +85,9 @@ $node = match ($nodeId) {
     default => throw new RuntimeException('Unknown Integrity Node identity.'),
 };
 
-// Adapt the scheduled runner's 8-argument contract to the node's verify()
-// method. The native Sigstore adapter is called twice inside that method:
-// once for release-manifest.json and once for the exact release ZIP.
-$verify = static fn(
-    string $manifestPath,
-    string $artifactPath,
-    string $version,
-    string $commit,
-    string $installedVersion,
-    string $origin,
-    array $publicPaths,
-    string $nonce
-): array => $node->verify(
-    $manifestPath,
-    $artifactPath,
-    $version,
-    $commit,
-    $installedVersion,
-    $origin,
-    $publicPaths,
-    $nonce
-);
+// The scheduled runner accepts only this final binding around the concrete
+// A, B or C verifier. It does not accept an arbitrary verification callback.
+$nodeVerifier = new IntegrityNodeVerifierBinding($nodeId, $node);
 
 $eventRunner = null;
 if ($nodeId === 'integrity-a' || $nodeId === 'integrity-b') {
@@ -130,7 +112,7 @@ return new IntegrityNodeScheduledRunner(
     $nodeId,
     new IntegrityReleaseArtifactFetcher(),
     $resolveDeployedRelease, // callable(): version, commit from live VERSION + canonical Git tag
-    $verify,
+    $nodeVerifier,
     $directOwnerAlert,
     $privateDataDirectory,
     $publicWebRoot,
@@ -142,11 +124,11 @@ return new IntegrityNodeScheduledRunner(
 );
 ```
 
-Nodes A and B also require the signed private-host attestation callback shown above; they refuse construction without it. A valid signed rejection is included in the node's signed report and triggers the direct alert route. A transport/signature/freshness failure triggers a direct alert and fails the run. Node C does not call this collector because it is hosted separately and is not the production-host verifier. The collector and transport remain unimplemented deployment gates; do not use an always-approve placeholder.
+Nodes A and B also require the node-bound `PrivateHostAttestationGate` shown above; they refuse construction without it. A valid signed rejection is included in the node's signed report and triggers the direct alert route. A transport/signature/freshness failure triggers a direct alert and fails the run. Node C does not call this collector because it is hosted separately and is not the production-host verifier. The collector and transport remain unimplemented deployment gates; do not use an always-approve placeholder.
 
 Each node also verifies the origin's HSTS, CSP, framing, MIME-sniffing, referrer and permissions headers. The SentryIQ `.htaccess` now declares that conservative header policy. The signed release manifest carries a `public_http_files` list containing only byte-verifiable static assets. Dynamic PHP endpoints are not compared with their packaged source bytes; private runtime files remain outside HTTP checks. Leave `$publicPathSubset` empty to check every signed static asset, or provide a subset.
 
-The CLI preloads the node classes, native verifier and runtime dependencies before requiring the protected config file. The config file only needs to construct the host-specific objects and return the runner. The CLI requires an absolute, readable, regular, non-symlink config file with exact `0600` permissions; broader or merely read-only modes are rejected. It then requires the file and requires it to return the runner. The private monotonic state baseline must already exist; first-run bootstrap is an explicit one-time administrator action.
+The CLI preloads the node classes, native verifier, concrete `IntegrityNodeVerifierBinding` and runtime dependencies before requiring the protected config file. The config file only needs to construct the host-specific objects and return the runner. The CLI requires an absolute, readable, regular, non-symlink config file with exact `0600` permissions; broader or merely read-only modes are rejected. It then requires the file and requires it to return the runner. The private monotonic state baseline must already exist; first-run bootstrap is an explicit one-time administrator action.
 
 
 ### Mandatory A/B trust-separation checks
