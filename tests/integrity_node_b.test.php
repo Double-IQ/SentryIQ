@@ -44,6 +44,7 @@ $verifier = static function (string $path, string $version, string $commit, stri
     $verifyCalls[] = [$path, $version, $commit, $installed];
 };
 $fetch = static fn(string $url): string => $publicBody;
+$alertNoop = static function (string $nodeId, string $reason, array $context): void {};
 
 try {
     $wrongSigner = new IntegrityReportSigner(
@@ -59,7 +60,7 @@ try {
     }
     nodeBAssert($wrongIdentityRejected, 'Node B must reject a signer configured with Node A identity.');
 
-    $node = new IntegrityNodeB($signer, $verifier, $fetch);
+    $node = new IntegrityNodeB($signer, $verifier, $fetch, $alertNoop);
     $approved = $node->verify(
         $manifestPath,
         $artifactPath,
