@@ -18,6 +18,7 @@ use SentryIQ\Updates\IntegrityNodeB;
 use SentryIQ\Updates\IntegrityNodeC;
 use SentryIQ\Updates\IntegrityNodeScheduledRunner;
 use SentryIQ\Updates\IntegrityNodeEventRunner;
+use SentryIQ\Updates\IntegrityOriginSecurityHeaderVerifier;
 use SentryIQ\Updates\IntegrityEventClient;
 use SentryIQ\Updates\IntegrityNodeReleaseStateStore;
 use SentryIQ\Updates\IntegrityDeployedReleaseResolver;
@@ -34,6 +35,9 @@ $resolveDeployedRelease = new IntegrityDeployedReleaseResolver();
 // Initialize this once, manually, after independently confirming the known-good
 // release already deployed on this node's target. Do not run this on every cron.
 // $releaseState->initializeBaseline('<verified-version>', '<verified-40-character-commit>');
+
+$headerVerifier = new IntegrityOriginSecurityHeaderVerifier();
+$verifyHeaders = static fn(string $origin): array => $headerVerifier->verify($origin);
 
 $attestation = NativeSigstoreIntegrityAttestationVerifier::fromPrivatePaths(
     $privateVendorAutoload,
@@ -52,9 +56,9 @@ $publicPathSubset = [];
 
 // Construct only the verifier matching this host's identity.
 $node = match ($nodeId) {
-    'integrity-a' => new IntegrityNodeA($signer, $attestation, null, $directOwnerAlert),
-    'integrity-b' => new IntegrityNodeB($signer, $attestation, null, $directOwnerAlert),
-    'integrity-c' => new IntegrityNodeC($signer, $attestation, null, $directOwnerAlert),
+    'integrity-a' => new IntegrityNodeA($signer, $attestation, null, $directOwnerAlert, $verifyHeaders),
+    'integrity-b' => new IntegrityNodeB($signer, $attestation, null, $directOwnerAlert, $verifyHeaders),
+    'integrity-c' => new IntegrityNodeC($signer, $attestation, null, $directOwnerAlert, $verifyHeaders),
     default => throw new RuntimeException('Unknown Integrity Node identity.'),
 };
 
@@ -106,7 +110,7 @@ return new IntegrityNodeScheduledRunner(
 );
 ```
 
-The signed release manifest carries a `public_http_files` list containing only byte-verifiable static assets. Dynamic PHP endpoints are not compared with their packaged source bytes; private runtime files remain outside HTTP checks. Leave `$publicPathSubset` empty to check every signed static asset, or provide a subset.
+Each node also verifies the origin's HSTS, CSP, framing, MIME-sniffing, referrer and permissions headers. The SentryIQ `.htaccess` now declares that conservative header policy. The signed release manifest carries a `public_http_files` list containing only byte-verifiable static assets. Dynamic PHP endpoints are not compared with their packaged source bytes; private runtime files remain outside HTTP checks. Leave `$publicPathSubset` empty to check every signed static asset, or provide a subset.
 
 The CLI preloads the node classes, native verifier and runtime dependencies before requiring the protected config file. The config file only needs to construct the host-specific objects and return the runner. The CLI validates the config file path and requires it to return the runner. The private monotonic state baseline must already exist; first-run bootstrap is an explicit one-time administrator action.
 
