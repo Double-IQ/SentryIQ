@@ -66,6 +66,15 @@ Ed25519 private signing keys as bearer tokens. Install only the corresponding
 public keys on Node 4. The private signing keys remain on their respective
 nodes. The runtime loader requires exactly both node IDs, distinct URL-safe bearer tokens of at least 40 characters, and distinct valid Ed25519 public keys. It also pins `target_origin` to `https://sentryiq.bichet.co.za`; incomplete or misdirected configuration fails closed.
 
+
+Generate two separate 48-byte random tokens (64 URL-safe characters) on a trusted administrative terminal; run the command twice and keep each output secret:
+
+```sh
+php -r 'echo rtrim(strtr(base64_encode(random_bytes(48)), "+/", "-_"), "="), PHP_EOL;'
+```
+
+Place token A only in Node 4's private `node_tokens['integrity-a']` and Node A's private runtime config; place token B only in the matching B entries. Transfer each token to its node over a secure channel. Do not paste tokens into GitHub issues, pull requests, source files, or shared logs.
+
 ## Protocol
 
 1. A/B use `IntegrityEventClient` to authenticate to `POST /integrity_event.php` with
