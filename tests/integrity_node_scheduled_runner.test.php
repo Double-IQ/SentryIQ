@@ -7,9 +7,8 @@ require_once __DIR__ . '/../app/Updates/IntegrityEventClient.php';
 require_once __DIR__ . '/../app/Updates/IntegrityNodeEventRunner.php';
 require_once __DIR__ . '/../app/Updates/IntegrityNodeScheduledRunner.php';
 
-use SentryIQ\\Updates\\IntegrityNodeScheduledRunner;
-use SentryIQ\\Updates\\IntegrityReleaseArtifactFetcher;
-use RuntimeException;
+use SentryIQ\Updates\IntegrityNodeScheduledRunner;
+use SentryIQ\Updates\IntegrityReleaseArtifactFetcher;
 
 function scheduledAssert(bool $condition, string $message): void
 {
@@ -65,8 +64,8 @@ try {
         static fn(): array => [],
         static function (): void {},
         $private, $webroot, 'https://sentryiq.bichet.co.za', ['index.php'],
-        new SentryIQ\\Updates\\IntegrityNodeEventRunner(
-            new SentryIQ\\Updates\\IntegrityEventClient(
+        new SentryIQ\Updates\IntegrityNodeEventRunner(
+            new SentryIQ\Updates\IntegrityEventClient(
                 'https://sentryiq.bichet.co.za/integrity_event.php',
                 'integrity-a',
                 str_repeat('x', 48),
@@ -83,4 +82,4 @@ scheduledAssert($rejectedC, 'Node C must not depend on Node 4.');
 rmdir($private);
 rmdir($webroot);
 rmdir($root);
-echo "Integrity node scheduled runner tests passed.\\n";
+echo "Integrity node scheduled runner tests passed.\n";
