@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SentryIQ\Updates;
 
+require_once __DIR__ . '/IntegrityEventRequestDecoder.php';
+
 use RuntimeException;
 
 /**
@@ -69,6 +71,7 @@ final class IntegrityEventReportVerifier
         if ($encodedEnvelope === '' || strlen($encodedEnvelope) > self::MAX_REPORT_BYTES) {
             throw new RuntimeException('Integrity event report is empty or exceeds the size limit.');
         }
+        IntegrityEventRequestDecoder::assertNoDuplicateObjectKeys($encodedEnvelope);
         try {
             $envelope = json_decode($encodedEnvelope, true, 8, JSON_THROW_ON_ERROR);
         } catch (\JsonException $exception) {
@@ -87,6 +90,7 @@ final class IntegrityEventReportVerifier
             || !is_string($signature) || strlen($signature) !== SODIUM_CRYPTO_SIGN_BYTES) {
             throw new RuntimeException('Integrity event envelope encoding is invalid.');
         }
+        IntegrityEventRequestDecoder::assertNoDuplicateObjectKeys($rawPayload);
         try {
             $payload = json_decode($rawPayload, true, 32, JSON_THROW_ON_ERROR);
         } catch (\JsonException $exception) {
