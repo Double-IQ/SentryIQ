@@ -36,6 +36,12 @@ final class IntegrityReleaseArtifactFetcher
         if (!is_string($realPublicRoot) || !is_dir($realPublicRoot)) {
             throw new RuntimeException('Configured public webroot cannot be resolved.');
         }
+        $requestedDirectory = preg_replace('#/+#', '/', $privateDirectory);
+        if (!is_string($requestedDirectory) || preg_match('~(^|/)\\.\\.?(/|$)~', $requestedDirectory)
+            || $requestedDirectory === $realPublicRoot
+            || str_starts_with($requestedDirectory, rtrim($realPublicRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
+            throw new RuntimeException('Release staging directory must be outside the public webroot.');
+        }
         $directory = $this->ensurePrivateDirectory($privateDirectory);
         if ($directory === $realPublicRoot
             || str_starts_with($directory, rtrim($realPublicRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
