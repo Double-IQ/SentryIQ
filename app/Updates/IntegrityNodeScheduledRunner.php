@@ -9,6 +9,7 @@ use Throwable;
 
 require_once __DIR__ . '/IntegrityNodeAlertedException.php';
 require_once __DIR__ . '/IntegrityNodeReleaseStateStore.php';
+require_once __DIR__ . '/IntegrityNodeEvidenceStore.php';
 
 /**
  * One scheduled execution of an independently hosted Integrity Node.
@@ -40,6 +41,7 @@ final class IntegrityNodeScheduledRunner
         private readonly array $publicPaths,
         private readonly IntegrityNodeReleaseStateStore $releaseState,
         private readonly ?IntegrityNodeEventRunner $eventRunner = null,
+        private readonly ?IntegrityNodeEvidenceStore $evidenceStore = null,
     ) {
         if (!in_array($nodeId, ['integrity-a', 'integrity-b', 'integrity-c'], true)) {
             throw new RuntimeException('Scheduled runner requires a known independent Integrity Node identity.');
@@ -53,10 +55,10 @@ final class IntegrityNodeScheduledRunner
         if (!array_is_list($publicPaths)) {
             throw new RuntimeException('Scheduled runner public-path selection must be a list.');
         }
-        if ($nodeId === 'integrity-c' && $eventRunner !== null) {
-            throw new RuntimeException('Node C must remain independent of the Node 4 event receiver.');
+        if ($nodeId === 'integrity-c' && ($eventRunner !== null || $evidenceStore === null)) {
+            throw new RuntimeException('Node C must use private local evidence retention and remain independent of Node 4.');
         }
-        if ($nodeId !== 'integrity-c' && $eventRunner === null) {
+        if ($nodeId !== 'integrity-c' && ($eventRunner === null || $evidenceStore !== null)) {
             throw new RuntimeException('Nodes A and B require the authenticated Node 4 event exchange.');
         }
         $this->resolveRelease = $resolveRelease;
@@ -147,13 +149,21 @@ final class IntegrityNodeScheduledRunner
             $nonce = bin2hex(random_bytes(32));
             $result = $verify($nonce);
             if (!is_array($result) || !is_bool($result['approved'] ?? null)
-                || !is_string($result['report'] ?? null)) {
-                throw new RuntimeException('Integrity Node verifier returned an invalid result.');
+                || !is_string($result['report'] ?? null)
+                || !is_array($result['checked_paths'] ?? null) || !array_is_list($result['checked_paths'])
+                || !is_array($result['mismatches'] ?? null) || !array_is_list($result['mismatches'])
+                || !is_string($result['manifest_sha256'] ?? null)
+                || !hash_equals($manifestDigest, $result['manifest_sha256'])
+                || !is_string($result['artifact_sha256'] ?? null)
+                || !hash_equals($artifactDigest, $result['artifact_sha256'])) {
+                throw new RuntimeException('Integrity Node verifier returned an invalid or unbound result.');
             }
+            $this->assertStagedDigestsUnchanged($staged, $manifestDigest, $artifactDigest);
+            $evidence = $this->evidenceStore->append($result['report']);
             if ($result['approved'] === true) {
                 $this->releaseState->recordApproved($version, $commit, $manifestDigest, $artifactDigest);
             }
-            return $result + ['release_version' => $version, 'release_commit' => $commit, 'release_manifest_sha256' => $manifestDigest, 'release_artifact_sha256' => $artifactDigest];
+            return $result + $evidence + ['release_version' => $version, 'release_commit' => $commit, 'release_manifest_sha256' => $manifestDigest, 'release_artifact_sha256' => $artifactDigest];
         } catch (Throwable $exception) {
             throw new RuntimeException('Scheduled integrity verification failed.', 0, $exception);
         }
