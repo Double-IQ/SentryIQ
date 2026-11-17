@@ -17,6 +17,8 @@ use SentryIQ\Updates\IntegrityNodeA;
 use SentryIQ\Updates\IntegrityNodeB;
 use SentryIQ\Updates\IntegrityNodeC;
 use SentryIQ\Updates\IntegrityNodeScheduledRunner;
+use SentryIQ\Updates\IntegrityNodeEventRunner;
+use SentryIQ\Updates\IntegrityEventClient;
 use SentryIQ\Updates\IntegrityNodeReleaseStateStore;
 use SentryIQ\Updates\IntegrityDeployedReleaseResolver;
 use SentryIQ\Updates\IntegrityReleaseArtifactFetcher;
@@ -26,7 +28,14 @@ use SentryIQ\Updates\NativeSigstoreIntegrityAttestationVerifier;
 // These values are supplied only by this host's protected configuration.
 $nodeId = 'integrity-a'; // exactly one of integrity-a, integrity-b, integrity-c
 $signer = new IntegrityReportSigner($nodeId, $base64Ed25519SecretKey);
-$releaseState = new IntegrityNodeReleaseStateStore($privateDataDirectory, $publicWebRoot);\n$resolveDeployedRelease = new IntegrityDeployedReleaseResolver();\n\n// Initialize this once, manually, after independently confirming the known-good\n// release already deployed on this node's target. Do not run this on every cron.\n// $releaseState->initializeBaseline('<verified-version>', '<verified-40-character-commit>');\n\n$attestation = NativeSigstoreIntegrityAttestationVerifier::fromPrivatePaths(
+$releaseState = new IntegrityNodeReleaseStateStore($privateDataDirectory, $publicWebRoot);
+$resolveDeployedRelease = new IntegrityDeployedReleaseResolver();
+
+// Initialize this once, manually, after independently confirming the known-good
+// release already deployed on this node's target. Do not run this on every cron.
+// $releaseState->initializeBaseline('<verified-version>', '<verified-40-character-commit>');
+
+$attestation = NativeSigstoreIntegrityAttestationVerifier::fromPrivatePaths(
     $privateVendorAutoload,
     $privateDataDirectory
 );
@@ -89,6 +98,7 @@ return new IntegrityNodeScheduledRunner(
     $publicWebRoot,
     'https://sentryiq.bichet.co.za',
     $explicitPublicPathAllowlist,
+    $releaseState,
     $eventRunner
 );
 ```
@@ -113,7 +123,11 @@ php /absolute/private-or-code-path/SentryIQ/bin/integrity-node-run.php
 
 Create one independent schedule per A/B/C host. Do not place all three node schedules or private keys on the SentryIQ/Node 4 host.
 
-## Per-node anti-rollback state\n\nEach A/B/C host keeps its own `integrity-release-state.json` in its private data directory. The baseline is initialized once with a release version and commit that the administrator has independently confirmed as the known-good deployed build. A run is serialized with an exclusive lock; older versions and same-version/different-commit tag changes are rejected. The state advances only after the node returns an approved verification result. A rejected or incomplete check never advances the pin. Do not initialize the baseline from the live `/VERSION` response alone.\n\n## Deployment gates not fabricated by this code
+## Per-node anti-rollback state
+
+Each A/B/C host keeps its own `integrity-release-state.json` in its private data directory. The baseline is initialized once with a release version and commit that the administrator has independently confirmed as the known-good deployed build. A run is serialized with an exclusive lock; older versions and same-version/different-commit tag changes are rejected. The state advances only after the node returns an approved verification result. A rejected or incomplete check never advances the pin. Do not initialize the baseline from the live `/VERSION` response alone.
+
+## Deployment gates not fabricated by this code
 
 Before a host can run this bootstrap, its administrator must supply and test: the deployed-release resolver, exact public path allowlist, node-specific Ed25519 key, independent alert transport, private vendor autoload path, private data directory and (for A/B) unique Node 4 bearer token. Node 4 separately needs A/B public keys, matching bearer tokens, private event storage and a real alert sender.
 
