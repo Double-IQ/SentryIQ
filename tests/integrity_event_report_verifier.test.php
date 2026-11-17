@@ -86,6 +86,47 @@ $reject = static function (callable $operation, string $message): void {
 
 $reject(fn() => $verifier->accept($valid), 'Replayed report must be rejected by the atomic challenge store.');
 
+$outerDuplicate = '{"payload":"ambiguous",' . substr($valid, 1);
+$reject(
+    fn() => $verifier->accept($outerDuplicate),
+    'Duplicate envelope keys must be rejected before signature processing.'
+);
+
+$outer = json_decode($valid, true, 8, JSON_THROW_ON_ERROR);
+$rawPayload = base64_decode($outer['payload'], true);
+$duplicateDecisionPayload = str_replace(
+    '"decision":"approve"',
+    '"decision":"approve","decision":"reject"',
+    $rawPayload
+);
+$duplicateDecisionEnvelope = json_encode([
+    'payload' => base64_encode($duplicateDecisionPayload),
+    'signature' => base64_encode(sodium_crypto_sign_detached($duplicateDecisionPayload, $secretA)),
+], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+$reject(
+    fn() => $verifier->accept($duplicateDecisionEnvelope),
+    'Duplicate signed payload fields must be rejected even when the altered payload has a valid signature.'
+);
+
+$nestedDuplicatePayload = array_replace($payload, [
+    'decision' => 'reject',
+    'mismatches' => [['path' => 'assets/app.js', 'reason' => 'content_mismatch']],
+]);
+$nestedRaw = json_encode($nestedDuplicatePayload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+$nestedRaw = str_replace(
+    '"path":"assets/app.js"',
+    '"path":"assets/app.js","path":"assets/app.js"',
+    $nestedRaw
+);
+$nestedDuplicateEnvelope = json_encode([
+    'payload' => base64_encode($nestedRaw),
+    'signature' => base64_encode(sodium_crypto_sign_detached($nestedRaw, $secretA)),
+], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+$reject(
+    fn() => $verifier->accept($nestedDuplicateEnvelope),
+    'Duplicate nested evidence fields must be rejected.'
+);
+
 $badSignature = json_decode($valid, true, 8, JSON_THROW_ON_ERROR);
 $badSignature['signature'] = base64_encode(random_bytes(SODIUM_CRYPTO_SIGN_BYTES));
 $reject(
