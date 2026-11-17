@@ -45,6 +45,7 @@ final class IntegrityNodeEventRunner
         $manifestDigest = hash_file('sha256', $manifest);
         $artifactDigest = hash_file('sha256', $artifact);
         if (!is_string($manifestDigest) || !is_string($artifactDigest)) {
+            $this->alertFailure('local_evidence_unreadable', ['phase' => 'prepare']);
             throw new RuntimeException('Unable to bind Node 4 challenge to local release files.');
         }
         $releaseVersion = trim($releaseVersion);
@@ -63,13 +64,22 @@ final class IntegrityNodeEventRunner
             throw new RuntimeException('Node 4 challenge request failed; independent owner alert was attempted.', 0, $exception);
         }
 
-        $result = $verifyWithNonce($challenge['nonce']);
-        if (!is_array($result) || !is_string($result['report'] ?? null)
-            || !is_string($result['manifest_sha256'] ?? null)
-            || !is_string($result['artifact_sha256'] ?? null)
-            || !hash_equals($manifestDigest, $result['manifest_sha256'])
-            || !hash_equals($artifactDigest, $result['artifact_sha256'])) {
-            throw new RuntimeException('Local verification inputs changed after the Node 4 challenge was issued.');
+        try {
+            $result = $verifyWithNonce($challenge['nonce']);
+            if (!is_array($result) || !is_string($result['report'] ?? null)
+                || !is_string($result['manifest_sha256'] ?? null)
+                || !is_string($result['artifact_sha256'] ?? null)
+                || !hash_equals($manifestDigest, $result['manifest_sha256'])
+                || !hash_equals($artifactDigest, $result['artifact_sha256'])) {
+                throw new RuntimeException('Local verification inputs changed after the Node 4 challenge was issued.');
+            }
+        } catch (\\Throwable $exception) {
+            $this->alertFailure('local_verification_failed', [
+                'phase' => 'verification',
+                'release_version' => $version,
+                'exception' => get_class($exception),
+            ]);
+            throw new RuntimeException('Local integrity verification failed; independent owner alert was attempted.', 0, $exception);
         }
 
         try {
