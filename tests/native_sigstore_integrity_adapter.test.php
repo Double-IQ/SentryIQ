@@ -24,6 +24,7 @@ final class FakeReleaseArtifactVerifier implements ReleaseArtifactVerifier
             'repository_id' => '1345956206',
             'source_ref' => 'refs/tags/v' . $version,
             'source_commit' => str_repeat('a', 40),
+            'workflow_commit' => str_repeat('a', 40),
             'workflow_path' => '.github/workflows/release.yml',
             'workflow_ref' => 'Double-IQ/SentryIQ/.github/workflows/release.yml@refs/tags/v' . $version,
             'source_event' => 'push',
