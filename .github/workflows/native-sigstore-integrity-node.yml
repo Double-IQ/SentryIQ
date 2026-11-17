@@ -3,6 +3,10 @@ name: Native Sigstore Integrity Node Tests
 on:
   pull_request:
     paths:
+      - 'docs/security/integrity-node-native-sigstore-runtime.md'
+      - 'docs/security/integrity-node-c-heliohost.md'
+      - 'docs/security/btm-sa-node4-deployment.md'
+      - 'docs/security/canonical-release-manifest.md'
       - '.htaccess'
       - 'tests/origin_security_headers.test.py'
       - 'app/Updates/NativeSigstoreIntegrityAttestationVerifier.php'
