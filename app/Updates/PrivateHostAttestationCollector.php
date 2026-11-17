@@ -232,9 +232,9 @@ final class PrivateHostAttestationCollector
                 continue;
             }
             try {
-                $iterator = new \\RecursiveIteratorIterator(
-                    new \\RecursiveDirectoryIterator($absolute, \\FilesystemIterator::SKIP_DOTS),
-                    \\RecursiveIteratorIterator::SELF_FIRST
+                $iterator = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator($absolute, \FilesystemIterator::SKIP_DOTS),
+                    \RecursiveIteratorIterator::SELF_FIRST
                 );
                 foreach ($iterator as $item) {
                     $relative = $directory . '/' . str_replace(DIRECTORY_SEPARATOR, '/', substr($item->getPathname(), strlen($absolute) + 1));
@@ -246,7 +246,7 @@ final class PrivateHostAttestationCollector
                         throw new RuntimeException('Collector discovered more unexpected files than its evidence limit.');
                     }
                 }
-            } catch (\\Throwable $exception) {
+            } catch (\Throwable $exception) {
                 if ($exception instanceof RuntimeException) throw $exception;
                 $unexpected[$directory] = true;
             }
