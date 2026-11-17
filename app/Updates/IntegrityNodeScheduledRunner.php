@@ -18,7 +18,7 @@ use Throwable;
  */
 final class IntegrityNodeScheduledRunner
 {
-    /** @var callable():array{version:string,commit:string,installed_version:string} */
+    /** @var callable():array{version:string,commit:string} */
     private $resolveRelease;
 
     /** @var callable(string,string,string,string,string,string,array,string):array<string,mixed> */
@@ -37,6 +37,7 @@ final class IntegrityNodeScheduledRunner
         private readonly string $publicWebRoot,
         private readonly string $targetOrigin,
         private readonly array $publicPaths,
+        private readonly IntegrityNodeReleaseStateStore $releaseState,
         private readonly ?IntegrityNodeEventRunner $eventRunner = null,
     ) {
         if (!in_array($nodeId, ['integrity-a', 'integrity-b', 'integrity-c'], true)) {
@@ -66,13 +67,26 @@ final class IntegrityNodeScheduledRunner
     public function run(): array
     {
         try {
+            return $this->releaseState->runExclusive(fn(): array => $this->runLocked());
+        } catch (Throwable $exception) {
+            if (!$this->wasAlreadyAlerted($exception)) {
+                $this->alertFailure($exception);
+            }
+            throw new RuntimeException('Scheduled integrity execution failed; independent owner alert was attempted.', 0, $exception);
+        }
+    }
+
+    /** @return array<string,mixed> */
+    private function runLocked(): array
+    {
+        $baseline = $this->releaseState->current();
+        try {
             $release = ($this->resolveRelease)();
             if (!is_array($release)
                 || !is_string($release['version'] ?? null)
                 || !is_string($release['commit'] ?? null)
-                || !is_string($release['installed_version'] ?? null)
                 || !preg_match('/^[a-f0-9]{40}$/i', $release['commit'])) {
-                throw new RuntimeException('Release resolver must return a stable version, full commit SHA and installed version.');
+                throw new RuntimeException('Release resolver must return the deployed stable version and its full source commit SHA.');
             }
             $version = trim($release['version']);
             if (str_starts_with($version, 'v')) {
@@ -82,14 +96,15 @@ final class IntegrityNodeScheduledRunner
                 throw new RuntimeException('Release resolver version must use stable MAJOR.MINOR.PATCH format.');
             }
             $commit = strtolower($release['commit']);
+            $this->releaseState->assertCandidate($version, $commit);
+            $installedVersion = $baseline['version'];
             $staged = $this->artifactFetcher->fetch(
                 $version,
                 rtrim($this->privateDataDirectory, '/') . '/integrity-releases/' . $version,
                 $this->publicWebRoot
             );
         } catch (Throwable $exception) {
-            $this->alertFailure($exception);
-            throw new RuntimeException('Release selection or artifact staging failed; independent owner alert was attempted.', 0, $exception);
+            throw new RuntimeException('Release selection or artifact staging failed.', 0, $exception);
         }
 
         $verify = fn(string $nonce): array => ($this->verify)(
@@ -97,7 +112,7 @@ final class IntegrityNodeScheduledRunner
             $staged['artifact_path'],
             $version,
             $commit,
-            $release['installed_version'],
+            $installedVersion,
             $this->targetOrigin,
             $this->publicPaths,
             $nonce
@@ -106,14 +121,18 @@ final class IntegrityNodeScheduledRunner
         // The A/B event runner already performs direct alerts for verification
         // and Node 4 transport failures. Do not send a duplicate alert here.
         if ($this->eventRunner !== null) {
-            return $this->eventRunner->run(
+            $result = $this->eventRunner->run(
                 $verify,
                 $staged['manifest_path'],
                 $staged['artifact_path'],
                 $version,
                 $commit,
                 $this->targetOrigin
-            ) + ['release_version' => $version, 'release_commit' => $commit];
+            );
+            if (($result['approved'] ?? null) === true) {
+                $this->releaseState->recordApproved($version, $commit);
+            }
+            return $result + ['release_version' => $version, 'release_commit' => $commit];
         }
 
         try {
@@ -123,13 +142,23 @@ final class IntegrityNodeScheduledRunner
                 || !is_string($result['report'] ?? null)) {
                 throw new RuntimeException('Integrity Node verifier returned an invalid result.');
             }
+            if ($result['approved'] === true) {
+                $this->releaseState->recordApproved($version, $commit);
+            }
             return $result + ['release_version' => $version, 'release_commit' => $commit];
         } catch (Throwable $exception) {
-            if (!$exception instanceof IntegrityNodeAlertedException) {
-                $this->alertFailure($exception);
-            }
-            throw new RuntimeException('Scheduled integrity verification failed; independent owner alert was attempted.', 0, $exception);
+            throw new RuntimeException('Scheduled integrity verification failed.', 0, $exception);
         }
+    }
+
+    private function wasAlreadyAlerted(Throwable $exception): bool
+    {
+        for ($current = $exception; $current !== null; $current = $current->getPrevious()) {
+            if ($current instanceof IntegrityNodeAlertedException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private function alertFailure(Throwable $exception): void
