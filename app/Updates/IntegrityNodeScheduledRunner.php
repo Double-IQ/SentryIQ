@@ -50,8 +50,8 @@ final class IntegrityNodeScheduledRunner
             || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])) {
             throw new RuntimeException('Scheduled runner target must be the canonical SentryIQ HTTPS origin.');
         }
-        if ($publicPaths === [] || !array_is_list($publicPaths)) {
-            throw new RuntimeException('Scheduled runner requires an explicit public-path allowlist.');
+        if (!array_is_list($publicPaths)) {
+            throw new RuntimeException('Scheduled runner public-path selection must be a list.');
         }
         if ($nodeId === 'integrity-c' && $eventRunner !== null) {
             throw new RuntimeException('Node C must remain independent of the Node 4 event receiver.');
