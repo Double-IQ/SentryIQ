@@ -54,7 +54,7 @@ final class IntegrityNodeEvidenceStore
      *
      * @return array{evidence_id:string,evidence_path:string,stored_at:int}
      */
-    public function append(string $signedEnvelope, string $expectedVersion, string $expectedCommit, string $expectedManifestDigest, string $expectedArtifactDigest, bool $expectedApproved): array
+    public function append(string $signedEnvelope, string $expectedVersion, string $expectedCommit, string $expectedManifestDigest, string $expectedArtifactDigest, bool $expectedApproved, string $expectedNonce): array
     {
         if ($signedEnvelope === '' || strlen($signedEnvelope) > 65536) {
             throw new RuntimeException('Node C signed evidence is empty or exceeds the size limit.');
@@ -97,6 +97,13 @@ final class IntegrityNodeEvidenceStore
             || ($payload['workflow_path'] ?? null) !== '.github/workflows/release.yml'
             || ($payload['tag'] ?? null) !== 'v' . $payload['release_version']) {
             throw new RuntimeException('Node C signed evidence release identity or schema is invalid.');
+        }
+        $expectedNonce = strtolower(trim($expectedNonce));
+        if (!preg_match('/^[a-f0-9]{64}$/', $expectedNonce)
+            || !hash_equals($expectedNonce, $payload['nonce'])
+            || $payload['issued_at'] > time() + 30
+            || $payload['expires_at'] < time()) {
+            throw new RuntimeException('Node C signed evidence nonce or freshness is invalid.');
         }
         if (!hash_equals(ltrim($expectedVersion, 'v'), $payload['release_version'])
             || !hash_equals(strtolower($expectedCommit), $payload['commit'])
