@@ -213,7 +213,7 @@ final class IntegrityNodeA
                 || ($privateHost['approved'] !== ($privateHost['mismatches'] === []))) {
                 throw new RuntimeException('Private-host attestation verifier returned an invalid result.');
             }
-        } catch (\\Throwable $exception) {
+        } catch (\Throwable $exception) {
             $this->alertFailure('private_host_attestation_unavailable', [
                 'release_version' => $version,
                 'phase' => 'private_host_attestation',
