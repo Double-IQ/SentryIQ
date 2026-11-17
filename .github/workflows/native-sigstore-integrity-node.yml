@@ -92,7 +92,7 @@ jobs:
             tests/integrity_deployed_release_resolver.test.php \
             tests/integrity_node_release_state.test.php \
             tests/integrity_node_scheduled_runner.test.php \
-            tests/integrity_public_asset_policy.test.php \\
+            tests/integrity_public_asset_policy.test.php \
             tests/integrity_origin_security_header_verifier.test.php; do
             php -l "$file"
           done
