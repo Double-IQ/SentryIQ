@@ -24,6 +24,8 @@ mkdir($webroot, 0700, true);
 mkdir($private, 0700, true);
 $fetcher = new IntegrityReleaseArtifactFetcher();
 $releaseState = new SentryIQ\Updates\IntegrityNodeReleaseStateStore($private, $webroot);
+$keyPair = sodium_crypto_sign_keypair();
+$evidenceStore = new SentryIQ\Updates\IntegrityNodeEvidenceStore($private, $webroot, base64_encode(sodium_crypto_sign_publickey($keyPair)));
 $releaseState->initializeBaseline('0.1.3', str_repeat('a', 40), str_repeat('c', 64), str_repeat('d', 64));
 $alerts = [];
 $fetchCalls = 0;
