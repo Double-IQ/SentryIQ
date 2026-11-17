@@ -8,6 +8,7 @@ own independent owner-alert paths.
 
 ## Components
 
+- `IntegrityEventClient`: strict HTTPS client for A/B challenge requests and signed report submissions; verifies TLS and refuses redirects.
 - `integrity_event.php`: machine-to-machine HTTPS endpoint. It supports
   authenticated `challenge` requests and signed `report` submissions.
 - `IntegrityEventReportVerifier`: verifies one signed A/B report at a time,
@@ -58,7 +59,7 @@ nodes.
 
 ## Protocol
 
-1. A/B authenticate to `POST /integrity_event.php` with
+1. A/B use `IntegrityEventClient` to authenticate to `POST /integrity_event.php` with
    `Authorization: Bearer <node-token>` and JSON action `challenge`.
 2. Challenge request binds node ID, target origin, release version, commit,
    artifact SHA-256 and manifest SHA-256.
