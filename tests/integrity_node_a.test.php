@@ -19,7 +19,7 @@ $signer = new IntegrityReportSigner(
     static fn(): int => 1794200000
 );
 
-$publicBody = "<?php echo 'SentryIQ';\n";
+$publicBody = "console.log('SentryIQ');\n";
 $manifest = [
     'format' => 2,
     'repository' => 'Double-IQ/SentryIQ',
@@ -27,8 +27,10 @@ $manifest = [
     'version' => '0.1.3',
     'commit' => str_repeat('a', 40),
     'workflow_path' => '.github/workflows/release.yml',
+    'public_files' => ['assets/app.js'],
+    'public_http_files' => ['assets/app.js'],
     'files' => [[
-        'path' => 'index.php',
+        'path' => 'assets/app.js',
         'size' => strlen($publicBody),
         'sha256' => hash('sha256', $publicBody),
     ]],
@@ -71,7 +73,7 @@ try {
         str_repeat('a', 40),
         '0.1.2',
         'https://example.invalid/SentryIQ',
-        ['index.php'],
+        ['assets/app.js'],
         str_repeat('c', 64)
     );
     nodeAAssert($approved['approved'] === true, 'Matching public file should approve.');
@@ -80,11 +82,11 @@ try {
     nodeAAssert(($signedPayload['schema_version'] ?? null) === 2, 'Node report must use the signed event-evidence schema.');
     nodeAAssert(($signedPayload['target_origin'] ?? null) === 'https://example.invalid/SentryIQ', 'Signed report must bind the monitored origin.');
     nodeAAssert(($signedPayload['manifest_sha256'] ?? null) === $approved['manifest_sha256'], 'Signed report must bind the manifest digest.');
-    nodeAAssert(($signedPayload['checked_paths'] ?? null) === ['index.php'], 'Signed report must include checked paths.');
+    nodeAAssert(($signedPayload['checked_paths'] ?? null) === ['assets/app.js'], 'Signed report must include checked paths.');
     nodeAAssert(($signedPayload['mismatches'] ?? null) === [], 'Signed report must include mismatch evidence.');
 
     nodeAAssert(count($verifyCalls) === 2, 'Both manifest and ZIP provenance must be verified.');
-    nodeAAssert($approved['checked_paths'] === ['index.php'], 'Configured path should be checked.');
+    nodeAAssert($approved['checked_paths'] === ['assets/app.js'], 'Configured path should be checked.');
 
     $alerts = [];
     $tamperedNode = new IntegrityNodeA(
@@ -102,7 +104,7 @@ try {
         str_repeat('a', 40),
         '0.1.2',
         'https://example.invalid/SentryIQ',
-        ['index.php'],
+        ['assets/app.js'],
         str_repeat('d', 64)
     );
     nodeAAssert($rejected['approved'] === false, 'Changed public file must reject.');
