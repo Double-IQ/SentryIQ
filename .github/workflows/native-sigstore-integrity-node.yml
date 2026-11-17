@@ -3,6 +3,8 @@ name: Native Sigstore Integrity Node Tests
 on:
   pull_request:
     paths:
+      - '.htaccess'
+      - 'tests/origin_security_headers.test.py'
       - 'app/Updates/NativeSigstoreIntegrityAttestationVerifier.php'
       - 'app/Updates/NativeSigstoreReleaseVerifier.php'
       - 'app/Updates/ReleaseArtifactVerifier.php'
@@ -15,6 +17,8 @@ on:
       - 'scripts/build-release-manifest.py'
       - 'tests/build_release_manifest.test.py'
       - 'tests/integrity_public_asset_policy.test.php'
+      - '.htaccess'
+      - 'tests/origin_security_headers.test.py'
       - 'app/Updates/IntegrityNodeScheduledRunner.php'
       - 'bin/integrity-node-run.php'
       - 'tests/native_sigstore_integrity_adapter.test.php'
@@ -100,3 +104,4 @@ jobs:
           php tests/integrity_node_scheduled_runner.test.php
           php tests/integrity_public_asset_policy.test.php
           python3 tests/build_release_manifest.test.py
+          python3 tests/origin_security_headers.test.py
