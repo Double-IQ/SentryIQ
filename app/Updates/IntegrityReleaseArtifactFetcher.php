@@ -95,7 +95,8 @@ final class IntegrityReleaseArtifactFetcher
                 $host = strtolower((string)($parts['host'] ?? ''));
                 if (!is_array($parts) || ($parts['scheme'] ?? '') !== 'https'
                     || !in_array($host, self::REDIRECT_HOSTS, true)
-                    || isset($parts['user']) || isset($parts['pass'])) {
+                    || (isset($parts['port']) && $parts['port'] !== 443)
+                    || isset($parts['user']) || isset($parts['pass']) || isset($parts['fragment'])) {
                     throw new RuntimeException('Release asset URL is outside the HTTPS GitHub host allowlist.');
                 }
 
