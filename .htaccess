@@ -34,3 +34,14 @@ RewriteRule ^records_view\.js$ assets/js/records_view.js [L]
 RewriteRule ^safari\.js$ assets/js/safari.js [L]
 RewriteRule ^sentryiq-logo-wide\.webp$ assets/images/sentryiq-logo-wide.webp [L]
 RewriteRule ^assets/css/sentryiq-logo-wide\.webp$ assets/images/sentryiq-logo-wide.webp [L]
+
+# Apply conservative browser security headers when Apache mod_headers is available.
+# HSTS is scoped to this HTTPS host; includeSubDomains is intentionally omitted.
+<IfModule mod_headers.c>
+    Header always set Strict-Transport-Security "max-age=31536000"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    Header always set Content-Security-Policy "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+</IfModule>
