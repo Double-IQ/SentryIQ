@@ -7,6 +7,8 @@ on:
       - 'app/Updates/PrivateHostAttestationVerifier.php'
       - 'app/Updates/PrivateHostAttestationCollector.php'
       - 'app/Updates/PrivateHostAttestationRequestHandler.php'
+      - 'app/Updates/IntegrityNode4RuntimeConfig.php'
+      - 'tests/integrity_node4_runtime_config.test.php'
       - 'app/Updates/IntegrityEventRequestDecoder.php'
       - 'integrity_event.php'
       - 'tests/integrity_event_request_decoder.test.php'
@@ -64,6 +66,8 @@ on:
       - 'app/Updates/PrivateHostAttestationCollector.php'
       - 'app/Updates/PrivateHostAttestationRequestHandler.php'
       - 'app/Updates/PrivateHostAttestationNonceStore.php'
+      - 'app/Updates/IntegrityNode4RuntimeConfig.php'
+      - 'tests/integrity_node4_runtime_config.test.php'
       - 'app/Updates/IntegrityEventRequestDecoder.php'
       - 'integrity_event.php'
       - 'tests/integrity_event_request_decoder.test.php'
@@ -136,7 +140,9 @@ jobs:
             app/Updates/PrivateHostAttestationGate.php \
             app/Updates/PrivateHostAttestationRequestHandler.php \
             app/Updates/PrivateHostAttestationNonceStore.php \
-            app/Updates/IntegrityEventRequestDecoder.php \
+            app/Updates/IntegrityEventRequestDecoder.php \\
+            app/Updates/IntegrityNode4RuntimeConfig.php \\
+            tests/integrity_node4_runtime_config.test.php \
             integrity_event.php \
             tests/integrity_event_request_decoder.test.php \
             app/Updates/IntegrityNodeAlertedException.php \
@@ -181,6 +187,7 @@ jobs:
           php tests/private_host_attestation_collector.test.php
           php tests/private_host_attestation_client.test.php
           php tests/private_host_attestation_gate.test.php
+          php tests/integrity_node4_runtime_config.test.php
           php tests/integrity_event_request_decoder.test.php
           php tests/private_host_attestation_request_handler.test.php
           php tests/integrity_node_a.test.php
