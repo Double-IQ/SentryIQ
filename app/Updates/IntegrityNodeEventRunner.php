@@ -12,8 +12,20 @@ use RuntimeException;
  */
 final class IntegrityNodeEventRunner
 {
-    public function __construct(private readonly IntegrityEventClient $client)
-    {
+    /** @var callable(string,string,array<string,mixed>):void */
+    private $notifyFailure;
+
+    /**
+     * A direct owner-alert callback is mandatory because Node 4 shares the
+     * SentryIQ host and cannot be the sole route for reporting its own outage.
+     *
+     * @param callable(string,string,array<string,mixed>):void $notifyFailure
+     */
+    public function __construct(
+        private readonly IntegrityEventClient $client,
+        callable $notifyFailure
+    ) {
+        $this->notifyFailure = $notifyFailure;
     }
 
     /**
@@ -38,13 +50,18 @@ final class IntegrityNodeEventRunner
         $releaseVersion = trim($releaseVersion);
         $version = str_starts_with($releaseVersion, 'v') ? substr($releaseVersion, 1) : $releaseVersion;
         $targetOrigin = rtrim($targetOrigin, '/');
-        $challenge = $this->client->requestChallenge(
-            $targetOrigin,
-            $version,
-            strtolower($commit),
-            $artifactDigest,
-            $manifestDigest
-        );
+        try {
+            $challenge = $this->client->requestChallenge(
+                $targetOrigin,
+                $version,
+                strtolower($commit),
+                $artifactDigest,
+                $manifestDigest
+            );
+        } catch (\\Throwable $exception) {
+            $this->alertFailure('node4_challenge_unavailable', ['phase' => 'challenge']);
+            throw new RuntimeException('Node 4 challenge request failed; independent owner alert was attempted.', 0, $exception);
+        }
 
         $result = $verifyWithNonce($challenge['nonce']);
         if (!is_array($result) || !is_string($result['report'] ?? null)
@@ -55,11 +72,26 @@ final class IntegrityNodeEventRunner
             throw new RuntimeException('Local verification inputs changed after the Node 4 challenge was issued.');
         }
 
-        $acknowledgement = $this->client->submitReport($result['report']);
+        try {
+            $acknowledgement = $this->client->submitReport($result['report']);
+        } catch (\\Throwable $exception) {
+            $this->alertFailure('node4_report_delivery_failed', ['phase' => 'report']);
+            throw new RuntimeException('Node 4 report delivery failed; independent owner alert was attempted.', 0, $exception);
+        }
         return $result + [
             'challenge_expires_at' => $challenge['expires_at'],
             'event_acknowledgement' => $acknowledgement,
         ];
+    }
+
+
+    private function alertFailure(string $reason, array $context): void
+    {
+        try {
+            ($this->notifyFailure)($this->client->nodeId(), $reason, $context);
+        } catch (\\Throwable $exception) {
+            throw new RuntimeException('Independent integrity-node owner alert delivery failed.', 0, $exception);
+        }
     }
 
     private function regularFile(string $path): string
