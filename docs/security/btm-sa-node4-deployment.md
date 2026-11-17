@@ -56,8 +56,8 @@ return [
 
 Before enabling the endpoint, create the dedicated storage directory under
 `data_dir`, outside `httpdocs`, owned by the SentryIQ PHP account and writable
-only by that account (normally mode 0700). The state and lock files are created
-with mode 0600. The endpoint refuses a storage directory outside the resolved
+only by that account (mode 0700 is enforced). The state and lock files are created
+with mode 0600 under a restrictive umask, and existing files with broader permissions are rejected. The endpoint refuses a storage directory outside the resolved
 private data directory. Keep the per-node tokens and private signing keys out
 of Git, release ZIPs, webroot, and shared configuration exports.
 
