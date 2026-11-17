@@ -50,7 +50,7 @@ if ($contentLength < 1 || $contentLength > 32768) {
 
 require_once __DIR__ . '/app/Updates/IntegrityNode4RuntimeConfig.php';
 try {
-    $config = SentryIQ\\Updates\\IntegrityNode4RuntimeConfig::load(__DIR__ . '/sentryiq_config.php');
+    $config = SentryIQ\Updates\IntegrityNode4RuntimeConfig::load(__DIR__ . '/sentryiq_config.php');
 } catch (Throwable) {
     integrityEventRespond(503, ['status' => 'error', 'message' => 'Node 4 private runtime configuration is unavailable.']);
 }
