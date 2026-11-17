@@ -13,10 +13,10 @@ function provenanceAssert(bool $condition, string $message): void
     }
 }
 
-function provenanceReject(array $statement, string $workflowCommit, string $message): void
+function provenanceReject(array $statement, string $message): void
 {
     try {
-        SigstoreProvenance::claimsFromArray($statement, $workflowCommit, '0.1.2', str_repeat('a', 64));
+        SigstoreProvenance::claimsFromArray($statement, '0.1.2', str_repeat('a', 64), 'sentryiq-0.1.2.zip');
     } catch (Throwable) {
         return;
     }
@@ -61,10 +61,20 @@ $statement = [
     ],
 ];
 
-$claims = SigstoreProvenance::claimsFromArray($statement, $commit, '0.1.2', str_repeat('a', 64));
+$claims = SigstoreProvenance::claimsFromArray($statement, '0.1.2', str_repeat('a', 64), 'sentryiq-0.1.2.zip');
 provenanceAssert($claims['source_commit'] === $commit, 'Source commit must be extracted from the SLSA resolved dependency.');
-provenanceAssert($claims['workflow_commit'] === $commit, 'Workflow commit must be supplied from the authenticated Fulcio Build Config Digest.');
 provenanceAssert($claims['repository_id'] === '1345956206', 'Repository ID must be pinned.');
+
+$manifestStatement = $statement;
+$manifestStatement['subject'][0]['name'] = 'release-manifest.json';
+$manifestClaims = SigstoreProvenance::claimsFromArray($manifestStatement, '0.1.2', str_repeat('a', 64), 'release-manifest.json');
+provenanceAssert($manifestClaims['subject_sha256'] === str_repeat('a', 64), 'Canonical release manifest must be accepted as a separately attested subject.');
+try {
+    SigstoreProvenance::claimsFromArray($statement, '0.1.2', str_repeat('a', 64), 'release-manifest.json');
+    throw new RuntimeException('ZIP subject must not be accepted when manifest subject is expected.');
+} catch (RuntimeException $exception) {
+    if ($exception->getMessage() === 'ZIP subject must not be accepted when manifest subject is expected.') throw $exception;
+}
 provenanceAssert(!array_key_exists('cryptographically_verified', $claims), 'Unverified parsed JSON must never be marked cryptographically verified.');
 
 $mutations = [
@@ -87,15 +97,7 @@ $mutations = [
 foreach ($mutations as $label => $mutate) {
     $tampered = $statement;
     $mutate($tampered);
-    provenanceReject($tampered, $commit, 'Provenance parser must reject ' . $label . '.');
+    provenanceReject($tampered, 'Provenance parser must reject ' . $label . '.');
 }
-
-try {
-    SigstoreProvenance::claimsFromArray($statement, str_repeat('a', 39), '0.1.2', str_repeat('a', 64));
-} catch (Throwable) {
-    echo "SLSA provenance claim tests passed.\n";
-    exit(0);
-}
-throw new RuntimeException('Provenance parser must reject a malformed authenticated workflow commit.');
 
 echo "SLSA provenance claim tests passed.\n";
