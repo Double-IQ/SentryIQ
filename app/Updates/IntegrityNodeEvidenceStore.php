@@ -130,14 +130,16 @@ final class IntegrityNodeEvidenceStore
             || !is_array($mismatches) || !array_is_list($mismatches) || count($mismatches) > 100) {
             throw new RuntimeException('Node C signed evidence path lists are invalid.');
         }
+        $seenChecked = [];
         foreach ($checked as $path) {
-            if (!is_string($path) || !self::safeEvidencePath($path)) {
-                throw new RuntimeException('Node C signed evidence contains an unsafe checked path.');
+            if (!is_string($path) || !self::safeEvidencePath($path) || isset($seenChecked[$path])) {
+                throw new RuntimeException('Node C signed evidence contains an unsafe or duplicate checked path.');
             }
+            $seenChecked[$path] = true;
         }
         foreach ($mismatches as $item) {
             if (!is_array($item) || !is_string($item['path'] ?? null)
-                || !self::safeEvidencePath($item['path'])
+                || !self::safeEvidencePath($item['path']) || !isset($seenChecked[$item['path']])
                 || !in_array($item['reason'] ?? null, ['content_mismatch', 'fetch_failed', 'security_header_mismatch', 'private_host_attestation_failed'], true)) {
                 throw new RuntimeException('Node C signed evidence contains an invalid mismatch record.');
             }
