@@ -28,7 +28,9 @@ final class PrivateHostAttestationRequestHandler
         array $nodeTokens,
         callable $consumeNonce
     ) {
-        if (array_keys($nodeTokens) !== ['integrity-a', 'integrity-b']
+        if (count($nodeTokens) !== 2
+            || !array_key_exists('integrity-a', $nodeTokens)
+            || !array_key_exists('integrity-b', $nodeTokens)
             || !is_string($nodeTokens['integrity-a'] ?? null)
             || !is_string($nodeTokens['integrity-b'] ?? null)
             || !preg_match('/^[A-Za-z0-9_-]{40,128}$/', $nodeTokens['integrity-a'])
@@ -46,14 +48,14 @@ final class PrivateHostAttestationRequestHandler
         if ($method !== 'POST' || strlen($body) < 1 || strlen($body) > 4096) {
             return $this->error(400);
         }
+        $contentType = null;
         $authorization = null;
         foreach ($headers as $name => $value) {
-            if (is_string($name) && strtolower($name) === 'authorization' && is_string($value)) {
-                $authorization = $value;
-                break;
-            }
+            if (!is_string($name) || !is_string($value)) continue;
+            if (strtolower($name) === 'authorization') $authorization = $value;
+            if (strtolower($name) === 'content-type') $contentType = strtolower(trim(explode(';', $value, 2)[0]));
         }
-        if (!is_string($authorization) || !str_starts_with($authorization, 'Bearer ')) {
+        if ($contentType !== 'application/json' || !is_string($authorization) || !str_starts_with($authorization, 'Bearer ')) {
             return $this->error(401);
         }
         $token = substr($authorization, 7);
