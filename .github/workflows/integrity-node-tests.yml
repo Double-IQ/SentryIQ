@@ -2,7 +2,7 @@ name: Integrity Node Tests
 
 on:
   pull_request:
-    branches: [main, feat/signed-integrity-event-evidence]
+    branches: [main, feat/signed-integrity-event-evidence, feat/btm-sa-node4-report-ingestion-rebased]
     paths:
       - 'app/Updates/IntegrityNode*.php'
       - 'app/Updates/IntegrityReport*.php'
