@@ -2,7 +2,7 @@ name: Integrity Node Tests
 
 on:
   pull_request:
-    branches: [main, feat/signed-integrity-event-evidence, feat/btm-sa-node4-report-ingestion-rebased]
+    branches: [main, feat/signed-integrity-event-evidence, feat/btm-sa-node4-report-ingestion-rebased, feat/native-sigstore-node-artifact-verification-rebased]
     paths:
       - 'app/Updates/IntegrityNode*.php'
       - 'app/Updates/IntegrityReport*.php'
@@ -15,6 +15,7 @@ on:
       - 'app/Updates/IntegrityReleaseArtifactFetcher.php'
       - 'app/Updates/IntegrityPublicAssetPolicy.php'
       - 'bin/integrity-node-run.php'
+      - 'bin/integrity-node-keygen.php'
       - 'app/Updates/IntegrityDeployedReleaseResolver.php'
       - 'app/Updates/IntegrityNodeReleaseStateStore.php'
       - 'app/Updates/IntegrityNodeKeyGenerator.php'
