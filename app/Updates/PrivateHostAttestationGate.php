@@ -76,6 +76,25 @@ final class PrivateHostAttestationGate
         if ($origin !== 'https://sentryiq.bichet.co.za') {
             throw new RuntimeException('Private-host gate refuses an unexpected SentryIQ origin.');
         }
+        $manifestFiles = $manifest['files'] ?? null;
+        if (!is_array($manifestFiles) || !array_is_list($manifestFiles)) {
+            throw new RuntimeException('Private-host gate requires the verified release manifest file inventory.');
+        }
+        $manifestDigests = [];
+        foreach ($manifestFiles as $entry) {
+            if (!is_array($entry) || !is_string($entry['path'] ?? null)
+                || !is_string($entry['sha256'] ?? null)
+                || !preg_match('/^[a-f0-9]{64}$/', $entry['sha256'])
+                || isset($manifestDigests[$entry['path']])) {
+                throw new RuntimeException('Private-host gate received a malformed or duplicate release manifest entry.');
+            }
+            $manifestDigests[$entry['path']] = $entry['sha256'];
+        }
+        foreach ($this->expectedFiles as $path => $digest) {
+            if (!isset($manifestDigests[$path]) || !hash_equals($digest, $manifestDigests[$path])) {
+                throw new RuntimeException('Private-host gate inventory does not match the verified release manifest.');
+            }
+        }
         $envelope = $this->client->request(
             $nonce,
             $version,
