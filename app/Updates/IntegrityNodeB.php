@@ -31,6 +31,9 @@ final class IntegrityNodeB
     /** @var callable(string):array{approved:bool,mismatches:list<string>} */
     private $verifyOriginHeaders;
 
+    /** @var callable(string,string,string,string,string,array,string):array{approved:bool,mismatches:list<array<string,mixed>>} */
+    private $verifyPrivateHost;
+
     /**
      * @param callable(string,string,string,string):void $verifyAttestation
      *        Arguments: artifact path, release version, source commit, installed version.
@@ -42,7 +45,8 @@ final class IntegrityNodeB
         callable $verifyAttestation,
         ?callable $fetch = null,
         ?callable $notifyFailure = null,
-        ?callable $verifyOriginHeaders = null
+        ?callable $verifyOriginHeaders = null,
+        ?callable $verifyPrivateHost = null
     ) {
         if ($this->signer->nodeId() !== 'integrity-b') {
             throw new RuntimeException('Integrity Node B requires its own integrity-b signing identity.');
@@ -57,6 +61,7 @@ final class IntegrityNodeB
         $this->fetch = $fetch ?? fn(string $url): string => $this->fetchHttps($url);
         $this->notifyFailure = $notifyFailure;
         $this->verifyOriginHeaders = $verifyOriginHeaders;
+        $this->verifyPrivateHost = $verifyPrivateHost;
     }
 
     /**
@@ -190,6 +195,42 @@ final class IntegrityNodeB
         $manifestDigest = hash('sha256', $manifestBytes);
         if (!is_string($artifactDigest)) {
             throw new RuntimeException('Unable to calculate release artifact digest.');
+        }
+
+        try {
+            $privateHost = ($this->verifyPrivateHost)(
+                $version,
+                $commit,
+                $manifestDigest,
+                $artifactDigest,
+                $nonce,
+                $manifest,
+                rtrim($origin, '/')
+            );
+            if (!is_array($privateHost) || !is_bool($privateHost['approved'] ?? null)
+                || !is_array($privateHost['mismatches'] ?? null) || !array_is_list($privateHost['mismatches'])
+                || count($privateHost['mismatches']) > 100
+                || ($privateHost['approved'] !== ($privateHost['mismatches'] === []))) {
+                throw new RuntimeException('Private-host attestation verifier returned an invalid result.');
+            }
+        } catch (\\Throwable $exception) {
+            $this->alertFailure('private_host_attestation_unavailable', [
+                'release_version' => $version,
+                'phase' => 'private_host_attestation',
+            ]);
+            throw new IntegrityNodeAlertedException(
+                'Private-host deployment attestation failed after independent owner alert delivery.',
+                0,
+                $exception
+            );
+        }
+        $checked[] = '@private-host-attestation';
+        if ($privateHost['approved'] !== true) {
+            $mismatches[] = ['path' => '@private-host-attestation', 'reason' => 'private_host_attestation_failed'];
+            $this->alertFailure('private_host_attestation_rejected', [
+                'release_version' => $version,
+                'mismatch_count' => count($privateHost['mismatches']),
+            ]);
         }
 
         $approved = $mismatches === [];
