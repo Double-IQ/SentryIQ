@@ -43,7 +43,9 @@ try {
     $monitor = new SentryIQ\Updates\IntegrityNode4Monitor($store, $correlator, $dispatcher);
     $result = $monitor->run($targetOrigin);
     fwrite(STDOUT, json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) . "\n");
-    exit(($result['evaluation']['status'] ?? null) === 'healthy' ? 0 : 1);
+    $healthy = ($result['evaluation']['status'] ?? null) === 'healthy'
+        && ($result['delivery']['remaining'] ?? 1) === 0;
+    exit($healthy ? 0 : 1);
 } catch (Throwable $exception) {
     fwrite(STDERR, "Node 4 monitor execution failed.\n");
     exit(3);
