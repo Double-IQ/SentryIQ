@@ -40,6 +40,9 @@ final class IntegrityNodeB
         if ($this->signer->nodeId() !== 'integrity-b') {
             throw new RuntimeException('Integrity Node B requires its own integrity-b signing identity.');
         }
+        if ($notifyFailure === null) {
+            throw new RuntimeException('Integrity Node B requires an independent direct owner-alert transport.');
+        }
         $this->verifyAttestation = $verifyAttestation;
         $this->fetch = $fetch ?? fn(string $url): string => $this->fetchHttps($url);
         $this->notifyFailure = $notifyFailure;
