@@ -14,6 +14,7 @@ on:
       - 'app/Updates/IntegrityDeployedReleaseResolver.php'
       - 'app/Updates/IntegrityNodeReleaseStateStore.php'
       - 'app/Updates/IntegrityNodeKeyGenerator.php'
+      - 'app/Updates/IntegrityNodeEvidenceStore.php'
       - 'app/Updates/IntegrityPublicAssetPolicy.php'
       - 'app/Updates/IntegrityOriginSecurityHeaderVerifier.php'
       - 'tests/integrity_origin_security_header_verifier.test.php'
@@ -29,6 +30,7 @@ on:
       - 'tests/integrity_deployed_release_resolver.test.php'
       - 'tests/integrity_node_release_state.test.php'
       - 'tests/integrity_node_key_generator.test.php'
+      - 'tests/integrity_node_evidence_store.test.php'
       - 'tests/integrity_node_scheduled_runner.test.php'
       - '.github/workflows/native-sigstore-integrity-node.yml'
   push:
@@ -82,6 +84,7 @@ jobs:
             app/Updates/IntegrityDeployedReleaseResolver.php \
             app/Updates/IntegrityNodeReleaseStateStore.php \
             app/Updates/IntegrityNodeKeyGenerator.php \
+            app/Updates/IntegrityNodeEvidenceStore.php \
             app/Updates/IntegrityNodeAlertedException.php \
             app/Updates/IntegrityNodeScheduledRunner.php \
             bin/integrity-node-keygen.php \
@@ -97,6 +100,7 @@ jobs:
             tests/integrity_deployed_release_resolver.test.php \
             tests/integrity_node_release_state.test.php \
             tests/integrity_node_key_generator.test.php \
+            tests/integrity_node_evidence_store.test.php \
             tests/integrity_node_scheduled_runner.test.php \
             tests/integrity_public_asset_policy.test.php \
             tests/integrity_origin_security_header_verifier.test.php; do
@@ -112,6 +116,7 @@ jobs:
           php tests/integrity_deployed_release_resolver.test.php
           php tests/integrity_node_release_state.test.php
           php tests/integrity_node_key_generator.test.php
+          php tests/integrity_node_evidence_store.test.php
           php tests/integrity_node_a.test.php
           php tests/integrity_node_b.test.php
           php tests/integrity_node_c.test.php
