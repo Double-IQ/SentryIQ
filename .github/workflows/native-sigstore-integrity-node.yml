@@ -37,6 +37,7 @@ on:
       - 'tests/integrity_public_asset_policy.test.php'
       - 'app/Updates/IntegrityNodeScheduledRunner.php'
       - 'bin/integrity-node-run.php'
+      - 'tests/integrity_node_cli_bootstrap.test.php'
       - 'bin/integrity-node-keygen.php'
       - 'tests/native_sigstore_integrity_adapter.test.php'
       - 'tests/release_trust_policy.test.php'
@@ -135,6 +136,7 @@ jobs:
             tests/private_host_attestation_client.test.php \
             tests/private_host_attestation_request_handler.test.php \
             tests/integrity_node_scheduled_runner.test.php \
+            tests/integrity_node_cli_bootstrap.test.php \
             tests/integrity_public_asset_policy.test.php \
             tests/integrity_origin_security_header_verifier.test.php; do
             php -l "$file"
@@ -159,6 +161,7 @@ jobs:
           php tests/integrity_node_c.test.php
           php tests/integrity_node_event_runner.test.php
           php tests/integrity_node_scheduled_runner.test.php
+          php tests/integrity_node_cli_bootstrap.test.php
           php tests/integrity_public_asset_policy.test.php
           php tests/integrity_origin_security_header_verifier.test.php
           python3 tests/build_release_manifest.test.py
