@@ -26,6 +26,17 @@ final class NativeSigstoreIntegrityAttestationVerifier
     }
 
     /**
+     * Build the production adapter from administrator-controlled private paths.
+     */
+    public static function fromPrivatePaths(string $vendorAutoloadPath, string $privateDataDirectory): self
+    {
+        return new self(
+            new NativeSigstoreReleaseVerifier($vendorAutoloadPath, $privateDataDirectory),
+            new ReleaseTrustPolicy(),
+        );
+    }
+
+    /**
      * Matches the callable contract used by IntegrityNodeA/B/C.
      *
      * @throws RuntimeException unless the exact artifact is attested and trusted.
