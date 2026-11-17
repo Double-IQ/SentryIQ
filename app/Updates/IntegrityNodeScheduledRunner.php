@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace SentryIQ\Updates;
 
-require_once __DIR__ . '/IntegrityNodeAlertedException.php';
-
 use RuntimeException;
+
+require_once __DIR__ . '/IntegrityNodeAlertedException.php';
 use Throwable;
 
 /**
