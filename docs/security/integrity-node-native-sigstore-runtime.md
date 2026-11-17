@@ -143,6 +143,21 @@ php /absolute/code-path/SentryIQ/bin/integrity-node-keygen.php integrity-a /abso
 
 Use `integrity-b` on Node B and `integrity-c` on Node C. The command refuses to overwrite an existing key, stores the raw private key as a mode-0600 file outside the webroot, and prints only the public key (base64) and file paths. It never prints or exports the private key. Keep each private key on its own node; transfer only A/B public keys to the Node 4 private configuration. Do not generate all three identities on the SentryIQ/Node 4 host.
 
+The protected node config reads the raw private key file and base64-encodes its bytes for the signer; it must never embed the key in the public pointer config or write it to logs:
+
+```php
+$secretKeyBytes = file_get_contents($privateSigningKeyPath);
+if (!is_string($secretKeyBytes) || strlen($secretKeyBytes) !== SODIUM_CRYPTO_SIGN_SECRETKEYBYTES) {
+    throw new RuntimeException('Node signing key is unavailable or invalid.');
+}
+$base64Ed25519SecretKey = base64_encode($secretKeyBytes);
+sodium_memzero($secretKeyBytes);
+$signer = new IntegrityReportSigner($nodeId, $base64Ed25519SecretKey);
+unset($base64Ed25519SecretKey);
+```
+
+The key file must be a regular non-symlink file with mode 0600 in a mode-0700 private directory. The public-key base64 printed by key generation is the only key material copied to Node 4; the private key stays on its originating host.
+
 ## CLI and schedule
 
 Set `SENTRYIQ_INTEGRITY_NODE_CONFIG` to the absolute path of this host's protected PHP config, then run:
