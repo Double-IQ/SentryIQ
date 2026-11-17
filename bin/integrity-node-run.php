@@ -15,6 +15,19 @@ require_once __DIR__ . '/../app/Updates/IntegrityReleaseArtifactFetcher.php';
 require_once __DIR__ . '/../app/Updates/IntegrityEventClient.php';
 require_once __DIR__ . '/../app/Updates/IntegrityNodeEventRunner.php';
 require_once __DIR__ . '/../app/Updates/IntegrityNodeScheduledRunner.php';
+require_once __DIR__ . '/../app/Updates/IntegrityReportSigner.php';
+require_once __DIR__ . '/../app/Updates/IntegrityNodeA.php';
+require_once __DIR__ . '/../app/Updates/IntegrityNodeB.php';
+require_once __DIR__ . '/../app/Updates/IntegrityNodeC.php';
+require_once __DIR__ . '/../app/Updates/IntegrityNodeAlertedException.php';
+require_once __DIR__ . '/../app/Updates/IntegrityNodeReleaseStateStore.php';
+require_once __DIR__ . '/../app/Updates/IntegrityDeployedReleaseResolver.php';
+require_once __DIR__ . '/../app/Updates/ReleaseArtifactVerifier.php';
+require_once __DIR__ . '/../app/Updates/ReleaseTrustPolicy.php';
+require_once __DIR__ . '/../app/Updates/SigstoreProvenance.php';
+require_once __DIR__ . '/../app/Updates/TufRootStore.php';
+require_once __DIR__ . '/../app/Updates/NativeSigstoreReleaseVerifier.php';
+require_once __DIR__ . '/../app/Updates/NativeSigstoreIntegrityAttestationVerifier.php';
 
 $configPath = getenv('SENTRYIQ_INTEGRITY_NODE_CONFIG');
 if (!is_string($configPath) || $configPath === '' || !str_starts_with($configPath, DIRECTORY_SEPARATOR)
