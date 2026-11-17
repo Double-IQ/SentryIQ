@@ -80,7 +80,7 @@ jobs:
             tests/sigstore_provenance.test.php \
             tests/integrity_deployed_release_resolver.test.php \
             tests/integrity_node_release_state.test.php \
-            tests/integrity_node_scheduled_runner.test.php \\
+            tests/integrity_node_scheduled_runner.test.php \
             tests/integrity_public_asset_policy.test.php; do
             php -l "$file"
           done
