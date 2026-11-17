@@ -95,6 +95,15 @@ if ($nodeId === 'integrity-a' || $nodeId === 'integrity-b') {
     $eventRunner = new IntegrityNodeEventRunner($node4Client, $directOwnerAlert);
 }
 
+$evidenceStore = null;
+if ($nodeId === 'integrity-c') {
+    $evidenceStore = new IntegrityNodeEvidenceStore(
+        $privateDataDirectory,
+        $publicWebRoot,
+        $signer->publicKeyBase64()
+    );
+}
+
 return new IntegrityNodeScheduledRunner(
     $nodeId,
     new IntegrityReleaseArtifactFetcher(),
@@ -106,7 +115,8 @@ return new IntegrityNodeScheduledRunner(
     'https://sentryiq.bichet.co.za',
     $publicPathSubset, // [] means every signed static public asset; otherwise a subset
     $releaseState,
-    $eventRunner
+    $eventRunner,
+    $evidenceStore
 );
 ```
 
@@ -152,6 +162,6 @@ These HTTP checks do not attest the deployed PHP source, private runtime files o
 
 ## Deployment gates not fabricated by this code
 
-Before a host can run this bootstrap, its administrator must supply and test: the deployed-release resolver, exact public path allowlist, node-specific Ed25519 key, independent alert transport, private vendor autoload path, private data directory and (for A/B) unique Node 4 bearer token. Node 4 separately needs A/B public keys, matching bearer tokens, private event storage and a real alert sender.
+Before a host can run this bootstrap, its administrator must supply and test: the deployed-release resolver, exact public path allowlist, node-specific Ed25519 key, independent alert transport, private vendor autoload path, private data directory, and (for C) a private evidence store. Nodes A/B additionally require unique Node 4 bearer tokens. Node 4 separately needs A/B public keys, matching bearer tokens, private event storage and a real alert sender.
 
 No production endpoint, release marker, host path, recipient, provider credential or secret is invented here. The repository code and CI do not prove that any node has been provisioned, scheduled or deployed.
