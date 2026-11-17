@@ -92,9 +92,9 @@ final class IntegrityOriginSecurityHeaderVerifier
             throw new RuntimeException('Unable to initialize origin security header probe.');
         }
         $headers = [];
+        $body = '';
         curl_setopt_array($handle, [
-            CURLOPT_NOBODY => true,
-            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_RETURNTRANSFER => false,
             CURLOPT_HTTPHEADER => [
                 'Cache-Control: no-cache, no-store, no-transform',
                 'Pragma: no-cache',
@@ -106,6 +106,11 @@ final class IntegrityOriginSecurityHeaderVerifier
             CURLOPT_TIMEOUT => 15,
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_WRITEFUNCTION => static function ($curl, string $chunk) use (&$body): int {
+                if (strlen($body) + strlen($chunk) > 128) return 0;
+                $body .= $chunk;
+                return strlen($chunk);
+            },
             CURLOPT_HEADERFUNCTION => static function ($curl, string $line) use (&$headers): int {
                 $length = strlen($line);
                 if (preg_match('/^([^:]+):\s*(.*)$/', trim($line), $match)) {
