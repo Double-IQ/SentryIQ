@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SentryIQ\Updates;
 
+require_once __DIR__ . '/IntegrityNodeAlertedException.php';
+
 use RuntimeException;
 
 /**
@@ -74,11 +76,13 @@ final class IntegrityNodeEventRunner
                 throw new RuntimeException('Local verification inputs changed after the Node 4 challenge was issued.');
             }
         } catch (\Throwable $exception) {
-            $this->alertFailure('local_verification_failed', [
-                'phase' => 'verification',
-                'release_version' => $version,
-                'exception' => get_class($exception),
-            ]);
+            if (!$exception instanceof IntegrityNodeAlertedException) {
+                $this->alertFailure('local_verification_failed', [
+                    'phase' => 'verification',
+                    'release_version' => $version,
+                    'exception' => get_class($exception),
+                ]);
+            }
             throw new RuntimeException('Local integrity verification failed; independent owner alert was attempted.', 0, $exception);
         }
 
