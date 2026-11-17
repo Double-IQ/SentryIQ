@@ -61,6 +61,41 @@ try {
 }
 assertSigner($rejectRejected, 'A signed rejection must not be accepted as approval.');
 
+$privateHostEvidence = [
+    'target_origin' => 'https://sentryiq.bichet.co.za',
+    'manifest_sha256' => str_repeat('d', 64),
+    'checked_paths' => ['@private-host-attestation'],
+    'mismatches' => [[
+        'path' => '@private-host-attestation',
+        'reason' => 'private_host_attestation_failed',
+    ]],
+];
+$validPrivateHostReject = $signerA->createReport(
+    '0.1.3', $commit, $digest, $nonce, 'reject', $privateHostEvidence
+);
+assertSigner(is_string($validPrivateHostReject), 'A private-host rejection should be signable as rejection evidence.');
+
+$falsePrivateHostApprovalRejected = false;
+try {
+    $signerA->createReport('0.1.3', $commit, $digest, $nonce, 'approve', $privateHostEvidence);
+} catch (RuntimeException) {
+    $falsePrivateHostApprovalRejected = true;
+}
+assertSigner($falsePrivateHostApprovalRejected, 'A report signer must not approve when private-host mismatch evidence exists.');
+
+$uncheckedMismatchRejected = false;
+try {
+    $signerA->createReport('0.1.3', $commit, $digest, $nonce, 'reject', [
+        'target_origin' => 'https://sentryiq.bichet.co.za',
+        'manifest_sha256' => str_repeat('d', 64),
+        'checked_paths' => [],
+        'mismatches' => [['path' => '@private-host-attestation', 'reason' => 'private_host_attestation_failed']],
+    ]);
+} catch (RuntimeException) {
+    $uncheckedMismatchRejected = true;
+}
+assertSigner($uncheckedMismatchRejected, 'Mismatch evidence must refer to a path included in the checked-path list.');
+
 $invalidKeyRejected = false;
 try {
     new IntegrityReportSigner('integrity-a', base64_encode(random_bytes(12)), $clock);
