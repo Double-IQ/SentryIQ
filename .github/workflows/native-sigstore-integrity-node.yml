@@ -6,6 +6,8 @@ on:
       - 'docs/security/private-host-attestation-contract.md'
       - 'app/Updates/PrivateHostAttestationVerifier.php'
       - 'app/Updates/PrivateHostAttestationCollector.php'
+      - 'app/Updates/PrivateHostAttestationRequestHandler.php'
+      - 'tests/private_host_attestation_request_handler.test.php'
       - 'app/Updates/PrivateHostAttestationClient.php'
       - 'tests/private_host_attestation_client.test.php'
       - 'tests/private_host_attestation_collector.test.php'
@@ -48,6 +50,8 @@ on:
     branches: [feat/integrity-node-native-sigstore-runtime]
     paths:
       - 'app/Updates/PrivateHostAttestationCollector.php'
+      - 'app/Updates/PrivateHostAttestationRequestHandler.php'
+      - 'tests/private_host_attestation_request_handler.test.php'
       - 'app/Updates/PrivateHostAttestationClient.php'
       - 'tests/private_host_attestation_client.test.php'
       - 'tests/private_host_attestation_collector.test.php'
@@ -105,6 +109,7 @@ jobs:
             app/Updates/PrivateHostAttestationVerifier.php \
             app/Updates/PrivateHostAttestationCollector.php \
             app/Updates/PrivateHostAttestationClient.php \
+            app/Updates/PrivateHostAttestationRequestHandler.php \
             app/Updates/IntegrityNodeAlertedException.php \
             app/Updates/IntegrityNodeScheduledRunner.php \
             bin/integrity-node-keygen.php \
@@ -124,6 +129,7 @@ jobs:
             tests/private_host_attestation_verifier.test.php \
             tests/private_host_attestation_collector.test.php \
             tests/private_host_attestation_client.test.php \
+            tests/private_host_attestation_request_handler.test.php \
             tests/integrity_node_scheduled_runner.test.php \
             tests/integrity_public_asset_policy.test.php \
             tests/integrity_origin_security_header_verifier.test.php; do
@@ -143,6 +149,7 @@ jobs:
           php tests/private_host_attestation_verifier.test.php
           php tests/private_host_attestation_collector.test.php
           php tests/private_host_attestation_client.test.php
+          php tests/private_host_attestation_request_handler.test.php
           php tests/integrity_node_a.test.php
           php tests/integrity_node_b.test.php
           php tests/integrity_node_c.test.php
