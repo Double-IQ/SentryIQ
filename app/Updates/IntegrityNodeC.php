@@ -52,7 +52,7 @@ final class IntegrityNodeC
     }
 
     /**
-     * @param list<string> $publicPaths Explicit relative URLs to check, e.g. ["assets/app.css","assets/app.js"].
+     * @param list<string> $publicPaths Optional subset of signed static assets; empty selects every manifest public_http_files entry.
      * @param string $nonce Fresh locally generated 32-byte nonce as 64 hexadecimal characters; Node C does not depend on Node 4.
      * @return array{approved:bool,report:string,checked_paths:list<string>,mismatches:list<array{path:string,reason:string}>,manifest_sha256:string,artifact_sha256:string}
      */
