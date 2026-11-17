@@ -61,6 +61,11 @@ final class IntegrityNode4RuntimeConfig
         if (!is_array($private)) {
             throw new RuntimeException('SentryIQ private runtime configuration is invalid.');
         }
+        $event = $private['integrity_event'] ?? null;
+        if (is_array($event) && ($event['enabled'] ?? false) === true
+            && ($event['target_origin'] ?? null) !== 'https://sentryiq.bichet.co.za') {
+            throw new RuntimeException('Node 4 target origin must be the canonical SentryIQ production origin.');
+        }
         if (isset($private['data_dir']) && $private['data_dir'] !== $pointer['data_dir']
             && realpath((string)$private['data_dir']) !== $dataDir) {
             throw new RuntimeException('SentryIQ public and private data directory settings disagree.');
