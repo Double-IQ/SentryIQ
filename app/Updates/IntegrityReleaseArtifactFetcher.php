@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SentryIQ\\Updates;
+namespace SentryIQ\Updates;
 
 use RuntimeException;
 
@@ -25,7 +25,7 @@ final class IntegrityReleaseArtifactFetcher
     {
         $version = trim($releaseVersion);
         if (str_starts_with($version, 'v')) $version = substr($version, 1);
-        if (!preg_match('/^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$/', $version)) {
+        if (!preg_match('/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/', $version)) {
             throw new RuntimeException('Release asset version must use stable MAJOR.MINOR.PATCH format.');
         }
 
