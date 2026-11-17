@@ -94,13 +94,18 @@ try {
             || !hash_equals($tokens[$nodeId], $token)) {
             integrityEventRespond(401, ['status' => 'error', 'message' => 'Node authentication failed.']);
         }
+        foreach (['target_origin', 'release_version', 'commit', 'artifact_sha256', 'manifest_sha256'] as $field) {
+            if (!is_string($request[$field] ?? null)) {
+                integrityEventRespond(400, ['status' => 'error', 'message' => 'Challenge binding fields are invalid.']);
+            }
+        }
         $challenge = $store->issueChallenge(
             $nodeId,
-            (string)($request['target_origin'] ?? ''),
-            (string)($request['release_version'] ?? ''),
-            (string)($request['commit'] ?? ''),
-            (string)($request['artifact_sha256'] ?? ''),
-            (string)($request['manifest_sha256'] ?? '')
+            $request['target_origin'],
+            $request['release_version'],
+            $request['commit'],
+            $request['artifact_sha256'],
+            $request['manifest_sha256']
         );
         integrityEventRespond(201, ['status' => 'ok'] + $challenge);
     }
