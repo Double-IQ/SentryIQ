@@ -52,7 +52,13 @@ try {
         }
     );
 
-    $runner = new IntegrityNodeEventRunner($client);
+    $runnerAlerts = [];
+    $runner = new IntegrityNodeEventRunner(
+        $client,
+        static function (string $nodeId, string $reason, array $context) use (&$runnerAlerts): void {
+            $runnerAlerts[] = [$nodeId, $reason];
+        }
+    );
     $result = $runner->run(
         static function (string $nonce) use (&$seenNonce, $manifestDigest, $artifactDigest): array {
             $seenNonce = $nonce;
@@ -72,6 +78,36 @@ try {
 
     runnerAssert($seenNonce === str_repeat('e', 64), 'Local node verification must receive the Node 4 nonce.');
     runnerAssert(($result['event_acknowledgement']['report_id'] ?? null) === 'node4-ack', 'Node 4 acknowledgement must be returned.');
+
+    $downClient = new IntegrityEventClient(
+        'https://sentryiq.bichet.co.za/integrity_event.php',
+        'integrity-b',
+        str_repeat('x', 48),
+        static function (): array {
+            throw new RuntimeException('synthetic Node 4 outage');
+        }
+    );
+    $downRunner = new IntegrityNodeEventRunner(
+        $downClient,
+        static function (string $nodeId, string $reason, array $context) use (&$runnerAlerts): void {
+            $runnerAlerts[] = [$nodeId, $reason];
+        }
+    );
+    $outageAlerted = false;
+    try {
+        $downRunner->run(
+            static fn(string $nonce): array => [],
+            $manifestPath,
+            $artifactPath,
+            '0.1.3',
+            str_repeat('a', 40),
+            'https://sentryiq.bichet.co.za'
+        );
+    } catch (RuntimeException $exception) {
+        $outageAlerted = str_contains($exception->getMessage(), 'independent owner alert');
+    }
+    runnerAssert($outageAlerted && in_array(['integrity-b', 'node4_challenge_unavailable'], $runnerAlerts, true),
+        'Node 4 transport failure must trigger the node’s independent owner alert before stopping.');
 
     try {
         $runner->run(
