@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/security_bootstrap.php';
+require_once __DIR__ . '/FirstRunPaths.php';
 sentryiq_security_bootstrap();
 
 $pointerConfigFile = dirname(__DIR__, 2) . '/sentryiq_config.php';
@@ -13,7 +14,7 @@ if (is_file($pointerConfigFile)) {
 
 function first_run_data_dir(): string
 {
-    return rtrim(dirname(__DIR__, 4), '/') . '/private_data';
+    return FirstRunPaths::dataDirectory(__DIR__);
 }
 
 function first_run_base_url(): string
@@ -60,6 +61,7 @@ function first_run_write_config(string $path, string $username, string $email, s
         "    'two_fa_email' => " . var_export($email, true) . ",\n" .
         "    'base_url' => " . var_export($baseUrl, true) . ",\n" .
         "    'data_dir' => " . var_export($dir, true) . ",\n" .
+        "    'sigstore_vendor_autoload' => " . var_export(FirstRunPaths::sigstoreAutoload(__DIR__), true) . ",\n" .
         "    'two_fa_token_expiry' => 300,\n];\n";
     return @file_put_contents($path, $config, LOCK_EX) !== false && @chmod($path, 0600);
 }
@@ -117,7 +119,7 @@ function first_run_direct_crypto_verify(string $password, string $dataFile): voi
 
 function first_run_cleanup(): bool
 {
-    $dir = dirname(__DIR__, 2) . '/private_data';
+    $dir = FirstRunPaths::bundledPrivateDirectory(__DIR__);
     if (!is_dir($dir)) return true;
 
     foreach (['vault_engine.php', 'email_template.php', 'vault_icon_cache.php'] as $name) {
@@ -141,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_first_run'])
     $password = (string)($_POST['setup_password'] ?? '');
     $confirm = (string)($_POST['setup_password_confirm'] ?? '');
 
-    $sourcePrivateDir = dirname(__DIR__, 2) . '/private_data';
+    $sourcePrivateDir = FirstRunPaths::bundledPrivateDirectory(__DIR__);
     if (!preg_match('/^[A-Za-z0-9._-]{2,64}$/', $username)) $error = 'Please enter a valid administrator username.';
     elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) $error = 'Please enter a valid 2FA email address.';
     elseif ($baseUrl === '') $error = 'SentryIQ could not determine its HTTPS application URL.';
