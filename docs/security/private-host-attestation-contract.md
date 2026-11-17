@@ -53,6 +53,23 @@ The collector returns a detached Ed25519 signature over the exact UTF-8 payload 
 
 The response is short-lived, nonce-bound, and single-use from the verifier's perspective. Nodes A and B pin the collector public key independently. They verify the signature over the exact received payload bytes, validate the nonce and freshness, and compare the release identity with their own independently verified release. Node 4 is not a trust anchor for this process.
 
+### Verifier payload contract implemented for Nodes A and B
+
+The node-side `PrivateHostAttestationVerifier` accepts a JSON envelope containing base64 `payload` bytes and a base64 Ed25519 `signature`. The signature covers the exact decoded payload bytes. The signed payload uses `schema_version: 1` and contains:
+
+- `collector_id`, `issued_at`, `expires_at`, `nonce`;
+- `target_origin`, `repository`, `repository_id`, `release_version`, `tag`, `commit`;
+- `manifest_sha256`, `artifact_sha256`;
+- `files`: one record for every independently pinned deployed-file path, with `expected_sha256`, `observed_sha256`, and result `match`, `missing`, `unreadable`, `symlink`, `permission_mismatch`, or `digest_mismatch`; unexpected deployed paths use result `unexpected`;
+- `private_config`: one record for every independently pinned configuration policy ID, with expected/observed hashes and result `match`, `missing`, `unreadable`, or `digest_mismatch`;
+- `decision`: `approve` only when every required item matches and no unexpected files exist; otherwise `reject`.
+
+The verifier rejects an omitted expected path or policy ID, duplicate records, a changed expected digest, an unexpected approval, invalid signature, wrong release identity, wrong nonce, stale/future report, or a payload exceeding the strict size bounds. A valid signed rejection is returned as a failed attestation so the node can sign and retain the rejection evidence. A missing/invalid response throws and activates the node's direct owner-alert path.
+
+The A/B node constructors now require a private-host verification callback in addition to release Sigstore verification, origin asset checks, header checks, and direct alert delivery. The callback receives the release version, commit, manifest/ZIP digests, fresh challenge nonce, parsed signed manifest, and target origin. It must authenticate to the collector with that node's own credential, verify the returned envelope using a locally pinned collector public key and locally held file/config baselines, and return the verifier result. It must not accept a collector key or expected baseline supplied by the production host. A signed rejection is included in the node's own signed event report; transport, signature, freshness, or schema failures alert directly and fail the run.
+
+This verifier and the A/B integration seam are implemented and regression-tested. The production-host collector, authenticated transport, independently approved configuration baselines, and per-node bootstrap wiring are still not implemented or deployed. Until those pieces exist, Nodes A and B must not be configured with a placeholder callback that always approves.
+
 A missing, stale, malformed, replayed, unsigned, or mismatched response is a failed attestation and triggers each node's direct owner-alert path. No response must never be interpreted as approval.
 
 ## Evidence and failure isolation
