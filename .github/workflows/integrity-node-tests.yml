@@ -1,0 +1,43 @@
+name: Integrity Node Tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app/Updates/IntegrityNode*.php'
+      - 'app/Updates/IntegrityReport*.php'
+      - 'tests/integrity_*.test.php'
+      - '.github/workflows/integrity-node-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app/Updates/IntegrityNode*.php'
+      - 'app/Updates/IntegrityReport*.php'
+      - 'tests/integrity_*.test.php'
+      - '.github/workflows/integrity-node-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  integrity-node-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: sodium
+
+      - name: Run Integrity Node regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/integrity_report_signer.test.php
+          php tests/integrity_report_verifier.test.php
+          php tests/integrity_node_a.test.php
+          php tests/integrity_node_b.test.php
+          php tests/integrity_node_c.test.php
