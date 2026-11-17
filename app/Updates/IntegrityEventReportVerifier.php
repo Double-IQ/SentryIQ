@@ -200,7 +200,7 @@ final class IntegrityEventReportVerifier
             if (!is_array($item) || array_is_list($item)
                 || array_keys($item) !== ['path', 'reason']
                 || !is_string($item['path']) || !$this->safePath($item['path'])
-                || !in_array($item['reason'], ['content_mismatch', 'fetch_failed'], true)) {
+                || !in_array($item['reason'], ['content_mismatch', 'fetch_failed', 'security_header_mismatch'], true)) {
                 throw new RuntimeException('Signed integrity event contains an invalid mismatch record.');
             }
         }
