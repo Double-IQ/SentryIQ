@@ -30,6 +30,7 @@ try {
     mkdir($private . '/runtime', 0700);
     file_put_contents($web . '/app/release.php', '<?php return true;');
     file_put_contents($private . '/runtime/bootstrap.php', '<?php return [];');
+    chmod($web . '/app/release.php', 0644);
     $fileDigest = hash_file('sha256', $web . '/app/release.php');
     $configDigest = hash_file('sha256', $private . '/runtime/bootstrap.php');
 
@@ -46,10 +47,11 @@ try {
         $web,
         $private,
         $keyPath,
-        ['app/release.php' => $fileDigest],
+        ['app/release.php' => ['sha256' => $fileDigest, 'mode' => 0644]],
         ['private-bootstrap' => ['path' => 'runtime/bootstrap.php', 'sha256' => $configDigest]],
         'https://sentryiq.bichet.co.za',
-        static fn(): int => $now
+        static fn(): int => $now,
+        ['app']
     );
     $verifier = new PrivateHostAttestationVerifier(base64_encode($public), static fn(): int => $now);
     $nonce = str_repeat('a', 64);
@@ -76,6 +78,30 @@ try {
     collectorAssert($rejected['approved'] === false
         && ($rejected['mismatches'][0]['reason'] ?? null) === 'digest_mismatch',
         'Collector must sign a rejection when a pinned deployed file changes.');
+
+    file_put_contents($web . '/app/release.php', '<?php return true;');
+    chmod($web . '/app/release.php', 0600);
+    $permissionEnvelope = json_encode($collector->collect($nonce, '1.2.3', $commit, $manifest, $artifact), JSON_THROW_ON_ERROR);
+    $permissionResult = $verifier->assertAttested(
+        $permissionEnvelope, $nonce, '1.2.3', $commit, $manifest, $artifact,
+        ['app/release.php' => $fileDigest],
+        ['private-bootstrap' => $configDigest]
+    );
+    collectorAssert($permissionResult['approved'] === false
+        && ($permissionResult['mismatches'][0]['reason'] ?? null) === 'permission_mismatch',
+        'Collector must reject a pinned deployed-file permission change.');
+
+    chmod($web . '/app/release.php', 0644);
+    file_put_contents($web . '/app/extra.txt', 'unexpected');
+    $unexpectedEnvelope = json_encode($collector->collect($nonce, '1.2.3', $commit, $manifest, $artifact), JSON_THROW_ON_ERROR);
+    $unexpectedResult = $verifier->assertAttested(
+        $unexpectedEnvelope, $nonce, '1.2.3', $commit, $manifest, $artifact,
+        ['app/release.php' => $fileDigest],
+        ['private-bootstrap' => $configDigest]
+    );
+    collectorAssert($unexpectedResult['approved'] === false
+        && in_array('unexpected', array_column($unexpectedResult['mismatches'], 'reason'), true),
+        'Collector must reject files outside the fixed release inventory in monitored directories.');
 
     collectorReject(
         fn() => new PrivateHostAttestationCollector(
