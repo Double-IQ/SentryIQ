@@ -45,7 +45,7 @@ $verifyHeaders = static fn(string $origin): array => $headerVerifier->verify($or
 // A/B require a collector key pinned independently in each node's private config.
 // Each host also has its own bearer token; do not reuse the token on the other node.
 $privateHostVerifier = new PrivateHostAttestationVerifier($pinnedCollectorPublicKeyBase64);
-$privateHostClient = new PrivateHostAttestationClient($nodeId, $privateHostBearerToken);
+$privateHostClient = new PrivateHostAttestationClient($nodeId, $privateHostBearerToken);\n$privateHostGate = new PrivateHostAttestationGate(\n    $nodeId,\n    $privateHostClient,\n    $privateHostVerifier,\n    $privateDeploymentFilePolicy($manifest),\n    $approvedPrivateConfigBaseline()\n);
 $verifyPrivateHost = static function (
     string $version,
     string $commit,
@@ -94,8 +94,8 @@ $publicPathSubset = [];
 
 // Construct only the verifier matching this host's identity.
 $node = match ($nodeId) {
-    'integrity-a' => new IntegrityNodeA($signer, $attestation, null, $directOwnerAlert, $verifyHeaders, $verifyPrivateHost),
-    'integrity-b' => new IntegrityNodeB($signer, $attestation, null, $directOwnerAlert, $verifyHeaders, $verifyPrivateHost),
+    'integrity-a' => new IntegrityNodeA($signer, $attestation, $privateHostGate, null, $directOwnerAlert, $verifyHeaders),
+    'integrity-b' => new IntegrityNodeB($signer, $attestation, $privateHostGate, null, $directOwnerAlert, $verifyHeaders),
     'integrity-c' => new IntegrityNodeC($signer, $attestation, null, $directOwnerAlert, $verifyHeaders),
     default => throw new RuntimeException('Unknown Integrity Node identity.'),
 };
@@ -178,7 +178,7 @@ For **each** of Node A and Node B, the administrator must independently provisio
 
 Node 4's private runtime config must contain exactly the two A/B bearer tokens and report public keys, and must reject duplicates. The Node 4 runtime config already checks that the A/B token values and decoded report public keys differ. That check is necessary but not sufficient: it cannot prove the external hosts are physically independent or that their private collector pins, deployment inventories, data directories and release baselines are separate.
 
-For A/B private-host verification, construct a `PrivateHostAttestationGate` rather than passing an ad-hoc closure. The gate binds the exact node ID to a `PrivateHostAttestationClient`, a `PrivateHostAttestationVerifier` with that host's locally pinned collector key, and that node's approved file/config digest maps. Pass the gate as the node's private-host verifier dependency. It rejects a client for the other node, empty file inventories, malformed policy digests and non-canonical origins before a scheduled check. Its credential and collector-key fingerprints are safe audit identifiers; never log or export the underlying secrets. This binding enforces in-process composition, but it cannot prove physical host separation or that an administrator-approved baseline is trustworthy.
+For A/B private-host verification, construct a `PrivateHostAttestationGate` rather than passing an ad-hoc closure. The gate binds the exact node ID to a `PrivateHostAttestationClient`, a `PrivateHostAttestationVerifier` with that host's locally pinned collector key, and that node's approved file/config digest maps. Nodes A and B now require this final gate as a typed constructor dependency and reject a gate bound to the other node; arbitrary callables can no longer replace it. Pass the gate as the node's private-host verifier dependency. It rejects a client for the other node, empty file inventories, malformed policy digests and non-canonical origins before a scheduled check. Its credential and collector-key fingerprints are safe audit identifiers; never log or export the underlying secrets. This binding enforces in-process composition, but it cannot prove physical host separation or that an administrator-approved baseline is trustworthy.
 
 The CLI's `SENTRYIQ_INTEGRITY_NODE_CONFIG` variable selects one protected PHP file and validates basic path privacy; it does not itself prove that the returned object graph uses node-exclusive keys, pins, tokens, alert destinations, baselines or directories. The private bootstrap must enforce those values operationally. Do not mark A/B provisioned until both hosts have been independently inspected and a successful scheduled run plus direct-alert failure test has been observed on each.
 
