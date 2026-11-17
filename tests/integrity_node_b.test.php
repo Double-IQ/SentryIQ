@@ -20,7 +20,7 @@ function nodeBAssert(bool $condition, string $message): void {
 }
 
 
-function nodeBPrivateHostGate(bool $approve = true, string $nodeId = $nodeId): PrivateHostAttestationGate
+function nodeBPrivateHostGate(bool $approve = true, string $nodeId = 'integrity-b'): PrivateHostAttestationGate
 {
     $now = time();
     $pair = sodium_crypto_sign_keypair();
