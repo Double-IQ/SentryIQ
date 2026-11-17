@@ -7,6 +7,7 @@ on:
       - 'app/Updates/PrivateHostAttestationVerifier.php'
       - 'app/Updates/PrivateHostAttestationCollector.php'
       - 'app/Updates/PrivateHostAttestationRequestHandler.php'
+      - 'app/Updates/PrivateHostAttestationNonceStore.php'
       - 'tests/private_host_attestation_request_handler.test.php'
       - 'app/Updates/PrivateHostAttestationClient.php'
       - 'tests/private_host_attestation_client.test.php'
@@ -51,6 +52,7 @@ on:
     paths:
       - 'app/Updates/PrivateHostAttestationCollector.php'
       - 'app/Updates/PrivateHostAttestationRequestHandler.php'
+      - 'app/Updates/PrivateHostAttestationNonceStore.php'
       - 'tests/private_host_attestation_request_handler.test.php'
       - 'app/Updates/PrivateHostAttestationClient.php'
       - 'tests/private_host_attestation_client.test.php'
@@ -110,6 +112,7 @@ jobs:
             app/Updates/PrivateHostAttestationCollector.php \
             app/Updates/PrivateHostAttestationClient.php \
             app/Updates/PrivateHostAttestationRequestHandler.php \
+            app/Updates/PrivateHostAttestationNonceStore.php \
             app/Updates/IntegrityNodeAlertedException.php \
             app/Updates/IntegrityNodeScheduledRunner.php \
             bin/integrity-node-keygen.php \
