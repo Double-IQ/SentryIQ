@@ -14,6 +14,19 @@ function clientAssert(bool $condition, string $message): void
 }
 
 $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+foreach ([
+    'https://attacker.invalid/integrity_event.php',
+    'https://sentryiq.bichet.co.za/other.php',
+    'https://sentryiq.bichet.co.za:8443/integrity_event.php',
+] as $untrustedEndpoint) {
+    $rejected = false;
+    try {
+        new IntegrityEventClient($untrustedEndpoint, 'integrity-a', $token);
+    } catch (RuntimeException) {
+        $rejected = true;
+    }
+    clientAssert($rejected, 'Node 4 client must reject an endpoint outside the pinned SentryIQ URL.');
+}
 $requests = [];
 $client = new IntegrityEventClient(
     'https://sentryiq.bichet.co.za/integrity_event.php',
