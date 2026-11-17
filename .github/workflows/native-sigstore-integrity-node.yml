@@ -45,6 +45,8 @@ on:
   push:
     branches: [feat/integrity-node-native-sigstore-runtime]
     paths:
+      - 'app/Updates/PrivateHostAttestationCollector.php'
+      - 'tests/private_host_attestation_collector.test.php'
       - 'app/Updates/PrivateHostAttestationVerifier.php'
       - 'tests/private_host_attestation_verifier.test.php'
       - '.htaccess'
