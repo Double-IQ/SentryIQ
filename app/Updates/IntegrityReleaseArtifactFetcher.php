@@ -29,16 +29,7 @@ final class IntegrityReleaseArtifactFetcher
             throw new RuntimeException('Release asset version must use stable MAJOR.MINOR.PATCH format.');
         }
 
-        if (is_link($privateDirectory)) {
-            throw new RuntimeException('Release staging directory must not be a symlink.');
-        }
-        if (!is_dir($privateDirectory) && !@mkdir($privateDirectory, 0700, true)) {
-            throw new RuntimeException('Unable to create private release staging directory.');
-        }
-        $directory = realpath($privateDirectory);
-        if (!is_string($directory) || !is_dir($directory)) {
-            throw new RuntimeException('Private release staging directory is invalid.');
-        }
+        $directory = $this->ensurePrivateDirectory($privateDirectory);
         @chmod($directory, 0700);
 
         $manifest = $directory . '/release-manifest.json';
@@ -47,6 +38,45 @@ final class IntegrityReleaseArtifactFetcher
         $this->download(self::RELEASE_BASE . 'v' . $version . '/sentryiq-' . $version . '.zip', $artifact, 250_000_000);
 
         return ['manifest_path' => $manifest, 'artifact_path' => $artifact];
+    }
+
+    /**
+     * Create the staging path while rejecting symlinks in every existing
+     * component, not merely at the final directory.
+     */
+    private function ensurePrivateDirectory(string $path): string
+    {
+        if ($path === '' || !str_starts_with($path, DIRECTORY_SEPARATOR)) {
+            throw new RuntimeException('Release staging directory must be an absolute path.');
+        }
+        $parts = array_values(array_filter(explode(DIRECTORY_SEPARATOR, $path), static fn(string $part): bool => $part !== ''));
+        $current = DIRECTORY_SEPARATOR;
+        foreach ($parts as $part) {
+            if ($part === '.' || $part === '..') {
+                throw new RuntimeException('Release staging path must not contain dot segments.');
+            }
+            $current = rtrim($current, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $part;
+            if (is_link($current)) {
+                throw new RuntimeException('Release staging path must not contain symlink components.');
+            }
+            if (file_exists($current)) {
+                if (!is_dir($current)) {
+                    throw new RuntimeException('Release staging path component is not a directory.');
+                }
+                continue;
+            }
+            if (!@mkdir($current, 0700) && !is_dir($current)) {
+                throw new RuntimeException('Unable to create private release staging directory.');
+            }
+            if (is_link($current) || !is_dir($current)) {
+                throw new RuntimeException('Release staging path changed during directory creation.');
+            }
+        }
+        $resolved = realpath($current);
+        if (!is_string($resolved) || !is_dir($resolved)) {
+            throw new RuntimeException('Private release staging directory is invalid.');
+        }
+        return $resolved;
     }
 
     private function download(string $url, string $destination, int $maxBytes): void
