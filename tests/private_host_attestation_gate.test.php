@@ -6,9 +6,9 @@ require_once __DIR__ . '/../app/Updates/PrivateHostAttestationClient.php';
 require_once __DIR__ . '/../app/Updates/PrivateHostAttestationVerifier.php';
 require_once __DIR__ . '/../app/Updates/PrivateHostAttestationGate.php';
 
-use SentryIQ\\Updates\\PrivateHostAttestationClient;
-use SentryIQ\\Updates\\PrivateHostAttestationVerifier;
-use SentryIQ\\Updates\\PrivateHostAttestationGate;
+use SentryIQ\Updates\PrivateHostAttestationClient;
+use SentryIQ\Updates\PrivateHostAttestationVerifier;
+use SentryIQ\Updates\PrivateHostAttestationGate;
 
 function privateHostGateAssert(bool $condition, string $message): void
 {
@@ -108,4 +108,4 @@ privateHostGateReject(
 );
 
 sodium_memzero($secret);
-echo "Private host attestation gate tests passed.\\n";
+echo "Private host attestation gate tests passed.\n";
