@@ -126,6 +126,27 @@ try {
     } catch (RuntimeException $exception) {
         runnerAssert(str_contains($exception->getMessage(), 'inputs changed'), 'Input mismatch should fail before report submission.');
     }
+    $verificationFailureAlerted = false;
+    try {
+        $runner->run(
+            static function (string $nonce): array {
+                throw new RuntimeException('synthetic local verifier failure');
+            },
+            $manifestPath,
+            $artifactPath,
+            '0.1.3',
+            str_repeat('a', 40),
+            'https://sentryiq.bichet.co.za'
+        );
+    } catch (RuntimeException $exception) {
+        $verificationFailureAlerted = str_contains($exception->getMessage(), 'independent owner alert');
+    }
+    runnerAssert(
+        $verificationFailureAlerted
+            && in_array(['integrity-b', 'local_verification_failed'], $runnerAlerts, true),
+        'Any local verification failure must trigger the independent owner alert.'
+    );
+
 } finally {
     @unlink($manifestPath);
     @unlink($artifactPath);
