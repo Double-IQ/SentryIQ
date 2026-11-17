@@ -45,6 +45,7 @@ final class IntegrityNodeKeyGenerator
         $pair = sodium_crypto_sign_keypair();
         $secret = sodium_crypto_sign_secretkey($pair);
         $public = sodium_crypto_sign_publickey($pair);
+        sodium_memzero($pair);
         if (strlen($secret) !== SODIUM_CRYPTO_SIGN_SECRETKEYBYTES
             || strlen($public) !== SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES) {
             throw new RuntimeException('Sodium returned an invalid Ed25519 keypair.');
