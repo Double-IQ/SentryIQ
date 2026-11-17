@@ -71,7 +71,7 @@ def build_manifest(root: Path, version: str, commit: str, repository: str,
             runtime_files.append(relative.removeprefix("runtime/"))
         else:
             public_files.append(relative)
-            if Path(relative).suffix.lower() in HTTP_STATIC_EXTENSIONS:
+            if relative == "VERSION" or Path(relative).suffix.lower() in HTTP_STATIC_EXTENSIONS:
                 public_http_files.append(relative)
 
     if not public_files or not runtime_files:
