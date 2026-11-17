@@ -90,8 +90,7 @@ final class PrivateHostAttestationVerifier
         }
         if (!is_array($payload)
             || ($payload['schema_version'] ?? null) !== 1
-            || !is_string($payload['collector_id'] ?? null)
-            || !preg_match('/^[a-z0-9][a-z0-9._-]{2,63}$/', $payload['collector_id'])
+            || ($payload['collector_id'] ?? null) !== 'sentryiq-host-attestor'
             || !is_int($payload['issued_at'] ?? null) || $payload['issued_at'] < 1
             || !is_int($payload['expires_at'] ?? null)
             || $payload['expires_at'] <= $payload['issued_at']
