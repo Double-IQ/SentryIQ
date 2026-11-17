@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SentryIQ\\Updates;
+namespace SentryIQ\Updates;
 
 use RuntimeException;
 
@@ -21,7 +21,7 @@ final class IntegrityEventRequestDecoder
         }
         try {
             $decoded = json_decode($json, true, 16, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException $exception) {
+        } catch (\JsonException $exception) {
             throw new RuntimeException('Integrity event request JSON is invalid.', 0, $exception);
         }
         if (!is_array($decoded) || array_is_list($decoded) || !is_string($decoded['action'] ?? null)) {
@@ -50,7 +50,7 @@ final class IntegrityEventRequestDecoder
             if ($inString) {
                 if ($escaped) {
                     $escaped = false;
-                } elseif ($char === '\\\\') {
+                } elseif ($char === '\\') {
                     $escaped = true;
                 } elseif ($char === '"') {
                     $inString = false;
@@ -65,7 +65,7 @@ final class IntegrityEventRequestDecoder
                                     2,
                                     JSON_THROW_ON_ERROR
                                 );
-                            } catch (\\JsonException) {
+                            } catch (\JsonException) {
                                 return true;
                             }
                             if (!is_string($key) || isset($keys[$key])) return true;
