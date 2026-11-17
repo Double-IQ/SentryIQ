@@ -194,6 +194,7 @@ final class IntegrityNodeB
             $mismatches[] = ['path' => '@origin-headers', 'reason' => 'security_header_mismatch'];
         }
 
+        $originMismatches = $mismatches;
         $artifactDigest = hash_file('sha256', $artifactReal);
         $manifestDigest = hash('sha256', $manifestBytes);
         if (!is_string($artifactDigest)) {
@@ -237,10 +238,10 @@ final class IntegrityNodeB
         }
 
         $approved = $mismatches === [];
-        if (!$approved) {
+        if ($originMismatches !== []) {
             $this->alertFailure('origin_integrity_mismatch', [
                 'target_origin' => rtrim($origin, '/'),
-                'mismatch_count' => count($mismatches),
+                'mismatch_count' => count($originMismatches),
                 'header_mismatches' => $headerMismatchNames,
             ]);
         }
