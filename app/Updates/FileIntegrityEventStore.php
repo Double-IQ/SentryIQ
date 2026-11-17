@@ -36,14 +36,24 @@ final class FileIntegrityEventStore
             throw new RuntimeException('Node 4 storage directory must already exist and must not be a symlink.');
         }
         $real = realpath($privateDirectory);
-        if (!is_string($real) || !is_writable($real) || !is_readable($real)) {
-            throw new RuntimeException('Node 4 storage directory must be readable and writable.');
+        $directoryMode = is_string($real) ? fileperms($real) : false;
+        if (!is_string($real) || !is_writable($real) || !is_readable($real)
+            || !is_int($directoryMode) || ($directoryMode & 0077) !== 0) {
+            throw new RuntimeException('Node 4 storage directory must be readable and writable only by its owning account (mode 0700).');
         }
         $this->directory = $real;
         $this->statePath = $real . DIRECTORY_SEPARATOR . 'integrity-events.json';
         $this->lockPath = $real . DIRECTORY_SEPARATOR . 'integrity-events.lock';
         if (is_link($this->statePath) || is_link($this->lockPath)) {
             throw new RuntimeException('Node 4 storage files must not be symlinks.');
+        }
+        foreach ([$this->statePath, $this->lockPath] as $storageFile) {
+            if (file_exists($storageFile)) {
+                $mode = fileperms($storageFile);
+                if (!is_int($mode) || ($mode & 0077) !== 0 || !is_file($storageFile)) {
+                    throw new RuntimeException('Existing Node 4 storage files must be regular files with mode 0600.');
+                }
+            }
         }
     }
 
