@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SentryIQ\Updates;
 
+require_once __DIR__ . '/IntegrityNodeAlertedException.php';
+
 use RuntimeException;
 
 /**
@@ -90,7 +92,11 @@ final class IntegrityNodeA
             ($this->verifyAttestation)($artifactReal, $version, $commit, $installedVersion);
         } catch (\Throwable $exception) {
             $this->alertFailure('release_attestation_rejected', ['release_version' => $version]);
-            throw $exception;
+            throw new IntegrityNodeAlertedException(
+                'Release attestation rejected after direct owner alert delivery.',
+                0,
+                $exception
+            );
         }
 
         $manifestBytes = file_get_contents($manifestReal);
