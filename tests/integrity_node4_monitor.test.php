@@ -24,6 +24,8 @@ if (!mkdir($directory, 0700)) {
     throw new RuntimeException('Unable to create temporary monitor directory.');
 }
 try {
+    file_put_contents($directory . DIRECTORY_SEPARATOR . 'integrity-events.lock', '');
+    chmod($directory . DIRECTORY_SEPARATOR . 'integrity-events.lock', 0600);
     $store = new FileIntegrityEventStore($directory);
     $send = false;
     $dispatcher = new IntegrityAlertDispatcher(
