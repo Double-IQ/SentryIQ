@@ -6,7 +6,7 @@ require_once __DIR__ . '/../app/Updates/IntegrityReportSigner.php';
 require_once __DIR__ . '/../app/Updates/IntegrityNodeEvidenceStore.php';
 
 use SentryIQ\Updates\IntegrityNodeEvidenceStore;
-use SentryIQ\\Updates\\IntegrityReportSigner;
+use SentryIQ\Updates\IntegrityReportSigner;
 
 function evidenceStoreAssert(bool $condition, string $message): void
 {
