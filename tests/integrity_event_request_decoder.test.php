@@ -31,9 +31,10 @@ eventDecoderReject(
     fn() => IntegrityEventRequestDecoder::decode('{"action":"challenge","act\\u0069on":"report"}'),
     'Duplicate JSON keys expressed through Unicode escapes must be rejected.'
 );
+$extraField = IntegrityEventRequestDecoder::decode('{"action":"challenge","nested":{"x":1,"x":2}}');
 eventDecoderReject(
-    fn() => IntegrityEventRequestDecoder::decode('{"action":"challenge","nested":{"x":1,"x":2}}'),
-    'A nested duplicate is not interpreted as a valid machine request; action schema must reject nested fields.'
+    fn() => IntegrityEventRequestDecoder::assertExactFields($extraField, ['action']),
+    'Action schemas must reject unexpected nested request fields.'
 );
 eventDecoderReject(
     fn() => IntegrityEventRequestDecoder::decode('["challenge"]'),
