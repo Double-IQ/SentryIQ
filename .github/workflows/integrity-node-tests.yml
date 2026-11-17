@@ -13,6 +13,7 @@ on:
       - 'app/Updates/IntegrityEventClient.php'
       - 'app/Updates/IntegrityNodeEventRunner.php'
       - 'app/Updates/IntegrityReleaseArtifactFetcher.php'
+      - 'app/Updates/IntegrityPublicAssetPolicy.php'
       - 'bin/integrity-node-run.php'
       - 'app/Updates/IntegrityDeployedReleaseResolver.php'
       - 'app/Updates/IntegrityNodeReleaseStateStore.php'
@@ -92,6 +93,7 @@ jobs:
           php tests/integrity_node_a.test.php
           php tests/integrity_node_b.test.php
           php tests/integrity_node_c.test.php
+          php tests/integrity_public_asset_policy.test.php
           php -l bin/integrity-node-run.php
           php -l app/Updates/TufRootStore.php
           php -l app/Updates/ReleaseArtifactVerifier.php
