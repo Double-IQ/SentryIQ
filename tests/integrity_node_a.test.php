@@ -87,11 +87,11 @@ try {
     nodeAAssert(($signedPayload['schema_version'] ?? null) === 2, 'Node report must use the signed event-evidence schema.');
     nodeAAssert(($signedPayload['target_origin'] ?? null) === 'https://example.invalid/SentryIQ', 'Signed report must bind the monitored origin.');
     nodeAAssert(($signedPayload['manifest_sha256'] ?? null) === $approved['manifest_sha256'], 'Signed report must bind the manifest digest.');
-    nodeAAssert(($signedPayload['checked_paths'] ?? null) === ['assets/app.js', '@origin-headers'], 'Signed report must include checked paths.');
+    nodeAAssert(($signedPayload['checked_paths'] ?? null) === ['assets/app.js', '@origin-headers', '@private-host-attestation'], 'Signed report must include checked paths.');
     nodeAAssert(($signedPayload['mismatches'] ?? null) === [], 'Signed report must include mismatch evidence.');
 
     nodeAAssert(count($verifyCalls) === 2, 'Both manifest and ZIP provenance must be verified.');
-    nodeAAssert($approved['checked_paths'] === ['assets/app.js', '@origin-headers'], 'Configured path should be checked.');
+    nodeAAssert($approved['checked_paths'] === ['assets/app.js', '@origin-headers', '@private-host-attestation'], 'Configured path should be checked.');
 
     $alerts = [];
     $tamperedNode = new IntegrityNodeA(
