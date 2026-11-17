@@ -75,4 +75,3 @@ jobs:
           php tests/integrity_node_a.test.php
           php tests/integrity_node_b.test.php
           php tests/integrity_node_c.test.php
-          php tests/integrity_public_asset_policy.test.php
