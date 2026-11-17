@@ -9,7 +9,7 @@ The node classes invoke the callback twice for each release:
 1. `release-manifest.json`
 2. `sentryiq-<version>.zip`
 
-Each artifact is independently looked up by its SHA-256 digest in GitHub's attestation API. Its Sigstore bundle is verified against refreshed TUF trust metadata, then its SLSA subject name, digest, repository, tag, workflow and source commit are checked. The release trust policy is applied separately to each subject.
+Each artifact is independently looked up by its SHA-256 digest in GitHub's attestation API. Its Sigstore bundle is verified against refreshed TUF trust metadata, then its SLSA subject name, digest, repository, tag, workflow and source commit are checked. The release trust policy is applied separately to each subject. Integrity-node mode permits the currently deployed version to be verified (version equality) while still rejecting any older release; the updater's default policy remains strictly newer-than-installed.
 
 ## Private runtime requirements
 
@@ -25,7 +25,7 @@ The verifier uses HTTPS with peer and hostname validation, refuses redirects, bo
 
 ## Wiring
 
-Construct the callback once in the node's protected runtime bootstrap:
+Construct the callback once in the node's protected runtime bootstrap. Each node's direct owner-alert callback is mandatory and must use a separately configured transport that does not depend on Node 4:
 
 ```php
 $verifyAttestation = NativeSigstoreIntegrityAttestationVerifier::fromPrivatePaths(
@@ -33,9 +33,9 @@ $verifyAttestation = NativeSigstoreIntegrityAttestationVerifier::fromPrivatePath
     '/absolute/private/path/data'
 );
 
-$nodeA = new IntegrityNodeA($integrityASigner, $verifyAttestation);
-$nodeB = new IntegrityNodeB($integrityBSigner, $verifyAttestation);
-$nodeC = new IntegrityNodeC($integrityCSigner, $verifyAttestation);
+$nodeA = new IntegrityNodeA($integrityASigner, $verifyAttestation, null, $nodeAOwnerAlert);
+$nodeB = new IntegrityNodeB($integrityBSigner, $verifyAttestation, null, $nodeBOwnerAlert);
+$nodeC = new IntegrityNodeC($integrityCSigner, $verifyAttestation, null, $nodeCOwnerAlert);
 ```
 
 Instantiate only the node that belongs to that host. Never share signing keys or signer objects across nodes. Node A, B and C each retain their own identity and runtime configuration.
