@@ -95,12 +95,42 @@ final class PrivateHostAttestationCollector
             || !str_starts_with($keyReal, rtrim($private, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
             throw new RuntimeException('Collector signing key must be a regular file inside private data storage.');
         }
-        $mode = fileperms($keyReal);
-        if (!is_int($mode) || (($mode & 0077) !== 0)) {
-            throw new RuntimeException('Collector signing key permissions must deny all group and other access.');
+        // Require a regular, owner-only key file and read it through a
+        // verified descriptor rather than reopening the pathname after checks.
+        clearstatcache(true, $keyReal);
+        $keyStat = @lstat($keyReal);
+        if (!is_array($keyStat) || ($keyStat['mode'] & 0170000) !== 0100000
+            || ($keyStat['mode'] & 0777) !== 0600) {
+            throw new RuntimeException('Collector signing key must be a regular file with exact 0600 permissions.');
         }
-        $encoded = @file_get_contents($keyReal);
-        $key = is_string($encoded) ? base64_decode(trim($encoded), true) : false;
+        $keyHandle = @fopen($keyReal, 'rb');
+        if (!is_resource($keyHandle)) {
+            throw new RuntimeException('Collector signing key cannot be opened safely.');
+        }
+        try {
+            $openedKey = fstat($keyHandle);
+            if (!is_array($openedKey) || ($openedKey['mode'] & 0170000) !== 0100000
+                || ($openedKey['mode'] & 0777) !== 0600
+                || $openedKey['dev'] !== $keyStat['dev'] || $openedKey['ino'] !== $keyStat['ino']) {
+                throw new RuntimeException('Collector signing key identity or permissions changed during opening.');
+            }
+            $encoded = stream_get_contents($keyHandle);
+            $afterKey = fstat($keyHandle);
+            clearstatcache(true, $keyReal);
+            $pathAfterKey = @lstat($keyReal);
+            if (!is_string($encoded) || !is_array($afterKey) || !is_array($pathAfterKey)
+                || $afterKey['dev'] !== $openedKey['dev'] || $afterKey['ino'] !== $openedKey['ino']
+                || $afterKey['size'] !== $openedKey['size'] || $afterKey['mtime'] !== $openedKey['mtime']
+                || $afterKey['ctime'] !== $openedKey['ctime']
+                || $pathAfterKey['dev'] !== $openedKey['dev'] || $pathAfterKey['ino'] !== $openedKey['ino']
+                || ($pathAfterKey['mode'] & 0170000) !== 0100000
+                || ($pathAfterKey['mode'] & 0777) !== 0600) {
+                throw new RuntimeException('Collector signing key changed while being read.');
+            }
+        } finally {
+            fclose($keyHandle);
+        }
+        $key = base64_decode(trim($encoded), true);
         if (!is_string($key) || strlen($key) !== SODIUM_CRYPTO_SIGN_SECRETKEYBYTES) {
             throw new RuntimeException('Collector signing key must contain a base64 Ed25519 secret key.');
         }
