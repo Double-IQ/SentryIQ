@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Updates/IntegrityReleaseArtifactFetcher.php';
+require_once __DIR__ . '/../app/Updates/IntegrityEventClient.php';
+require_once __DIR__ . '/../app/Updates/IntegrityNodeEventRunner.php';
 require_once __DIR__ . '/../app/Updates/IntegrityNodeScheduledRunner.php';
 
 use SentryIQ\\Updates\\IntegrityNodeScheduledRunner;
