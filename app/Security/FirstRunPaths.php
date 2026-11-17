@@ -20,7 +20,7 @@ final class FirstRunPaths
 
     public static function bundledPrivateDirectory(string $securityDirectory): string
     {
-        return rtrim(dirname($securityDirectory, 2), '/') . '/private_data';
+        return rtrim(dirname($securityDirectory, 2), '/') . '/runtime';
     }
 
     /**
