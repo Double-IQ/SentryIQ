@@ -7,6 +7,7 @@ namespace SentryIQ\Updates;
 use RuntimeException;
 
 require_once __DIR__ . '/IntegrityNodeAlertedException.php';
+require_once __DIR__ . '/IntegrityPublicAssetPolicy.php';
 
 /**
  * Node C's read-only public-origin verifier.
@@ -51,7 +52,7 @@ final class IntegrityNodeC
     }
 
     /**
-     * @param list<string> $publicPaths Explicit relative URLs to check, e.g. ["index.php","assets/app.js"].
+     * @param list<string> $publicPaths Explicit relative URLs to check, e.g. ["assets/app.css","assets/app.js"].
      * @param string $nonce Fresh locally generated 32-byte nonce as 64 hexadecimal characters; Node C does not depend on Node 4.
      * @return array{approved:bool,report:string,checked_paths:list<string>,mismatches:list<array{path:string,reason:string}>,manifest_sha256:string,artifact_sha256:string}
      */
@@ -134,22 +135,11 @@ final class IntegrityNodeC
             $entries[$path] = $entry;
         }
 
-        if ($publicPaths === [] || !array_is_list($publicPaths)) {
-            throw new RuntimeException('At least one explicit public-origin path must be configured.');
-        }
+        $pathsToCheck = IntegrityPublicAssetPolicy::resolve($manifest, $entries, $publicPaths);
 
         $checked = [];
         $mismatches = [];
-        foreach (array_values(array_unique($publicPaths)) as $path) {
-            if (!is_string($path) || $path === '' || str_starts_with($path, '/')
-                || str_contains($path, '\\') || preg_match('~(^|/)\.\.?(/|$)~', $path)
-                || preg_match('/[?#]/', $path)) {
-                throw new RuntimeException('Configured public-origin path is unsafe.');
-            }
-            if (!isset($entries[$path])) {
-                throw new RuntimeException('Configured public-origin path is absent from the attested manifest: ' . $path);
-            }
-
+        foreach ($pathsToCheck as $path) {
             $url = $origin . implode('/', array_map('rawurlencode', explode('/', $path)));
             try {
                 $body = ($this->fetch)($url);
