@@ -15,6 +15,10 @@ on:
       - 'app/Updates/IntegrityReleaseArtifactFetcher.php'
       - 'tests/integrity_release_artifact_fetcher.test.php'
       - 'app/Updates/IntegrityNode4Monitor.php'
+      - 'app/Updates/IntegrityNode4RuntimeConfig.php'
+      - 'bin/integrity-node4-monitor.php'
+      - 'integrity_event.php'
+      - 'tests/integrity_node4_runtime_config.test.php'
       - 'tests/integrity_*.test.php'
       - 'tests/file_integrity_event_store.test.php'
       - 'tests/integrity_incident_correlator.test.php'
@@ -61,6 +65,7 @@ jobs:
           php tests/integrity_node_event_runner.test.php
           php tests/integrity_release_artifact_fetcher.test.php
           php tests/integrity_node4_monitor.test.php
+          php tests/integrity_node4_runtime_config.test.php
           php tests/integrity_node_a.test.php
           php tests/integrity_node_b.test.php
           php tests/integrity_node_c.test.php
