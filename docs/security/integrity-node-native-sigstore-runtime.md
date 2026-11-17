@@ -146,6 +146,10 @@ Use `integrity-b` on Node B and `integrity-c` on Node C. The command refuses to 
 The protected node config reads the raw private key file and base64-encodes its bytes for the signer; it must never embed the key in the public pointer config or write it to logs:
 
 ```php
+if (is_link($privateSigningKeyPath) || !is_file($privateSigningKeyPath)
+    || ((fileperms($privateSigningKeyPath) ?: 0) & 0077) !== 0) {
+    throw new RuntimeException('Node signing key file must be private and non-symlinked.');
+}
 $secretKeyBytes = file_get_contents($privateSigningKeyPath);
 if (!is_string($secretKeyBytes) || strlen($secretKeyBytes) !== SODIUM_CRYPTO_SIGN_SECRETKEYBYTES) {
     throw new RuntimeException('Node signing key is unavailable or invalid.');
