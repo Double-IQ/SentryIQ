@@ -39,6 +39,14 @@ try {
     }
     if (!$rejectedParentLink) throw new RuntimeException('Fetcher must reject symlinked parent components.');
 
+    $rootRejected = false;
+    try {
+        $fetcher->fetch('1.2.3', DIRECTORY_SEPARATOR);
+    } catch (RuntimeException) {
+        $rootRejected = true;
+    }
+    if (!$rootRejected) throw new RuntimeException('Fetcher must reject the filesystem root as a staging directory.');
+
     echo "Integrity release artifact fetcher tests passed.\n";
 } finally {
     @rmdir($root . '/linked');
