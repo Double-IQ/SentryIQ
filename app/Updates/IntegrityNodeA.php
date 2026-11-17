@@ -43,10 +43,10 @@ final class IntegrityNodeA
     public function __construct(
         private readonly IntegrityReportSigner $signer,
         callable $verifyAttestation,
+        PrivateHostAttestationGate $verifyPrivateHost,
         ?callable $fetch = null,
         ?callable $notifyFailure = null,
-        ?callable $verifyOriginHeaders = null,
-        PrivateHostAttestationGate $verifyPrivateHost
+        ?callable $verifyOriginHeaders = null
     ) {
         if ($this->signer->nodeId() !== 'integrity-a') {
             throw new RuntimeException('Integrity Node A requires its own integrity-a signing identity.');
