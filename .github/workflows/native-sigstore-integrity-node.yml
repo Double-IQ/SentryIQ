@@ -148,8 +148,8 @@ jobs:
             app/Updates/PrivateHostAttestationGate.php \
             app/Updates/PrivateHostAttestationRequestHandler.php \
             app/Updates/PrivateHostAttestationNonceStore.php \
-            app/Updates/IntegrityEventRequestDecoder.php \\
-            app/Updates/IntegrityEventReportVerifier.php \\
+            app/Updates/IntegrityEventRequestDecoder.php \
+            app/Updates/IntegrityEventReportVerifier.php \
             tests/integrity_event_report_verifier.test.php \
             app/Updates/IntegrityNode4RuntimeConfig.php \
             app/Updates/FileIntegrityEventStore.php \
