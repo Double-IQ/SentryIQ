@@ -4,18 +4,21 @@ declare(strict_types=1);
 
 namespace SentryIQ\Updates;
 
+require_once __DIR__ . '/ReleaseDownloadPolicy.php';
+
 use RuntimeException;
 use ZipArchive;
 
 final class UpdateManager
 {
-    private const REPOSITORY = 'BTM-SA/SentryIQ';
+    private const REPOSITORY = 'Double-IQ/SentryIQ';
     private const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
     private const CACHE_TTL = 21600;
 
     public function __construct(
         private readonly string $applicationRoot,
         private readonly string $dataDir,
+        private readonly ?string $sigstoreAutoloadPath = null,
     ) {
         if ($this->applicationRoot === '' || !str_starts_with($this->applicationRoot, '/') || !is_dir($this->applicationRoot)) {
             throw new RuntimeException('Invalid SentryIQ application root.');
@@ -144,6 +147,25 @@ final class UpdateManager
                 throw new RuntimeException('The release package checksum does not match.');
             }
 
+            // Cryptographic provenance verification MUST precede ZIP extraction.
+            if ($this->sigstoreAutoloadPath === null || $this->sigstoreAutoloadPath === '') {
+                throw new RuntimeException('Native Sigstore verification is not configured; refusing to install an unattested release.');
+            }
+            require_once __DIR__ . '/TufRootStore.php';
+            require_once __DIR__ . '/ReleaseTrustPolicy.php';
+            require_once __DIR__ . '/SigstoreProvenance.php';
+            require_once __DIR__ . '/NativeSigstoreReleaseVerifier.php';
+            $nativeVerifier = new NativeSigstoreReleaseVerifier($this->sigstoreAutoloadPath, $this->dataDir);
+            $verifiedClaims = $nativeVerifier->verifyRelease($zipPath, $latest);
+            $trustPolicy = new ReleaseTrustPolicy();
+            $trustPolicy->assertTrustedRelease(
+                $verifiedClaims,
+                $latest,
+                (string)($verifiedClaims['source_commit'] ?? ''),
+                $actualHash,
+                $current,
+            );
+
             $this->extractAndValidate($zipPath, $stagingPath, $latest);
             $manifest = json_decode((string)@file_get_contents($stagingPath . '/update-manifest.json'), true);
             if (!is_array($manifest) || (string)($manifest['version'] ?? '') !== $latest) {
@@ -250,10 +272,16 @@ final class UpdateManager
     private function httpJson(string $url): array
     {
         if (!function_exists('curl_init')) throw new RuntimeException('PHP cURL is required for update checks.');
+        $parts = parse_url($url);
+        if (($parts['scheme'] ?? '') !== 'https' || strtolower((string)($parts['host'] ?? '')) !== 'api.github.com'
+            || isset($parts['user']) || isset($parts['pass']) || (isset($parts['port']) && (int)$parts['port'] !== 443)) {
+            throw new RuntimeException('Update API request is outside the approved GitHub API origin.');
+        }
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
             CURLOPT_TIMEOUT => 15,
             CURLOPT_CONNECTTIMEOUT => 10,
             CURLOPT_HTTPHEADER => ['Accept: application/vnd.github+json', 'User-Agent: SentryIQ-Updater/1.0'],
@@ -272,7 +300,10 @@ final class UpdateManager
 
     private function download(string $url, string $target): void
     {
-        if (!preg_match('#^https://github\.com/#i', $url)) throw new RuntimeException('Update download source is not trusted.');
+        ReleaseDownloadPolicy::assertAllowedUrl($url);
+        if (strtolower((string)(parse_url($url, PHP_URL_HOST) ?? '')) !== 'github.com') {
+            throw new RuntimeException('Initial update download URL must use github.com.');
+        }
         if (!function_exists('curl_init')) throw new RuntimeException('PHP cURL is required for application updates.');
         $fp = @fopen($target, 'wb');
         if ($fp === false) throw new RuntimeException('Unable to create the update download.');
@@ -280,16 +311,33 @@ final class UpdateManager
         curl_setopt_array($ch, [
             CURLOPT_FILE => $fp,
             CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS => 5,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
             CURLOPT_TIMEOUT => 120,
             CURLOPT_CONNECTTIMEOUT => 15,
             CURLOPT_HTTPHEADER => ['User-Agent: SentryIQ-Updater/1.0'],
             CURLOPT_FAILONERROR => true,
             CURLOPT_MAXFILESIZE => self::MAX_DOWNLOAD_BYTES,
+            CURLOPT_HEADERFUNCTION => static function ($handle, string $header): int {
+                if (stripos($header, 'Location:') === 0) {
+                    $location = trim(substr($header, strlen('Location:')));
+                    if (!ReleaseDownloadPolicy::isAllowedUrl($location)) {
+                        return 0;
+                    }
+                }
+                return strlen($header);
+            },
         ]);
         $ok = curl_exec($ch);
         $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $effectiveUrl = (string)curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
         $error = curl_error($ch);
         curl_close($ch);
+        if (!ReleaseDownloadPolicy::isAllowedUrl($effectiveUrl)) {
+            $ok = false;
+            $error = 'Final download URL is outside the approved HTTPS GitHub hosts.';
+        }
         fclose($fp);
         if ($ok !== true || $status < 200 || $status >= 300) {
             @unlink($target);
