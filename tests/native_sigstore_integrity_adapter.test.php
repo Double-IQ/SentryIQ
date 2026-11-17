@@ -6,9 +6,9 @@ require_once __DIR__ . '/../app/Updates/ReleaseArtifactVerifier.php';
 require_once __DIR__ . '/../app/Updates/ReleaseTrustPolicy.php';
 require_once __DIR__ . '/../app/Updates/NativeSigstoreIntegrityAttestationVerifier.php';
 
-use SentryIQ\\Updates\\NativeSigstoreIntegrityAttestationVerifier;
-use SentryIQ\\Updates\\ReleaseArtifactVerifier;
-use SentryIQ\\Updates\\ReleaseTrustPolicy;
+use SentryIQ\Updates\NativeSigstoreIntegrityAttestationVerifier;
+use SentryIQ\Updates\ReleaseArtifactVerifier;
+use SentryIQ\Updates\ReleaseTrustPolicy;
 
 final class FakeReleaseArtifactVerifier implements ReleaseArtifactVerifier
 {
