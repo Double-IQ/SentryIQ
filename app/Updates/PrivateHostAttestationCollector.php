@@ -20,7 +20,7 @@ final class PrivateHostAttestationCollector
     private string $secretKey;
 
     /**
-     * @param array<string,string> $expectedFiles Relative to publicRoot => SHA-256
+     * @param array<string,string|array{sha256:string,mode?:int}> $expectedFiles Relative path => SHA-256 and optional permission bits
      * @param array<string,array{path:string,sha256:string}> $privateConfig
      *        policy ID => privateRoot-relative path and approved SHA-256
      */
@@ -32,7 +32,8 @@ final class PrivateHostAttestationCollector
         private readonly array $expectedFiles,
         private readonly array $privateConfig,
         string $targetOrigin = 'https://sentryiq.bichet.co.za',
-        ?callable $clock = null
+        ?callable $clock = null,
+        private readonly array $monitoredDirectories = []
     ) {
         if (!preg_match('/^[a-z0-9][a-z0-9._-]{2,63}$/', $collectorId)) {
             throw new RuntimeException('Collector identity is invalid.');
@@ -65,10 +66,18 @@ final class PrivateHostAttestationCollector
         if ($expectedFiles === [] || count($expectedFiles) > 5000 || count($privateConfig) > 100) {
             throw new RuntimeException('Collector inventory is empty or exceeds its bounds.');
         }
-        foreach ($expectedFiles as $path => $digest) {
+        foreach ($expectedFiles as $path => $policy) {
+            $digest = is_array($policy) ? ($policy['sha256'] ?? null) : $policy;
+            $mode = is_array($policy) ? ($policy['mode'] ?? null) : null;
             if (!is_string($path) || !$this->safeRelativePath($path) || !is_string($digest)
-                || !preg_match('/^[a-f0-9]{64}$/', $digest)) {
-                throw new RuntimeException('Collector release inventory contains an invalid path or SHA-256.');
+                || !preg_match('/^[a-f0-9]{64}$/', $digest)
+                || ($mode !== null && (!is_int($mode) || $mode < 0 || $mode > 0777))) {
+                throw new RuntimeException('Collector release inventory contains an invalid path, SHA-256, or mode.');
+            }
+        }
+        foreach ($monitoredDirectories as $directory) {
+            if (!is_string($directory) || !$this->safeRelativePath($directory)) {
+                throw new RuntimeException('Collector monitored directory policy contains an invalid relative path.');
             }
         }
         foreach ($privateConfig as $id => $entry) {
@@ -131,10 +140,21 @@ final class PrivateHostAttestationCollector
 
         $files = [];
         $mismatches = false;
-        foreach ($this->expectedFiles as $path => $expected) {
-            $entry = $this->inspect($this->publicRoot, $path, $expected);
+        foreach ($this->expectedFiles as $path => $policy) {
+            $expected = is_array($policy) ? $policy['sha256'] : $policy;
+            $mode = is_array($policy) ? ($policy['mode'] ?? null) : null;
+            $entry = $this->inspect($this->publicRoot, $path, $expected, $mode);
             $files[] = ['path' => $path, 'expected_sha256' => $expected] + $entry;
             if ($entry['result'] !== 'match') $mismatches = true;
+        }
+        foreach ($this->findUnexpectedFiles() as $path) {
+            $files[] = [
+                'path' => $path,
+                'expected_sha256' => null,
+                'observed_sha256' => null,
+                'result' => 'unexpected',
+            ];
+            $mismatches = true;
         }
         $config = [];
         foreach ($this->privateConfig as $id => $policy) {
@@ -169,7 +189,7 @@ final class PrivateHostAttestationCollector
     }
 
     /** @return array{result:string,observed_sha256:?string} */
-    private function inspect(string $root, string $relative, string $expected): array
+    private function inspect(string $root, string $relative, string $expected, ?int $expectedMode = null): array
     {
         $current = $root;
         $parts = explode('/', $relative);
@@ -186,10 +206,52 @@ final class PrivateHostAttestationCollector
         }
         $digest = @hash_file('sha256', $current);
         if (!is_string($digest)) return ['result' => 'unreadable', 'observed_sha256' => null];
-        return [
-            'result' => hash_equals($expected, $digest) ? 'match' : 'digest_mismatch',
-            'observed_sha256' => $digest,
-        ];
+        if (!hash_equals($expected, $digest)) {
+            return ['result' => 'digest_mismatch', 'observed_sha256' => $digest];
+        }
+        if ($expectedMode !== null) {
+            $actualMode = fileperms($current);
+            if (!is_int($actualMode) || (($actualMode & 0777) !== $expectedMode)) {
+                return ['result' => 'permission_mismatch', 'observed_sha256' => $digest];
+            }
+        }
+        return ['result' => 'match', 'observed_sha256' => $digest];
+    }
+
+
+    /** @return list<string> */
+    private function findUnexpectedFiles(): array
+    {
+        $unexpected = [];
+        $seen = [];
+        $expected = array_fill_keys(array_keys($this->expectedFiles), true);
+        foreach ($this->monitoredDirectories as $directory) {
+            $absolute = $this->publicRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $directory);
+            if (is_link($absolute) || !is_dir($absolute) || !is_readable($absolute)) {
+                $unexpected[$directory] = true;
+                continue;
+            }
+            try {
+                $iterator = new \\RecursiveIteratorIterator(
+                    new \\RecursiveDirectoryIterator($absolute, \\FilesystemIterator::SKIP_DOTS),
+                    \\RecursiveIteratorIterator::SELF_FIRST
+                );
+                foreach ($iterator as $item) {
+                    $relative = $directory . '/' . str_replace(DIRECTORY_SEPARATOR, '/', substr($item->getPathname(), strlen($absolute) + 1));
+                    if (!$this->safeRelativePath($relative) || isset($seen[$relative])) continue;
+                    $seen[$relative] = true;
+                    if (isset($expected[$relative])) continue;
+                    if ($item->isLink() || $item->isFile()) $unexpected[$relative] = true;
+                    if (count($unexpected) > 5000) {
+                        throw new RuntimeException('Collector discovered more unexpected files than its evidence limit.');
+                    }
+                }
+            } catch (\\Throwable $exception) {
+                if ($exception instanceof RuntimeException) throw $exception;
+                $unexpected[$directory] = true;
+            }
+        }
+        return array_keys($unexpected);
     }
 
     private function safeRelativePath(string $path): bool
