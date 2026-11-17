@@ -108,6 +108,21 @@ privateHostReject(
     'An attestation for another origin must be rejected.'
 );
 
+privateHostReject(
+    fn() => $verifier->assertAttested(
+        $makeEnvelope(['issued_at' => $now - 200, 'expires_at' => $now - 140]),
+        $nonce, $version, $commit, $manifest, $artifact, $expectedFiles(), $expectedConfig()
+    ),
+    'An expired signed private-host attestation must be rejected.'
+);
+privateHostReject(
+    fn() => $verifier->assertAttested(
+        $makeEnvelope(['issued_at' => $now + 60, 'expires_at' => $now + 120]),
+        $nonce, $version, $commit, $manifest, $artifact, $expectedFiles(), $expectedConfig()
+    ),
+    'A future-dated signed private-host attestation must be rejected.'
+);
+
 $rejectFiles = [
     [
         'path' => 'app/Updates/UpdateManager.php',
