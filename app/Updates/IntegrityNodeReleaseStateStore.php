@@ -103,7 +103,7 @@ final class IntegrityNodeReleaseStateStore
         $this->runExclusive($initialize);
     }
 
-    /** @return array{version:string,commit:string,approved_at:int} */
+    /** @return array{version:string,commit:string,manifest_sha256:?string,artifact_sha256:?string,approved_at:int} */
     public function current(): array
     {
         if (is_link($this->statePath) || !is_file($this->statePath)
@@ -150,8 +150,13 @@ final class IntegrityNodeReleaseStateStore
     {
         $version = self::normalizeVersion($version);
         $commit = self::normalizeCommit($commit);
-        $manifestDigest = self::normalizeDigest($manifestDigest);
-        $artifactDigest = self::normalizeDigest($artifactDigest);
+        if (($manifestDigest === null) !== ($artifactDigest === null)) {
+            throw new RuntimeException('Candidate must provide both artifact digests, or neither.');
+        }
+        if ($manifestDigest !== null) {
+            $manifestDigest = self::normalizeDigest($manifestDigest);
+            $artifactDigest = self::normalizeDigest((string)$artifactDigest);
+        }
         $current = $this->current();
         $comparison = version_compare($version, $current['version']);
         if ($comparison < 0) {
@@ -177,6 +182,8 @@ final class IntegrityNodeReleaseStateStore
         }
         $version = self::normalizeVersion($version);
         $commit = self::normalizeCommit($commit);
+        $manifestDigest = self::normalizeDigest($manifestDigest);
+        $artifactDigest = self::normalizeDigest($artifactDigest);
         $current = $this->current();
         $comparison = version_compare($version, $current['version']);
         if ($comparison < 0 || ($comparison === 0 && !hash_equals($current['commit'], $commit))) {
