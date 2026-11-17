@@ -46,14 +46,28 @@ final class PrivateHostAttestationNonceStore
         if ($expiresAt <= $now || $expiresAt > $now + 300) {
             throw new RuntimeException('Attestation nonce expiry is outside the accepted window.');
         }
-        if (is_link($this->lockPath) || is_link($this->statePath)) {
-            throw new RuntimeException('Attestation nonce state and lock must not be symlinks.');
+        clearstatcache(true, $this->lockPath);
+        clearstatcache(true, $this->statePath);
+        if (is_link($this->lockPath) || is_link($this->statePath)
+            || !is_file($this->lockPath)) {
+            throw new RuntimeException('Attestation nonce state must not be a symlink and the lock must be pre-provisioned.');
         }
-        $lock = @fopen($this->lockPath, 'c');
-        if ($lock === false || !@chmod($this->lockPath, 0600)
-            || ((fileperms($this->lockPath) ?: 0) & 0077) !== 0) {
+        $lockStat = @lstat($this->lockPath);
+        if (!is_array($lockStat) || (($lockStat['mode'] ?? 0) & 0170000) !== 0100000
+            || (($lockStat['mode'] ?? 0) & 0777) !== 0600) {
+            throw new RuntimeException('Attestation nonce lock must be a regular file with exact 0600 permissions.');
+        }
+        // Open an existing operator-provisioned lock without creating it or
+        // changing its permissions. Verify the opened inode matches lstat.
+        $lock = @fopen($this->lockPath, 'r+b');
+        $openedStat = is_resource($lock) ? fstat($lock) : false;
+        if ($lock === false || !is_array($openedStat)
+            || ($openedStat['dev'] ?? null) !== ($lockStat['dev'] ?? null)
+            || ($openedStat['ino'] ?? null) !== ($lockStat['ino'] ?? null)
+            || (($openedStat['mode'] ?? 0) & 0170000) !== 0100000
+            || (($openedStat['mode'] ?? 0) & 0777) !== 0600) {
             if (is_resource($lock)) fclose($lock);
-            throw new RuntimeException('Unable to open private attestation nonce lock.');
+            throw new RuntimeException('Attestation nonce lock changed during open or has unsafe permissions.');
         }
         if (!flock($lock, LOCK_EX | LOCK_NB)) {
             fclose($lock);
@@ -63,7 +77,7 @@ final class PrivateHostAttestationNonceStore
         try {
             $state = ['format' => 1, 'nonces' => []];
             if (file_exists($this->statePath)) {
-                if (!is_file($this->statePath) || (((fileperms($this->statePath) ?: 0) & 0077) !== 0)) {
+                if (!is_file($this->statePath) || (((fileperms($this->statePath) ?: 0) & 0777) !== 0600)) {
                     throw new RuntimeException('Attestation nonce state has unsafe type or permissions.');
                 }
                 $bytes = @file_get_contents($this->statePath);
