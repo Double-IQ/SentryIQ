@@ -26,8 +26,10 @@ final class PrivateHostAttestationNonceStore
             || str_starts_with($private . DIRECTORY_SEPARATOR, rtrim($web, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
             throw new RuntimeException('Attestation nonce storage must be a real directory outside the public webroot.');
         }
-        if (!@chmod($private, 0700) || ((fileperms($private) ?: 0) & 0077) !== 0) {
-            throw new RuntimeException('Attestation nonce storage directory must have private 0700 permissions.');
+        // Validate rather than changing permissions on an operator-supplied
+        // directory: this path may contain other private application data.
+        if (((fileperms($private) ?: 0) & 0777) !== 0700) {
+            throw new RuntimeException('Attestation nonce storage directory must already have exact 0700 permissions.');
         }
         $this->directory = $private;
         $this->statePath = $private . '/private-host-nonces.json';
