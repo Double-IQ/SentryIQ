@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace SentryIQ\Updates;
 
+require_once __DIR__ . '/ReleaseArtifactVerifier.php';
+require_once __DIR__ . '/ReleaseTrustPolicy.php';
+require_once __DIR__ . '/NativeSigstoreReleaseVerifier.php';
+
 use RuntimeException;
 
 /**
