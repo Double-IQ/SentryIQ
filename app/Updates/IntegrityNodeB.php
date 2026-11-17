@@ -207,7 +207,7 @@ final class IntegrityNodeB
                 $commit,
                 $manifestDigest,
                 $artifactDigest,
-                $nonce,
+                bin2hex(random_bytes(32)),
                 $manifest,
                 rtrim($origin, '/')
             );
