@@ -31,6 +31,11 @@ final class IntegrityEventClient
         $this->transport = $transport ?? fn(string $url, array $headers, string $body): array => $this->curlPost($url, $headers, $body);
     }
 
+    public function nodeId(): string
+    {
+        return $this->nodeId;
+    }
+
     /** @return array{nonce:string,expires_at:int,node_id:string} */
     public function requestChallenge(
         string $targetOrigin,
