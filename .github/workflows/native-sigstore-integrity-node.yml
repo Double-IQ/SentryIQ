@@ -158,7 +158,7 @@ jobs:
             integrity_event.php \
             tests/integrity_event_request_decoder.test.php \
             app/Updates/IntegrityNodeAlertedException.php \
-            app/Updates/IntegrityNodeScheduledRunner.php \\
+            app/Updates/IntegrityNodeScheduledRunner.php \
             app/Updates/IntegrityNodeVerifierBinding.php \
             bin/integrity-node-keygen.php \
             app/Updates/IntegrityNodeEventRunner.php \
