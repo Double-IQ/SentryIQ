@@ -88,11 +88,9 @@ $expectedFields = match ($request['action']) {
     'report' => ['action', 'envelope'],
     default => ['action'],
 };
-$actualFields = array_keys($request);
-sort($actualFields);
-$expectedSorted = $expectedFields;
-sort($expectedSorted);
-if ($actualFields !== $expectedSorted) {
+try {
+    SentryIQ\\Updates\\IntegrityEventRequestDecoder::assertExactFields($request, $expectedFields);
+} catch (Throwable) {
     integrityEventRespond(400, ['status' => 'error', 'message' => 'Request fields do not match the selected action.']);
 }
 
