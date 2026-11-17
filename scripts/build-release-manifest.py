@@ -22,6 +22,18 @@ HTTP_STATIC_EXTENSIONS = {
 }
 
 
+def is_safe_relative_path(relative: str) -> bool:
+    return (
+        bool(relative)
+        and not relative.startswith("/")
+        and "\\" not in relative
+        and "//" not in relative
+        and not any(char in relative for char in "%?#")
+        and not any(ord(char) < 32 or ord(char) == 127 for char in relative)
+        and all(part not in ("", ".", "..") for part in relative.split("/"))
+    )
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -49,6 +61,8 @@ def build_manifest(root: Path, version: str, commit: str, repository: str,
         if not path.is_file():
             continue
         relative = path.relative_to(root).as_posix()
+        if not is_safe_relative_path(relative):
+            raise ValueError(f"unsafe package path: {relative!r}")
         if relative == "update-manifest.json":
             continue
         data = {"path": relative, "size": path.stat().st_size, "sha256": sha256_file(path)}
