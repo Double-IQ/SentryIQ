@@ -50,8 +50,10 @@ try {
         'status' => $approved ? 'approved' : 'rejected',
         'release_version' => $result['release_version'] ?? null,
         'release_commit' => $result['release_commit'] ?? null,
-    'release_manifest_sha256' => $result['release_manifest_sha256'] ?? null,
-    'release_artifact_sha256' => $result['release_artifact_sha256'] ?? null,
+        'release_manifest_sha256' => $result['release_manifest_sha256'] ?? null,
+        'release_artifact_sha256' => $result['release_artifact_sha256'] ?? null,
+        'evidence_id' => $result['evidence_id'] ?? null,
+        'evidence_path' => $result['evidence_path'] ?? null,
         'report_id' => $result['event_acknowledgement']['report_id'] ?? null,
     ];
     fwrite(STDOUT, json_encode($summary, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . PHP_EOL);
