@@ -82,7 +82,15 @@ try {
     nodeBAssert(count($verifyCalls) === 2, 'Both manifest and ZIP provenance must be verified.');
     nodeBAssert($approved['checked_paths'] === ['index.php'], 'Configured path should be checked.');
 
-    $tamperedNode = new IntegrityNodeB($signer, $verifier, static fn(string $url): string => 'tampered');
+    $alerts = [];
+    $tamperedNode = new IntegrityNodeB(
+        $signer,
+        $verifier,
+        static fn(string $url): string => 'tampered',
+        static function (string $nodeId, string $reason, array $context) use (&$alerts): void {
+            $alerts[] = [$nodeId, $reason, $context];
+        }
+    );
     $rejected = $tamperedNode->verify(
         $manifestPath,
         $artifactPath,
@@ -95,6 +103,7 @@ try {
     );
     nodeBAssert($rejected['approved'] === false, 'Changed public file must reject.');
     nodeBAssert($rejected['mismatches'][0]['reason'] === 'content_mismatch', 'Mismatch evidence should be retained.');
+    nodeBAssert(count($alerts) === 1 && $alerts[0][0] === 'integrity-b' && $alerts[0][1] === 'origin_integrity_mismatch', 'A rejected origin must trigger the node\'s direct owner alert.');
 
     $unsafeRejected = false;
     try {
