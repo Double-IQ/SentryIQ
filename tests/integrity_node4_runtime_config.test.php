@@ -42,10 +42,26 @@ try {
             throw $expected;
         }
     }
+
+    $secretPointer = $public . '/secret-pointer.php';
+    file_put_contents($secretPointer, '<?php return ' . var_export([
+        'data_dir' => $private,
+        'integrity_event' => ['node_tokens' => ['integrity-a' => 'should-not-be-here']],
+    ], true) . ';');
+    $secretRejected = false;
+    try {
+        IntegrityNode4RuntimeConfig::load($secretPointer);
+    } catch (RuntimeException) {
+        $secretRejected = true;
+    }
+    if (!$secretRejected) {
+        throw new RuntimeException('Runtime-config loader accepted secrets in the public pointer.');
+    }
 } finally {
     @unlink($pointer);
     @unlink($privateConfig);
     @unlink($public . '/bad-pointer.php');
+    @unlink($public . '/secret-pointer.php');
     @rmdir($public);
     @rmdir($private);
     @rmdir($root);
