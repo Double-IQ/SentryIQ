@@ -32,6 +32,9 @@ final class IntegrityNodeA
         callable $verifyAttestation,
         ?callable $fetch = null
     ) {
+        if ($this->signer->nodeId() !== 'integrity-a') {
+            throw new RuntimeException('Integrity Node A requires its own integrity-a signing identity.');
+        }
         $this->verifyAttestation = $verifyAttestation;
         $this->fetch = $fetch ?? fn(string $url): string => $this->fetchHttps($url);
     }
