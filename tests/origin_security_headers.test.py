@@ -24,6 +24,10 @@ class OriginSecurityHeaderConfigTests(unittest.TestCase):
         for pattern in required:
             self.assertRegex(text, pattern)
 
+    def test_first_run_runtime_files_are_not_publicly_served(self):
+        text = HTACCESS.read_text(encoding="utf-8")
+        self.assertRegex(text, r"(?m)^RewriteRule \\^runtime\\(\\?:/\\|\\$\\) - \\[F,L\\]$")
+
     def test_hsts_does_not_assume_all_subdomains_use_https(self):
         text = HTACCESS.read_text(encoding="utf-8")
         hsts = re.search(r'(?m)^\s*Header always set Strict-Transport-Security "([^"]+)"', text)
