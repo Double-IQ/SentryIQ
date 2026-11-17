@@ -103,6 +103,9 @@ try {
                 integrityEventRespond(400, ['status' => 'error', 'message' => 'Challenge binding fields are invalid.']);
             }
         }
+        if ($request['target_origin'] !== 'https://sentryiq.bichet.co.za') {
+            integrityEventRespond(400, ['status' => 'error', 'message' => 'Node 4 only accepts the canonical SentryIQ production origin.']);
+        }
         $challenge = $store->issueChallenge(
             $nodeId,
             $request['target_origin'],
