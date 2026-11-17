@@ -21,8 +21,8 @@ if (!is_string($config)) {
 }
 $configBody = <<<'PHP_CONFIG'
 <?php
-if (!class_exists('SentryIQ\\\\Updates\\\\PrivateHostAttestationClient')
-    || !class_exists('SentryIQ\\\\Updates\\\\PrivateHostAttestationVerifier')) {
+if (!class_exists('SentryIQ' . chr(92) . 'Updates' . chr(92) . 'PrivateHostAttestationClient')
+    || !class_exists('SentryIQ' . chr(92) . 'Updates' . chr(92) . 'PrivateHostAttestationVerifier') {
     throw new RuntimeException('Private-host attestation classes were not preloaded.');
 }
 return null;
