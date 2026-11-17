@@ -63,6 +63,25 @@ try {
     ), 'Stored report signature must verify with the node public key.');
     evidenceStoreReject(fn() => $store->append($report), 'A repeated nonce/report must not overwrite an existing evidence record.');
 
+    $rejectedReport = $signer->createReport(
+        '1.2.3',
+        $commit,
+        $artifactDigest,
+        str_repeat('e', 64),
+        'reject',
+        [
+            'target_origin' => 'https://sentryiq.bichet.co.za',
+            'manifest_sha256' => $manifestDigest,
+            'checked_paths' => ['VERSION', '@origin-headers'],
+            'mismatches' => [['path' => '@origin-headers', 'reason' => 'security_header_mismatch']],
+        ]
+    );
+    $rejectedStored = $store->append($rejectedReport);
+    $rejectedRecord = json_decode((string)file_get_contents($rejectedStored['evidence_path']), true, 16, JSON_THROW_ON_ERROR);
+    evidenceStoreAssert($rejectedRecord['decision'] === 'reject'
+        && $rejectedRecord['mismatches'] === [['path' => '@origin-headers', 'reason' => 'security_header_mismatch']],
+        'Node C must durably retain signed rejection evidence and mismatch reasons.');
+
     $tampered = json_decode($report, true, 8, JSON_THROW_ON_ERROR);
     $tampered['signature'] = base64_encode(str_repeat("x", SODIUM_CRYPTO_SIGN_BYTES));
     evidenceStoreReject(fn() => $store->append(json_encode($tampered, JSON_THROW_ON_ERROR)),
