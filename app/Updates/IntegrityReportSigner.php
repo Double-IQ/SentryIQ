@@ -176,7 +176,7 @@ final class IntegrityReportSigner
     private function isSafeEvidencePath(string $path): bool
     {
         return $path !== '' && strlen($path) <= 512 && !str_starts_with($path, '/')
-            && !str_contains($path, '\\\\') && !preg_match('~(^|/)\\.\\.?(/|$)~', $path)
+            && !str_contains($path, '\\') && !preg_match('~(^|/)\\.\\.?(/|$)~', $path)
             && !preg_match('/[?#\\x00-\\x1f]/', $path);
     }
 
