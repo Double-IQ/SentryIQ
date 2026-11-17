@@ -156,6 +156,78 @@ final class FileIntegrityEventStore
         });
     }
 
+    /**
+     * Persist an incident notification in the durable outbox, deduplicated by fingerprint.
+     * @param array<string,mixed> $incident
+     * @return array{id:string,created:bool}
+     */
+    public function queueAlert(array $incident): array
+    {
+        if (!is_string($incident['code'] ?? null) || !is_string($incident['message'] ?? null)) {
+            throw new RuntimeException('Incident alert requires a code and message.');
+        }
+        $fingerprint = hash('sha256', json_encode($incident, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+        return $this->transact(function (array &$state) use ($incident, $fingerprint): array {
+            foreach ($state['alerts'] as $id => $existing) {
+                if (($existing['fingerprint'] ?? null) === $fingerprint) {
+                    $state['alerts'][$id]['occurrences'] = (int)($existing['occurrences'] ?? 1) + 1;
+                    $state['alerts'][$id]['last_seen'] = time();
+                    return ['id' => $id, 'created' => false];
+                }
+            }
+            if (count($state['alerts']) >= 1000) {
+                throw new RuntimeException('Node 4 alert outbox is full; delivery maintenance is required.');
+            }
+            $id = bin2hex(random_bytes(16));
+            $state['alerts'][$id] = [
+                'fingerprint' => $fingerprint,
+                'incident' => $incident,
+                'status' => 'pending',
+                'created_at' => time(),
+                'last_seen' => time(),
+                'occurrences' => 1,
+                'delivered_at' => null,
+            ];
+            return ['id' => $id, 'created' => true];
+        });
+    }
+
+    /** @return list<array{id:string,incident:array<string,mixed>,created_at:int,occurrences:int}> */
+    public function pendingAlerts(int $limit = 50): array
+    {
+        if ($limit < 1 || $limit > 100) {
+            throw new RuntimeException('Alert outbox batch size is invalid.');
+        }
+        return $this->transact(static function (array &$state) use ($limit): array {
+            $pending = [];
+            foreach ($state['alerts'] as $id => $alert) {
+                if (($alert['status'] ?? null) === 'pending') {
+                    $pending[] = [
+                        'id' => $id,
+                        'incident' => $alert['incident'],
+                        'created_at' => $alert['created_at'],
+                        'occurrences' => $alert['occurrences'],
+                    ];
+                    if (count($pending) >= $limit) {
+                        break;
+                    }
+                }
+            }
+            return $pending;
+        }, false);
+    }
+
+    public function markAlertDelivered(string $id, ?int $deliveredAt = null): void
+    {
+        $this->transact(function (array &$state) use ($id, $deliveredAt): void {
+            if (!isset($state['alerts'][$id]) || ($state['alerts'][$id]['status'] ?? null) !== 'pending') {
+                throw new RuntimeException('Pending Node 4 alert was not found.');
+            }
+            $state['alerts'][$id]['status'] = 'delivered';
+            $state['alerts'][$id]['delivered_at'] = $deliveredAt ?? time();
+        });
+    }
+
     /** @return array<string,mixed> */
     public function snapshot(): array
     {
@@ -194,7 +266,7 @@ final class FileIntegrityEventStore
     private function readState(): array
     {
         if (!file_exists($this->statePath)) {
-            return ['version' => self::STATE_VERSION, 'challenges' => [], 'reports' => []];
+            return ['version' => self::STATE_VERSION, 'challenges' => [], 'reports' => [], 'alerts' => []];
         }
         if (is_link($this->statePath) || !is_file($this->statePath)) {
             throw new RuntimeException('Node 4 state path is not a regular file.');
@@ -213,7 +285,8 @@ final class FileIntegrityEventStore
             throw new RuntimeException('Node 4 state is corrupt; refusing to overwrite it.', 0, $exception);
         }
         if (!is_array($state) || ($state['version'] ?? null) !== self::STATE_VERSION
-            || !is_array($state['challenges'] ?? null) || !is_array($state['reports'] ?? null)) {
+            || !is_array($state['challenges'] ?? null) || !is_array($state['reports'] ?? null)
+            || !is_array($state['alerts'] ?? null)) {
             throw new RuntimeException('Node 4 state schema is invalid; refusing to overwrite it.');
         }
         return $state;
