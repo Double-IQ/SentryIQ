@@ -93,6 +93,10 @@ jobs:
           php tests/native_sigstore_integrity_adapter.test.php
           php tests/integrity_deployed_release_resolver.test.php
           php tests/integrity_node_release_state.test.php
+          php tests/integrity_node_a.test.php
+          php tests/integrity_node_b.test.php
+          php tests/integrity_node_c.test.php
+          php tests/integrity_node_event_runner.test.php
           php tests/integrity_node_scheduled_runner.test.php
           php tests/integrity_public_asset_policy.test.php
           python3 tests/build_release_manifest.test.py
