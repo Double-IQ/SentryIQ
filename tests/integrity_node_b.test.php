@@ -116,16 +116,19 @@ try {
     );
     $wrongIdentityRejected = false;
     try {
-        new IntegrityNodeB($wrongSigner, $verifier, $fetch);
+        new IntegrityNodeB($wrongSigner, $verifier, nodeBPrivateHostGate(), $fetch, $alertNoop, $headerNoop);
     } catch (RuntimeException) {
         $wrongIdentityRejected = true;
     }
     nodeBAssert($wrongIdentityRejected, 'Node B must reject a signer configured with Node A identity.');
+$wrongGateRejected = false;
+try { new IntegrityNodeB($signer, $verifier, nodeAPrivateHostGate(), $fetch, $alertNoop, $headerNoop); } catch (RuntimeException) { $wrongGateRejected = true; }
+nodeBAssert($wrongGateRejected, 'Node B must reject the other node\'s private-host gate.');
 $missingAlertRejected = false;
-try { new IntegrityNodeB($signer, $verifier, null, $fetch); } catch (RuntimeException) { $missingAlertRejected = true; }
+try { new IntegrityNodeB($signer, $verifier, nodeBPrivateHostGate(), $fetch, null, $headerNoop); } catch (RuntimeException) { $missingAlertRejected = true; }
 nodeBAssert($missingAlertRejected, 'Node B must refuse startup without a direct owner-alert transport.');
 $missingPrivateHostRejected = false;
-try { new IntegrityNodeB($signer, $verifier, null, $fetch, $alertNoop, $headerNoop); } catch (RuntimeException) { $missingPrivateHostRejected = true; }
+try { new IntegrityNodeB($signer, $verifier, null, $fetch, $alertNoop, $headerNoop); } catch (Throwable) { $missingPrivateHostRejected = true; }
 nodeBAssert($missingPrivateHostRejected, 'Node B must refuse startup without private-host attestation.');
 
     $node = new IntegrityNodeB($signer, $verifier, nodeBPrivateHostGate(), $fetch, $alertNoop, $headerNoop);
@@ -160,8 +163,7 @@ nodeBAssert($missingPrivateHostRejected, 'Node B must refuse startup without pri
         static function (string $nodeId, string $reason, array $context) use (&$alerts): void {
             $alerts[] = [$nodeId, $reason, $context];
         },
-        $headerNoop,
-        nodeBPrivateHostGate()
+        $headerNoop
     );
     $rejected = $tamperedNode->verify(
         $manifestPath,
