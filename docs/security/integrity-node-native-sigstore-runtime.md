@@ -122,6 +122,16 @@ The CLI preloads the node classes, native verifier and runtime dependencies befo
 
 Node 4 / BTM-SA is on the same host as SentryIQ. It is not an independent host failure domain. A and B must remain able to alert the owner directly if the SentryIQ/Node 4 host is down.
 
+## Generate each node's signing key locally
+
+Before writing the protected node config, generate the node's Ed25519 identity on that node host. Run this once per host, with that host's private data directory and public webroot:
+
+```sh
+php /absolute/code-path/SentryIQ/bin/integrity-node-keygen.php integrity-a /absolute/private-data /absolute/public-webroot
+```
+
+Use `integrity-b` on Node B and `integrity-c` on Node C. The command refuses to overwrite an existing key, stores the raw private key as a mode-0600 file outside the webroot, and prints only the public key (base64) and file paths. It never prints or exports the private key. Keep each private key on its own node; transfer only A/B public keys to the Node 4 private configuration. Do not generate all three identities on the SentryIQ/Node 4 host.
+
 ## CLI and schedule
 
 Set `SENTRYIQ_INTEGRITY_NODE_CONFIG` to the absolute path of this host's protected PHP config, then run:
