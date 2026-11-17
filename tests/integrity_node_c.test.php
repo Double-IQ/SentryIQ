@@ -19,7 +19,7 @@ $signer = new IntegrityReportSigner(
     static fn(): int => 1794200000
 );
 
-$publicBody = "<?php echo 'SentryIQ';\n";
+$publicBody = "console.log('SentryIQ');\n";
 $manifest = [
     'format' => 2,
     'repository' => 'Double-IQ/SentryIQ',
@@ -27,8 +27,10 @@ $manifest = [
     'version' => '0.1.3',
     'commit' => str_repeat('a', 40),
     'workflow_path' => '.github/workflows/release.yml',
+    'public_files' => ['assets/app.js'],
+    'public_http_files' => ['assets/app.js'],
     'files' => [[
-        'path' => 'index.php',
+        'path' => 'assets/app.js',
         'size' => strlen($publicBody),
         'sha256' => hash('sha256', $publicBody),
     ]],
@@ -71,12 +73,12 @@ nodeCAssert($missingAlertRejected, 'Node C must refuse startup without a direct 
         str_repeat('a', 40),
         '0.1.2',
         'https://example.invalid/SentryIQ',
-        ['index.php'],
+        ['assets/app.js'],
         str_repeat('c', 64)
     );
     nodeCAssert($approved['approved'] === true, 'Matching public file should approve.');
     nodeCAssert(count($verifyCalls) === 2, 'Both manifest and ZIP provenance must be verified.');
-    nodeCAssert($approved['checked_paths'] === ['index.php'], 'Configured path should be checked.');
+    nodeCAssert($approved['checked_paths'] === ['assets/app.js'], 'Configured path should be checked.');
 
     $alerts = [];
     $tamperedNode = new IntegrityNodeC(
@@ -94,7 +96,7 @@ nodeCAssert($missingAlertRejected, 'Node C must refuse startup without a direct 
         str_repeat('a', 40),
         '0.1.2',
         'https://example.invalid/SentryIQ',
-        ['index.php'],
+        ['assets/app.js'],
         str_repeat('d', 64)
     );
     nodeCAssert($rejected['approved'] === false, 'Changed public file must reject.');
@@ -129,7 +131,7 @@ nodeCAssert($missingAlertRejected, 'Node C must refuse startup without a direct 
     try {
         $alertingNode->verify(
             $manifestPath, $artifactPath, '0.1.3', str_repeat('a', 40), '0.1.2',
-            'https://example.invalid/SentryIQ', ['index.php'], str_repeat('f', 64)
+            'https://example.invalid/SentryIQ', ['assets/app.js'], str_repeat('f', 64)
         );
     } catch (RuntimeException) {
         $attestationRejected = true;
