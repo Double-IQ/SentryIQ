@@ -334,6 +334,7 @@ final class FileIntegrityEventStore
                 || ($afterPath['dev'] ?? null) !== ($openedStat['dev'] ?? null)
                 || ($afterPath['ino'] ?? null) !== ($openedStat['ino'] ?? null)
                 || (($after['mode'] ?? 0) & 0777) !== 0600
+                || (($afterPath['mode'] ?? 0) & 0170000) !== 0100000
                 || (($afterPath['mode'] ?? 0) & 0777) !== 0600) {
                 throw new RuntimeException('Node 4 state changed while being read.');
             }
@@ -342,7 +343,7 @@ final class FileIntegrityEventStore
         }
         try {
             $state = json_decode($bytes, true, 64, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException $exception) {
+        } catch (\JsonException $exception) {
             throw new RuntimeException('Node 4 state is corrupt; refusing to overwrite it.', 0, $exception);
         }
         if (!is_array($state) || ($state['version'] ?? null) !== self::STATE_VERSION
@@ -358,7 +359,7 @@ final class FileIntegrityEventStore
     {
         try {
             $bytes = json_encode($state, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
-        } catch (\\JsonException $exception) {
+        } catch (\JsonException $exception) {
             throw new RuntimeException('Unable to encode Node 4 state.', 0, $exception);
         }
         if (strlen($bytes) > self::MAX_STATE_BYTES) {
@@ -390,7 +391,7 @@ final class FileIntegrityEventStore
                 || (($writtenStat['mode'] ?? 0) & 0777) !== 0600) {
                 throw new RuntimeException('Node 4 state temporary file has unsafe metadata.');
             }
-        } catch (\\Throwable $exception) {
+        } catch (\Throwable $exception) {
             fclose($handle);
             @unlink($temporary);
             throw $exception;
