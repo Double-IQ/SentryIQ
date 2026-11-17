@@ -75,7 +75,7 @@ final class IntegrityDeployedReleaseResolver
             throw new RuntimeException('Unable to initialize deployed release HTTPS request.');
         }
         $body = '';
-        $headers = ['Accept: */*', 'Cache-Control: no-cache, no-store', 'Pragma: no-cache'];
+        $headers = ['Accept: */*', 'Cache-Control: no-cache, no-store, no-transform', 'Pragma: no-cache'];
         if (str_starts_with($url, 'https://api.github.com/')) {
             $headers[0] = 'Accept: application/vnd.github+json';
             $headers[] = 'User-Agent: SentryIQ-Integrity-Node/1.0';
