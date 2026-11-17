@@ -100,6 +100,44 @@ try {
     if (!$missingNodeRejected) {
         throw new RuntimeException('Runtime-config loader accepted an incomplete A/B trust configuration.');
     }
+
+    file_put_contents($privateConfig, '<?php return ' . var_export([
+        'data_dir' => $private,
+        'integrity_event' => [
+            'enabled' => true,
+            'target_origin' => 'https://sentryiq.bichet.co.za',
+            'node_tokens' => ['integrity-a' => $tokenA, 'integrity-b' => $tokenA],
+            'node_public_keys' => $nodeKeys,
+        ],
+    ], true) . ';');
+    $duplicateTokenRejected = false;
+    try {
+        IntegrityNode4RuntimeConfig::load($pointer);
+    } catch (RuntimeException) {
+        $duplicateTokenRejected = true;
+    }
+    if (!$duplicateTokenRejected) {
+        throw new RuntimeException('Runtime-config loader accepted a shared A/B bearer token.');
+    }
+
+    file_put_contents($privateConfig, '<?php return ' . var_export([
+        'data_dir' => $private,
+        'integrity_event' => [
+            'enabled' => true,
+            'target_origin' => 'https://sentryiq.bichet.co.za',
+            'node_tokens' => $nodeTokens,
+            'node_public_keys' => ['integrity-a' => $nodeKeys['integrity-a'], 'integrity-b' => $nodeKeys['integrity-a']],
+        ],
+    ], true) . ';');
+    $duplicateKeyRejected = false;
+    try {
+        IntegrityNode4RuntimeConfig::load($pointer);
+    } catch (RuntimeException) {
+        $duplicateKeyRejected = true;
+    }
+    if (!$duplicateKeyRejected) {
+        throw new RuntimeException('Runtime-config loader accepted a shared A/B signing key.');
+    }
 } finally {
     @unlink($pointer);
     @unlink($privateConfig);
