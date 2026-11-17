@@ -22,10 +22,27 @@ $private = $root . '/private';
 $web = $root . '/public';
 mkdir($private, 0700, true);
 mkdir($web, 0700, true);
+$lockPath = $private . '/integrity-release-state.lock';
+file_put_contents($lockPath, '');
+chmod($lockPath, 0600);
 
 try {
     $store = new IntegrityNodeReleaseStateStore($private, $web);
     releaseStateReject(fn() => $store->current(), 'A missing baseline must fail closed.');
+    releaseStateAssert((fileperms($private) & 0777) === 0700, 'Constructor must preserve the pre-provisioned private directory mode.');
+    releaseStateAssert((fileperms($lockPath) & 0777) === 0600, 'Pre-provisioned lock must remain exactly 0600.');
+    releaseStateReject(
+        fn() => new IntegrityNodeReleaseStateStore($root . '/unsafe-private', $web),
+        'A private directory with unsafe permissions must be rejected.'
+    );
+    mkdir($root . '/unsafe-private', 0750);
+    $unsafeMode = fileperms($root . '/unsafe-private') & 0777;
+    releaseStateReject(
+        fn() => new IntegrityNodeReleaseStateStore($root . '/unsafe-private', $web),
+        'A group-accessible private directory must be rejected.'
+    );
+    releaseStateAssert((fileperms($root . '/unsafe-private') & 0777) === $unsafeMode, 'Rejected directory permissions must not be modified.');
+    rmdir($root . '/unsafe-private');
     $commitA = str_repeat('a', 40);
     $commitB = str_repeat('b', 40);
     $manifestA = str_repeat('c', 64);
@@ -34,6 +51,7 @@ try {
     $artifactB = str_repeat('f', 64);
     $store->initializeBaseline('v1.2.3', $commitA, $manifestA, $artifactA);
     releaseStateAssert($store->current()['version'] === '1.2.3', 'Explicit baseline should be persisted.');
+    releaseStateAssert((fileperms($private . '/integrity-release-state.json') & 0777) === 0600, 'Persisted release state must be exactly 0600.');
     $store->assertCandidate('1.2.3', $commitA, $manifestA, $artifactA);
     $store->assertCandidate('1.2.4', $commitB, $manifestB, $artifactB);
     releaseStateReject(fn() => $store->assertCandidate('1.2.2', $commitA, $manifestA, $artifactA), 'Older release must be rejected.');
