@@ -36,7 +36,9 @@ final class IntegrityIncidentCorrelator
             throw new RuntimeException('Incident correlator clock is invalid.');
         }
         $parts = parse_url($expectedOrigin);
-        if (!is_array($parts) || ($parts['scheme'] ?? null) !== 'https' || empty($parts['host'])) {
+        if (!is_array($parts) || ($parts['scheme'] ?? null) !== 'https' || empty($parts['host'])
+            || isset($parts['path']) || isset($parts['user']) || isset($parts['pass'])
+            || isset($parts['query']) || isset($parts['fragment'])) {
             throw new RuntimeException('Incident correlator requires an HTTPS target origin.');
         }
         $reports = $state['reports'] ?? null;
