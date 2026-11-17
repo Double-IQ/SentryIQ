@@ -26,7 +26,7 @@ function nodeAPrivateHostGate(bool $approve = true, string $nodeId = 'integrity-
     $pair = sodium_crypto_sign_keypair();
     $secret = sodium_crypto_sign_secretkey($pair);
     $public = sodium_crypto_sign_publickey($pair);
-    $expected = hash('sha256', "console.log('SentryIQ');\\n");
+    $expected = hash('sha256', "console.log('SentryIQ');\n");
     $observed = $approve ? $expected : hash('sha256', 'tampered deployed file');
     $fileMap = ['assets/app.js' => $expected];
     $client = new PrivateHostAttestationClient(
