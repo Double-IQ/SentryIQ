@@ -45,37 +45,20 @@ $verifyHeaders = static fn(string $origin): array => $headerVerifier->verify($or
 // A/B require a collector key pinned independently in each node's private config.
 // Each host also has its own bearer token; do not reuse the token on the other node.
 $privateHostVerifier = new PrivateHostAttestationVerifier($pinnedCollectorPublicKeyBase64);
-$privateHostClient = new PrivateHostAttestationClient($nodeId, $privateHostBearerToken);\n$privateHostGate = new PrivateHostAttestationGate(\n    $nodeId,\n    $privateHostClient,\n    $privateHostVerifier,\n    $privateDeploymentFilePolicy($manifest),\n    $approvedPrivateConfigBaseline()\n);
-$verifyPrivateHost = static function (
-    string $version,
-    string $commit,
-    string $manifestDigest,
-    string $artifactDigest,
-    string $nonce,
-    array $manifest,
-    string $origin
-) use (
-    $privateHostVerifier,
-    $privateHostClient,
-    $privateDeploymentFilePolicy,
-    $approvedPrivateConfigBaseline
-): array {
-    // The client sends only the bounded release identity and nonce over pinned
-    // HTTPS and returns the original signed JSON envelope unchanged.
-    $envelope = $privateHostClient->request(
-        $nonce, $version, $commit, $manifestDigest, $artifactDigest
+$privateHostGate = null;
+if ($nodeId === 'integrity-a' || $nodeId === 'integrity-b') {
+    $privateHostVerifier = new PrivateHostAttestationVerifier($pinnedCollectorPublicKeyBase64);
+    $privateHostClient = new PrivateHostAttestationClient($nodeId, $privateHostBearerToken);
+    // These maps are independently reviewed and pinned in this node's protected
+    // config; do not derive them from the live host being attested.
+    $privateHostGate = new PrivateHostAttestationGate(
+        $nodeId,
+        $privateHostClient,
+        $privateHostVerifier,
+        $approvedDeployedFileDigestMap,
+        $approvedPrivateConfigDigestMap
     );
-    return $privateHostVerifier->assertAttested(
-        $envelope,
-        $nonce,
-        $version,
-        $commit,
-        $manifestDigest,
-        $artifactDigest,
-        $privateDeploymentFilePolicy($manifest),
-        $approvedPrivateConfigBaseline()
-    );
-};
+}
 
 $attestation = NativeSigstoreIntegrityAttestationVerifier::fromPrivatePaths(
     $privateVendorAutoload,
