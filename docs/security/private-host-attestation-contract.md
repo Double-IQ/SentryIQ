@@ -36,7 +36,7 @@ Each node must have its own bearer token, collector public key, and locally held
 
 `app/Updates/PrivateHostAttestationRequestHandler.php` is framework-neutral service logic, not an HTTP listener. It accepts POST JSON only, authenticates the bearer token, binds each distinct token to exactly one of the A/B node identities, rejects extra fields and caller-selected paths, and calls the collector only after the nonce callback accepts the challenge. It returns 409 for replay, 401 for authentication failure, 400 for malformed requests, and 503 for collector or replay-store failure.
 
-`app/Updates/PrivateHostAttestationNonceStore.php` supplies a filesystem-backed nonce callback. It stores SHA-256 hashes of node/nonce pairs, uses an exclusive lock, atomically replaces a bounded state file, prunes expired entries, and fails closed rather than discarding replay history when full. Its directory must be private, outside the webroot, and writable only by the isolated service identity.
+`app/Updates/PrivateHostAttestationNonceStore.php` supplies a filesystem-backed nonce callback. It stores SHA-256 hashes of node/nonce pairs, uses an exclusive lock, atomically replaces a bounded state file, prunes expired entries, and fails closed rather than discarding replay history when full. Its directory must already have exact 0700 permissions, be outside the webroot, and be writable only by the isolated service identity; the constructor validates permissions and does not change an operator-supplied directory.
 
 The listener, network routing, TLS termination/reverse proxy, OS service identity, process supervision, key provisioning, bearer-token provisioning, policy generation, and service ownership/ACL setup are not implemented here.
 
