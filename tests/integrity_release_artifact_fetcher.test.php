@@ -9,11 +9,13 @@ use SentryIQ\Updates\IntegrityReleaseArtifactFetcher;
 $fetcher = new IntegrityReleaseArtifactFetcher();
 $root = sys_get_temp_dir() . '/sentryiq-release-fetcher-' . bin2hex(random_bytes(6));
 if (!mkdir($root, 0700)) throw new RuntimeException('Unable to create fetcher fixture.');
+$publicRoot = $root . '/public';
+if (!mkdir($publicRoot, 0700)) throw new RuntimeException('Unable to create public-root fixture.');
 
 try {
     $rejectedVersion = false;
     try {
-        $fetcher->fetch('../latest', $root . '/stage');
+        $fetcher->fetch('../latest', $root . '/stage', $publicRoot);
     } catch (RuntimeException) {
         $rejectedVersion = true;
     }
@@ -25,7 +27,7 @@ try {
     if (!symlink($target, $link)) throw new RuntimeException('Unable to create symlink fixture.');
     $rejectedLink = false;
     try {
-        $fetcher->fetch('1.2.3', $link);
+        $fetcher->fetch('1.2.3', $link, $publicRoot);
     } catch (RuntimeException) {
         $rejectedLink = true;
     }
@@ -33,7 +35,7 @@ try {
 
     $rejectedParentLink = false;
     try {
-        $fetcher->fetch('1.2.3', $link . '/nested-stage');
+        $fetcher->fetch('1.2.3', $link . '/nested-stage', $publicRoot);
     } catch (RuntimeException) {
         $rejectedParentLink = true;
     }
@@ -41,15 +43,24 @@ try {
 
     $rootRejected = false;
     try {
-        $fetcher->fetch('1.2.3', DIRECTORY_SEPARATOR);
+        $fetcher->fetch('1.2.3', DIRECTORY_SEPARATOR, $publicRoot);
     } catch (RuntimeException) {
         $rootRejected = true;
     }
     if (!$rootRejected) throw new RuntimeException('Fetcher must reject the filesystem root as a staging directory.');
 
+    $webrootRejected = false;
+    try {
+        $fetcher->fetch('1.2.3', $publicRoot . '/release-assets', $publicRoot);
+    } catch (RuntimeException) {
+        $webrootRejected = true;
+    }
+    if (!$webrootRejected) throw new RuntimeException('Fetcher must reject staging inside the public webroot.');
+
     echo "Integrity release artifact fetcher tests passed.\n";
 } finally {
     @rmdir($root . '/linked');
     @rmdir($root . '/real');
+    @rmdir($publicRoot);
     @rmdir($root);
 }
