@@ -39,7 +39,47 @@ try {
         'Node 4 storage must reject directories accessible to group or other users.'
     );
     chmod($directory, 0700);
+    $lockPath = $directory . DIRECTORY_SEPARATOR . 'integrity-events.lock';
+    file_put_contents($lockPath, '');
+    chmod($lockPath, 0600);
     $store = new FileIntegrityEventStore($directory);
+    $weakLockDirectory = $directory . '-weak-lock';
+    mkdir($weakLockDirectory, 0700);
+    file_put_contents($weakLockDirectory . '/integrity-events.lock', '');
+    chmod($weakLockDirectory . '/integrity-events.lock', 0640);
+    storeReject(
+        static fn() => new FileIntegrityEventStore($weakLockDirectory),
+        'Node 4 store must reject a lock file without exact 0600 permissions.'
+    );
+
+    $symlinkLockDirectory = $directory . '-symlink-lock';
+    mkdir($symlinkLockDirectory, 0700);
+    $lockTarget = $directory . '-lock-target';
+    file_put_contents($lockTarget, 'do-not-touch');
+    chmod($lockTarget, 0600);
+    symlink($lockTarget, $symlinkLockDirectory . '/integrity-events.lock');
+    storeReject(
+        static fn() => new FileIntegrityEventStore($symlinkLockDirectory),
+        'Node 4 store must reject a symlinked lock file.'
+    );
+    storeAssert(file_get_contents($lockTarget) === 'do-not-touch',
+        'A symlinked Node 4 lock must never redirect writes.');
+
+    $symlinkStateDirectory = $directory . '-symlink-state';
+    mkdir($symlinkStateDirectory, 0700);
+    file_put_contents($symlinkStateDirectory . '/integrity-events.lock', '');
+    chmod($symlinkStateDirectory . '/integrity-events.lock', 0600);
+    $stateTarget = $directory . '-state-target';
+    file_put_contents($stateTarget, 'do-not-touch');
+    chmod($stateTarget, 0600);
+    symlink($stateTarget, $symlinkStateDirectory . '/integrity-events.json');
+    storeReject(
+        static fn() => new FileIntegrityEventStore($symlinkStateDirectory),
+        'Node 4 store must reject a symlinked state file.'
+    );
+    storeAssert(file_get_contents($stateTarget) === 'do-not-touch',
+        'A symlinked Node 4 state must never redirect reads or writes.');
+
     $keyA = sodium_crypto_sign_keypair();
     $secretA = sodium_crypto_sign_secretkey($keyA);
     $publicA = sodium_crypto_sign_publickey($keyA);
@@ -87,6 +127,18 @@ try {
 
     $accepted = $verifier->accept($envelope);
     storeAssert($accepted['accepted'] === true, 'Valid challenged report must be accepted.');
+    storeAssert((fileperms($lockPath) & 0777) === 0600,
+        'Node 4 lock file must remain at exact 0600 permissions.');
+
+    chmod($directory . DIRECTORY_SEPARATOR . 'integrity-events.json', 0640);
+    storeReject(
+        static fn() => new FileIntegrityEventStore($directory),
+        'Node 4 store must reject state files with permissions other than exact 0600.'
+    );
+    storeAssert((fileperms($directory . DIRECTORY_SEPARATOR . 'integrity-events.json') & 0777) === 0640,
+        'Node 4 store must not repair operator-supplied state permissions.');
+    chmod($directory . DIRECTORY_SEPARATOR . 'integrity-events.json', 0600);
+
     $snapshot = $store->snapshot();
     storeAssert(count($snapshot['challenges']) === 0, 'Accepted challenge must be consumed.');
     storeAssert(count($snapshot['reports']) === 1, 'Accepted report must be durably retained.');
@@ -148,7 +200,7 @@ try {
     storeAssert($cooldownDuplicate['created'] === false, 'Recently delivered incidents must be suppressed during the alert cooldown.');
 } finally {
     foreach (glob($directory . DIRECTORY_SEPARATOR . '*') ?: [] as $file) {
-        if (is_file($file) && !is_link($file)) {
+        if (is_link($file) || is_file($file)) {
             unlink($file);
         }
     }
