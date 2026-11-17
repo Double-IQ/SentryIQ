@@ -40,6 +40,42 @@ $resolveDeployedRelease = new IntegrityDeployedReleaseResolver();
 $headerVerifier = new IntegrityOriginSecurityHeaderVerifier();
 $verifyHeaders = static fn(string $origin): array => $headerVerifier->verify($origin);
 
+// A/B require a collector key pinned independently in each node's private config.
+// These providers must use node-specific authenticated transport and independently
+// held baselines. The collector endpoint itself is a separate deployment task.
+$privateHostVerifier = new PrivateHostAttestationVerifier($pinnedCollectorPublicKeyBase64);
+$verifyPrivateHost = static function (
+    string $version,
+    string $commit,
+    string $manifestDigest,
+    string $artifactDigest,
+    string $nonce,
+    array $manifest,
+    string $origin
+) use (
+    $privateHostVerifier,
+    $requestPrivateHostAttestation,
+    $privateDeploymentFilePolicy,
+    $approvedPrivateConfigBaseline
+): array {
+    // This transport must authenticate this node directly to the host collector,
+    // send only the bounded nonce/release identity request, and return the signed
+    // JSON envelope. It must throw on timeout, non-200, or malformed transport.
+    $envelope = $requestPrivateHostAttestation(
+        $nonce, $version, $commit, $manifestDigest, $artifactDigest
+    );
+    return $privateHostVerifier->assertAttested(
+        $envelope,
+        $nonce,
+        $version,
+        $commit,
+        $manifestDigest,
+        $artifactDigest,
+        $privateDeploymentFilePolicy($manifest),
+        $approvedPrivateConfigBaseline()
+    );
+};
+
 $attestation = NativeSigstoreIntegrityAttestationVerifier::fromPrivatePaths(
     $privateVendorAutoload,
     $privateDataDirectory
@@ -57,8 +93,8 @@ $publicPathSubset = [];
 
 // Construct only the verifier matching this host's identity.
 $node = match ($nodeId) {
-    'integrity-a' => new IntegrityNodeA($signer, $attestation, null, $directOwnerAlert, $verifyHeaders),
-    'integrity-b' => new IntegrityNodeB($signer, $attestation, null, $directOwnerAlert, $verifyHeaders),
+    'integrity-a' => new IntegrityNodeA($signer, $attestation, null, $directOwnerAlert, $verifyHeaders, $verifyPrivateHost),
+    'integrity-b' => new IntegrityNodeB($signer, $attestation, null, $directOwnerAlert, $verifyHeaders, $verifyPrivateHost),
     'integrity-c' => new IntegrityNodeC($signer, $attestation, null, $directOwnerAlert, $verifyHeaders),
     default => throw new RuntimeException('Unknown Integrity Node identity.'),
 };
@@ -120,6 +156,8 @@ return new IntegrityNodeScheduledRunner(
     $evidenceStore
 );
 ```
+
+Nodes A and B also require the signed private-host attestation callback shown above; they refuse construction without it. A valid signed rejection is included in the node's signed report and triggers the direct alert route. A transport/signature/freshness failure triggers a direct alert and fails the run. Node C does not call this collector because it is hosted separately and is not the production-host verifier. The collector and transport remain unimplemented deployment gates; do not use an always-approve placeholder.
 
 Each node also verifies the origin's HSTS, CSP, framing, MIME-sniffing, referrer and permissions headers. The SentryIQ `.htaccess` now declares that conservative header policy. The signed release manifest carries a `public_http_files` list containing only byte-verifiable static assets. Dynamic PHP endpoints are not compared with their packaged source bytes; private runtime files remain outside HTTP checks. Leave `$publicPathSubset` empty to check every signed static asset, or provide a subset.
 
