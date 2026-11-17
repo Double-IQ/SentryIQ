@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SentryIQ\\Updates;
+namespace SentryIQ\Updates;
 
 use RuntimeException;
 
@@ -31,7 +31,7 @@ final class PrivateHostAttestationCollector
         string $signingKeyPath,
         private readonly array $expectedFiles,
         private readonly array $privateConfig,
-        private readonly string $targetOrigin = 'https://sentryiq.bichet.co.za',
+        string $targetOrigin = 'https://sentryiq.bichet.co.za',
         ?callable $clock = null
     ) {
         if (!preg_match('/^[a-z0-9][a-z0-9._-]{2,63}$/', $collectorId)) {
