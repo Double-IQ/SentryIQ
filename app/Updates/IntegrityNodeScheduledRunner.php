@@ -141,7 +141,7 @@ final class IntegrityNodeScheduledRunner
             if (($result['approved'] ?? null) === true) {
                 $this->releaseState->recordApproved($version, $commit, $manifestDigest, $artifactDigest);
             }
-            return $result + ['release_version' => $version, 'release_commit' => $commit];
+            return $result + ['release_version' => $version, 'release_commit' => $commit, 'release_manifest_sha256' => $manifestDigest, 'release_artifact_sha256' => $artifactDigest];
         }
 
         try {
@@ -154,7 +154,7 @@ final class IntegrityNodeScheduledRunner
             if ($result['approved'] === true) {
                 $this->releaseState->recordApproved($version, $commit, $manifestDigest, $artifactDigest);
             }
-            return $result + ['release_version' => $version, 'release_commit' => $commit];
+            return $result + ['release_version' => $version, 'release_commit' => $commit, 'release_manifest_sha256' => $manifestDigest, 'release_artifact_sha256' => $artifactDigest];
         } catch (Throwable $exception) {
             throw new RuntimeException('Scheduled integrity verification failed.', 0, $exception);
         }
