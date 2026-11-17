@@ -42,6 +42,18 @@ final class PrivateHostAttestationClient
 
     private string $endpoint;
 
+    /** Return the fixed node identity without exposing its bearer credential. */
+    public function nodeId(): string
+    {
+        return $this->nodeId;
+    }
+
+    /** Stable comparison value for auditing that A and B use distinct bearer credentials. */
+    public function credentialFingerprint(): string
+    {
+        return hash('sha256', $this->bearerToken);
+    }
+
     /**
      * Returns the original JSON envelope bytes for the pinned verifier.
      */
