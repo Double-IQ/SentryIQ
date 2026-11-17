@@ -11,6 +11,10 @@ on:
       - 'app/Updates/TufRootStore.php'
       - 'app/Updates/IntegrityDeployedReleaseResolver.php'
       - 'app/Updates/IntegrityNodeReleaseStateStore.php'
+      - 'app/Updates/IntegrityPublicAssetPolicy.php'
+      - 'scripts/build-release-manifest.py'
+      - 'tests/build_release_manifest.test.py'
+      - 'tests/integrity_public_asset_policy.test.php'
       - 'app/Updates/IntegrityNodeScheduledRunner.php'
       - 'bin/integrity-node-run.php'
       - 'tests/native_sigstore_integrity_adapter.test.php'
@@ -76,7 +80,8 @@ jobs:
             tests/sigstore_provenance.test.php \
             tests/integrity_deployed_release_resolver.test.php \
             tests/integrity_node_release_state.test.php \
-            tests/integrity_node_scheduled_runner.test.php; do
+            tests/integrity_node_scheduled_runner.test.php \\
+            tests/integrity_public_asset_policy.test.php; do
             php -l "$file"
           done
       - name: Run native trust and runtime regression tests
@@ -89,3 +94,5 @@ jobs:
           php tests/integrity_deployed_release_resolver.test.php
           php tests/integrity_node_release_state.test.php
           php tests/integrity_node_scheduled_runner.test.php
+          php tests/integrity_public_asset_policy.test.php
+          python3 tests/build_release_manifest.test.py
