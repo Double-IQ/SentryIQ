@@ -212,7 +212,7 @@ final class IntegrityEventReportVerifier
     private function safePath(string $path): bool
     {
         return $path !== '' && strlen($path) <= 512 && !str_starts_with($path, '/')
-            && !str_contains($path, '\\')
+            && !str_contains($path, '\\') && !str_contains($path, '//')
             && !preg_match('~(^|/)\\.\\.?(/|$)~', $path)
             && !preg_match('/[%?#\\x00-\\x1f]/', $path);
     }
