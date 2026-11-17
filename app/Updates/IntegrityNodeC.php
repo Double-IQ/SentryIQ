@@ -22,21 +22,27 @@ final class IntegrityNodeC
     /** @var callable(string):string */
     private $fetch;
 
+    /** @var callable(string,string,array<string,mixed>):void|null */
+    private $notifyFailure;
+
     /**
      * @param callable(string,string,string,string):void $verifyAttestation
      *        Arguments: artifact path, release version, source commit, installed version.
      * @param callable(string):string|null $fetch Test seam; production uses HTTPS cURL.
+     * @param callable(string,string,array<string,mixed>):void|null $notifyFailure Direct owner alert transport, independent of Node 4.
      */
     public function __construct(
         private readonly IntegrityReportSigner $signer,
         callable $verifyAttestation,
-        ?callable $fetch = null
+        ?callable $fetch = null,
+        ?callable $notifyFailure = null
     ) {
         if ($this->signer->nodeId() !== 'integrity-c') {
             throw new RuntimeException('Integrity Node C requires its own integrity-c signing identity.');
         }
         $this->verifyAttestation = $verifyAttestation;
         $this->fetch = $fetch ?? fn(string $url): string => $this->fetchHttps($url);
+        $this->notifyFailure = $notifyFailure;
     }
 
     /**
@@ -76,8 +82,13 @@ final class IntegrityNodeC
         $origin = rtrim($origin, '/') . '/';
 
         // Verify both independently attested subjects before trusting manifest contents.
-        ($this->verifyAttestation)($manifestReal, $version, $commit, $installedVersion);
-        ($this->verifyAttestation)($artifactReal, $version, $commit, $installedVersion);
+        try {
+            ($this->verifyAttestation)($manifestReal, $version, $commit, $installedVersion);
+            ($this->verifyAttestation)($artifactReal, $version, $commit, $installedVersion);
+        } catch (\\Throwable $exception) {
+            $this->alertFailure('release_attestation_rejected', ['release_version' => $version]);
+            throw $exception;
+        }
 
         $manifestBytes = file_get_contents($manifestReal);
         if (!is_string($manifestBytes) || strlen($manifestBytes) > 5_000_000) {
@@ -156,6 +167,12 @@ final class IntegrityNodeC
         }
 
         $approved = $mismatches === [];
+        if (!$approved) {
+            $this->alertFailure('origin_integrity_mismatch', [
+                'target_origin' => rtrim($origin, '/'),
+                'mismatch_count' => count($mismatches),
+            ]);
+        }
         $report = $this->signer->createReport(
             $version,
             $commit,
@@ -173,6 +190,20 @@ final class IntegrityNodeC
             'manifest_sha256' => $manifestDigest,
             'artifact_sha256' => $artifactDigest,
         ];
+    }
+
+
+    /** Deliver directly to Node C's owner destination; never via Node 4. */
+    private function alertFailure(string $reason, array $context = []): void
+    {
+        if ($this->notifyFailure === null) {
+            return;
+        }
+        try {
+            ($this->notifyFailure)($this->signer->nodeId(), $reason, $context);
+        } catch (\\Throwable $exception) {
+            throw new RuntimeException('Independent integrity-node owner alert delivery failed.', 0, $exception);
+        }
     }
 
     private function regularFile(string $path): string
