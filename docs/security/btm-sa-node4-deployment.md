@@ -33,7 +33,7 @@ return [
     'data_dir' => '/absolute/path/outside/httpdocs/sentryiq-data',
     'integrity_event' => [
         'enabled' => true,
-        'target_origin' => 'https://sentryiq.example',
+        'target_origin' => 'https://sentryiq.bichet.co.za',
         // A private callable that sends one incident and returns true only on success.
         'alert_sender' => static function (array $incident, string $idempotencyKey): bool {
             // Connect this to the host's configured mail or webhook transport.
