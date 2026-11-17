@@ -126,10 +126,15 @@ try {
             $privateHostAlerts[] = [$nodeId, $reason, $context];
         },
         $headerNoop,
-        static fn(string $version, string $commit, string $manifestDigest, string $artifactDigest, string $nonce, array $manifest, string $origin): array => [
+        static function (string $version, string $commit, string $manifestDigest, string $artifactDigest, string $nonce, array $manifest, string $origin): array {
+            if (!preg_match('/^[a-f0-9]{64}$/', $nonce) || hash_equals(str_repeat('f', 64), $nonce)) {
+                throw new RuntimeException('Private-host attestation must use its own independent nonce.');
+            }
+            return [
             'approved' => false,
             'mismatches' => [['path' => 'app/Updates/UpdateManager.php', 'reason' => 'digest_mismatch']],
-        ]
+            ];
+        }
     );
     $privateHostRejected = $privateHostRejectedNode->verify(
         $manifestPath, $artifactPath, '0.1.3', str_repeat('a', 40), '0.1.2',
