@@ -7,10 +7,15 @@ if (PHP_SAPI !== 'cli') {
     exit(1);
 }
 
-$configFile = dirname(__DIR__) . '/sentryiq_config.php';
-$config = is_file($configFile) && !is_link($configFile) ? require $configFile : [];
-$event = is_array($config) ? ($config['integrity_event'] ?? null) : null;
-$dataDir = is_array($config) ? (string)($config['data_dir'] ?? '') : '';
+require_once dirname(__DIR__) . '/app/Updates/IntegrityNode4RuntimeConfig.php';
+try {
+    $config = SentryIQ\\Updates\\IntegrityNode4RuntimeConfig::load(dirname(__DIR__) . '/sentryiq_config.php');
+} catch (Throwable) {
+    fwrite(STDERR, "Node 4 private runtime configuration is unavailable.\\n");
+    exit(2);
+}
+$event = $config['integrity_event'] ?? null;
+$dataDir = (string)($config['data_dir'] ?? '');
 $storageDir = is_array($event) ? (string)($event['storage_dir'] ?? '') : '';
 $targetOrigin = is_array($event) ? (string)($event['target_origin'] ?? '') : '';
 $sender = is_array($event) ? ($event['alert_sender'] ?? null) : null;
