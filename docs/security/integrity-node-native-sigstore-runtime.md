@@ -47,6 +47,9 @@ $directOwnerAlert = static function (string $nodeId, string $reason, array $cont
     // Do not return normally unless the transport confirms delivery.
 };
 
+// Empty means check every static asset in the signed manifest; a non-empty list is a subset.
+$publicPathSubset = [];
+
 // Construct only the verifier matching this host's identity.
 $node = match ($nodeId) {
     'integrity-a' => new IntegrityNodeA($signer, $attestation, null, $directOwnerAlert),
