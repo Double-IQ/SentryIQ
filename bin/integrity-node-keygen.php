@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use SentryIQ\\Updates\\IntegrityNodeKeyGenerator;
+use SentryIQ\Updates\IntegrityNodeKeyGenerator;
 
 if (PHP_SAPI !== 'cli') {
     http_response_code(404);
