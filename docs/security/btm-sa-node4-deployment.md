@@ -115,3 +115,22 @@ target origin and alert transport are configured. It exits zero only when both
 independent node reports are fresh and approved. The A/B nodes still need their
 own independent schedules to call `IntegrityNodeEventRunner`; Node 4's cron
 does not replace those checks.
+
+
+## Independent direct alerts from Nodes A and B
+
+Node 4 shares the SentryIQ host and is not a failure-independent alert destination. Each separately hosted node must therefore configure its own direct owner-alert callback, with credentials and destination held in that node's private configuration and delivery performed from that node's own provider. The callback is invoked for attestation rejection and public-origin content mismatch; a callback delivery failure fails the node run rather than silently treating the alert as delivered.
+
+The A/B constructors accept the optional fourth argument `$notifyFailure`:
+
+```php
+$notifyFailure = static function (string $nodeId, string $reason, array $context): void {
+    // Send to this node's independently configured owner-alert destination.
+    // Do not forward solely to BTM-SA / Node 4.
+};
+
+$nodeA = new IntegrityNodeA($signerA, $verifyAttestation, null, $notifyFailure);
+$nodeB = new IntegrityNodeB($signerB, $verifyAttestation, null, $notifyFailure);
+```
+
+This is an injection point, not a configured transport: no email/webhook provider, credentials, or recipient are fabricated by the code. A/B are not production-ready until each host supplies and tests its own direct transport. Node 4's own alert sender also remains a separate required configuration item.
