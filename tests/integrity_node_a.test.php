@@ -115,16 +115,19 @@ try {
         base64_encode(sodium_crypto_sign_secretkey($keypair)),
         static fn(): int => 1794200000
     );
-    new IntegrityNodeA($wrongSigner, $verifier, $fetch);
-} catch (RuntimeException) {
+    new IntegrityNodeA($wrongSigner, $verifier, nodeAPrivateHostGate(), $fetch, $alertNoop, $headerNoop);
+} catch (Throwable) {
     $wrongIdentityRejected = true;
 }
 nodeAAssert($wrongIdentityRejected, 'Node A must reject a signer using Node B identity.');
+$wrongGateRejected = false;
+try { new IntegrityNodeA($signer, $verifier, nodeBPrivateHostGate(), $fetch, $alertNoop, $headerNoop); } catch (RuntimeException) { $wrongGateRejected = true; }
+nodeAAssert($wrongGateRejected, 'Node A must reject the other node\'s private-host gate.');
 $missingAlertRejected = false;
-try { new IntegrityNodeA($signer, $verifier, null, $fetch); } catch (RuntimeException) { $missingAlertRejected = true; }
+try { new IntegrityNodeA($signer, $verifier, nodeAPrivateHostGate(), $fetch, null, $headerNoop); } catch (RuntimeException) { $missingAlertRejected = true; }
 nodeAAssert($missingAlertRejected, 'Node A must refuse startup without a direct owner-alert transport.');
 $missingPrivateHostRejected = false;
-try { new IntegrityNodeA($signer, $verifier, null, $fetch, $alertNoop, $headerNoop); } catch (RuntimeException) { $missingPrivateHostRejected = true; }
+try { new IntegrityNodeA($signer, $verifier, null, $fetch, $alertNoop, $headerNoop); } catch (Throwable) { $missingPrivateHostRejected = true; }
 nodeAAssert($missingPrivateHostRejected, 'Node A must refuse startup without private-host attestation.');
 
 try {
@@ -160,8 +163,7 @@ try {
         static function (string $nodeId, string $reason, array $context) use (&$alerts): void {
             $alerts[] = [$nodeId, $reason, $context];
         },
-        $headerNoop,
-        nodeAPrivateHostGate()
+        $headerNoop
     );
     $rejected = $tamperedNode->verify(
         $manifestPath,
