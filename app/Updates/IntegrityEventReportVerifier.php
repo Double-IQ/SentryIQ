@@ -71,7 +71,7 @@ final class IntegrityEventReportVerifier
         }
         try {
             $envelope = json_decode($encodedEnvelope, true, 8, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException $exception) {
+        } catch (\JsonException $exception) {
             throw new RuntimeException('Integrity event envelope is not valid JSON.', 0, $exception);
         }
         if (!is_array($envelope) || array_is_list($envelope)
@@ -89,7 +89,7 @@ final class IntegrityEventReportVerifier
         }
         try {
             $payload = json_decode($rawPayload, true, 32, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException $exception) {
+        } catch (\JsonException $exception) {
             throw new RuntimeException('Signed integrity event payload is not valid JSON.', 0, $exception);
         }
         if (!is_array($payload) || array_is_list($payload)) {
