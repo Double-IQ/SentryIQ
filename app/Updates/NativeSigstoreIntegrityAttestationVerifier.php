@@ -78,6 +78,7 @@ final class NativeSigstoreIntegrityAttestationVerifier
             strtolower(trim($expectedCommit)),
             $digest,
             $installedVersion,
+            true, // Integrity nodes must be able to verify the release already deployed at the origin.
         );
     }
 }
