@@ -113,6 +113,24 @@ $reject(
     'Path traversal evidence must be rejected.'
 );
 
+$encodedPathPayload = array_replace($payload, [
+    'nonce' => str_repeat('2', 64),
+    'checked_paths' => ['%2e%2e/private/config.php'],
+]);
+$reject(
+    fn() => $verifier->accept(eventEnvelope($secretA, $encodedPathPayload)),
+    'Encoded traversal evidence must be rejected.'
+);
+
+$repeatedSlashPayload = array_replace($payload, [
+    'nonce' => str_repeat('3', 64),
+    'checked_paths' => ['assets//app.js'],
+]);
+$reject(
+    fn() => $verifier->accept(eventEnvelope($secretA, $repeatedSlashPayload)),
+    'Repeated-slash evidence paths must be rejected.'
+);
+
 $conflictingPayload = array_replace($payload, [
     'nonce' => str_repeat('1', 64),
     'decision' => 'approve',
