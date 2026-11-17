@@ -98,7 +98,7 @@ final class IntegrityNodeReleaseStateStore
         $this->runExclusive($initialize);
     }
 
-    /** @return array{version:string,commit:string,manifest_sha256:?string,artifact_sha256:?string,approved_at:int} */
+    /** @return array{version:string,commit:string,manifest_sha256:string,artifact_sha256:string,approved_at:int} */
     public function current(): array
     {
         if (is_link($this->statePath) || !is_file($this->statePath)
@@ -154,8 +154,6 @@ final class IntegrityNodeReleaseStateStore
             && (!hash_equals($current['manifest_sha256'], $manifestDigest)
                 || !hash_equals($current['artifact_sha256'], $artifactDigest))) {
             throw new RuntimeException('Integrity release artifacts changed without a version and source-commit change.');
-        }
-    }
         }
     }
 
