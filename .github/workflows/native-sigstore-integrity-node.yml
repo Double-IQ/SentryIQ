@@ -51,6 +51,7 @@ on:
       - 'tests/build_release_manifest.test.py'
       - 'tests/integrity_public_asset_policy.test.php'
       - 'app/Updates/IntegrityNodeScheduledRunner.php'
+      - 'app/Updates/IntegrityNodeVerifierBinding.php'
       - 'bin/integrity-node-run.php'
       - 'tests/integrity_node_cli_bootstrap.test.php'
       - 'bin/integrity-node-keygen.php'
@@ -157,7 +158,8 @@ jobs:
             integrity_event.php \
             tests/integrity_event_request_decoder.test.php \
             app/Updates/IntegrityNodeAlertedException.php \
-            app/Updates/IntegrityNodeScheduledRunner.php \
+            app/Updates/IntegrityNodeScheduledRunner.php \\
+            app/Updates/IntegrityNodeVerifierBinding.php \
             bin/integrity-node-keygen.php \
             app/Updates/IntegrityNodeEventRunner.php \
             app/Updates/IntegrityNodeA.php \
