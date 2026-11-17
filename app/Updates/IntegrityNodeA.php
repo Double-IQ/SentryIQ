@@ -175,12 +175,9 @@ final class IntegrityNodeA
             throw new RuntimeException('Origin security-header verifier returned an invalid result.');
         }
         $checked[] = '@origin-headers';
+        $headerMismatchNames = $headerResult['mismatches'];
         if ($headerResult['approved'] !== true) {
             $mismatches[] = ['path' => '@origin-headers', 'reason' => 'security_header_mismatch'];
-            $this->alertFailure('origin_integrity_mismatch', [
-                'target_origin' => rtrim($origin, '/'),
-                'header_mismatches' => $headerResult['mismatches'],
-            ]);
         }
 
         $artifactDigest = hash_file('sha256', $artifactReal);
@@ -194,6 +191,7 @@ final class IntegrityNodeA
             $this->alertFailure('origin_integrity_mismatch', [
                 'target_origin' => rtrim($origin, '/'),
                 'mismatch_count' => count($mismatches),
+                'header_mismatches' => $headerMismatchNames,
             ]);
         }
         $report = $this->signer->createReport(
