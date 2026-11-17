@@ -6,7 +6,7 @@ This is the concrete composition contract joining the native verifier, the publi
 
 The protected PHP config file loaded by `bin/integrity-node-run.php` must return one `IntegrityNodeScheduledRunner`. It is created independently on each node host. The code below is the shared composition pattern; substitute only that host's private paths, signer key, alert transport, release resolver and (for A/B) Node 4 token. Never copy one node's private configuration or signing key to another node.
 
-The release resolver is deliberately an injected administrator-controlled source. It must return the version and full source commit actually deployed at `https://sentryiq.bichet.co.za`, plus that deployed version as `installed_version`. It must not return GitHub's newest release merely because it exists. No public endpoint is assumed to provide this marker.
+The deployed-release resolver reads the live `/VERSION` file from `https://sentryiq.bichet.co.za`, then resolves that exact `v<version>` tag to a full commit in the canonical `Double-IQ/SentryIQ` repository. It never selects GitHub's newest release. The resolver fails closed if the public VERSION file or matching tag cannot be read. The node's `installed_version` anti-rollback baseline comes from its own private monotonic state store, not from the public origin.
 
 ## Common construction pattern
 
@@ -17,6 +17,8 @@ use SentryIQ\Updates\IntegrityNodeA;
 use SentryIQ\Updates\IntegrityNodeB;
 use SentryIQ\Updates\IntegrityNodeC;
 use SentryIQ\Updates\IntegrityNodeScheduledRunner;
+use SentryIQ\Updates\IntegrityNodeReleaseStateStore;
+use SentryIQ\Updates\IntegrityDeployedReleaseResolver;
 use SentryIQ\Updates\IntegrityReleaseArtifactFetcher;
 use SentryIQ\Updates\IntegrityReportSigner;
 use SentryIQ\Updates\NativeSigstoreIntegrityAttestationVerifier;
@@ -24,7 +26,7 @@ use SentryIQ\Updates\NativeSigstoreIntegrityAttestationVerifier;
 // These values are supplied only by this host's protected configuration.
 $nodeId = 'integrity-a'; // exactly one of integrity-a, integrity-b, integrity-c
 $signer = new IntegrityReportSigner($nodeId, $base64Ed25519SecretKey);
-$attestation = NativeSigstoreIntegrityAttestationVerifier::fromPrivatePaths(
+$releaseState = new IntegrityNodeReleaseStateStore($privateDataDirectory, $publicWebRoot);\n$resolveDeployedRelease = new IntegrityDeployedReleaseResolver();\n\n// Initialize this once, manually, after independently confirming the known-good\n// release already deployed on this node's target. Do not run this on every cron.\n// $releaseState->initializeBaseline('<verified-version>', '<verified-40-character-commit>');\n\n$attestation = NativeSigstoreIntegrityAttestationVerifier::fromPrivatePaths(
     $privateVendorAutoload,
     $privateDataDirectory
 );
@@ -80,7 +82,7 @@ if ($nodeId === 'integrity-a' || $nodeId === 'integrity-b') {
 return new IntegrityNodeScheduledRunner(
     $nodeId,
     new IntegrityReleaseArtifactFetcher(),
-    $resolveDeployedRelease, // callable(): version, commit, installed_version
+    $resolveDeployedRelease, // callable(): version, commit from live VERSION + canonical Git tag
     $verify,
     $directOwnerAlert,
     $privateDataDirectory,
@@ -91,7 +93,7 @@ return new IntegrityNodeScheduledRunner(
 );
 ```
 
-The imports above are illustrative; the private bootstrap must also load the corresponding application classes before constructing them. The existing CLI validates the config file path and requires it to return the runner.
+The imports above are illustrative; the private bootstrap must also load the corresponding application classes before constructing them. The existing CLI validates the config file path and requires it to return the runner. The private monotonic state baseline must already exist; first-run bootstrap is an explicit one-time administrator action.
 
 ## Node-specific boundaries
 
@@ -111,7 +113,7 @@ php /absolute/private-or-code-path/SentryIQ/bin/integrity-node-run.php
 
 Create one independent schedule per A/B/C host. Do not place all three node schedules or private keys on the SentryIQ/Node 4 host.
 
-## Deployment gates not fabricated by this code
+## Per-node anti-rollback state\n\nEach A/B/C host keeps its own `integrity-release-state.json` in its private data directory. The baseline is initialized once with a release version and commit that the administrator has independently confirmed as the known-good deployed build. A run is serialized with an exclusive lock; older versions and same-version/different-commit tag changes are rejected. The state advances only after the node returns an approved verification result. A rejected or incomplete check never advances the pin. Do not initialize the baseline from the live `/VERSION` response alone.\n\n## Deployment gates not fabricated by this code
 
 Before a host can run this bootstrap, its administrator must supply and test: the deployed-release resolver, exact public path allowlist, node-specific Ed25519 key, independent alert transport, private vendor autoload path, private data directory and (for A/B) unique Node 4 bearer token. Node 4 separately needs A/B public keys, matching bearer tokens, private event storage and a real alert sender.
 
