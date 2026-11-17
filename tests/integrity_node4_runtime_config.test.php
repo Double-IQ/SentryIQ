@@ -20,7 +20,7 @@ file_put_contents($pointer, '<?php return ' . var_export([
 ], true) . ';');
 file_put_contents($privateConfig, '<?php return ' . var_export([
     'data_dir' => $private,
-    'integrity_event' => ['enabled' => true, 'node_tokens' => ['integrity-a' => str_repeat('a', 40)]],
+    'integrity_event' => ['enabled' => true, 'target_origin' => 'https://sentryiq.bichet.co.za', 'node_tokens' => ['integrity-a' => str_repeat('a', 40)]],
 ], true) . ';');
 
 try {
@@ -56,6 +56,20 @@ try {
     }
     if (!$secretRejected) {
         throw new RuntimeException('Runtime-config loader accepted secrets in the public pointer.');
+    }
+
+    file_put_contents($privateConfig, '<?php return ' . var_export([
+        'data_dir' => $private,
+        'integrity_event' => ['enabled' => true, 'target_origin' => 'https://attacker.invalid'],
+    ], true) . ';');
+    $wrongTargetRejected = false;
+    try {
+        IntegrityNode4RuntimeConfig::load($pointer);
+    } catch (RuntimeException) {
+        $wrongTargetRejected = true;
+    }
+    if (!$wrongTargetRejected) {
+        throw new RuntimeException('Runtime-config loader accepted a non-production Node 4 target.');
     }
 } finally {
     @unlink($pointer);
