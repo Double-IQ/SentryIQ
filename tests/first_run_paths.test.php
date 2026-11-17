@@ -22,7 +22,7 @@ if (!mkdir($security, 0700, true) || !mkdir($vendor, 0700, true)) {
 try {
     assert_same_value($root, FirstRunPaths::accountRoot($security), 'account root resolves above httpdocs');
     assert_same_value($root . '/private_data', FirstRunPaths::dataDirectory($security), 'secure data directory is outside httpdocs');
-    assert_same_value($root . '/httpdocs/private_data', FirstRunPaths::bundledPrivateDirectory($security), 'bundled first-run source remains under the application root');
+    assert_same_value($root . '/httpdocs/runtime', FirstRunPaths::bundledPrivateDirectory($security), 'bundled first-run source remains under the application root');
     assert_same_value('', FirstRunPaths::sigstoreAutoload($security), 'missing private Composer autoloader disables updater configuration');
 
     file_put_contents($vendor . '/autoload.php', "<?php // test autoloader\n");
