@@ -72,7 +72,7 @@ if (!is_string($body) || strlen($body) !== $contentLength || $body === '') {
     integrityEventRespond(400, ['status' => 'error', 'message' => 'Request body could not be read.']);
 }
 try {
-    $request = SentryIQ\\Updates\\IntegrityEventRequestDecoder::decode($body, 32768);
+    $request = SentryIQ\Updates\IntegrityEventRequestDecoder::decode($body, 32768);
 } catch (Throwable) {
     integrityEventRespond(400, ['status' => 'error', 'message' => 'Request JSON is invalid or ambiguous.']);
 }
