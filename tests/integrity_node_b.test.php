@@ -122,7 +122,7 @@ try {
     }
     nodeBAssert($wrongIdentityRejected, 'Node B must reject a signer configured with Node A identity.');
 $wrongGateRejected = false;
-try { new IntegrityNodeB($signer, $verifier, nodeAPrivateHostGate(), $fetch, $alertNoop, $headerNoop); } catch (RuntimeException) { $wrongGateRejected = true; }
+try { new IntegrityNodeB($signer, $verifier, nodeBPrivateHostGate(true, 'integrity-a'), $fetch, $alertNoop, $headerNoop); } catch (RuntimeException) { $wrongGateRejected = true; }
 nodeBAssert($wrongGateRejected, 'Node B must reject the other node\'s private-host gate.');
 $missingAlertRejected = false;
 try { new IntegrityNodeB($signer, $verifier, nodeBPrivateHostGate(), $fetch, null, $headerNoop); } catch (RuntimeException) { $missingAlertRejected = true; }
