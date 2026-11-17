@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace SentryIQ\Updates;
 
 use RuntimeException;
+use Throwable;
 
 require_once __DIR__ . '/IntegrityNodeAlertedException.php';
-use Throwable;
+require_once __DIR__ . '/IntegrityNodeReleaseStateStore.php';
 
 /**
  * One scheduled execution of an independently hosted Integrity Node.
