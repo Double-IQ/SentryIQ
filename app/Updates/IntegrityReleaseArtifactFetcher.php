@@ -21,7 +21,7 @@ final class IntegrityReleaseArtifactFetcher
     ];
 
     /** @return array{manifest_path:string,artifact_path:string} */
-    public function fetch(string $releaseVersion, string $privateDirectory): array
+    public function fetch(string $releaseVersion, string $privateDirectory, string $publicRoot): array
     {
         $version = trim($releaseVersion);
         if (str_starts_with($version, 'v')) $version = substr($version, 1);
@@ -29,7 +29,18 @@ final class IntegrityReleaseArtifactFetcher
             throw new RuntimeException('Release asset version must use stable MAJOR.MINOR.PATCH format.');
         }
 
+        if ($publicRoot === '' || !str_starts_with($publicRoot, DIRECTORY_SEPARATOR) || is_link($publicRoot)) {
+            throw new RuntimeException('A real public webroot path is required to protect release staging.');
+        }
+        $realPublicRoot = realpath($publicRoot);
+        if (!is_string($realPublicRoot) || !is_dir($realPublicRoot)) {
+            throw new RuntimeException('Configured public webroot cannot be resolved.');
+        }
         $directory = $this->ensurePrivateDirectory($privateDirectory);
+        if ($directory === $realPublicRoot
+            || str_starts_with($directory, rtrim($realPublicRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
+            throw new RuntimeException('Release staging directory must be outside the public webroot.');
+        }
         @chmod($directory, 0700);
 
         $manifest = $directory . '/release-manifest.json';
