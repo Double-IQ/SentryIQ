@@ -52,22 +52,35 @@ final class IntegrityNodeKeyGenerator
 
         $privateTemp = $privatePath . '.tmp-' . bin2hex(random_bytes(8));
         $publicTemp = $publicPath . '.tmp-' . bin2hex(random_bytes(8));
+        $privateCreated = false;
+        $publicCreated = false;
         try {
             if (@file_put_contents($privateTemp, $secret, LOCK_EX) !== strlen($secret)
                 || !@chmod($privateTemp, 0600)
                 || @file_put_contents($publicTemp, $public, LOCK_EX) !== strlen($public)
-                || !@chmod($publicTemp, 0600)
-                || !@rename($privateTemp, $privatePath)
-                || !@rename($publicTemp, $publicPath)) {
-                throw new RuntimeException('Atomic node signing key creation failed.');
+                || !@chmod($publicTemp, 0600)) {
+                throw new RuntimeException('Unable to write private temporary node key files.');
             }
+            // Hard-link publication is atomic and refuses to replace an existing key.
+            if (!@link($privateTemp, $privatePath)) {
+                throw new RuntimeException('Private node signing key already exists or could not be published.');
+            }
+            $privateCreated = true;
+            if (!@link($publicTemp, $publicPath)) {
+                throw new RuntimeException('Public node signing key already exists or could not be published.');
+            }
+            $publicCreated = true;
         } catch (\Throwable $exception) {
             @unlink($privateTemp);
             @unlink($publicTemp);
-            @unlink($privatePath);
-            @unlink($publicPath);
+            if ($privateCreated) @unlink($privatePath);
+            if ($publicCreated) @unlink($publicPath);
             throw $exception;
+        } finally {
+            sodium_memzero($secret);
         }
+        @unlink($privateTemp);
+        @unlink($publicTemp);
 
         return [
             'node_id' => $nodeId,
