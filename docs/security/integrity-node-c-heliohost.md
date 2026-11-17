@@ -18,6 +18,7 @@ The existing `GitHubCliAttestationVerifier` invokes GitHub CLI through `proc_ope
 
 - Generate a unique Ed25519 key for `integrity-c`; never reuse A/B keys or commit the private key.
 - Store the key and GitHub/API credentials outside the web root in protected HelioHost configuration.
+- Retain Node C's generated public key in an owner-controlled location outside HelioHost so signed evidence can be independently verified later. Node 4 intentionally stores only the A/B public keys; do not treat a public key read from Node C's own evidence directory as an independent trust anchor.
 - Use a dedicated HelioHost account and independent Plesk scheduled task; keep frequency within HelioHost resource limits.
 - Generate a fresh 32-byte nonce locally for each run; Node C does not use Node 4's challenge API, which is deliberately limited to Nodes A/B. Persist C's signed report in its own private evidence store and prevent local replay/overwrite.
 - Configure an explicit public-path allowlist. Never infer that private PHP/config files are externally fetchable.
