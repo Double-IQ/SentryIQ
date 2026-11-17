@@ -12,6 +12,7 @@ on:
       - 'app/Updates/IntegrityDeployedReleaseResolver.php'
       - 'app/Updates/IntegrityNodeReleaseStateStore.php'
       - 'app/Updates/IntegrityNodeScheduledRunner.php'
+      - 'bin/integrity-node-run.php'
       - 'tests/native_sigstore_integrity_adapter.test.php'
       - 'tests/release_trust_policy.test.php'
       - 'tests/sigstore_provenance.test.php'
