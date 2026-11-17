@@ -204,7 +204,7 @@ final class FileIntegrityEventStore
         }
         try {
             $state = json_decode($bytes, true, 64, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException $exception) {
+        } catch (\JsonException $exception) {
             throw new RuntimeException('Node 4 state is corrupt; refusing to overwrite it.', 0, $exception);
         }
         if (!is_array($state) || ($state['version'] ?? null) !== self::STATE_VERSION
@@ -219,7 +219,7 @@ final class FileIntegrityEventStore
     {
         try {
             $bytes = json_encode($state, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
-        } catch (\\JsonException $exception) {
+        } catch (\JsonException $exception) {
             throw new RuntimeException('Unable to encode Node 4 state.', 0, $exception);
         }
         if (strlen($bytes) > self::MAX_STATE_BYTES) {
