@@ -26,7 +26,7 @@ bearer token and its Ed25519 signature.
 
 ## Private runtime configuration
 
-The endpoint and CLI monitor first read the small `sentryiq_config.php` pointer in the application webroot, then use its `data_dir` to load the actual `<data_dir>/sentryiq_config.php` private configuration. Node 4 secrets (`integrity_event`, tokens, public keys and alert sender) belong only in that private file; they must not be copied into the webroot pointer. `IntegrityNode4RuntimeConfig` enforces that the resolved data directory is outside the webroot and that the private config is a real file inside it.
+The endpoint and CLI monitor first read the small `sentryiq_config.php` pointer in the application webroot, then use its `data_dir` to load the actual `<data_dir>/sentryiq_config.php` private configuration. Node 4 secrets (`integrity_event`, tokens, public keys and alert sender) belong only in that private file; they must not be copied into the webroot pointer. `IntegrityNode4RuntimeConfig` enforces that the resolved data directory is outside the webroot with exact `0700` permissions and that the private config is a regular file inside it with exact `0600` permissions. Weak permissions are rejected, never repaired automatically.
 
 The following is a shape example only. Never commit actual values:
 
