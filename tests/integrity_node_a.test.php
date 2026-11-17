@@ -48,6 +48,7 @@ $verifier = static function (string $path, string $version, string $commit, stri
 $fetch = static fn(string $url): string => $publicBody;
 $alertNoop = static function (string $nodeId, string $reason, array $context): void {};
 $headerNoop = static fn(string $origin): array => ['approved' => true, 'mismatches' => [], 'headers' => []];
+$privateHostNoop = static fn(string $version, string $commit, string $manifestDigest, string $artifactDigest, string $nonce, array $manifest, string $origin): array => ['approved' => true, 'mismatches' => []];
 
 $wrongIdentityRejected = false;
 try {
@@ -66,7 +67,7 @@ try { new IntegrityNodeA($signer, $verifier, $fetch); } catch (RuntimeException)
 nodeAAssert($missingAlertRejected, 'Node A must refuse startup without a direct owner-alert transport.');
 
 try {
-    $node = new IntegrityNodeA($signer, $verifier, $fetch, $alertNoop, $headerNoop);
+    $node = new IntegrityNodeA($signer, $verifier, $fetch, $alertNoop, $headerNoop, $privateHostNoop);
     $approved = $node->verify(
         $manifestPath,
         $artifactPath,
@@ -97,7 +98,8 @@ try {
         static function (string $nodeId, string $reason, array $context) use (&$alerts): void {
             $alerts[] = [$nodeId, $reason, $context];
         },
-        $headerNoop
+        $headerNoop,
+        $privateHostNoop
     );
     $rejected = $tamperedNode->verify(
         $manifestPath,
