@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'app/Updates/NativeSigstoreReleaseVerifier.php'
+      - 'app/Updates/NativeSigstoreIntegrityAttestationVerifier.php'
       - 'app/Updates/SigstoreProvenance.php'
       - 'app/Updates/ReleaseTrustPolicy.php'
       - 'app/Updates/UpdateManager.php'
@@ -47,6 +48,7 @@ jobs:
       - name: Lint native verifier and updater
         run: |
           php -l app/Updates/NativeSigstoreReleaseVerifier.php
+          php -l app/Updates/NativeSigstoreIntegrityAttestationVerifier.php
           php -l app/Updates/SigstoreProvenance.php
           php -l app/Updates/ReleaseTrustPolicy.php
           php -l app/Updates/TufRootStore.php
