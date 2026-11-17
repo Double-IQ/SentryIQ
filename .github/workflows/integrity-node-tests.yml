@@ -19,9 +19,11 @@ on:
       - 'app/Updates/IntegrityDeployedReleaseResolver.php'
       - 'app/Updates/IntegrityNodeReleaseStateStore.php'
       - 'app/Updates/IntegrityNodeKeyGenerator.php'
+      - 'app/Updates/IntegrityNodeEvidenceStore.php'
       - 'tests/integrity_deployed_release_resolver.test.php'
       - 'tests/integrity_node_release_state.test.php'
       - 'tests/integrity_node_key_generator.test.php'
+      - 'tests/integrity_node_evidence_store.test.php'
       - 'app/Updates/NativeSigstoreIntegrityAttestationVerifier.php'
       - 'app/Updates/NativeSigstoreReleaseVerifier.php'
       - 'app/Updates/ReleaseArtifactVerifier.php'
@@ -91,6 +93,7 @@ jobs:
           php tests/integrity_deployed_release_resolver.test.php
           php tests/integrity_node_release_state.test.php
           php tests/integrity_node_key_generator.test.php
+          php tests/integrity_node_evidence_store.test.php
           php tests/integrity_release_artifact_fetcher.test.php
           php tests/integrity_node4_monitor.test.php
           php tests/integrity_node4_runtime_config.test.php
