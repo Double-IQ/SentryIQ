@@ -80,7 +80,7 @@ require_once __DIR__ . '/app/Updates/FileIntegrityEventStore.php';
 require_once __DIR__ . '/app/Updates/IntegrityEventReportVerifier.php';
 
 try {
-    $store = new SentryIQ\\Updates\\FileIntegrityEventStore($dataDir);
+    $store = new SentryIQ\Updates\FileIntegrityEventStore($dataDir);
     if ($request['action'] === 'challenge') {
         $nodeId = $request['node_id'] ?? null;
         $tokens = $eventConfig['node_tokens'] ?? [];
@@ -125,7 +125,7 @@ try {
         if (!is_array($keys)) {
             integrityEventRespond(503, ['status' => 'error', 'message' => 'Node trust keys are unavailable.']);
         }
-        $verifier = new SentryIQ\\Updates\\IntegrityEventReportVerifier(
+        $verifier = new SentryIQ\Updates\IntegrityEventReportVerifier(
             $keys,
             [$store, 'consumeAndStore']
         );
