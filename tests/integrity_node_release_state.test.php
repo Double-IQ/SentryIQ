@@ -41,6 +41,8 @@ try {
     releaseStateReject(fn() => $store->assertCandidate('1.2.3', $commitB), 'Same-version tag retarget must be rejected.');
     releaseStateReject(fn() => $store->assertCandidate('1.2.3', $commitA, $manifestB, $artifactB), 'Same-version artifact replacement must be rejected after digest pinning.');
     releaseStateReject(fn() => $store->initializeBaseline('1.2.4', $commitB), 'Existing baseline must not be silently replaced.');
+    releaseStateReject(fn() => $store->initializeBaseline('1.2.3', $commitA, $manifestA, null), 'Baseline must pin both artifact digests together.');
+    releaseStateReject(fn() => $store->runExclusive(fn() => $store->recordApproved('1.2.3', $commitA, $manifestB, $artifactB)), 'Same-version digest replacement must be rejected while recording approval.');
     releaseStateReject(fn() => $store->recordApproved('1.2.4', $commitB, $manifestB, $artifactB), 'State may advance only under the exclusive run lock.');
 
     $store->runExclusive(function () use ($store, $commitB): void {
