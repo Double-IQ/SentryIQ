@@ -15,6 +15,13 @@ import re
 import sys
 
 
+HTTP_STATIC_EXTENSIONS = {
+    '.css', '.js', '.mjs', '.json', '.webmanifest', '.svg', '.png', '.jpg',
+    '.jpeg', '.gif', '.webp', '.avif', '.ico', '.woff', '.woff2', '.ttf',
+    '.otf', '.eot', '.txt', '.xml', '.pdf', '.wasm', '.map', '.html',
+}
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -35,6 +42,7 @@ def build_manifest(root: Path, version: str, commit: str, repository: str,
     entries = []
     public_files = []
     runtime_files = []
+    public_http_files = []
     for path in sorted(root.rglob("*")):
         if path.is_symlink():
             raise ValueError(f"symbolic links are not permitted: {path}")
@@ -49,6 +57,8 @@ def build_manifest(root: Path, version: str, commit: str, repository: str,
             runtime_files.append(relative.removeprefix("runtime/"))
         else:
             public_files.append(relative)
+            if Path(relative).suffix.lower() in HTTP_STATIC_EXTENSIONS:
+                public_http_files.append(relative)
 
     if not public_files or not runtime_files:
         raise ValueError("release must contain public and runtime files")
@@ -61,6 +71,7 @@ def build_manifest(root: Path, version: str, commit: str, repository: str,
         "commit": commit,
         "workflow_path": workflow_path,
         "public_files": public_files,
+        "public_http_files": public_http_files,
         "runtime_files": runtime_files,
         "files": entries,
     }
