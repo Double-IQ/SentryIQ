@@ -70,8 +70,8 @@ scheduledAssert($rejectedA, 'Nodes A/B must not start without their Node 4 event
 
 $wrongEventIdentityRejected = false;
 try {
-    $wrongNode4Runner = new SentryIQ\\Updates\\IntegrityNodeEventRunner(
-        new SentryIQ\\Updates\\IntegrityEventClient(
+    $wrongNode4Runner = new SentryIQ\Updates\\IntegrityNodeEventRunner(
+        new SentryIQ\Updates\\IntegrityEventClient(
             'https://sentryiq.bichet.co.za/integrity_event.php',
             'integrity-b',
             str_repeat('y', 48),
