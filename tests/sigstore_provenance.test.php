@@ -46,6 +46,7 @@ $statement = [
                     'event_name' => 'push',
                     'repository_id' => '1345956206',
                     'runner_environment' => 'github-hosted',
+                    'workflow_sha' => $commit,
                 ],
             ],
             'resolvedDependencies' => [[
@@ -64,6 +65,7 @@ $statement = [
 $claims = SigstoreProvenance::claimsFromArray($statement, '0.1.2', str_repeat('a', 64), 'sentryiq-0.1.2.zip');
 provenanceAssert($claims['source_commit'] === $commit, 'Source commit must be extracted from the SLSA resolved dependency.');
 provenanceAssert($claims['repository_id'] === '1345956206', 'Repository ID must be pinned.');
+provenanceAssert($claims['workflow_commit'] === $commit, 'Workflow SHA must be extracted and pinned to the release source commit.');
 
 $manifestStatement = $statement;
 $manifestStatement['subject'][0]['name'] = 'release-manifest.json';
