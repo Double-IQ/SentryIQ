@@ -19,6 +19,8 @@ require_once __DIR__ . '/../app/Updates/IntegrityReportSigner.php';
 require_once __DIR__ . '/../app/Updates/IntegrityNodeA.php';
 require_once __DIR__ . '/../app/Updates/IntegrityNodeB.php';
 require_once __DIR__ . '/../app/Updates/IntegrityNodeC.php';
+require_once __DIR__ . '/../app/Updates/IntegrityPublicAssetPolicy.php';
+require_once __DIR__ . '/../app/Updates/IntegrityOriginSecurityHeaderVerifier.php';
 require_once __DIR__ . '/../app/Updates/IntegrityNodeAlertedException.php';
 require_once __DIR__ . '/../app/Updates/IntegrityNodeReleaseStateStore.php';
 require_once __DIR__ . '/../app/Updates/IntegrityDeployedReleaseResolver.php';
