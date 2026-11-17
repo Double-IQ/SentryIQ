@@ -80,6 +80,12 @@ nodeCAssert($missingAlertRejected, 'Node C must refuse startup without a direct 
     nodeCAssert($approved['approved'] === true, 'Matching public file should approve.');
     nodeCAssert(count($verifyCalls) === 2, 'Both manifest and ZIP provenance must be verified.');
     nodeCAssert($approved['checked_paths'] === ['assets/app.js', '@origin-headers'], 'Configured path should be checked.');
+    $approvedEnvelope = json_decode($approved['report'], true, 8, JSON_THROW_ON_ERROR);
+    $approvedPayload = json_decode(base64_decode($approvedEnvelope['payload'], true), true, 16, JSON_THROW_ON_ERROR);
+    nodeCAssert(($approvedPayload['schema_version'] ?? null) === 2
+        && ($approvedPayload['target_origin'] ?? null) === 'https://example.invalid/SentryIQ'
+        && ($approvedPayload['manifest_sha256'] ?? null) === hash_file('sha256', $manifestPath),
+        'Node C report must sign origin and manifest evidence.');
 
     $alerts = [];
     $tamperedNode = new IntegrityNodeC(
