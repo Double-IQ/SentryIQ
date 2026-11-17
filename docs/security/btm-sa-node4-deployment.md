@@ -186,19 +186,19 @@ The fetcher is a staging component, not a scheduled runner. Each node still need
 SENTRYIQ_INTEGRITY_NODE_CONFIG=/absolute/private/path/integrity-node.php php /absolute/path/to/SentryIQ/bin/integrity-node-run.php
 ```
 
-`bin/integrity-node-run.php` is CLI-only. The private PHP configuration must return a fully constructed `IntegrityNodeScheduledRunner`. The runner stages the selected release assets outside the webroot, invokes the node verifier, and for A/B performs the Node 4 challenge/report exchange. Node C generates its own nonce and never contacts Node 4. Exit status is zero only for an approved result; rejected results and operational failures exit nonzero.
+`bin/integrity-node-run.php` is CLI-only. The private PHP configuration must return a fully constructed `IntegrityNodeScheduledRunner`. The runner requires a final `IntegrityNodeVerifierBinding` that wraps the concrete `IntegrityNodeA`, `IntegrityNodeB` or `IntegrityNodeC` class for the same node ID; arbitrary verification callbacks are not accepted. The runner stages the selected release assets outside the webroot, invokes the node verifier, and for A/B performs the Node 4 challenge/report exchange. Node C generates its own nonce and never contacts Node 4. Exit status is zero only for an approved result; rejected results and operational failures exit nonzero.
 
 The private configuration must supply a `resolveRelease` callable returning the release version, full source commit and installed-version baseline. This resolver must identify the release actually deployed at the production origin (for example from an authenticated deployment record or a protected deployment marker). It must **not** blindly select GitHub's newest release, because a newly published release may not yet be deployed. The public-path allowlist, private data directory, actual webroot, signing identity, native Sigstore verifier and direct owner-alert transport are all node-local configuration.
 
 Example construction pattern (illustrative; use that node's own paths, signer and credentials):
 
 ```php
+$nodeAVerifier = new IntegrityNodeVerifierBinding('integrity-a', $nodeA);
 $runner = new IntegrityNodeScheduledRunner(
     'integrity-a',
     new IntegrityReleaseArtifactFetcher(),
     $resolveDeployedRelease,
-    static fn(string $manifest, string $zip, string $version, string $commit, string $installed, string $origin, array $paths, string $nonce): array =>
-        $nodeA->verify($manifest, $zip, $version, $commit, $installed, $origin, $paths, $nonce),
+    $nodeAVerifier,
     $nodeAOwnerAlert,
     $privateDataDirectory,
     $publicWebRoot,
