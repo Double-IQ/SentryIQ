@@ -49,6 +49,7 @@ if ($contentLength < 1 || $contentLength > 32768) {
 }
 
 require_once __DIR__ . '/app/Updates/IntegrityNode4RuntimeConfig.php';
+require_once __DIR__ . '/app/Updates/IntegrityEventRequestDecoder.php';
 try {
     $config = SentryIQ\Updates\IntegrityNode4RuntimeConfig::load(__DIR__ . '/sentryiq_config.php');
 } catch (Throwable) {
@@ -71,12 +72,9 @@ if (!is_string($body) || strlen($body) !== $contentLength || $body === '') {
     integrityEventRespond(400, ['status' => 'error', 'message' => 'Request body could not be read.']);
 }
 try {
-    $request = json_decode($body, true, 16, JSON_THROW_ON_ERROR);
-} catch (JsonException) {
-    integrityEventRespond(400, ['status' => 'error', 'message' => 'Request JSON is invalid.']);
-}
-if (!is_array($request) || array_is_list($request) || !is_string($request['action'] ?? null)) {
-    integrityEventRespond(400, ['status' => 'error', 'message' => 'Request shape is invalid.']);
+    $request = SentryIQ\\Updates\\IntegrityEventRequestDecoder::decode($body, 32768);
+} catch (Throwable) {
+    integrityEventRespond(400, ['status' => 'error', 'message' => 'Request JSON is invalid or ambiguous.']);
 }
 
 $authorization = (string)($_SERVER['HTTP_AUTHORIZATION'] ?? '');
@@ -84,6 +82,19 @@ if (!preg_match('/^Bearer ([A-Za-z0-9_-]{40,128})$/', $authorization, $match)) {
     integrityEventRespond(401, ['status' => 'error', 'message' => 'Node authentication required.']);
 }
 $token = $match[1];
+
+$expectedFields = match ($request['action']) {
+    'challenge' => ['action', 'node_id', 'target_origin', 'release_version', 'commit', 'artifact_sha256', 'manifest_sha256'],
+    'report' => ['action', 'envelope'],
+    default => ['action'],
+};
+$actualFields = array_keys($request);
+sort($actualFields);
+$expectedSorted = $expectedFields;
+sort($expectedSorted);
+if ($actualFields !== $expectedSorted) {
+    integrityEventRespond(400, ['status' => 'error', 'message' => 'Request fields do not match the selected action.']);
+}
 
 require_once __DIR__ . '/app/Updates/FileIntegrityEventStore.php';
 require_once __DIR__ . '/app/Updates/IntegrityEventReportVerifier.php';
