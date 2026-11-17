@@ -138,6 +138,8 @@ try {
     storeAssert(count($pending) === 1 && $pending[0]['occurrences'] === 2, 'Outbox must retain one pending alert and count occurrences.');
     $store->markAlertDelivered($queued['id'], time());
     storeAssert(count($store->pendingAlerts()) === 0, 'Delivered alerts must leave the pending outbox.');
+    $cooldownDuplicate = $store->queueAlert($incident);
+    storeAssert($cooldownDuplicate['created'] === false, 'Recently delivered incidents must be suppressed during the alert cooldown.');
 } finally {
     foreach (glob($directory . DIRECTORY_SEPARATOR . '*') ?: [] as $file) {
         if (is_file($file) && !is_link($file)) {
