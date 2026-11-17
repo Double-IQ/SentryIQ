@@ -5,6 +5,8 @@ on:
     paths:
       - 'docs/security/private-host-attestation-contract.md'
       - 'app/Updates/PrivateHostAttestationVerifier.php'
+      - 'app/Updates/PrivateHostAttestationCollector.php'
+      - 'tests/private_host_attestation_collector.test.php'
       - 'tests/private_host_attestation_verifier.test.php'
       - 'docs/security/integrity-node-native-sigstore-runtime.md'
       - 'docs/security/integrity-node-c-heliohost.md'
@@ -95,6 +97,7 @@ jobs:
             app/Updates/IntegrityNodeKeyGenerator.php \
             app/Updates/IntegrityNodeEvidenceStore.php \
             app/Updates/PrivateHostAttestationVerifier.php \
+            app/Updates/PrivateHostAttestationCollector.php \
             app/Updates/IntegrityNodeAlertedException.php \
             app/Updates/IntegrityNodeScheduledRunner.php \
             bin/integrity-node-keygen.php \
@@ -112,6 +115,7 @@ jobs:
             tests/integrity_node_key_generator.test.php \
             tests/integrity_node_evidence_store.test.php \
             tests/private_host_attestation_verifier.test.php \
+            tests/private_host_attestation_collector.test.php \
             tests/integrity_node_scheduled_runner.test.php \
             tests/integrity_public_asset_policy.test.php \
             tests/integrity_origin_security_header_verifier.test.php; do
@@ -129,6 +133,7 @@ jobs:
           php tests/integrity_node_key_generator.test.php
           php tests/integrity_node_evidence_store.test.php
           php tests/private_host_attestation_verifier.test.php
+          php tests/private_host_attestation_collector.test.php
           php tests/integrity_node_a.test.php
           php tests/integrity_node_b.test.php
           php tests/integrity_node_c.test.php
