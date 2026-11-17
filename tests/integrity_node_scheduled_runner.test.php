@@ -7,6 +7,7 @@ require_once __DIR__ . '/../app/Updates/IntegrityEventClient.php';
 require_once __DIR__ . '/../app/Updates/IntegrityNodeEventRunner.php';
 require_once __DIR__ . '/../app/Updates/IntegrityNodeScheduledRunner.php';
 require_once __DIR__ . '/../app/Updates/IntegrityNodeReleaseStateStore.php';
+require_once __DIR__ . '/../app/Updates/IntegrityNodeEvidenceStore.php';
 
 use SentryIQ\Updates\IntegrityNodeScheduledRunner;
 use SentryIQ\Updates\IntegrityReleaseArtifactFetcher;
@@ -41,7 +42,9 @@ $runner = new IntegrityNodeScheduledRunner(
     $webroot,
     'https://sentryiq.bichet.co.za',
     ['assets/app.js'],
-    $releaseState
+    $releaseState,
+    null,
+    $evidenceStore
 );
 
 // This runner is intentionally not executed: network access is not part of
@@ -85,6 +88,7 @@ scheduledAssert($rejectedC, 'Node C must not depend on Node 4.');
 
 @unlink($private . '/integrity-release-state.json');
 @unlink($private . '/integrity-release-state.lock');
+@rmdir($private . '/integrity-node-c-evidence');
 rmdir($private);
 rmdir($webroot);
 rmdir($root);
