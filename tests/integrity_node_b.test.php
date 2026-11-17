@@ -20,7 +20,7 @@ function nodeBAssert(bool $condition, string $message): void {
 }
 
 
-function nodeBPrivateHostGate(bool $approve = true): PrivateHostAttestationGate
+function nodeBPrivateHostGate(bool $approve = true, string $nodeId = $nodeId): PrivateHostAttestationGate
 {
     $now = time();
     $pair = sodium_crypto_sign_keypair();
@@ -30,7 +30,7 @@ function nodeBPrivateHostGate(bool $approve = true): PrivateHostAttestationGate
     $observed = $approve ? $expected : hash('sha256', 'tampered deployed file');
     $fileMap = ['app/Updates/UpdateManager.php' => $expected];
     $client = new PrivateHostAttestationClient(
-        'integrity-b',
+        $nodeId,
         str_repeat('A', 64),
         'https://sentryiq.bichet.co.za/private-host-attestation',
         static function (string $url, array $headers, string $body, int $maxBytes) use ($now, $secret, $expected, $observed, $approve): array {
@@ -66,7 +66,7 @@ function nodeBPrivateHostGate(bool $approve = true): PrivateHostAttestationGate
         }
     );
     $verifier = new PrivateHostAttestationVerifier(base64_encode($public), static fn(): int => $now);
-    $gate = new PrivateHostAttestationGate('integrity-b', $client, $verifier, $fileMap, []);
+    $gate = new PrivateHostAttestationGate($nodeId, $client, $verifier, $fileMap, []);
     sodium_memzero($secret);
     return $gate;
 }
