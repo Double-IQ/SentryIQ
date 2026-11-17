@@ -11,6 +11,7 @@ require_once __DIR__ . '/../app/Updates/PrivateHostAttestationVerifier.php';
 use SentryIQ\Updates\PrivateHostAttestationClient;
 use SentryIQ\Updates\PrivateHostAttestationCollector;
 use SentryIQ\Updates\PrivateHostAttestationRequestHandler;
+use SentryIQ\Updates\PrivateHostAttestationNonceStore;
 use SentryIQ\Updates\PrivateHostAttestationVerifier;
 
 function hostHandlerAssert(bool $condition, string $message): void
