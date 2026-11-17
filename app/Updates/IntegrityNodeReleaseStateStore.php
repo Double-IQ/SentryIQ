@@ -78,17 +78,12 @@ final class IntegrityNodeReleaseStateStore
      * One-time administrator bootstrap. The known-good version and commit
      * must be independently established before this is called.
      */
-    public function initializeBaseline(string $version, string $commit, ?string $manifestDigest = null, ?string $artifactDigest = null): void
+    public function initializeBaseline(string $version, string $commit, string $manifestDigest, string $artifactDigest): void
     {
         $version = self::normalizeVersion($version);
         $commit = self::normalizeCommit($commit);
-        if (($manifestDigest === null) !== ($artifactDigest === null)) {
-            throw new RuntimeException('Baseline must pin both release manifest and ZIP digests, or neither.');
-        }
-        if ($manifestDigest !== null) {
-            $manifestDigest = self::normalizeDigest($manifestDigest);
-            $artifactDigest = self::normalizeDigest((string)$artifactDigest);
-        }
+        $manifestDigest = self::normalizeDigest($manifestDigest);
+        $artifactDigest = self::normalizeDigest($artifactDigest);
         $initialize = function () use ($version, $commit, $manifestDigest, $artifactDigest): void {
             if (file_exists($this->statePath) || is_link($this->statePath)) {
                 throw new RuntimeException('Integrity release baseline already exists; refusing to replace it.');
@@ -127,16 +122,11 @@ final class IntegrityNodeReleaseStateStore
         }
         $manifestDigest = $state['manifest_sha256'] ?? null;
         $artifactDigest = $state['artifact_sha256'] ?? null;
-        if (($manifestDigest === null) !== ($artifactDigest === null)) {
-            throw new RuntimeException('Integrity release baseline digest pair is incomplete.');
+        if (!is_string($manifestDigest) || !is_string($artifactDigest)) {
+            throw new RuntimeException('Integrity release baseline must pin both artifact digests.');
         }
-        if ($manifestDigest !== null) {
-            if (!is_string($manifestDigest) || !is_string($artifactDigest)) {
-                throw new RuntimeException('Integrity release baseline digests are invalid.');
-            }
-            $manifestDigest = self::normalizeDigest($manifestDigest);
-            $artifactDigest = self::normalizeDigest($artifactDigest);
-        }
+        $manifestDigest = self::normalizeDigest($manifestDigest);
+        $artifactDigest = self::normalizeDigest($artifactDigest);
         return [
             'version' => self::normalizeVersion($state['version']),
             'commit' => self::normalizeCommit($state['commit']),
@@ -146,17 +136,12 @@ final class IntegrityNodeReleaseStateStore
         ];
     }
 
-    public function assertCandidate(string $version, string $commit, ?string $manifestDigest = null, ?string $artifactDigest = null): void
+    public function assertCandidate(string $version, string $commit, string $manifestDigest, string $artifactDigest): void
     {
         $version = self::normalizeVersion($version);
         $commit = self::normalizeCommit($commit);
-        if (($manifestDigest === null) !== ($artifactDigest === null)) {
-            throw new RuntimeException('Candidate must provide both artifact digests, or neither.');
-        }
-        if ($manifestDigest !== null) {
-            $manifestDigest = self::normalizeDigest($manifestDigest);
-            $artifactDigest = self::normalizeDigest((string)$artifactDigest);
-        }
+        $manifestDigest = self::normalizeDigest($manifestDigest);
+        $artifactDigest = self::normalizeDigest($artifactDigest);
         $current = $this->current();
         $comparison = version_compare($version, $current['version']);
         if ($comparison < 0) {
@@ -165,12 +150,12 @@ final class IntegrityNodeReleaseStateStore
         if ($comparison === 0 && !hash_equals($current['commit'], $commit)) {
             throw new RuntimeException('Integrity release tag was retargeted: same version now resolves to a different commit.');
         }
-        if ($comparison === 0 && $manifestDigest !== null && $artifactDigest !== null
-            && $current['manifest_sha256'] !== null) {
-            if (!hash_equals($current['manifest_sha256'], self::normalizeDigest($manifestDigest))
-                || !hash_equals($current['artifact_sha256'], self::normalizeDigest($artifactDigest))) {
-                throw new RuntimeException('Integrity release artifacts changed without a version and source-commit change.');
-            }
+        if ($comparison === 0
+            && (!hash_equals($current['manifest_sha256'], $manifestDigest)
+                || !hash_equals($current['artifact_sha256'], $artifactDigest))) {
+            throw new RuntimeException('Integrity release artifacts changed without a version and source-commit change.');
+        }
+    }
         }
     }
 
@@ -189,17 +174,17 @@ final class IntegrityNodeReleaseStateStore
         if ($comparison < 0 || ($comparison === 0 && !hash_equals($current['commit'], $commit))) {
             throw new RuntimeException('Integrity release state cannot move backwards or change an existing tag commit.');
         }
-        if ($comparison === 0 && $current['manifest_sha256'] !== null
+        if ($comparison === 0
             && (!hash_equals($current['manifest_sha256'], $manifestDigest)
                 || !hash_equals($current['artifact_sha256'], $artifactDigest))) {
             throw new RuntimeException('Integrity release state cannot accept changed artifacts under the same version.');
         }
-        if ($comparison > 0 || $current['manifest_sha256'] === null) {
+        if ($comparison > 0) {
             $this->writeState($version, $commit, $manifestDigest, $artifactDigest);
         }
     }
 
-    private function writeState(string $version, string $commit, ?string $manifestDigest, ?string $artifactDigest): void
+    private function writeState(string $version, string $commit, string $manifestDigest, string $artifactDigest): void
     {
         $bytes = json_encode([
             'format' => 1,
