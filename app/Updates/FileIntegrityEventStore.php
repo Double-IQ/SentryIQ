@@ -36,24 +36,28 @@ final class FileIntegrityEventStore
             throw new RuntimeException('Node 4 storage directory must already exist and must not be a symlink.');
         }
         $real = realpath($privateDirectory);
-        $directoryMode = is_string($real) ? fileperms($real) : false;
+        $directoryStat = is_string($real) ? @lstat($real) : false;
         if (!is_string($real) || !is_writable($real) || !is_readable($real)
-            || !is_int($directoryMode) || ($directoryMode & 0077) !== 0) {
-            throw new RuntimeException('Node 4 storage directory must be readable and writable only by its owning account (mode 0700).');
+            || !is_array($directoryStat) || (($directoryStat['mode'] ?? 0) & 0170000) !== 0040000
+            || (($directoryStat['mode'] ?? 0) & 0777) !== 0700) {
+            throw new RuntimeException('Node 4 storage directory must already be a real directory with exact 0700 permissions.');
         }
         $this->directory = $real;
         $this->statePath = $real . DIRECTORY_SEPARATOR . 'integrity-events.json';
         $this->lockPath = $real . DIRECTORY_SEPARATOR . 'integrity-events.lock';
-        if (is_link($this->statePath) || is_link($this->lockPath)) {
-            throw new RuntimeException('Node 4 storage files must not be symlinks.');
+
+        $lockStat = @lstat($this->lockPath);
+        if (!is_array($lockStat) || (($lockStat['mode'] ?? 0) & 0170000) !== 0100000
+            || (($lockStat['mode'] ?? 0) & 0777) !== 0600) {
+            throw new RuntimeException('Node 4 lock file must be pre-provisioned as a regular file with exact 0600 permissions.');
         }
-        foreach ([$this->statePath, $this->lockPath] as $storageFile) {
-            if (file_exists($storageFile)) {
-                $mode = fileperms($storageFile);
-                if (!is_int($mode) || ($mode & 0077) !== 0 || !is_file($storageFile)) {
-                    throw new RuntimeException('Existing Node 4 storage files must be regular files with mode 0600.');
-                }
-            }
+        $stateStat = @lstat($this->statePath);
+        if (is_array($stateStat) && ((($stateStat['mode'] ?? 0) & 0170000) !== 0100000
+            || (($stateStat['mode'] ?? 0) & 0777) !== 0600)) {
+            throw new RuntimeException('Existing Node 4 state must be a regular file with exact 0600 permissions.');
+        }
+        if ($stateStat === false && is_link($this->statePath)) {
+            throw new RuntimeException('Node 4 state path must not be a symlink.');
         }
     }
 
@@ -264,25 +268,29 @@ final class FileIntegrityEventStore
      */
     private function transact(callable $operation, bool $write = true): mixed
     {
-        $oldUmask = umask(0077);
-        try {
-            $lock = fopen($this->lockPath, 'c');
-        } finally {
-            umask($oldUmask);
+        clearstatcache(true, $this->lockPath);
+        $lockStat = @lstat($this->lockPath);
+        if (!is_array($lockStat) || (($lockStat['mode'] ?? 0) & 0170000) !== 0100000
+            || (($lockStat['mode'] ?? 0) & 0777) !== 0600) {
+            throw new RuntimeException('Node 4 lock file changed or has unsafe type/permissions.');
         }
-        if ($lock === false) {
-            throw new RuntimeException('Unable to open Node 4 storage lock.');
+        $lock = @fopen($this->lockPath, 'r+b');
+        $openedStat = is_resource($lock) ? fstat($lock) : false;
+        if ($lock === false || !is_array($openedStat)
+            || ($openedStat['dev'] ?? null) !== ($lockStat['dev'] ?? null)
+            || ($openedStat['ino'] ?? null) !== ($lockStat['ino'] ?? null)
+            || (($openedStat['mode'] ?? 0) & 0170000) !== 0100000
+            || (($openedStat['mode'] ?? 0) & 0777) !== 0600) {
+            if (is_resource($lock)) fclose($lock);
+            throw new RuntimeException('Node 4 lock inode changed during open or has unsafe permissions.');
         }
-        @chmod($this->lockPath, 0600);
         try {
-            if (!flock($lock, LOCK_EX)) {
-                throw new RuntimeException('Unable to lock Node 4 evidence store.');
+            if (!flock($lock, LOCK_EX | LOCK_NB)) {
+                throw new RuntimeException('Node 4 evidence store is busy; request fails closed.');
             }
             $state = $this->readState();
             $result = $operation($state);
-            if ($write) {
-                $this->writeState($state);
-            }
+            if ($write) $this->writeState($state);
             flock($lock, LOCK_UN);
             return $result;
         } finally {
@@ -293,23 +301,48 @@ final class FileIntegrityEventStore
     /** @return array{version:int,challenges:array<string,array<string,mixed>>,reports:array<string,array<string,mixed>>} */
     private function readState(): array
     {
-        if (!file_exists($this->statePath)) {
+        clearstatcache(true, $this->statePath);
+        $pathStat = @lstat($this->statePath);
+        if ($pathStat === false) {
             return ['version' => self::STATE_VERSION, 'challenges' => [], 'reports' => [], 'alerts' => []];
         }
-        if (is_link($this->statePath) || !is_file($this->statePath)) {
-            throw new RuntimeException('Node 4 state path is not a regular file.');
+        if ((($pathStat['mode'] ?? 0) & 0170000) !== 0100000
+            || (($pathStat['mode'] ?? 0) & 0777) !== 0600
+            || ($pathStat['size'] ?? 0) < 2
+            || ($pathStat['size'] ?? 0) > self::MAX_STATE_BYTES) {
+            throw new RuntimeException('Node 4 state must be a regular exact-0600 file within its size limit.');
         }
-        $size = filesize($this->statePath);
-        if (!is_int($size) || $size < 2 || $size > self::MAX_STATE_BYTES) {
-            throw new RuntimeException('Node 4 state file has an invalid size.');
+        $handle = @fopen($this->statePath, 'rb');
+        $openedStat = is_resource($handle) ? fstat($handle) : false;
+        if ($handle === false || !is_array($openedStat)
+            || ($openedStat['dev'] ?? null) !== ($pathStat['dev'] ?? null)
+            || ($openedStat['ino'] ?? null) !== ($pathStat['ino'] ?? null)
+            || (($openedStat['mode'] ?? 0) & 0170000) !== 0100000
+            || (($openedStat['mode'] ?? 0) & 0777) !== 0600) {
+            if (is_resource($handle)) fclose($handle);
+            throw new RuntimeException('Node 4 state inode changed during open or has unsafe permissions.');
         }
-        $bytes = file_get_contents($this->statePath);
-        if (!is_string($bytes)) {
-            throw new RuntimeException('Unable to read Node 4 state.');
+        try {
+            $bytes = stream_get_contents($handle, self::MAX_STATE_BYTES + 1);
+            $after = fstat($handle);
+            clearstatcache(true, $this->statePath);
+            $afterPath = @lstat($this->statePath);
+            if (!is_string($bytes) || strlen($bytes) < 2 || strlen($bytes) > self::MAX_STATE_BYTES
+                || !is_array($after) || !is_array($afterPath)
+                || ($after['dev'] ?? null) !== ($openedStat['dev'] ?? null)
+                || ($after['ino'] ?? null) !== ($openedStat['ino'] ?? null)
+                || ($afterPath['dev'] ?? null) !== ($openedStat['dev'] ?? null)
+                || ($afterPath['ino'] ?? null) !== ($openedStat['ino'] ?? null)
+                || (($after['mode'] ?? 0) & 0777) !== 0600
+                || (($afterPath['mode'] ?? 0) & 0777) !== 0600) {
+                throw new RuntimeException('Node 4 state changed while being read.');
+            }
+        } finally {
+            fclose($handle);
         }
         try {
             $state = json_decode($bytes, true, 64, JSON_THROW_ON_ERROR);
-        } catch (\JsonException $exception) {
+        } catch (\\JsonException $exception) {
             throw new RuntimeException('Node 4 state is corrupt; refusing to overwrite it.', 0, $exception);
         }
         if (!is_array($state) || ($state['version'] ?? null) !== self::STATE_VERSION
@@ -325,43 +358,53 @@ final class FileIntegrityEventStore
     {
         try {
             $bytes = json_encode($state, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
-        } catch (\JsonException $exception) {
+        } catch (\\JsonException $exception) {
             throw new RuntimeException('Unable to encode Node 4 state.', 0, $exception);
         }
         if (strlen($bytes) > self::MAX_STATE_BYTES) {
             throw new RuntimeException('Node 4 state exceeds its configured size limit.');
         }
-        $temporary = $this->directory . DIRECTORY_SEPARATOR . '.integrity-events-' . bin2hex(random_bytes(8)) . '.tmp';
-        $oldUmask = umask(0077);
-        try {
-            $handle = fopen($temporary, 'xb');
-        } finally {
-            umask($oldUmask);
-        }
+        $temporary = $this->directory . DIRECTORY_SEPARATOR . '.integrity-events-' . bin2hex(random_bytes(16)) . '.tmp';
+        $handle = @fopen($temporary, 'x+b');
         if ($handle === false) {
-            throw new RuntimeException('Unable to create atomic Node 4 state file.');
+            throw new RuntimeException('Unable to exclusively create atomic Node 4 state file.');
         }
         try {
-            @chmod($temporary, 0600);
-            $written = 0;
+            if (!@chmod($temporary, 0600)) {
+                throw new RuntimeException('Unable to restrict Node 4 state temporary file permissions.');
+            }
+            $offset = 0;
             $length = strlen($bytes);
-            while ($written < $length) {
-                $n = fwrite($handle, substr($bytes, $written));
-                if ($n === false || $n === 0) {
+            while ($offset < $length) {
+                $written = @fwrite($handle, substr($bytes, $offset));
+                if (!is_int($written) || $written < 1) {
                     throw new RuntimeException('Unable to write complete Node 4 state.');
                 }
-                $written += $n;
+                $offset += $written;
             }
-            if (!fflush($handle)) {
-                throw new RuntimeException('Unable to flush Node 4 state.');
+            if (!@fflush($handle) || !@fsync($handle)) {
+                throw new RuntimeException('Unable to flush Node 4 state to storage.');
             }
-        } finally {
+            $writtenStat = fstat($handle);
+            if (!is_array($writtenStat) || (($writtenStat['mode'] ?? 0) & 0170000) !== 0100000
+                || (($writtenStat['mode'] ?? 0) & 0777) !== 0600) {
+                throw new RuntimeException('Node 4 state temporary file has unsafe metadata.');
+            }
+        } catch (\\Throwable $exception) {
             fclose($handle);
+            @unlink($temporary);
+            throw $exception;
         }
-        if (!rename($temporary, $this->statePath)) {
+        fclose($handle);
+        if (!@rename($temporary, $this->statePath)) {
             @unlink($temporary);
             throw new RuntimeException('Unable to atomically publish Node 4 state.');
         }
-        @chmod($this->statePath, 0600);
+        clearstatcache(true, $this->statePath);
+        $published = @lstat($this->statePath);
+        if (!is_array($published) || (($published['mode'] ?? 0) & 0170000) !== 0100000
+            || (($published['mode'] ?? 0) & 0777) !== 0600) {
+            throw new RuntimeException('Published Node 4 state file has unsafe metadata.');
+        }
     }
 }
