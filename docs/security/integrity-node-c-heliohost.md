@@ -19,11 +19,11 @@ The existing `GitHubCliAttestationVerifier` invokes GitHub CLI through `proc_ope
 - Generate a unique Ed25519 key for `integrity-c`; never reuse A/B keys or commit the private key.
 - Store the key and GitHub/API credentials outside the web root in protected HelioHost configuration.
 - Use a dedicated HelioHost account and independent Plesk scheduled task; keep frequency within HelioHost resource limits.
-- Supply a fresh 32-byte nonce from the event plane and implement replay protection there.
+- Generate a fresh 32-byte nonce locally for each run; Node C does not use Node 4's challenge API, which is deliberately limited to Nodes A/B. Persist C's signed report in its own private evidence store and prevent local replay/overwrite.
 - Configure an explicit public-path allowlist. Never infer that private PHP/config files are externally fetchable.
 - Configure and test the direct owner-alert callback added to `IntegrityNodeC`; it must deliver from HelioHost to an owner destination without routing through Node 4. The callback is an injection point, not a configured mail/webhook transport.
 - Restrict any HTTP trigger endpoint with authentication, replay protection, rate limiting, and no secrets in URLs or logs.
 
 ## Status
 
-Prototype implementation and synthetic contract tests only. No HelioHost account provisioning, key generation, schedule, endpoint, native attestation adapter, or production deployment is included.
+Prototype implementation and synthetic contract tests only. PR #48 supplies the native PHP attestation adapter, but it remains unmerged and is not installed or wired on HelioHost. No HelioHost account provisioning, key generation, schedule, private evidence store, direct alert transport, or production deployment is included.
