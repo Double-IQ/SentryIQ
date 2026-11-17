@@ -52,6 +52,9 @@ try {
     );
     $tokenA = str_repeat('A', 64);
     $tokenB = str_repeat('B', 64);
+    $lockPath = $private . '/private-host-nonces.lock';
+    file_put_contents($lockPath, '');
+    chmod($lockPath, 0600);
     $nonceStore = new PrivateHostAttestationNonceStore($private, $web);
     $handler = new PrivateHostAttestationRequestHandler(
         $collector,
