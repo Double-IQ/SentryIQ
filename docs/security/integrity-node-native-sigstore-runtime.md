@@ -103,7 +103,9 @@ return new IntegrityNodeScheduledRunner(
 );
 ```
 
-The signed release manifest carries a `public_http_files` list containing only byte-verifiable static assets. Dynamic PHP endpoints are not compared with their packaged source bytes; private runtime files remain outside HTTP checks. Leave `$publicPathSubset` empty to check every signed static asset, or provide a subset.\n\nThe CLI preloads the node classes, native verifier and runtime dependencies before requiring the protected config file. The config file only needs to construct the host-specific objects and return the runner. The CLI validates the config file path and requires it to return the runner. The private monotonic state baseline must already exist; first-run bootstrap is an explicit one-time administrator action.
+The signed release manifest carries a `public_http_files` list containing only byte-verifiable static assets. Dynamic PHP endpoints are not compared with their packaged source bytes; private runtime files remain outside HTTP checks. Leave `$publicPathSubset` empty to check every signed static asset, or provide a subset.
+
+The CLI preloads the node classes, native verifier and runtime dependencies before requiring the protected config file. The config file only needs to construct the host-specific objects and return the runner. The CLI validates the config file path and requires it to return the runner. The private monotonic state baseline must already exist; first-run bootstrap is an explicit one-time administrator action.
 
 ## Node-specific boundaries
 
