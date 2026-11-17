@@ -48,6 +48,30 @@ $stderr = stream_get_contents($pipes[2]);
 fclose($pipes[1]);
 fclose($pipes[2]);
 $status = proc_close($process);
+// A merely non-world-readable file is not sufficient: the bootstrap contract
+// requires an exact 0600 regular config file.
+chmod($config, 0400);
+$unsafeProcess = proc_open(
+    $command,
+    [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+    $unsafePipes,
+    null,
+    ['SENTRYIQ_INTEGRITY_NODE_CONFIG' => $config]
+);
+if (!is_resource($unsafeProcess)) {
+    @unlink($config);
+    throw new RuntimeException('Unable to launch CLI permission regression check.');
+}
+fclose($unsafePipes[0]);
+$unsafeStdout = stream_get_contents($unsafePipes[1]);
+$unsafeStderr = stream_get_contents($unsafePipes[2]);
+fclose($unsafePipes[1]);
+fclose($unsafePipes[2]);
+$unsafeStatus = proc_close($unsafeProcess);
+chmod($config, 0600);
+
+integrityCliAssert($unsafeStatus === 2,
+    'CLI must reject a read-only 0400 config rather than accepting any mode without group/world access; stderr: ' . $unsafeStderr);
 @unlink($config);
 
 integrityCliAssert($status === 1, 'CLI must reject a config that does not return a scheduled runner.');
