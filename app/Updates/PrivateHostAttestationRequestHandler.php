@@ -48,16 +48,24 @@ final class PrivateHostAttestationRequestHandler
         if ($method !== 'POST' || strlen($body) < 1 || strlen($body) > 4096) {
             return $this->error(400);
         }
-        $contentType = null;
-        $authorization = null;
+        $contentTypes = [];
+        $authorizations = [];
         foreach ($headers as $name => $value) {
-            if (!is_string($name) || !is_string($value)) continue;
-            if (strtolower($name) === 'authorization') $authorization = $value;
-            if (strtolower($name) === 'content-type') $contentType = strtolower(trim(explode(';', $value, 2)[0]));
+            if (!is_string($name) || !is_string($value)) return $this->error(400);
+            $normalizedName = strtolower(trim($name));
+            if ($normalizedName === 'authorization') $authorizations[] = $value;
+            if ($normalizedName === 'content-type') {
+                $contentTypes[] = strtolower(trim(explode(';', $value, 2)[0]));
+            }
         }
-        if ($contentType !== 'application/json' || !is_string($authorization) || !str_starts_with($authorization, 'Bearer ')) {
+        // Ambiguous duplicate security headers must not be resolved by
+        // whichever value happened to arrive last through an adapter.
+        if (count($authorizations) !== 1 || count($contentTypes) !== 1
+            || $contentTypes[0] !== 'application/json'
+            || !str_starts_with($authorizations[0], 'Bearer ')) {
             return $this->error(401);
         }
+        $authorization = $authorizations[0];
         $token = substr($authorization, 7);
         $nodeId = null;
         foreach ($this->nodeTokens as $candidate => $expected) {
