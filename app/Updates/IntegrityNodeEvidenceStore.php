@@ -150,7 +150,7 @@ final class IntegrityNodeEvidenceStore
             'mismatches' => $mismatches,
             'signed_report' => $signedEnvelope,
         ];
-        $bytes = json_encode($record, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\\n";
+        $bytes = json_encode($record, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n";
         $temporary = $destination . '.tmp-' . bin2hex(random_bytes(8));
         $stream = @fopen($temporary, 'xb');
         if ($stream === false) {
@@ -180,8 +180,8 @@ final class IntegrityNodeEvidenceStore
     private static function safeEvidencePath(string $path): bool
     {
         return $path !== '' && strlen($path) <= 512 && !str_starts_with($path, '/')
-            && !str_contains($path, '\\\\') && !str_contains($path, '//')
+            && !str_contains($path, '\\') && !str_contains($path, '//')
             && !preg_match('~(^|/)\\.\\.?(/|$)~', $path)
-            && !preg_match('/[%?#\\\\x00-\\\\x1f]/', $path);
+            && !preg_match('/[%?#\\x00-\\x1f]/', $path);
     }
 }
