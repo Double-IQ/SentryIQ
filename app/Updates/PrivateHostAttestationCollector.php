@@ -195,27 +195,61 @@ final class PrivateHostAttestationCollector
         $parts = explode('/', $relative);
         foreach ($parts as $index => $part) {
             $current .= DIRECTORY_SEPARATOR . $part;
-            if (is_link($current)) return ['result' => 'symlink', 'observed_sha256' => null];
-            if (!file_exists($current)) return ['result' => 'missing', 'observed_sha256' => null];
-            if ($index < count($parts) - 1 && !is_dir($current)) {
+            clearstatcache(true, $current);
+            $stat = @lstat($current);
+            if ($stat === false) return ['result' => 'missing', 'observed_sha256' => null];
+            if (($stat['mode'] & 0170000) === 0120000) {
+                return ['result' => 'symlink', 'observed_sha256' => null];
+            }
+            if ($index < count($parts) - 1 && ($stat['mode'] & 0170000) !== 0040000) {
                 return ['result' => 'unreadable', 'observed_sha256' => null];
             }
         }
-        if (!is_file($current) || !is_readable($current)) {
-            return ['result' => 'unreadable', 'observed_sha256' => null];
-        }
-        $digest = @hash_file('sha256', $current);
-        if (!is_string($digest)) return ['result' => 'unreadable', 'observed_sha256' => null];
-        if (!hash_equals($expected, $digest)) {
-            return ['result' => 'digest_mismatch', 'observed_sha256' => $digest];
-        }
-        if ($expectedMode !== null) {
-            $actualMode = fileperms($current);
-            if (!is_int($actualMode) || (($actualMode & 0777) !== $expectedMode)) {
+
+        // Hash the opened descriptor, not the pathname. Compare its inode to
+        // lstat before and after reading so a path/symlink swap cannot silently
+        // redirect the collector between inspection and hashing.
+        $handle = @fopen($current, 'rb');
+        if (!is_resource($handle)) return ['result' => 'unreadable', 'observed_sha256' => null];
+        try {
+            $opened = fstat($handle);
+            clearstatcache(true, $current);
+            $pathStat = @lstat($current);
+            if (!is_array($opened) || !is_array($pathStat)
+                || ($opened['mode'] & 0170000) !== 0100000
+                || ($pathStat['mode'] & 0170000) !== 0100000
+                || $opened['dev'] !== $pathStat['dev']
+                || $opened['ino'] !== $pathStat['ino']) {
+                return ['result' => 'symlink', 'observed_sha256' => null];
+            }
+            if (!is_readable($current)) return ['result' => 'unreadable', 'observed_sha256' => null];
+
+            $context = hash_init('sha256');
+            if (hash_update_stream($context, $handle) === false) {
+                return ['result' => 'unreadable', 'observed_sha256' => null];
+            }
+            $digest = hash_final($context);
+            $after = fstat($handle);
+            clearstatcache(true, $current);
+            $pathAfter = @lstat($current);
+            if (!is_array($after) || !is_array($pathAfter)
+                || $after['dev'] !== $opened['dev'] || $after['ino'] !== $opened['ino']
+                || $after['size'] !== $opened['size'] || $after['mtime'] !== $opened['mtime']
+                || $after['ctime'] !== $opened['ctime']
+                || ($pathAfter['mode'] & 0170000) !== 0100000
+                || $pathAfter['dev'] !== $opened['dev'] || $pathAfter['ino'] !== $opened['ino']) {
+                return ['result' => 'unreadable', 'observed_sha256' => null];
+            }
+            if (!hash_equals($expected, $digest)) {
+                return ['result' => 'digest_mismatch', 'observed_sha256' => $digest];
+            }
+            if ($expectedMode !== null && (($opened['mode'] & 0777) !== $expectedMode)) {
                 return ['result' => 'permission_mismatch', 'observed_sha256' => $digest];
             }
+            return ['result' => 'match', 'observed_sha256' => $digest];
+        } finally {
+            fclose($handle);
         }
-        return ['result' => 'match', 'observed_sha256' => $digest];
     }
 
 
