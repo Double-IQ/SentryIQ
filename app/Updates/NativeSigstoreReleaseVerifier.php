@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace SentryIQ\Updates;
 
-require_once __DIR__ . '/FulcioCertificateClaims.php';
-require_once __DIR__ . '/SnappyBlockDecoder.php';
+require_once __DIR__ . '/ReleaseArtifactVerifier.php';
+require_once __DIR__ . '/TufRootStore.php';
+require_once __DIR__ . '/SigstoreProvenance.php';
 
 use K2gl\Sigstore\Bundle;
 use K2gl\Sigstore\IdentityPolicy;
@@ -20,7 +21,7 @@ use Throwable;
  * Verifies a release ZIP using the native PHP Sigstore verifier and Sigstore
  * TUF trust metadata. No shell, exec, proc_open, or GitHub CLI is used.
  */
-final class NativeSigstoreReleaseVerifier
+final class NativeSigstoreReleaseVerifier implements ReleaseArtifactVerifier
 {
     private const API_BASE = 'https://api.github.com';
     private const TUF_METADATA_URL = 'https://tuf-repo-cdn.sigstore.dev';
@@ -70,12 +71,30 @@ final class NativeSigstoreReleaseVerifier
     /**
      * @return array<string, mixed> authenticated and policy-ready claims
      */
-    public function verifyRelease(string $zipPath, string $version): array
+    public function verifyRelease(string $artifactPath, string $version): array
     {
-        if (!is_file($zipPath) || is_link($zipPath) || !is_readable($zipPath)) {
-            throw new RuntimeException('The downloaded release ZIP is unavailable.');
+        return $this->verifyArtifact($artifactPath, $version, 'sentryiq-' . $version . '.zip');
+    }
+
+    /**
+     * Verify one named release artifact (ZIP or canonical inventory manifest).
+     * Each subject is fetched and authenticated independently against Sigstore.
+     *
+     * @return array<string, mixed> authenticated and policy-ready claims
+     */
+    public function verifyArtifact(string $artifactPath, string $version, string $expectedSubjectName): array
+    {
+        if (!is_file($artifactPath) || is_link($artifactPath) || !is_readable($artifactPath)) {
+            throw new RuntimeException('The downloaded release artifact is unavailable.');
         }
-        $digest = hash_file('sha256', $zipPath);
+        $expectedSubjectName = trim($expectedSubjectName);
+        if ($expectedSubjectName === '' || basename($expectedSubjectName) !== $expectedSubjectName
+            || str_contains($expectedSubjectName, chr(92)) || str_contains($expectedSubjectName, '/')
+            || preg_match('/[\\x00-\\x1f]/', $expectedSubjectName)) {
+            throw new RuntimeException('Expected release subject must be a safe filename.');
+        }
+
+        $digest = hash_file('sha256', $artifactPath);
         if (!is_string($digest) || preg_match('/^[a-f0-9]{64}$/', $digest) !== 1) {
             throw new RuntimeException('Unable to calculate the release ZIP SHA-256 digest.');
         }
@@ -86,7 +105,7 @@ final class NativeSigstoreReleaseVerifier
 
         $identity = IdentityPolicy::githubActions(
             SigstoreProvenance::REPOSITORY,
-            basename(SigstoreProvenance::WORKFLOW_PATH),
+            SigstoreProvenance::WORKFLOW_PATH,
             'refs/tags/v' . $version,
         );
         $verifier = new SigstoreVerifier();
@@ -102,15 +121,10 @@ final class NativeSigstoreReleaseVerifier
             }
 
             try {
-                $compressedBundle = $this->httpsGet($bundleUrl, self::MAX_BUNDLE_BYTES, 'blob');
-                $bundleJson = SnappyBlockDecoder::decode($compressedBundle, self::MAX_BUNDLE_BYTES);
+                $bundleJson = $this->httpsGet($bundleUrl, self::MAX_BUNDLE_BYTES, 'blob');
                 $bundle = Bundle::fromJson($bundleJson);
                 $envelope = $verifier->verify($bundle, $trustedRoot, $identity);
-
-                // Use the exact leaf certificate authenticated by verify() above.
-                // Fulcio OID .1.19 is Build Config Digest (GitHub workflow_sha).
-                $workflowCommit = FulcioCertificateClaims::workflowCommit($bundle->leafCertificate);
-                $claims = SigstoreProvenance::claims($envelope, $workflowCommit, $version, $digest);
+                $claims = SigstoreProvenance::claims($envelope, $version, $digest, $expectedSubjectName);
                 if (!hash_equals($tagCommit, $claims['source_commit'])) {
                     throw new RuntimeException("Attested source commit does not match GitHub's current resolution of the release tag.");
                 }
@@ -132,7 +146,7 @@ final class NativeSigstoreReleaseVerifier
     {
         $root = $this->rootStore->load();
         if ($root === null) {
-            $bootstrap = dirname((new \ReflectionClass(TrustedRoot::class))->getFileName()) . '/../resources/sigstore-tuf-root.json';
+            $bootstrap = dirname((new ReflectionClass(TrustedRoot::class))->getFileName()) . '/../resources/sigstore-tuf-root.json';
             $bootstrap = realpath($bootstrap) ?: '';
             if ($bootstrap === '' || !is_file($bootstrap) || is_link($bootstrap) || !is_readable($bootstrap)) {
                 throw new RuntimeException('The pinned Sigstore TUF bootstrap root is missing from the private vendor package.');
