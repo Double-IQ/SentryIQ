@@ -65,6 +65,22 @@ try {
     evidenceStoreReject(fn() => $store->append($report, '1.2.3', $commit, $manifestDigest, $artifactDigest, false, $nonce), 'The signed decision must match the scheduler approval result.');
     evidenceStoreReject(fn() => $store->append($report, '1.2.3', $commit, $manifestDigest, $artifactDigest, true, str_repeat('f', 64)), 'A valid old report must not satisfy a different scheduler challenge nonce.');
 
+    $expiredSigner = new IntegrityReportSigner('integrity-c', base64_encode($secret), static fn(): int => time() - 400);
+    $expiredNonce = str_repeat('9', 64);
+    $expiredReport = $expiredSigner->createReport(
+        '1.2.3', $commit, $artifactDigest, $expiredNonce, 'approve',
+        [
+            'target_origin' => 'https://sentryiq.bichet.co.za',
+            'manifest_sha256' => $manifestDigest,
+            'checked_paths' => ['VERSION'],
+            'mismatches' => [],
+        ]
+    );
+    evidenceStoreReject(
+        fn() => $store->append($expiredReport, '1.2.3', $commit, $manifestDigest, $artifactDigest, true, $expiredNonce),
+        'Expired signed evidence must not be accepted into the Node C evidence store.'
+    );
+
     $rejectedReport = $signer->createReport(
         '1.2.3',
         $commit,
