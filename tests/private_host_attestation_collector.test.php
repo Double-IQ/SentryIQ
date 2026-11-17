@@ -173,6 +173,18 @@ try {
         fn() => $collector->collect('not-a-nonce', '1.2.3', $commit, $manifest, $artifact),
         'Collector must reject malformed request context.'
     );
+    chmod($keyPath, 0640);
+    collectorReject(
+        fn() => new PrivateHostAttestationCollector(
+            'sentryiq-host-attestor', $web, $private, $keyPath,
+            ['app/release.php' => $fileDigest], [],
+        ),
+        'Collector must reject a signing key with group-readable permissions.'
+    );
+    collectorAssert((fileperms($keyPath) & 0777) === 0640,
+        'Collector must not silently repair operator-supplied signing-key permissions.');
+    chmod($keyPath, 0600);
+
 
     sodium_memzero($secret);
     echo "Private host attestation collector tests passed.\n";
