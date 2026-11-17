@@ -138,7 +138,7 @@ final class IntegrityNodeEvidenceStore
         foreach ($mismatches as $item) {
             if (!is_array($item) || !is_string($item['path'] ?? null)
                 || !self::safeEvidencePath($item['path'])
-                || !in_array($item['reason'] ?? null, ['content_mismatch', 'fetch_failed', 'security_header_mismatch'], true)) {
+                || !in_array($item['reason'] ?? null, ['content_mismatch', 'fetch_failed', 'security_header_mismatch', 'private_host_attestation_failed'], true)) {
                 throw new RuntimeException('Node C signed evidence contains an invalid mismatch record.');
             }
         }
