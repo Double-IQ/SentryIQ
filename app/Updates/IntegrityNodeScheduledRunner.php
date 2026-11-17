@@ -55,6 +55,9 @@ final class IntegrityNodeScheduledRunner
         if (!array_is_list($publicPaths)) {
             throw new RuntimeException('Scheduled runner public-path selection must be a list.');
         }
+        if ($nodeId !== 'integrity-c' && $eventRunner !== null && $eventRunner->nodeId() !== $nodeId) {
+            throw new RuntimeException('Scheduled runner and Node 4 event client identities must match exactly.');
+        }
         if ($nodeId === 'integrity-c' && ($eventRunner !== null || $evidenceStore === null)) {
             throw new RuntimeException('Node C must use private local evidence retention and remain independent of Node 4.');
         }
