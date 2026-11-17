@@ -33,6 +33,12 @@ if (!mkdir($directory, 0700)) {
 }
 
 try {
+    chmod($directory, 0755);
+    storeReject(
+        static fn() => new FileIntegrityEventStore($directory),
+        'Node 4 storage must reject directories accessible to group or other users.'
+    );
+    chmod($directory, 0700);
     $store = new FileIntegrityEventStore($directory);
     $keyA = sodium_crypto_sign_keypair();
     $secretA = sodium_crypto_sign_secretkey($keyA);
