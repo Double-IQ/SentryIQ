@@ -1,0 +1,109 @@
+<?php
+
+declare(strict_types=1);
+
+namespace SentryIQ\Updates;
+
+use RuntimeException;
+
+/**
+ * Durable single-use nonce registry for the isolated host attestation service.
+ * Stores only keyed hashes of node/nonce pairs, never raw bearer credentials.
+ */
+final class PrivateHostAttestationNonceStore
+{
+    private string $statePath;
+    private string $lockPath;
+    private string $directory;
+
+    public function __construct(string $privateDataDirectory, string $publicWebRoot)
+    {
+        $private = realpath($privateDataDirectory);
+        $web = realpath($publicWebRoot);
+        if (!is_string($private) || !is_dir($private) || is_link($privateDataDirectory)
+            || !is_string($web) || !is_dir($web) || is_link($publicWebRoot)
+            || $private === $web
+            || str_starts_with($private . DIRECTORY_SEPARATOR, rtrim($web, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
+            throw new RuntimeException('Attestation nonce storage must be a real directory outside the public webroot.');
+        }
+        if (!@chmod($private, 0700) || ((fileperms($private) ?: 0) & 0077) !== 0) {
+            throw new RuntimeException('Attestation nonce storage directory must have private 0700 permissions.');
+        }
+        $this->directory = $private;
+        $this->statePath = $private . '/private-host-nonces.json';
+        $this->lockPath = $private . '/private-host-nonces.lock';
+    }
+
+    public function consume(string $nodeId, string $nonce, int $expiresAt): bool
+    {
+        if (!in_array($nodeId, ['integrity-a', 'integrity-b'], true)
+            || !preg_match('/^[a-f0-9]{64}$/', $nonce)) {
+            throw new RuntimeException('Attestation nonce registry received an invalid identity or nonce.');
+        }
+        $now = time();
+        if ($expiresAt <= $now || $expiresAt > $now + 300) {
+            throw new RuntimeException('Attestation nonce expiry is outside the accepted window.');
+        }
+        if (is_link($this->lockPath) || is_link($this->statePath)) {
+            throw new RuntimeException('Attestation nonce state and lock must not be symlinks.');
+        }
+        $lock = @fopen($this->lockPath, 'c');
+        if ($lock === false || !@chmod($this->lockPath, 0600)
+            || ((fileperms($this->lockPath) ?: 0) & 0077) !== 0) {
+            if (is_resource($lock)) fclose($lock);
+            throw new RuntimeException('Unable to open private attestation nonce lock.');
+        }
+        if (!flock($lock, LOCK_EX | LOCK_NB)) {
+            fclose($lock);
+            throw new RuntimeException('Attestation nonce registry is busy; request fails closed.');
+        }
+
+        try {
+            $state = ['format' => 1, 'nonces' => []];
+            if (file_exists($this->statePath)) {
+                if (!is_file($this->statePath) || (((fileperms($this->statePath) ?: 0) & 0077) !== 0)) {
+                    throw new RuntimeException('Attestation nonce state has unsafe type or permissions.');
+                }
+                $bytes = @file_get_contents($this->statePath);
+                if (!is_string($bytes) || $bytes === '' || strlen($bytes) > 1_048_576) {
+                    throw new RuntimeException('Attestation nonce state is unreadable or exceeds its size limit.');
+                }
+                try {
+                    $decoded = json_decode($bytes, true, 8, JSON_THROW_ON_ERROR);
+                } catch (\JsonException $exception) {
+                    throw new RuntimeException('Attestation nonce state is invalid JSON.', 0, $exception);
+                }
+                if (!is_array($decoded) || ($decoded['format'] ?? null) !== 1
+                    || !is_array($decoded['nonces'] ?? null)) {
+                    throw new RuntimeException('Attestation nonce state schema is invalid.');
+                }
+                $state = $decoded;
+            }
+
+            foreach ($state['nonces'] as $key => $expiry) {
+                if (!is_string($key) || !preg_match('/^[a-f0-9]{64}$/', $key) || !is_int($expiry) || $expiry < 1) {
+                    throw new RuntimeException('Attestation nonce state contains an invalid record.');
+                }
+                if ($expiry < $now) unset($state['nonces'][$key]);
+            }
+            $key = hash('sha256', $nodeId . ':' . $nonce);
+            if (isset($state['nonces'][$key])) return false;
+            if (count($state['nonces']) >= 10000) {
+                throw new RuntimeException('Attestation nonce registry is full; refusing to discard replay history.');
+            }
+            $state['nonces'][$key] = $expiresAt;
+            $encoded = json_encode($state, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n";
+            $temporary = $this->statePath . '.tmp-' . bin2hex(random_bytes(8));
+            $written = @file_put_contents($temporary, $encoded, LOCK_EX);
+            if ($written !== strlen($encoded) || !@chmod($temporary, 0600)
+                || !@rename($temporary, $this->statePath) || !@chmod($this->statePath, 0600)) {
+                @unlink($temporary);
+                throw new RuntimeException('Unable to atomically persist attestation nonce state.');
+            }
+            return true;
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+}
