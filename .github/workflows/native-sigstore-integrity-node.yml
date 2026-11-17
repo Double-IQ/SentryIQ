@@ -10,6 +10,8 @@ on:
       - 'app/Updates/PrivateHostAttestationNonceStore.php'
       - 'tests/private_host_attestation_request_handler.test.php'
       - 'app/Updates/PrivateHostAttestationClient.php'
+      - 'app/Updates/PrivateHostAttestationGate.php'
+      - 'tests/private_host_attestation_gate.test.php'
       - 'tests/private_host_attestation_client.test.php'
       - 'tests/private_host_attestation_collector.test.php'
       - 'tests/private_host_attestation_verifier.test.php'
@@ -115,6 +117,7 @@ jobs:
             app/Updates/PrivateHostAttestationVerifier.php \
             app/Updates/PrivateHostAttestationCollector.php \
             app/Updates/PrivateHostAttestationClient.php \
+            app/Updates/PrivateHostAttestationGate.php \
             app/Updates/PrivateHostAttestationRequestHandler.php \
             app/Updates/PrivateHostAttestationNonceStore.php \
             app/Updates/IntegrityNodeAlertedException.php \
@@ -136,6 +139,7 @@ jobs:
             tests/private_host_attestation_verifier.test.php \
             tests/private_host_attestation_collector.test.php \
             tests/private_host_attestation_client.test.php \
+            tests/private_host_attestation_gate.test.php \
             tests/private_host_attestation_request_handler.test.php \
             tests/integrity_node_scheduled_runner.test.php \
             tests/integrity_node_cli_bootstrap.test.php \
@@ -157,6 +161,7 @@ jobs:
           php tests/private_host_attestation_verifier.test.php
           php tests/private_host_attestation_collector.test.php
           php tests/private_host_attestation_client.test.php
+          php tests/private_host_attestation_gate.test.php
           php tests/private_host_attestation_request_handler.test.php
           php tests/integrity_node_a.test.php
           php tests/integrity_node_b.test.php
