@@ -31,6 +31,7 @@ require_once __DIR__ . '/../app/Updates/SigstoreProvenance.php';
 require_once __DIR__ . '/../app/Updates/TufRootStore.php';
 require_once __DIR__ . '/../app/Updates/NativeSigstoreReleaseVerifier.php';
 require_once __DIR__ . '/../app/Updates/NativeSigstoreIntegrityAttestationVerifier.php';
+require_once __DIR__ . '/../app/Updates/PrivateHostAttestationClient.php';
 require_once __DIR__ . '/../app/Updates/PrivateHostAttestationVerifier.php';
 
 $configPath = getenv('SENTRYIQ_INTEGRITY_NODE_CONFIG');
