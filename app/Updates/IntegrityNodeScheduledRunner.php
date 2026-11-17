@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SentryIQ\Updates;
 
+require_once __DIR__ . '/IntegrityNodeAlertedException.php';
+
 use RuntimeException;
 use Throwable;
 
@@ -123,7 +125,9 @@ final class IntegrityNodeScheduledRunner
             }
             return $result + ['release_version' => $version, 'release_commit' => $commit];
         } catch (Throwable $exception) {
-            $this->alertFailure($exception);
+            if (!$exception instanceof IntegrityNodeAlertedException) {
+                $this->alertFailure($exception);
+            }
             throw new RuntimeException('Scheduled integrity verification failed; independent owner alert was attempted.', 0, $exception);
         }
     }
