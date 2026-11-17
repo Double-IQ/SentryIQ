@@ -92,6 +92,35 @@ try {
         'Collector must reject a pinned deployed-file permission change.');
 
     chmod($web . '/app/release.php', 0644);
+
+    file_put_contents($private . '/runtime/bootstrap.php', 'tampered private configuration');
+    $configEnvelope = json_encode($collector->collect($nonce, '1.2.3', $commit, $manifest, $artifact), JSON_THROW_ON_ERROR);
+    $configResult = $verifier->assertAttested(
+        $configEnvelope, $nonce, '1.2.3', $commit, $manifest, $artifact,
+        ['app/release.php' => $fileDigest],
+        ['private-bootstrap' => $configDigest]
+    );
+    collectorAssert($configResult['approved'] === false
+        && ($configResult['mismatches'][0]['path'] ?? null) === '@private-config/private-bootstrap'
+        && ($configResult['mismatches'][0]['reason'] ?? null) === 'digest_mismatch',
+        'Collector must reject changed private configuration without disclosing its contents.');
+    file_put_contents($private . '/runtime/bootstrap.php', '<?php return [];');
+
+    unlink($web . '/app/release.php');
+    symlink($private . '/runtime/bootstrap.php', $web . '/app/release.php');
+    $symlinkEnvelope = json_encode($collector->collect($nonce, '1.2.3', $commit, $manifest, $artifact), JSON_THROW_ON_ERROR);
+    $symlinkResult = $verifier->assertAttested(
+        $symlinkEnvelope, $nonce, '1.2.3', $commit, $manifest, $artifact,
+        ['app/release.php' => $fileDigest],
+        ['private-bootstrap' => $configDigest]
+    );
+    collectorAssert($symlinkResult['approved'] === false
+        && ($symlinkResult['mismatches'][0]['reason'] ?? null) === 'symlink',
+        'Collector must reject a pinned file replaced by a symlink.');
+    unlink($web . '/app/release.php');
+    file_put_contents($web . '/app/release.php', '<?php return true;');
+    chmod($web . '/app/release.php', 0644);
+
     file_put_contents($web . '/app/extra.txt', 'unexpected');
     file_put_contents($web . '/app/odd name.txt', 'also unexpected');
     $unexpectedEnvelope = json_encode($collector->collect($nonce, '1.2.3', $commit, $manifest, $artifact), JSON_THROW_ON_ERROR);
