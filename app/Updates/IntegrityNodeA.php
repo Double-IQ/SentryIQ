@@ -14,8 +14,8 @@ require_once __DIR__ . '/IntegrityPublicAssetPolicy.php';
  *
  * Both the external manifest and exact release ZIP must pass the maintained
  * GitHub/Sigstore verifier before the manifest is used as expected state.
- * Only explicitly configured public paths are fetched; private PHP/runtime
- * files are not inferred to be HTTP-verifiable.
+ * Only signed static public assets are fetched; dynamic PHP responses and
+ * private runtime files are not treated as byte-verifiable HTTP assets.
  */
 final class IntegrityNodeA
 {
