@@ -87,11 +87,11 @@ nodeBAssert($missingPrivateHostRejected, 'Node B must refuse startup without pri
     nodeBAssert(($signedPayload['schema_version'] ?? null) === 2, 'Node report must use the signed event-evidence schema.');
     nodeBAssert(($signedPayload['target_origin'] ?? null) === 'https://example.invalid/SentryIQ', 'Signed report must bind the monitored origin.');
     nodeBAssert(($signedPayload['manifest_sha256'] ?? null) === $approved['manifest_sha256'], 'Signed report must bind the manifest digest.');
-    nodeBAssert(($signedPayload['checked_paths'] ?? null) === ['assets/app.js', '@origin-headers'], 'Signed report must include checked paths.');
+    nodeBAssert(($signedPayload['checked_paths'] ?? null) === ['assets/app.js', '@origin-headers', '@private-host-attestation'], 'Signed report must include checked paths.');
     nodeBAssert(($signedPayload['mismatches'] ?? null) === [], 'Signed report must include mismatch evidence.');
 
     nodeBAssert(count($verifyCalls) === 2, 'Both manifest and ZIP provenance must be verified.');
-    nodeBAssert($approved['checked_paths'] === ['assets/app.js', '@origin-headers'], 'Configured path should be checked.');
+    nodeBAssert($approved['checked_paths'] === ['assets/app.js', '@origin-headers', '@private-host-attestation'], 'Configured path should be checked.');
 
     $alerts = [];
     $tamperedNode = new IntegrityNodeB(
