@@ -148,6 +148,7 @@ final class IntegrityNodeC
         $checked = [];
         $mismatches = [];
         foreach ($pathsToCheck as $path) {
+            $checked[] = $path;
             $url = $origin . implode('/', array_map('rawurlencode', explode('/', $path)));
             try {
                 $body = ($this->fetch)($url);
@@ -160,7 +161,6 @@ final class IntegrityNodeC
                 continue;
             }
             $actual = hash('sha256', $body);
-            $checked[] = $path;
             if (!hash_equals($entries[$path]['sha256'], $actual)
                 || strlen($body) !== $entries[$path]['size']) {
                 $mismatches[] = ['path' => $path, 'reason' => 'content_mismatch'];
