@@ -27,6 +27,12 @@ final class PrivateHostAttestationVerifier
         $this->clock = $clock ?? static fn(): int => time();
     }
 
+    /** Stable pin identifier; does not expose the collector public key. */
+    public function collectorKeyFingerprint(): string
+    {
+        return hash('sha256', $this->publicKey);
+    }
+
     /**
      * Expected maps are administrator-pinned by each independent node:
      * file path => signed-release SHA-256; config policy ID => approved SHA-256.
