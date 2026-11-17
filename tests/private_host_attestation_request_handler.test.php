@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Updates/PrivateHostAttestationCollector.php';
 require_once __DIR__ . '/../app/Updates/PrivateHostAttestationRequestHandler.php';
+require_once __DIR__ . '/../app/Updates/PrivateHostAttestationNonceStore.php';
 require_once __DIR__ . '/../app/Updates/PrivateHostAttestationClient.php';
 require_once __DIR__ . '/../app/Updates/PrivateHostAttestationVerifier.php';
 
@@ -50,16 +51,12 @@ try {
     );
     $tokenA = str_repeat('A', 64);
     $tokenB = str_repeat('B', 64);
-    $used = [];
+    $nonceStore = new PrivateHostAttestationNonceStore($private, $web);
     $handler = new PrivateHostAttestationRequestHandler(
         $collector,
         ['integrity-a' => $tokenA, 'integrity-b' => $tokenB],
-        static function (string $nodeId, string $nonce, int $expiresAt) use (&$used): bool {
-            $key = $nodeId . ':' . $nonce;
-            if (isset($used[$key])) return false;
-            $used[$key] = $expiresAt;
-            return true;
-        }
+        static fn(string $nodeId, string $nonce, int $expiresAt): bool =>
+            $nonceStore->consume($nodeId, $nonce, $expiresAt)
     );
 
     $nonce = str_repeat('a', 64);
@@ -94,6 +91,9 @@ try {
     $headers = ['Authorization' => 'Bearer ' . $tokenA, 'Content-Type' => 'application/json'];
     hostHandlerAssert($handler->handle('POST', $headers, $request)['status'] === 409,
         'The same node nonce must be rejected on replay.');
+    $reloadedNonceStore = new PrivateHostAttestationNonceStore($private, $web);
+    hostHandlerAssert($reloadedNonceStore->consume('integrity-a', $nonce, time() + 120) === false,
+        'Nonce replay history must persist across store instances.');
     hostHandlerAssert($handler->handle('POST', ['Authorization' => 'Bearer wrong', 'Content-Type' => 'application/json'], $request)['status'] === 401,
         'Unknown bearer tokens must be rejected.');
     $crossNode = json_decode($request, true, 8, JSON_THROW_ON_ERROR);
