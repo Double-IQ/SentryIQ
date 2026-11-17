@@ -98,11 +98,22 @@ final class SigstoreProvenance
             throw new RuntimeException('SLSA provenance does not identify exactly one full source commit for this release tag.');
         }
 
+        // GitHub's SLSA predicate records the commit from which the workflow
+        // definition was loaded. Pin it independently to the release source
+        // commit; otherwise the downstream trust policy cannot establish that
+        // the approved workflow itself came from the tagged source revision.
+        $workflowCommit = strtolower((string)($github['workflow_sha'] ?? ''));
+        if (preg_match('/^[a-f0-9]{40}$/', $workflowCommit) !== 1
+            || !hash_equals($sourceCommits[0], $workflowCommit)) {
+            throw new RuntimeException('SLSA provenance workflow commit does not match the approved release source commit.');
+        }
+
         return [
             'repository' => self::REPOSITORY,
             'repository_id' => self::REPOSITORY_ID,
             'source_ref' => $expectedRef,
             'source_commit' => $sourceCommits[0],
+            'workflow_commit' => $workflowCommit,
             'workflow_path' => self::WORKFLOW_PATH,
             'workflow_ref' => self::REPOSITORY . '/' . self::WORKFLOW_PATH . '@' . $expectedRef,
             'source_event' => 'push',
