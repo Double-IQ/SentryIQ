@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SentryIQ\\Updates;
+namespace SentryIQ\Updates;
 
 use RuntimeException;
 
@@ -61,7 +61,7 @@ final class IntegrityNodeEvidenceStore
         }
         try {
             $envelope = json_decode($signedEnvelope, true, 8, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException $exception) {
+        } catch (\JsonException $exception) {
             throw new RuntimeException('Node C signed evidence envelope is not valid JSON.', 0, $exception);
         }
         if (!is_array($envelope) || !is_string($envelope['payload'] ?? null)
@@ -77,7 +77,7 @@ final class IntegrityNodeEvidenceStore
         }
         try {
             $payload = json_decode($payloadBytes, true, 16, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException $exception) {
+        } catch (\JsonException $exception) {
             throw new RuntimeException('Node C signed evidence payload is not valid JSON.', 0, $exception);
         }
         if (!is_array($payload)
