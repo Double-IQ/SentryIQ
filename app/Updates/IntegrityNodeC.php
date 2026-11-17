@@ -85,7 +85,7 @@ final class IntegrityNodeC
         try {
             ($this->verifyAttestation)($manifestReal, $version, $commit, $installedVersion);
             ($this->verifyAttestation)($artifactReal, $version, $commit, $installedVersion);
-        } catch (\\Throwable $exception) {
+        } catch (\Throwable $exception) {
             $this->alertFailure('release_attestation_rejected', ['release_version' => $version]);
             throw $exception;
         }
@@ -201,7 +201,7 @@ final class IntegrityNodeC
         }
         try {
             ($this->notifyFailure)($this->signer->nodeId(), $reason, $context);
-        } catch (\\Throwable $exception) {
+        } catch (\Throwable $exception) {
             throw new RuntimeException('Independent integrity-node owner alert delivery failed.', 0, $exception);
         }
     }
