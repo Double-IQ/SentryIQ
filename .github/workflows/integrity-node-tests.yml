@@ -9,9 +9,11 @@ on:
       - 'app/Updates/IntegrityEventReportVerifier.php'
       - 'app/Updates/FileIntegrityEventStore.php'
       - 'app/Updates/IntegrityIncidentCorrelator.php'
+      - 'app/Updates/IntegrityAlertDispatcher.php'
       - 'tests/integrity_*.test.php'
       - 'tests/file_integrity_event_store.test.php'
       - 'tests/integrity_incident_correlator.test.php'
+      - 'tests/integrity_alert_dispatcher.test.php'
       - '.github/workflows/integrity-node-tests.yml'
   push:
     branches: [main]
@@ -46,6 +48,7 @@ jobs:
           php tests/integrity_event_report_verifier.test.php
           php tests/file_integrity_event_store.test.php
           php tests/integrity_incident_correlator.test.php
+          php tests/integrity_alert_dispatcher.test.php
           php tests/integrity_node_a.test.php
           php tests/integrity_node_b.test.php
           php tests/integrity_node_c.test.php
