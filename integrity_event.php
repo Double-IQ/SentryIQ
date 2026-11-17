@@ -44,7 +44,7 @@ if ($contentType !== 'application/json') {
     integrityEventRespond(415, ['status' => 'error', 'message' => 'application/json required.']);
 }
 $contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
-if ($contentLength < 1 || $contentLength > 16384) {
+if ($contentLength < 1 || $contentLength > 32768) {
     integrityEventRespond(413, ['status' => 'error', 'message' => 'Request size is invalid.']);
 }
 
