@@ -7,6 +7,9 @@ on:
       - 'app/Updates/PrivateHostAttestationVerifier.php'
       - 'app/Updates/PrivateHostAttestationCollector.php'
       - 'app/Updates/PrivateHostAttestationRequestHandler.php'
+      - 'app/Updates/IntegrityEventRequestDecoder.php'
+      - 'integrity_event.php'
+      - 'tests/integrity_event_request_decoder.test.php'
       - 'app/Updates/PrivateHostAttestationNonceStore.php'
       - 'tests/private_host_attestation_request_handler.test.php'
       - 'app/Updates/PrivateHostAttestationClient.php'
@@ -61,6 +64,9 @@ on:
       - 'app/Updates/PrivateHostAttestationCollector.php'
       - 'app/Updates/PrivateHostAttestationRequestHandler.php'
       - 'app/Updates/PrivateHostAttestationNonceStore.php'
+      - 'app/Updates/IntegrityEventRequestDecoder.php'
+      - 'integrity_event.php'
+      - 'tests/integrity_event_request_decoder.test.php'
       - 'tests/private_host_attestation_request_handler.test.php'
       - 'app/Updates/PrivateHostAttestationClient.php'
       - 'app/Updates/PrivateHostAttestationGate.php'
@@ -129,7 +135,7 @@ jobs:
             app/Updates/PrivateHostAttestationClient.php \
             app/Updates/PrivateHostAttestationGate.php \
             app/Updates/PrivateHostAttestationRequestHandler.php \
-            app/Updates/PrivateHostAttestationNonceStore.php \
+            app/Updates/PrivateHostAttestationNonceStore.php \\\n            app/Updates/IntegrityEventRequestDecoder.php \\\n            integrity_event.php \\\n            tests/integrity_event_request_decoder.test.php \
             app/Updates/IntegrityNodeAlertedException.php \
             app/Updates/IntegrityNodeScheduledRunner.php \
             bin/integrity-node-keygen.php \
@@ -172,6 +178,7 @@ jobs:
           php tests/private_host_attestation_collector.test.php
           php tests/private_host_attestation_client.test.php
           php tests/private_host_attestation_gate.test.php
+          php tests/integrity_event_request_decoder.test.php
           php tests/private_host_attestation_request_handler.test.php
           php tests/integrity_node_a.test.php
           php tests/integrity_node_b.test.php
