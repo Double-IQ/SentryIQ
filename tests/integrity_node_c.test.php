@@ -59,6 +59,9 @@ try {
         $wrongIdentityRejected = true;
     }
     nodeCAssert($wrongIdentityRejected, 'Node C must reject a signer configured with another node identity.');
+$missingAlertRejected = false;
+try { new IntegrityNodeC($signer, $verifier, $fetch); } catch (RuntimeException) { $missingAlertRejected = true; }
+nodeCAssert($missingAlertRejected, 'Node C must refuse startup without a direct owner-alert transport.');
 
     $node = new IntegrityNodeC($signer, $verifier, $fetch, $alertNoop);
     $approved = $node->verify(
