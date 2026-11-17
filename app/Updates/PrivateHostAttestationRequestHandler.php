@@ -76,11 +76,17 @@ final class PrivateHostAttestationRequestHandler
         }
         if ($nodeId === null) return $this->error(401);
 
+        // PHP's JSON decoder accepts duplicate object keys and silently keeps
+        // the last value. Reject duplicate top-level fields before decoding.
+        if ($this->hasDuplicateTopLevelKeys($body)) {
+            return $this->error(400);
+        }
         try {
             $request = json_decode($body, true, 8, JSON_THROW_ON_ERROR);
         } catch (\JsonException) {
             return $this->error(400);
         }
+
         $required = ['schema_version', 'node_id', 'nonce', 'release_version', 'commit', 'manifest_sha256', 'artifact_sha256'];
         if (!is_array($request) || array_diff(array_keys($request), $required) !== []
             || array_diff($required, array_keys($request)) !== []
@@ -121,6 +127,57 @@ final class PrivateHostAttestationRequestHandler
         } catch (\Throwable) {
             return $this->error(503);
         }
+    }
+
+    /**
+     * Detect duplicate keys in the outer JSON object. Nested values are
+     * rejected by the request schema, so only depth-one keys are relevant.
+     */
+    private function hasDuplicateTopLevelKeys(string $json): bool
+    {
+        $length = strlen($json);
+        $depth = 0;
+        $inString = false;
+        $escaped = false;
+        $keys = [];
+        $stringStart = 0;
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $json[$i];
+            if ($inString) {
+                if ($escaped) {
+                    $escaped = false;
+                } elseif ($char === '\\') {
+                    $escaped = true;
+                } elseif ($char === '"') {
+                    $inString = false;
+                    if ($depth === 1) {
+                        $end = $i + 1;
+                        while ($end < $length && ctype_space($json[$end])) $end++;
+                        if ($end < $length && $json[$end] === ':') {
+                            try {
+                                $key = json_decode(substr($json, $stringStart, $i - $stringStart + 1), true, 2, JSON_THROW_ON_ERROR);
+                            } catch (\JsonException) {
+                                return true;
+                            }
+                            if (!is_string($key) || isset($keys[$key])) return true;
+                            $keys[$key] = true;
+                        }
+                    }
+                }
+                continue;
+            }
+
+            if ($char === '"') {
+                $inString = true;
+                $stringStart = $i;
+            } elseif ($char === '{' || $char === '[') {
+                $depth++;
+            } elseif ($char === '}' || $char === ']') {
+                $depth--;
+            }
+        }
+        return false;
     }
 
     /** @return array{status:int,body:string} */
