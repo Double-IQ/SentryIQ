@@ -27,6 +27,8 @@ The verifier uses HTTPS with peer and hostname validation, refuses redirects, bo
 
 Construct the callback once in the node's protected runtime bootstrap. Each node's direct owner-alert callback is mandatory and must use a separately configured transport that does not depend on Node 4:
 
+Example for **Node A's host only**:
+
 ```php
 $verifyAttestation = NativeSigstoreIntegrityAttestationVerifier::fromPrivatePaths(
     '/absolute/private/path/vendor/autoload.php',
@@ -34,9 +36,9 @@ $verifyAttestation = NativeSigstoreIntegrityAttestationVerifier::fromPrivatePath
 );
 
 $nodeA = new IntegrityNodeA($integrityASigner, $verifyAttestation, null, $nodeAOwnerAlert);
-$nodeB = new IntegrityNodeB($integrityBSigner, $verifyAttestation, null, $nodeBOwnerAlert);
-$nodeC = new IntegrityNodeC($integrityCSigner, $verifyAttestation, null, $nodeCOwnerAlert);
 ```
+
+Node B and Node C each construct the same adapter independently from their own private vendor/data paths and instantiate only their own signer and verifier class. Never place multiple nodes' signing keys or runtime credentials on one host.
 
 Instantiate only the node that belongs to that host. Never share signing keys or signer objects across nodes. Node A, B and C each retain their own identity and runtime configuration.
 
