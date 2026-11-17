@@ -9,6 +9,7 @@ own independent owner-alert paths.
 ## Components
 
 - `IntegrityEventClient`: strict HTTPS client for A/B challenge requests and signed report submissions; verifies TLS and refuses redirects.
+- `IntegrityNodeEventRunner`: binds local manifest/artifact digests into the challenge, passes the returned nonce to the existing Node A/B verifier, checks the files did not change, and submits the signed report.
 - `integrity_event.php`: machine-to-machine HTTPS endpoint. It supports
   authenticated `challenge` requests and signed `report` submissions.
 - `IntegrityEventReportVerifier`: verifies one signed A/B report at a time,
