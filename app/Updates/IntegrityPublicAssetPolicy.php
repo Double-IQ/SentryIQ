@@ -36,7 +36,12 @@ final class IntegrityPublicAssetPolicy
             if (!is_array($publicFiles) || !array_is_list($publicFiles)) {
                 throw new RuntimeException('Release manifest public file inventory is invalid.');
             }
-            $publicFileSet = array_fill_keys(array_filter($publicFiles, 'is_string'), true);
+            foreach ($publicFiles as $publicPath) {
+                if (!is_string($publicPath) || !self::isSafePath($publicPath)) {
+                    throw new RuntimeException('Release manifest contains an unsafe public file path.');
+                }
+            }
+            $publicFileSet = array_fill_keys($publicFiles, true);
         }
 
         $manifestPaths = $manifest['public_http_files'] ?? null;
@@ -89,7 +94,7 @@ final class IntegrityPublicAssetPolicy
     private static function isSafePath(string $path): bool
     {
         return $path !== '' && strlen($path) <= 512 && !str_starts_with($path, '/')
-            && !str_contains($path, '\\') && !preg_match('~(^|/)\.\.?(/|$)~', $path)
+            && !str_contains($path, '\\') && !str_contains($path, '//') && !preg_match('~(^|/)\.\.?(/|$)~', $path)
             && !preg_match('/[%?#\\x00-\\x1f]/', $path);
     }
 }
