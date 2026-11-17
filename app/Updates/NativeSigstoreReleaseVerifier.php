@@ -85,7 +85,7 @@ final class NativeSigstoreReleaseVerifier
         }
         $expectedSubjectName = trim($expectedSubjectName);
         if ($expectedSubjectName === '' || basename($expectedSubjectName) !== $expectedSubjectName
-            || str_contains($expectedSubjectName, "\\\\") || str_contains($expectedSubjectName, '/')
+            || str_contains($expectedSubjectName, chr(92)) || str_contains($expectedSubjectName, '/')
             || preg_match('/[\\x00-\\x1f]/', $expectedSubjectName)) {
             throw new RuntimeException('Expected release subject must be a safe filename.');
         }
