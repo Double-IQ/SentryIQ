@@ -59,28 +59,52 @@ closed; it is never silently replaced with the bundled bootstrap root.
 All failures reject the update. The checksum remains a transport/integrity
 check; it is not treated as a signature or provenance substitute.
 
-## HelioHost configuration example
+## SentryIQ application-host configuration
 
-With the existing directory layout where `sentryiq-tuf-patched-private`
-sits beside `httpdocs`, first-run setup will discover the Composer autoloader
-and store its resolved path in the private config. The secure data directory
-is created at `<account-root>/private_data`, outside `httpdocs`. If discovery
-is unavailable, configure the key manually in the private config using the
-actual absolute path, for example (adjust the account path):
+This updater integration belongs on the **production SentryIQ application host**.
+It does not belong on HelioHost. HelioHost is the separate Node C security
+host; its private Composer installation must not be treated as the production
+application's dependency directory or shared with the application host.
+
+The private updater setting belongs in
+`<data_dir>/sentryiq_config.php`:
 
 ```php
-'sigstore_vendor_autoload' => '/home/ACCOUNT/sentryiq-tuf-patched-private/vendor/autoload.php',
+'sigstore_vendor_autoload' => '/absolute/private/path/to/vendor/autoload.php',
 ```
 
-Do not use `dirname(__DIR__)` here: the private config is nested under the
-data directory, not beside `httpdocs`. Confirm the exact absolute path is
-readable before enabling updates. Do not
-move or merge the separate `sentryiq-attestation-private`,
-`sentryiq-probe-private`, or TUF private directories as part of this change.
+First-run setup attempts to discover
+`<account-root>/sentryiq-tuf-patched-private/vendor/autoload.php` on the
+SentryIQ application host and stores its resolved absolute path in the private
+config. This is only an optional discovery convention: if that directory is
+not present or is unsafe, the setting remains empty and update installation
+fails closed until the administrator installs the pinned dependencies in a
+private directory on the application host and configures the actual path.
+Do not copy an absolute path from HelioHost or assume both hosts share a
+filesystem.
 
-This PR does not change the live host configuration or deploy files. The new
-setting is required before the production updater can apply a release; with it
-absent, update installation fails closed.
+The public-web-root `sentryiq_config.php` pointer contains only `data_dir`
+and base URL. It must not contain Sigstore settings or credentials. The
+configured Composer autoloader must be outside the public webroot and load
+exactly `k2gl/sigstore-verify 1.6.1` and patched `k2gl/tuf 1.2.1`; the
+updater checks these versions at runtime. Keep the entire vendor tree private.
+
+The updater creates its persistent TUF root store at
+`<data_dir>/sigstore-tuf/`. The first verification starts from the package's
+bundled `sigstore-tuf-root.json`; later verifications load the persisted
+root. A root is persisted only after the TUF updater completes refresh and
+validates the `trusted_root.json` target. A corrupt or unsafe persisted root
+fails closed; it is never silently replaced with the bundled bootstrap root.
+
+The release archive carries the three first-run bootstrap PHP files under
+`runtime/`. The root `.htaccess` denies HTTP access to that directory.
+First-run setup copies those files into the private data directory with
+restrictive permissions, then removes the packaged copies. Do not expose the
+`runtime/` directory or move those files into the HelioHost Node C account.
+
+No application-host filesystem path is assumed here. The exact private vendor
+path and data directory must be established on the SentryIQ application host
+during its separately authorized deployment.
 
 ## Validation boundary
 
