@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SentryIQ\Updates;
+namespace SentryIQ\\Updates;
 
 use RuntimeException;
 use Throwable;
@@ -10,9 +10,9 @@ use Throwable;
 /**
  * One scheduled execution of an independently hosted Integrity Node.
  *
- * Release selection is deliberately injected: each host must obtain the
- * deployed release identity from its administrator-controlled source rather
- * than silently assuming that GitHub's newest release is already deployed.
+ * Release selection is injected because each host must obtain the deployed
+ * release identity from its administrator-controlled source; GitHub's newest
+ * release must never be assumed to be deployed already.
  */
 final class IntegrityNodeScheduledRunner
 {
@@ -69,7 +69,7 @@ final class IntegrityNodeScheduledRunner
                 || !is_string($release['version'] ?? null)
                 || !is_string($release['commit'] ?? null)
                 || !is_string($release['installed_version'] ?? null)
-                || !preg_match('/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/', ltrim($release['version'], 'v'))
+                || !preg_match('/^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$/', ltrim($release['version'], 'v'))
                 || !preg_match('/^[a-f0-9]{40}$/i', $release['commit'])) {
                 throw new RuntimeException('Release resolver must return a stable version, full commit SHA and installed version.');
             }
@@ -80,29 +80,36 @@ final class IntegrityNodeScheduledRunner
                 rtrim($this->privateDataDirectory, '/') . '/integrity-releases/' . $version,
                 $this->publicWebRoot
             );
+        } catch (Throwable $exception) {
+            $this->alertFailure($exception);
+            throw new RuntimeException('Release selection or artifact staging failed; independent owner alert was attempted.', 0, $exception);
+        }
 
-            $verify = fn(string $nonce): array => ($this->verify)(
+        $verify = fn(string $nonce): array => ($this->verify)(
+            $staged['manifest_path'],
+            $staged['artifact_path'],
+            $version,
+            $commit,
+            $release['installed_version'],
+            $this->targetOrigin,
+            $this->publicPaths,
+            $nonce
+        );
+
+        // The A/B event runner already performs direct alerts for verification
+        // and Node 4 transport failures. Do not send a duplicate alert here.
+        if ($this->eventRunner !== null) {
+            return $this->eventRunner->run(
+                $verify,
                 $staged['manifest_path'],
                 $staged['artifact_path'],
                 $version,
                 $commit,
-                $release['installed_version'],
-                $this->targetOrigin,
-                $this->publicPaths,
-                $nonce
-            );
+                $this->targetOrigin
+            ) + ['release_version' => $version, 'release_commit' => $commit];
+        }
 
-            if ($this->eventRunner !== null) {
-                return $this->eventRunner->run(
-                    $verify,
-                    $staged['manifest_path'],
-                    $staged['artifact_path'],
-                    $version,
-                    $commit,
-                    $this->targetOrigin
-                ) + ['release_version' => $version, 'release_commit' => $commit];
-            }
-
+        try {
             $nonce = bin2hex(random_bytes(32));
             $result = $verify($nonce);
             if (!is_array($result) || !is_bool($result['approved'] ?? null)
@@ -111,15 +118,20 @@ final class IntegrityNodeScheduledRunner
             }
             return $result + ['release_version' => $version, 'release_commit' => $commit];
         } catch (Throwable $exception) {
-            try {
-                ($this->notifyFailure)($this->nodeId, 'scheduled_integrity_run_failed', [
-                    'exception' => get_class($exception),
-                    'message' => substr($exception->getMessage(), 0, 300),
-                ]);
-            } catch (Throwable $alertException) {
-                throw new RuntimeException('Scheduled integrity run and independent owner alert both failed.', 0, $alertException);
-            }
-            throw new RuntimeException('Scheduled integrity run failed; independent owner alert was attempted.', 0, $exception);
+            $this->alertFailure($exception);
+            throw new RuntimeException('Scheduled integrity verification failed; independent owner alert was attempted.', 0, $exception);
+        }
+    }
+
+    private function alertFailure(Throwable $exception): void
+    {
+        try {
+            ($this->notifyFailure)($this->nodeId, 'scheduled_integrity_run_failed', [
+                'exception' => get_class($exception),
+                'message' => substr($exception->getMessage(), 0, 300),
+            ]);
+        } catch (Throwable $alertException) {
+            throw new RuntimeException('Scheduled integrity run and independent owner alert both failed.', 0, $alertException);
         }
     }
 }
