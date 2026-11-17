@@ -78,15 +78,22 @@ final class IntegrityNodeReleaseStateStore
      * One-time administrator bootstrap. The known-good version and commit
      * must be independently established before this is called.
      */
-    public function initializeBaseline(string $version, string $commit): void
+    public function initializeBaseline(string $version, string $commit, ?string $manifestDigest = null, ?string $artifactDigest = null): void
     {
         $version = self::normalizeVersion($version);
         $commit = self::normalizeCommit($commit);
-        $initialize = function () use ($version, $commit): void {
+        if (($manifestDigest === null) !== ($artifactDigest === null)) {
+            throw new RuntimeException('Baseline must pin both release manifest and ZIP digests, or neither.');
+        }
+        if ($manifestDigest !== null) {
+            $manifestDigest = self::normalizeDigest($manifestDigest);
+            $artifactDigest = self::normalizeDigest((string)$artifactDigest);
+        }
+        $initialize = function () use ($version, $commit, $manifestDigest, $artifactDigest): void {
             if (file_exists($this->statePath) || is_link($this->statePath)) {
                 throw new RuntimeException('Integrity release baseline already exists; refusing to replace it.');
             }
-            $this->writeState($version, $commit);
+            $this->writeState($version, $commit, $manifestDigest, $artifactDigest);
         };
 
         if ($this->runLockHeld) {
@@ -118,17 +125,33 @@ final class IntegrityNodeReleaseStateStore
             || !is_int($state['approved_at'] ?? null) || $state['approved_at'] < 1) {
             throw new RuntimeException('Integrity release baseline schema is invalid.');
         }
+        $manifestDigest = $state['manifest_sha256'] ?? null;
+        $artifactDigest = $state['artifact_sha256'] ?? null;
+        if (($manifestDigest === null) !== ($artifactDigest === null)) {
+            throw new RuntimeException('Integrity release baseline digest pair is incomplete.');
+        }
+        if ($manifestDigest !== null) {
+            if (!is_string($manifestDigest) || !is_string($artifactDigest)) {
+                throw new RuntimeException('Integrity release baseline digests are invalid.');
+            }
+            $manifestDigest = self::normalizeDigest($manifestDigest);
+            $artifactDigest = self::normalizeDigest($artifactDigest);
+        }
         return [
             'version' => self::normalizeVersion($state['version']),
             'commit' => self::normalizeCommit($state['commit']),
+            'manifest_sha256' => $manifestDigest,
+            'artifact_sha256' => $artifactDigest,
             'approved_at' => $state['approved_at'],
         ];
     }
 
-    public function assertCandidate(string $version, string $commit): void
+    public function assertCandidate(string $version, string $commit, ?string $manifestDigest = null, ?string $artifactDigest = null): void
     {
         $version = self::normalizeVersion($version);
         $commit = self::normalizeCommit($commit);
+        $manifestDigest = self::normalizeDigest($manifestDigest);
+        $artifactDigest = self::normalizeDigest($artifactDigest);
         $current = $this->current();
         $comparison = version_compare($version, $current['version']);
         if ($comparison < 0) {
@@ -137,10 +160,17 @@ final class IntegrityNodeReleaseStateStore
         if ($comparison === 0 && !hash_equals($current['commit'], $commit)) {
             throw new RuntimeException('Integrity release tag was retargeted: same version now resolves to a different commit.');
         }
+        if ($comparison === 0 && $manifestDigest !== null && $artifactDigest !== null
+            && $current['manifest_sha256'] !== null) {
+            if (!hash_equals($current['manifest_sha256'], self::normalizeDigest($manifestDigest))
+                || !hash_equals($current['artifact_sha256'], self::normalizeDigest($artifactDigest))) {
+                throw new RuntimeException('Integrity release artifacts changed without a version and source-commit change.');
+            }
+        }
     }
 
     /** Advance the pin only after a complete approved verification result. */
-    public function recordApproved(string $version, string $commit): void
+    public function recordApproved(string $version, string $commit, string $manifestDigest, string $artifactDigest): void
     {
         if (!$this->runLockHeld) {
             throw new RuntimeException('Integrity release state may advance only inside an exclusive scheduled run.');
@@ -152,17 +182,24 @@ final class IntegrityNodeReleaseStateStore
         if ($comparison < 0 || ($comparison === 0 && !hash_equals($current['commit'], $commit))) {
             throw new RuntimeException('Integrity release state cannot move backwards or change an existing tag commit.');
         }
-        if ($comparison > 0) {
-            $this->writeState($version, $commit);
+        if ($comparison === 0 && $current['manifest_sha256'] !== null
+            && (!hash_equals($current['manifest_sha256'], $manifestDigest)
+                || !hash_equals($current['artifact_sha256'], $artifactDigest))) {
+            throw new RuntimeException('Integrity release state cannot accept changed artifacts under the same version.');
+        }
+        if ($comparison > 0 || $current['manifest_sha256'] === null) {
+            $this->writeState($version, $commit, $manifestDigest, $artifactDigest);
         }
     }
 
-    private function writeState(string $version, string $commit): void
+    private function writeState(string $version, string $commit, ?string $manifestDigest, ?string $artifactDigest): void
     {
         $bytes = json_encode([
             'format' => 1,
             'version' => $version,
             'commit' => $commit,
+            'manifest_sha256' => $manifestDigest,
+            'artifact_sha256' => $artifactDigest,
             'approved_at' => time(),
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n";
         $temporary = $this->statePath . '.tmp-' . bin2hex(random_bytes(8));
@@ -182,6 +219,15 @@ final class IntegrityNodeReleaseStateStore
             throw new RuntimeException('Integrity release version must use stable MAJOR.MINOR.PATCH format.');
         }
         return $version;
+    }
+
+    private static function normalizeDigest(string $digest): string
+    {
+        $digest = strtolower(trim($digest));
+        if (!preg_match('/^[a-f0-9]{64}$/', $digest)) {
+            throw new RuntimeException('Integrity release artifact digest must be a full SHA-256.');
+        }
+        return $digest;
     }
 
     private static function normalizeCommit(string $commit): string
