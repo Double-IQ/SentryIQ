@@ -226,8 +226,18 @@ final class PrivateHostAttestationCollector
         $seen = [];
         $expected = array_fill_keys(array_keys($this->expectedFiles), true);
         foreach ($this->monitoredDirectories as $directory) {
-            $absolute = $this->publicRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $directory);
-            if (is_link($absolute) || !is_dir($absolute) || !is_readable($absolute)) {
+            // Validate every component, not only the leaf: an ancestor symlink
+            // must never redirect a fixed monitored path outside the webroot.
+            $absolute = $this->publicRoot;
+            $directoryIsSafe = true;
+            foreach (explode('/', $directory) as $component) {
+                $absolute .= DIRECTORY_SEPARATOR . $component;
+                if (is_link($absolute) || !is_dir($absolute) || !is_readable($absolute)) {
+                    $directoryIsSafe = false;
+                    break;
+                }
+            }
+            if (!$directoryIsSafe) {
                 $unexpected[$directory] = true;
                 continue;
             }
