@@ -90,6 +90,7 @@ final class IntegrityPublicAssetPolicy
 
     private static function isStaticPath(string $path): bool
     {
+        if ($path === 'VERSION') return true;
         $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
         return $extension !== '' && in_array($extension, self::STATIC_EXTENSIONS, true);
     }
