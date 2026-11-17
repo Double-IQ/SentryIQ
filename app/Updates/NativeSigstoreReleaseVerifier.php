@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SentryIQ\Updates;
 
+require_once __DIR__ . '/ReleaseArtifactVerifier.php';
+
 use K2gl\Sigstore\Bundle;
 use K2gl\Sigstore\IdentityPolicy;
 use K2gl\Sigstore\SigstoreVerifier;
