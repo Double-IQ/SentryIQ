@@ -57,6 +57,9 @@ final class IntegrityNodeA
         if ($verifyOriginHeaders === null) {
             throw new RuntimeException('Integrity Node A requires an origin security-header verifier.');
         }
+        if ($verifyPrivateHost === null) {
+            throw new RuntimeException('Integrity Node A requires independent private-host deployment attestation.');
+        }
         $this->verifyAttestation = $verifyAttestation;
         $this->fetch = $fetch ?? fn(string $url): string => $this->fetchHttps($url);
         $this->notifyFailure = $notifyFailure;
