@@ -26,9 +26,9 @@ function nodeAPrivateHostGate(bool $approve = true, string $nodeId = 'integrity-
     $pair = sodium_crypto_sign_keypair();
     $secret = sodium_crypto_sign_secretkey($pair);
     $public = sodium_crypto_sign_publickey($pair);
-    $expected = hash('sha256', 'approved deployed file');
+    $expected = hash('sha256', "console.log('SentryIQ');\\n");
     $observed = $approve ? $expected : hash('sha256', 'tampered deployed file');
-    $fileMap = ['app/Updates/UpdateManager.php' => $expected];
+    $fileMap = ['assets/app.js' => $expected];
     $client = new PrivateHostAttestationClient(
         $nodeId,
         str_repeat('A', 64),
@@ -50,7 +50,7 @@ function nodeAPrivateHostGate(bool $approve = true, string $nodeId = 'integrity-
                 'manifest_sha256' => $request['manifest_sha256'],
                 'artifact_sha256' => $request['artifact_sha256'],
                 'files' => [[
-                    'path' => 'app/Updates/UpdateManager.php',
+                    'path' => 'assets/app.js',
                     'expected_sha256' => $expected,
                     'observed_sha256' => $observed,
                     'result' => $approve ? 'match' : 'digest_mismatch',
