@@ -162,7 +162,7 @@ Nodes A and B also require the signed private-host attestation callback shown ab
 
 Each node also verifies the origin's HSTS, CSP, framing, MIME-sniffing, referrer and permissions headers. The SentryIQ `.htaccess` now declares that conservative header policy. The signed release manifest carries a `public_http_files` list containing only byte-verifiable static assets. Dynamic PHP endpoints are not compared with their packaged source bytes; private runtime files remain outside HTTP checks. Leave `$publicPathSubset` empty to check every signed static asset, or provide a subset.
 
-The CLI preloads the node classes, native verifier and runtime dependencies before requiring the protected config file. The config file only needs to construct the host-specific objects and return the runner. The CLI validates the config file path and requires it to return the runner. The private monotonic state baseline must already exist; first-run bootstrap is an explicit one-time administrator action.
+The CLI preloads the node classes, native verifier and runtime dependencies before requiring the protected config file. The config file only needs to construct the host-specific objects and return the runner. The CLI requires an absolute, readable, regular, non-symlink config file with exact `0600` permissions; broader or merely read-only modes are rejected. It then requires the file and requires it to return the runner. The private monotonic state baseline must already exist; first-run bootstrap is an explicit one-time administrator action.
 
 
 ### Mandatory A/B trust-separation checks
