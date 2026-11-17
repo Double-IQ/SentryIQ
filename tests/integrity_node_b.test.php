@@ -3,13 +3,72 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Updates/IntegrityReportSigner.php';
+
+require_once __DIR__ . '/../app/Updates/PrivateHostAttestationClient.php';
+require_once __DIR__ . '/../app/Updates/PrivateHostAttestationVerifier.php';
+require_once __DIR__ . '/../app/Updates/PrivateHostAttestationGate.php';
 require_once __DIR__ . '/../app/Updates/IntegrityNodeB.php';
 
 use SentryIQ\Updates\IntegrityNodeB;
 use SentryIQ\Updates\IntegrityReportSigner;
+use SentryIQ\Updates\PrivateHostAttestationClient;
+use SentryIQ\Updates\PrivateHostAttestationVerifier;
+use SentryIQ\Updates\PrivateHostAttestationGate;
 
 function nodeBAssert(bool $condition, string $message): void {
     if (!$condition) throw new RuntimeException($message);
+}
+
+
+function nodeBPrivateHostGate(bool $approve = true): PrivateHostAttestationGate
+{
+    $now = time();
+    $pair = sodium_crypto_sign_keypair();
+    $secret = sodium_crypto_sign_secretkey($pair);
+    $public = sodium_crypto_sign_publickey($pair);
+    $expected = hash('sha256', 'approved deployed file');
+    $observed = $approve ? $expected : hash('sha256', 'tampered deployed file');
+    $fileMap = ['app/Updates/UpdateManager.php' => $expected];
+    $client = new PrivateHostAttestationClient(
+        'integrity-b',
+        str_repeat('A', 64),
+        'https://sentryiq.bichet.co.za/private-host-attestation',
+        static function (string $url, array $headers, string $body, int $maxBytes) use ($now, $secret, $expected, $observed, $approve): array {
+            $request = json_decode($body, true, 8, JSON_THROW_ON_ERROR);
+            $payload = [
+                'schema_version' => 1,
+                'collector_id' => 'sentryiq-host-attestor',
+                'issued_at' => $now,
+                'expires_at' => $now + 60,
+                'nonce' => $request['nonce'],
+                'target_origin' => 'https://sentryiq.bichet.co.za',
+                'repository' => 'Double-IQ/SentryIQ',
+                'repository_id' => '1345956206',
+                'release_version' => $request['release_version'],
+                'tag' => 'v' . $request['release_version'],
+                'commit' => $request['commit'],
+                'manifest_sha256' => $request['manifest_sha256'],
+                'artifact_sha256' => $request['artifact_sha256'],
+                'files' => [[
+                    'path' => 'app/Updates/UpdateManager.php',
+                    'expected_sha256' => $expected,
+                    'observed_sha256' => $observed,
+                    'result' => $approve ? 'match' : 'digest_mismatch',
+                ]],
+                'private_config' => [],
+                'decision' => $approve ? 'approve' : 'reject',
+            ];
+            $bytes = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+            return ['status' => 200, 'body' => json_encode([
+                'payload' => base64_encode($bytes),
+                'signature' => base64_encode(sodium_crypto_sign_detached($bytes, $secret)),
+            ], JSON_THROW_ON_ERROR)];
+        }
+    );
+    $verifier = new PrivateHostAttestationVerifier(base64_encode($public), static fn(): int => $now);
+    $gate = new PrivateHostAttestationGate('integrity-b', $client, $verifier, $fileMap, []);
+    sodium_memzero($secret);
+    return $gate;
 }
 
 $keypair = sodium_crypto_sign_keypair();
@@ -48,7 +107,6 @@ $verifier = static function (string $path, string $version, string $commit, stri
 $fetch = static fn(string $url): string => $publicBody;
 $alertNoop = static function (string $nodeId, string $reason, array $context): void {};
 $headerNoop = static fn(string $origin): array => ['approved' => true, 'mismatches' => [], 'headers' => []];
-$privateHostNoop = static fn(string $version, string $commit, string $manifestDigest, string $artifactDigest, string $nonce, array $manifest, string $origin): array => ['approved' => true, 'mismatches' => []];
 
 try {
     $wrongSigner = new IntegrityReportSigner(
@@ -67,17 +125,17 @@ $missingAlertRejected = false;
 try { new IntegrityNodeB($signer, $verifier, $fetch); } catch (RuntimeException) { $missingAlertRejected = true; }
 nodeBAssert($missingAlertRejected, 'Node B must refuse startup without a direct owner-alert transport.');
 $missingPrivateHostRejected = false;
-try { new IntegrityNodeB($signer, $verifier, $fetch, $alertNoop, $headerNoop); } catch (RuntimeException) { $missingPrivateHostRejected = true; }
+try { new IntegrityNodeB($signer, $verifier, $fetch, $alertNoop, $headerNoop, null); } catch (RuntimeException) { $missingPrivateHostRejected = true; }
 nodeBAssert($missingPrivateHostRejected, 'Node B must refuse startup without private-host attestation.');
 
-    $node = new IntegrityNodeB($signer, $verifier, $fetch, $alertNoop, $headerNoop, $privateHostNoop);
+    $node = new IntegrityNodeB($signer, $verifier, $fetch, $alertNoop, $headerNoop, nodeBPrivateHostGate());
     $approved = $node->verify(
         $manifestPath,
         $artifactPath,
         'v0.1.3',
         str_repeat('a', 40),
         '0.1.2',
-        'https://example.invalid/SentryIQ',
+        'https://sentryiq.bichet.co.za',
         ['assets/app.js'],
         str_repeat('c', 64)
     );
@@ -126,15 +184,7 @@ nodeBAssert($missingPrivateHostRejected, 'Node B must refuse startup without pri
             $privateHostAlerts[] = [$nodeId, $reason, $context];
         },
         $headerNoop,
-        static function (string $version, string $commit, string $manifestDigest, string $artifactDigest, string $nonce, array $manifest, string $origin): array {
-            if (!preg_match('/^[a-f0-9]{64}$/', $nonce) || hash_equals(str_repeat('f', 64), $nonce)) {
-                throw new RuntimeException('Private-host attestation must use its own independent nonce.');
-            }
-            return [
-            'approved' => false,
-            'mismatches' => [['path' => 'app/Updates/UpdateManager.php', 'reason' => 'digest_mismatch']],
-            ];
-        }
+nodeBPrivateHostGate(false)
     );
     $privateHostRejected = $privateHostRejectedNode->verify(
         $manifestPath, $artifactPath, '0.1.3', str_repeat('a', 40), '0.1.2',
