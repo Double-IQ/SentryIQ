@@ -97,8 +97,11 @@ $nodeBPayload = array_replace($payload, [
     'node_id' => 'integrity-b',
     'decision' => 'reject',
     'nonce' => str_repeat('e', 64),
-    'checked_paths' => ['assets/app.js', '@origin-headers'],
-    'mismatches' => [['path' => '@origin-headers', 'reason' => 'security_header_mismatch']],
+    'checked_paths' => ['assets/app.js', '@origin-headers', '@private-host-attestation'],
+    'mismatches' => [
+        ['path' => '@origin-headers', 'reason' => 'security_header_mismatch'],
+        ['path' => '@private-host-attestation', 'reason' => 'private_host_attestation_failed'],
+    ],
 ]);
 $nodeBEnvelope = eventEnvelope($secretB, $nodeBPayload);
 $nodeB = $verifier->accept($nodeBEnvelope);
