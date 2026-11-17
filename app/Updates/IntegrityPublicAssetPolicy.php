@@ -9,6 +9,7 @@ use RuntimeException;
 /**
  * Selects only byte-for-byte static public assets for HTTP hash comparison.
  * Dynamic PHP endpoints are never compared with their packaged source bytes.
+ * Every selected path must also exist in the signed public_files and files inventories.
  */
 final class IntegrityPublicAssetPolicy
 {
