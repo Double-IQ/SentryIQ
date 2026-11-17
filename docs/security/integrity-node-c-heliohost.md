@@ -22,6 +22,7 @@ The existing `GitHubCliAttestationVerifier` invokes GitHub CLI through `proc_ope
 - Generate a fresh 32-byte nonce locally for each run; Node C does not use Node 4's challenge API, which is deliberately limited to Nodes A/B. Persist C's signed report in its own private evidence store and prevent local replay/overwrite.
 - Configure an explicit public-path allowlist. Never infer that private PHP/config files are externally fetchable.
 - Configure and test the direct owner-alert callback added to `IntegrityNodeC`; it must deliver from HelioHost to an owner destination without routing through Node 4. The callback is an injection point, not a configured mail/webhook transport.
+- Configure `IntegrityNodeEvidenceStore` under the node's private data directory. It verifies each Node C report signature, binds it to the exact manifest/ZIP digests and scheduler decision, and appends mode-0600 records in a mode-0700 `integrity-node-c-evidence` directory. Replayed reports and capacity exhaustion fail closed and trigger the direct alert path.
 - Restrict any HTTP trigger endpoint with authentication, replay protection, rate limiting, and no secrets in URLs or logs.
 
 ## Status
