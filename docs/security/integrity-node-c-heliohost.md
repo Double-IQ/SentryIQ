@@ -10,9 +10,9 @@ The HelioHost shared-hosting environment documents that process execution functi
 
 ## Critical attestation adapter requirement
 
-The Node C class deliberately receives its attestation verifier as an injected callable. **This PR does not provide a HelioHost-ready cryptographic Sigstore/GitHub attestation adapter.** The existing `GitHubCliAttestationVerifier` invokes GitHub CLI through `proc_open` and is not suitable for HelioHost. Do not wire that class into Node C or treat the injected test callback as real verification.
+The Node C class deliberately receives its attestation verifier as an injected callable. PR #48 now adds `NativeSigstoreIntegrityAttestationVerifier`, a native PHP/HTTPS adapter that independently verifies the canonical manifest and ZIP using GitHub artifact attestations, Sigstore TUF, and the SentryIQ provenance policy. It does not invoke GitHub CLI or process execution. The adapter is still an unmerged dependency and must be installed and wired from the private Composer autoloader on Node C before production use.
 
-Before Node C can approve anything in production, implement and independently test a native PHP / HTTPS-based adapter that cryptographically validates GitHub artifact attestations and enforces the same SentryIQ policy (repository ID, workflow identity, issuer, source ref/commit, subject digest, predicate, trusted timestamp, and hosted-runner requirements). If a trustworthy native verifier cannot be delivered, Node C must fail closed and remain non-operational rather than downgrade to checksum-only or trust unsigned API metadata.
+The existing `GitHubCliAttestationVerifier` invokes GitHub CLI through `proc_open` and is not suitable for HelioHost. Do not wire that class into Node C or treat the injected test callback as real verification. Node C must fail closed rather than downgrade to checksum-only or trust unsigned API metadata.
 
 ## Runtime requirements (not performed by this PR)
 
@@ -21,7 +21,7 @@ Before Node C can approve anything in production, implement and independently te
 - Use a dedicated HelioHost account and independent Plesk scheduled task; keep frequency within HelioHost resource limits.
 - Supply a fresh 32-byte nonce from the event plane and implement replay protection there.
 - Configure an explicit public-path allowlist. Never infer that private PHP/config files are externally fetchable.
-- Configure a direct owner alert path independent of Node 4.
+- Configure and test the direct owner-alert callback added to `IntegrityNodeC`; it must deliver from HelioHost to an owner destination without routing through Node 4. The callback is an injection point, not a configured mail/webhook transport.
 - Restrict any HTTP trigger endpoint with authentication, replay protection, rate limiting, and no secrets in URLs or logs.
 
 ## Status
