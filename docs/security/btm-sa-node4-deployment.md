@@ -21,8 +21,12 @@ own independent owner-alert paths.
 
 The event endpoint is not part of the user login/session flow. It accepts only
 POST JSON over HTTPS, has no browser CORS surface, applies a strict body limit,
-and returns no-store responses. A report must pass both its node-specific
-bearer token and its Ed25519 signature.
+and returns no-store responses. `IntegrityEventRequestDecoder` rejects duplicate
+top-level JSON fields (including equivalent escaped key spellings), malformed
+objects and oversized bodies. The endpoint then enforces an exact field set for
+each action: challenge requests cannot carry paths or extra claims, and report
+requests contain only the signed envelope. A report must pass both its
+node-specific bearer token and its Ed25519 signature.
 
 ## Private runtime configuration
 
