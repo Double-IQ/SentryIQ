@@ -89,7 +89,7 @@ $expectedFields = match ($request['action']) {
     default => ['action'],
 };
 try {
-    SentryIQ\\Updates\\IntegrityEventRequestDecoder::assertExactFields($request, $expectedFields);
+    SentryIQ\Updates\IntegrityEventRequestDecoder::assertExactFields($request, $expectedFields);
 } catch (Throwable) {
     integrityEventRespond(400, ['status' => 'error', 'message' => 'Request fields do not match the selected action.']);
 }
