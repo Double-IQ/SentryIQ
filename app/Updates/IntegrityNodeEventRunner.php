@@ -58,7 +58,7 @@ final class IntegrityNodeEventRunner
                 $artifactDigest,
                 $manifestDigest
             );
-        } catch (\\Throwable $exception) {
+        } catch (\Throwable $exception) {
             $this->alertFailure('node4_challenge_unavailable', ['phase' => 'challenge']);
             throw new RuntimeException('Node 4 challenge request failed; independent owner alert was attempted.', 0, $exception);
         }
@@ -74,7 +74,7 @@ final class IntegrityNodeEventRunner
 
         try {
             $acknowledgement = $this->client->submitReport($result['report']);
-        } catch (\\Throwable $exception) {
+        } catch (\Throwable $exception) {
             $this->alertFailure('node4_report_delivery_failed', ['phase' => 'report']);
             throw new RuntimeException('Node 4 report delivery failed; independent owner alert was attempted.', 0, $exception);
         }
@@ -89,7 +89,7 @@ final class IntegrityNodeEventRunner
     {
         try {
             ($this->notifyFailure)($this->client->nodeId(), $reason, $context);
-        } catch (\\Throwable $exception) {
+        } catch (\Throwable $exception) {
             throw new RuntimeException('Independent integrity-node owner alert delivery failed.', 0, $exception);
         }
     }
