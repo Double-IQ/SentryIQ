@@ -68,6 +68,31 @@ try {
 }
 scheduledAssert($rejectedA, 'Nodes A/B must not start without their Node 4 event exchange.');
 
+$wrongEventIdentityRejected = false;
+try {
+    $wrongNode4Runner = new SentryIQ\\Updates\\IntegrityNodeEventRunner(
+        new SentryIQ\\Updates\\IntegrityEventClient(
+            'https://sentryiq.bichet.co.za/integrity_event.php',
+            'integrity-b',
+            str_repeat('y', 48),
+            static fn(): array => []
+        ),
+        static function (): void {}
+    );
+    new IntegrityNodeScheduledRunner(
+        'integrity-a', $fetcher,
+        static fn(): array => [],
+        static fn(): array => [],
+        static function (): void {},
+        $private, $webroot, 'https://sentryiq.bichet.co.za', ['assets/app.js'], $releaseState,
+        $wrongNode4Runner
+    );
+} catch (RuntimeException) {
+    $wrongEventIdentityRejected = true;
+}
+scheduledAssert($wrongEventIdentityRejected,
+    'Node A scheduled runner must reject a Node B event client.');
+
 $rejectedC = false;
 try {
     new IntegrityNodeScheduledRunner(
