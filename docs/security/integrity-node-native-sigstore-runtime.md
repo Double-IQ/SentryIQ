@@ -34,7 +34,7 @@ $resolveDeployedRelease = new IntegrityDeployedReleaseResolver();
 
 // Initialize this once, manually, after independently confirming the known-good
 // release already deployed on this node's target. Do not run this on every cron.
-// $releaseState->initializeBaseline('<verified-version>', '<verified-40-character-commit>');
+// $releaseState->initializeBaseline('<verified-version>', '<verified-40-character-commit>', '<manifest-sha256>', '<zip-sha256>');
 
 $headerVerifier = new IntegrityOriginSecurityHeaderVerifier();
 $verifyHeaders = static fn(string $origin): array => $headerVerifier->verify($origin);
@@ -134,7 +134,7 @@ Create one independent schedule per A/B/C host. Do not place all three node sche
 
 ## Per-node anti-rollback state
 
-Each A/B/C host keeps its own `integrity-release-state.json` in its private data directory. The baseline is initialized once with a release version and commit that the administrator has independently confirmed as the known-good deployed build. A run is serialized with an exclusive lock; older versions and same-version/different-commit tag changes are rejected. The state advances only after the node returns an approved verification result. A rejected or incomplete check never advances the pin. Do not initialize the baseline from the live `/VERSION` response alone.
+Each A/B/C host keeps its own `integrity-release-state.json` in its private data directory. The baseline is initialized once with a release version, commit, manifest SHA-256 and ZIP SHA-256 that the administrator has independently confirmed as the known-good deployed build. Pin both artifact digests at bootstrap; subsequent checks reject same-version artifact replacement as well as tag retargeting. A run is serialized with an exclusive lock; older versions and same-version/different-commit tag changes are rejected. The state advances only after the node returns an approved verification result. A rejected or incomplete check never advances the pin. Do not initialize the baseline from the live `/VERSION` response alone.
 
 ## Private PHP and configuration attestation remains separate
 
