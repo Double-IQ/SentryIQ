@@ -65,7 +65,7 @@ $payload = [
     'workflow_path' => '.github/workflows/release.yml',
     'target_origin' => 'https://sentryiq.bichet.co.za',
     'manifest_sha256' => str_repeat('d', 64),
-    'checked_paths' => ['index.php', 'assets/app.js'],
+    'checked_paths' => ['assets/app.js', '@origin-headers'],
     'mismatches' => [],
 ];
 
@@ -97,8 +97,8 @@ $nodeBPayload = array_replace($payload, [
     'node_id' => 'integrity-b',
     'decision' => 'reject',
     'nonce' => str_repeat('e', 64),
-    'checked_paths' => ['index.php'],
-    'mismatches' => [['path' => 'index.php', 'reason' => 'content_mismatch']],
+    'checked_paths' => ['assets/app.js', '@origin-headers'],
+    'mismatches' => [['path' => '@origin-headers', 'reason' => 'security_header_mismatch']],
 ]);
 $nodeBEnvelope = eventEnvelope($secretB, $nodeBPayload);
 $nodeB = $verifier->accept($nodeBEnvelope);
@@ -116,7 +116,7 @@ $reject(
 $conflictingPayload = array_replace($payload, [
     'nonce' => str_repeat('1', 64),
     'decision' => 'approve',
-    'mismatches' => [['path' => 'index.php', 'reason' => 'content_mismatch']],
+    'mismatches' => [['path' => 'assets/app.js', 'reason' => 'content_mismatch']],
 ]);
 $reject(
     fn() => $verifier->accept(eventEnvelope($secretA, $conflictingPayload)),
