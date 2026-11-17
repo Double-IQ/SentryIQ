@@ -159,7 +159,7 @@ final class IntegrityNodeScheduledRunner
                 throw new RuntimeException('Integrity Node verifier returned an invalid or unbound result.');
             }
             $this->assertStagedDigestsUnchanged($staged, $manifestDigest, $artifactDigest);
-            $evidence = $this->evidenceStore->append($result['report']);
+            $evidence = $this->evidenceStore->append($result['report'], $version, $commit, $manifestDigest, $artifactDigest);
             if ($result['approved'] === true) {
                 $this->releaseState->recordApproved($version, $commit, $manifestDigest, $artifactDigest);
             }
