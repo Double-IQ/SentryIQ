@@ -199,6 +199,8 @@ nodeCAssert($missingAlertRejected, 'Node C must refuse startup without a direct 
     nodeCAssert($offline['approved'] === false
         && ($offline['mismatches'][0]['reason'] ?? null) === 'fetch_failed',
         'Origin outage must be represented as signed fetch_failed evidence.');
+    nodeCAssert(in_array('assets/app.js', $offline['checked_paths'], true),
+        'A path that could not be fetched must still be recorded as attempted evidence.');
     nodeCAssert($offlineAlerts === [['integrity-c', 'origin_integrity_mismatch']],
         'Origin outage must trigger Node C direct owner alerting.');
 
