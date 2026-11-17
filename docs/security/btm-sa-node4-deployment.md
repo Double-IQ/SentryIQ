@@ -167,3 +167,35 @@ $assets = (new IntegrityReleaseArtifactFetcher())->fetch(
 ```
 
 The fetcher is a staging component, not a scheduled runner. Each node still needs its own protected runtime configuration, release-selection policy, schedule, signing key and direct alert transport.
+
+
+## Scheduled node entry point
+
+```sh
+SENTRYIQ_INTEGRITY_NODE_CONFIG=/absolute/private/path/integrity-node.php php /absolute/path/to/SentryIQ/bin/integrity-node-run.php
+```
+
+`bin/integrity-node-run.php` is CLI-only. The private PHP configuration must return a fully constructed `IntegrityNodeScheduledRunner`. The runner stages the selected release assets outside the webroot, invokes the node verifier, and for A/B performs the Node 4 challenge/report exchange. Node C generates its own nonce and never contacts Node 4. Exit status is zero only for an approved result; rejected results and operational failures exit nonzero.
+
+The private configuration must supply a `resolveRelease` callable returning the release version, full source commit and installed-version baseline. This resolver must identify the release actually deployed at the production origin (for example from an authenticated deployment record or a protected deployment marker). It must **not** blindly select GitHub's newest release, because a newly published release may not yet be deployed. The public-path allowlist, private data directory, actual webroot, signing identity, native Sigstore verifier and direct owner-alert transport are all node-local configuration.
+
+Example construction pattern (illustrative; use that node's own paths, signer and credentials):
+
+```php
+$runner = new IntegrityNodeScheduledRunner(
+    'integrity-a',
+    new IntegrityReleaseArtifactFetcher(),
+    $resolveDeployedRelease,
+    static fn(string $manifest, string $zip, string $version, string $commit, string $installed, string $origin, array $paths, string $nonce): array =>
+        $nodeA->verify($manifest, $zip, $version, $commit, $installed, $origin, $paths, $nonce),
+    $nodeAOwnerAlert,
+    $privateDataDirectory,
+    $publicWebRoot,
+    'https://sentryiq.bichet.co.za',
+    $publicPathAllowlist,
+    $runnerAEventExchange,
+);
+return $runner;
+```
+
+Use separate private configuration files and cron schedules on A, B and C. A and B must each have their own Node 4 token, signing key, verifier dependencies and direct alert destination. C must use only `integrity-c` credentials and must omit the Node 4 event exchange. Do not place any of these private configurations or keys on the SentryIQ/BTM-SA host for convenience.
