@@ -147,6 +147,8 @@ final class PrivateHostAttestationVerifier
                 }
             } elseif ($observed !== null && (!is_string($observed) || !preg_match('/^[a-f0-9]{64}$/', $observed))) {
                 throw new RuntimeException('Private host file evidence contains an invalid observed digest.');
+            } elseif ($entry['result'] === 'digest_mismatch' && (!is_string($observed) || hash_equals($expectedFiles[$path], $observed))) {
+                throw new RuntimeException('Private host digest-mismatch evidence does not show a changed digest.');
             }
             if ($entry['result'] !== 'match') {
                 $mismatches[] = ['path' => $path, 'reason' => $entry['result']];
@@ -179,6 +181,8 @@ final class PrivateHostAttestationVerifier
                 }
             } elseif ($observed !== null && (!is_string($observed) || !preg_match('/^[a-f0-9]{64}$/', $observed))) {
                 throw new RuntimeException('Private host configuration evidence contains an invalid observed digest.');
+            } elseif ($entry['result'] === 'digest_mismatch' && (!is_string($observed) || hash_equals($expectedPrivateConfig[$id], $observed))) {
+                throw new RuntimeException('Private host configuration mismatch evidence does not show a changed digest.');
             }
             if ($entry['result'] !== 'match') {
                 $mismatches[] = ['path' => '@private-config/' . $id, 'reason' => $entry['result']];
