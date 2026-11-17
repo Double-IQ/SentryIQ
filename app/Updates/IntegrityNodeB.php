@@ -231,7 +231,7 @@ final class IntegrityNodeB
         $body = '';
         curl_setopt_array($handle, [
             CURLOPT_RETURNTRANSFER => false,
-            CURLOPT_HTTPHEADER => ['Cache-Control: no-cache, no-store', 'Pragma: no-cache'],
+            CURLOPT_HTTPHEADER => ['Cache-Control: no-cache, no-store, no-transform', 'Pragma: no-cache'],
             CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
             CURLOPT_CONNECTTIMEOUT => 10,
