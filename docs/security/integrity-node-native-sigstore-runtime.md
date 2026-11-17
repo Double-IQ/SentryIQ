@@ -103,7 +103,7 @@ return new IntegrityNodeScheduledRunner(
 );
 ```
 
-The imports above are illustrative; the private bootstrap must also load the corresponding application classes before constructing them. The existing CLI validates the config file path and requires it to return the runner. The private monotonic state baseline must already exist; first-run bootstrap is an explicit one-time administrator action.
+The CLI preloads the node classes, native verifier and runtime dependencies before requiring the protected config file. The config file only needs to construct the host-specific objects and return the runner. The CLI validates the config file path and requires it to return the runner. The private monotonic state baseline must already exist; first-run bootstrap is an explicit one-time administrator action.
 
 ## Node-specific boundaries
 
