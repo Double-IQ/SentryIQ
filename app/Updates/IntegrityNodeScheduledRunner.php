@@ -10,6 +10,7 @@ use Throwable;
 require_once __DIR__ . '/IntegrityNodeAlertedException.php';
 require_once __DIR__ . '/IntegrityNodeReleaseStateStore.php';
 require_once __DIR__ . '/IntegrityNodeEvidenceStore.php';
+require_once __DIR__ . '/IntegrityNodeVerifierBinding.php';
 
 /**
  * One scheduled execution of an independently hosted Integrity Node.
@@ -23,9 +24,6 @@ final class IntegrityNodeScheduledRunner
     /** @var callable():array{version:string,commit:string} */
     private $resolveRelease;
 
-    /** @var callable(string,string,string,string,string,string,array,string):array<string,mixed> */
-    private $verify;
-
     /** @var callable(string,string,array<string,mixed>):void */
     private $notifyFailure;
 
@@ -33,7 +31,7 @@ final class IntegrityNodeScheduledRunner
         private readonly string $nodeId,
         private readonly IntegrityReleaseArtifactFetcher $artifactFetcher,
         callable $resolveRelease,
-        callable $verify,
+        private readonly IntegrityNodeVerifierBinding $verifier,
         callable $notifyFailure,
         private readonly string $privateDataDirectory,
         private readonly string $publicWebRoot,
@@ -45,6 +43,9 @@ final class IntegrityNodeScheduledRunner
     ) {
         if (!in_array($nodeId, ['integrity-a', 'integrity-b', 'integrity-c'], true)) {
             throw new RuntimeException('Scheduled runner requires a known independent Integrity Node identity.');
+        }
+        if ($this->verifier->nodeId() !== $nodeId) {
+            throw new RuntimeException('Scheduled runner identity must match its concrete node verifier binding.');
         }
         $parts = parse_url($targetOrigin);
         if (!is_array($parts) || ($parts['scheme'] ?? null) !== 'https'
@@ -65,7 +66,6 @@ final class IntegrityNodeScheduledRunner
             throw new RuntimeException('Nodes A and B require the authenticated Node 4 event exchange.');
         }
         $this->resolveRelease = $resolveRelease;
-        $this->verify = $verify;
         $this->notifyFailure = $notifyFailure;
     }
 
@@ -119,7 +119,7 @@ final class IntegrityNodeScheduledRunner
             throw new RuntimeException('Release selection or artifact staging failed.', 0, $exception);
         }
 
-        $verify = fn(string $nonce): array => ($this->verify)(
+        $verify = fn(string $nonce): array => $this->verifier->verify(
             $staged['manifest_path'],
             $staged['artifact_path'],
             $version,
