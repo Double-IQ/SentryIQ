@@ -12,6 +12,15 @@ $private = $root . '/private_data';
 if (!mkdir($public, 0700, true) || !mkdir($private, 0700, true)) {
     throw new RuntimeException('Unable to create runtime-config test directories.');
 }
+$keypairA = sodium_crypto_sign_keypair();
+$keypairB = sodium_crypto_sign_keypair();
+$tokenA = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+$tokenB = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+$nodeTokens = ['integrity-a' => $tokenA, 'integrity-b' => $tokenB];
+$nodeKeys = [
+    'integrity-a' => base64_encode(sodium_crypto_sign_publickey($keypairA)),
+    'integrity-b' => base64_encode(sodium_crypto_sign_publickey($keypairB)),
+];
 $pointer = $public . '/sentryiq_config.php';
 $privateConfig = $private . '/sentryiq_config.php';
 file_put_contents($pointer, '<?php return ' . var_export([
@@ -20,13 +29,14 @@ file_put_contents($pointer, '<?php return ' . var_export([
 ], true) . ';');
 file_put_contents($privateConfig, '<?php return ' . var_export([
     'data_dir' => $private,
-    'integrity_event' => ['enabled' => true, 'target_origin' => 'https://sentryiq.bichet.co.za', 'node_tokens' => ['integrity-a' => str_repeat('a', 40)]],
+    'integrity_event' => ['enabled' => true, 'target_origin' => 'https://sentryiq.bichet.co.za', 'node_tokens' => $nodeTokens, 'node_public_keys' => $nodeKeys],
 ], true) . ';');
 
 try {
     $loaded = IntegrityNode4RuntimeConfig::load($pointer);
     if (($loaded['integrity_event']['enabled'] ?? false) !== true
-        || ($loaded['integrity_event']['node_tokens']['integrity-a'] ?? null) !== str_repeat('a', 40)
+        || ($loaded['integrity_event']['node_tokens']['integrity-a'] ?? null) !== $tokenA
+        || ($loaded['integrity_event']['node_tokens']['integrity-b'] ?? null) !== $tokenB
         || ($loaded['base_url'] ?? null) !== 'https://example.invalid'
         || ($loaded['data_dir'] ?? null) !== realpath($private)) {
         throw new RuntimeException('Runtime-config loader did not merge the public pointer and private settings.');
@@ -60,7 +70,7 @@ try {
 
     file_put_contents($privateConfig, '<?php return ' . var_export([
         'data_dir' => $private,
-        'integrity_event' => ['enabled' => true, 'target_origin' => 'https://attacker.invalid'],
+        'integrity_event' => ['enabled' => true, 'target_origin' => 'https://attacker.invalid', 'node_tokens' => $nodeTokens, 'node_public_keys' => $nodeKeys],
     ], true) . ';');
     $wrongTargetRejected = false;
     try {
@@ -70,6 +80,25 @@ try {
     }
     if (!$wrongTargetRejected) {
         throw new RuntimeException('Runtime-config loader accepted a non-production Node 4 target.');
+    }
+
+    file_put_contents($privateConfig, '<?php return ' . var_export([
+        'data_dir' => $private,
+        'integrity_event' => [
+            'enabled' => true,
+            'target_origin' => 'https://sentryiq.bichet.co.za',
+            'node_tokens' => ['integrity-a' => $tokenA],
+            'node_public_keys' => $nodeKeys,
+        ],
+    ], true) . ';');
+    $missingNodeRejected = false;
+    try {
+        IntegrityNode4RuntimeConfig::load($pointer);
+    } catch (RuntimeException) {
+        $missingNodeRejected = true;
+    }
+    if (!$missingNodeRejected) {
+        throw new RuntimeException('Runtime-config loader accepted an incomplete A/B trust configuration.');
     }
 } finally {
     @unlink($pointer);
