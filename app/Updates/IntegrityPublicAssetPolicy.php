@@ -79,6 +79,9 @@ final class IntegrityPublicAssetPolicy
                 throw new RuntimeException('Configured public path is not in the signed static-asset allowlist.');
             }
         }
+        if (count($selected) > 99) {
+            throw new RuntimeException('Release manifest exceeds the signed event evidence path limit.');
+        }
         if ($selected === []) {
             throw new RuntimeException('Release manifest contains no byte-verifiable public static assets.');
         }
