@@ -123,7 +123,7 @@ does not replace those checks.
 
 Node 4 shares the SentryIQ host and is not a failure-independent alert destination. Each separately hosted node must therefore configure its own direct owner-alert callback, with credentials and destination held in that node's private configuration and delivery performed from that node's own provider. The callback is invoked for attestation rejection and public-origin content mismatch; a callback delivery failure fails the node run rather than silently treating the alert as delivered.
 
-The A/B constructors accept an optional fourth argument `$notifyFailure` for attestation rejection and origin mismatch. The event runner requires a direct alert callback and invokes it if Node 4 cannot issue a challenge or accept the signed report:
+The A/B constructors require a fourth argument `$notifyFailure` for attestation rejection and origin mismatch. Node C has the same mandatory direct-alert requirement. A node cannot be constructed without a separately configured owner-alert transport. The event runner requires a direct alert callback and invokes it if Node 4 cannot issue a challenge or accept the signed report:
 
 ```php
 $notifyFailure = static function (string $nodeId, string $reason, array $context): void {
