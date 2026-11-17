@@ -43,7 +43,8 @@ $claims = [
 ];
 
 $policy->assertTrustedRelease($claims, $version, $commit, $digest, '1.2.2');
-trustCheck(true, 'Valid normalized release claims should pass.');
+$policy->assertTrustedRelease($claims, $version, $commit, $digest, '1.2.3', true);
+trustCheck(true, 'Valid normalized release claims and an explicitly allowed installed release should pass.');
 
 $mutations = [
     'unverified attestation' => ['cryptographically_verified' => false],
@@ -52,6 +53,7 @@ $mutations = [
     'wrong tag' => ['source_ref' => 'refs/tags/v9.9.9'],
     'wrong source commit' => ['source_commit' => str_repeat('b', 40)],
     'wrong workflow commit' => ['workflow_commit' => str_repeat('c', 40)],
+    'missing workflow commit' => ['workflow_commit' => ''],
     'wrong workflow path' => ['workflow_path' => '.github/workflows/other.yml'],
     'wrong workflow ref' => ['workflow_ref' => 'attacker/SentryIQ/.github/workflows/release.yml@refs/tags/v1.2.3'],
     'wrong triggering event' => ['source_event' => 'workflow_dispatch'],
