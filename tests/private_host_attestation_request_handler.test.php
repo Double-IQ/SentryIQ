@@ -114,6 +114,16 @@ try {
             static fn(): bool => true),
         'A/B bearer tokens must be distinct.'
     );
+
+    $sharedPrivate = $base . '/shared-private';
+    mkdir($sharedPrivate, 0750);
+    chmod($sharedPrivate, 0750);
+    hostHandlerReject(
+        fn() => new PrivateHostAttestationNonceStore($sharedPrivate, $web),
+        'Nonce storage must refuse a directory that is not already private.'
+    );
+    hostHandlerAssert((fileperms($sharedPrivate) & 0777) === 0750,
+        'Nonce storage constructor must not change permissions on an operator-supplied directory.');
     sodium_memzero($secret);
     echo "Private host attestation request handler tests passed.\n";
 } finally {
