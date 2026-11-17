@@ -22,16 +22,16 @@ final class SigstoreProvenance
     public const WORKFLOW_PATH = '.github/workflows/release.yml';
 
     /** @return array<string, mixed> */
-    public static function claims(Envelope $envelope, string $workflowCommit, string $expectedVersion, string $expectedDigest): array
+    public static function claims(Envelope $envelope, string $expectedVersion, string $expectedDigest, string $expectedSubjectName): array
     {
         $statement = Statement::fromEnvelope($envelope);
-        $claims = self::claimsFromArray($statement->toArray(), $workflowCommit, $expectedVersion, $expectedDigest);
+        $claims = self::claimsFromArray($statement->toArray(), $expectedVersion, $expectedDigest, $expectedSubjectName);
         $claims['cryptographically_verified'] = true;
         return $claims;
     }
 
     /** @param array<string, mixed> $statement */
-    public static function claimsFromArray(array $statement, string $workflowCommit, string $expectedVersion, string $expectedDigest): array
+    public static function claimsFromArray(array $statement, string $expectedVersion, string $expectedDigest, string $expectedSubjectName): array
     {
         if (($statement['predicateType'] ?? null) !== self::PREDICATE_TYPE) {
             throw new RuntimeException('Release attestation does not contain SLSA Provenance v1.');
@@ -42,9 +42,9 @@ final class SigstoreProvenance
             throw new RuntimeException('Release attestation must identify exactly one artifact subject.');
         }
         $subject = $subjects[0];
-        if (($subject['name'] ?? null) !== 'sentryiq-' . $expectedVersion . '.zip'
+        if (($subject['name'] ?? null) !== $expectedSubjectName
             || strtolower((string)(($subject['digest']['sha256'] ?? ''))) !== strtolower($expectedDigest)) {
-            throw new RuntimeException('Attestation subject name or digest does not match the downloaded release ZIP.');
+            throw new RuntimeException('Attestation subject name or digest does not match the expected release artifact.');
         }
 
         $predicate = $statement['predicate'] ?? null;
@@ -77,14 +77,6 @@ final class SigstoreProvenance
             throw new RuntimeException('SLSA provenance GitHub repository or execution context is not trusted.');
         }
 
-        // The workflow definition digest is authenticated in Fulcio's leaf
-        // certificate (Build Config Digest, OID 1.3.6.1.4.1.57264.1.19).
-        // It is supplied only after SigstoreVerifier authenticates that certificate.
-        $workflowCommit = strtolower($workflowCommit);
-        if (preg_match('/^[a-f0-9]{40}$/', $workflowCommit) !== 1) {
-            throw new RuntimeException('Authenticated Fulcio Build Config Digest is not a full workflow commit SHA.');
-        }
-
         $expectedBuilder = 'https://github.com/' . self::REPOSITORY . '/' . self::WORKFLOW_PATH . '@' . $expectedRef;
         if (($builder['id'] ?? null) !== $expectedBuilder) {
             throw new RuntimeException('SLSA provenance builder identity is not the approved release workflow.');
@@ -111,7 +103,6 @@ final class SigstoreProvenance
             'repository_id' => self::REPOSITORY_ID,
             'source_ref' => $expectedRef,
             'source_commit' => $sourceCommits[0],
-            'workflow_commit' => $workflowCommit,
             'workflow_path' => self::WORKFLOW_PATH,
             'workflow_ref' => self::REPOSITORY . '/' . self::WORKFLOW_PATH . '@' . $expectedRef,
             'source_event' => 'push',
