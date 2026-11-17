@@ -92,6 +92,11 @@ privateHostAssert($good['approved'] === true && $good['files_checked'] === 2
 
 $wrongNonce = str_repeat('c', 64);
 privateHostReject(
+    fn() => $verifier->assertAttested($makeEnvelope(['collector_id' => 'untrusted-collector']), $nonce, $version, $commit, $manifest, $artifact, $expectedFiles(), $expectedConfig()),
+    'An attestation carrying an unrecognized collector identity must be rejected.'
+);
+
+privateHostReject(
     fn() => $verifier->assertAttested($makeEnvelope(), $wrongNonce, $version, $commit, $manifest, $artifact, $expectedFiles(), $expectedConfig()),
     'A report for another challenge nonce must be rejected.'
 );
