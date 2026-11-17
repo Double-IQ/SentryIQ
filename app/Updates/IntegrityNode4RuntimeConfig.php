@@ -62,9 +62,38 @@ final class IntegrityNode4RuntimeConfig
             throw new RuntimeException('SentryIQ private runtime configuration is invalid.');
         }
         $event = $private['integrity_event'] ?? null;
-        if (is_array($event) && ($event['enabled'] ?? false) === true
-            && ($event['target_origin'] ?? null) !== 'https://sentryiq.bichet.co.za') {
-            throw new RuntimeException('Node 4 target origin must be the canonical SentryIQ production origin.');
+        if (is_array($event) && ($event['enabled'] ?? false) === true) {
+            if (($event['target_origin'] ?? null) !== 'https://sentryiq.bichet.co.za') {
+                throw new RuntimeException('Node 4 target origin must be the canonical SentryIQ production origin.');
+            }
+            $expectedNodes = ['integrity-a', 'integrity-b'];
+            $tokens = $event['node_tokens'] ?? null;
+            $keys = $event['node_public_keys'] ?? null;
+            if (!is_array($tokens) || !is_array($keys)) {
+                throw new RuntimeException('Node 4 requires independent credentials and public keys for both Integrity Nodes.');
+            }
+            $tokenIds = array_keys($tokens);
+            $keyIds = array_keys($keys);
+            sort($tokenIds);
+            sort($keyIds);
+            if ($tokenIds !== $expectedNodes || $keyIds !== $expectedNodes) {
+                throw new RuntimeException('Node 4 trust configuration must contain exactly Nodes A and B.');
+            }
+            $decodedKeys = [];
+            foreach ($expectedNodes as $nodeId) {
+                if (!is_string($tokens[$nodeId]) || !preg_match('/^[A-Za-z0-9_-]{40,128}$/', $tokens[$nodeId])) {
+                    throw new RuntimeException('Node 4 bearer tokens must be high-entropy URL-safe values.');
+                }
+                $decoded = base64_decode((string)$keys[$nodeId], true);
+                if (!is_string($decoded) || strlen($decoded) !== SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES) {
+                    throw new RuntimeException('Node 4 requires valid Ed25519 public keys for both nodes.');
+                }
+                $decodedKeys[] = $decoded;
+            }
+            if (hash_equals($tokens['integrity-a'], $tokens['integrity-b'])
+                || hash_equals($decodedKeys[0], $decodedKeys[1])) {
+                throw new RuntimeException('Node A and B credentials and signing keys must be distinct.');
+            }
         }
         if (isset($private['data_dir']) && $private['data_dir'] !== $pointer['data_dir']
             && realpath((string)$private['data_dir']) !== $dataDir) {
