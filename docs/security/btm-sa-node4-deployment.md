@@ -64,7 +64,7 @@ of Git, release ZIPs, webroot, and shared configuration exports.
 Generate independent random bearer tokens for A and B. Do not reuse their
 Ed25519 private signing keys as bearer tokens. Install only the corresponding
 public keys on Node 4. The private signing keys remain on their respective
-nodes.
+nodes. The runtime loader requires exactly both node IDs, distinct URL-safe bearer tokens of at least 40 characters, and distinct valid Ed25519 public keys. It also pins `target_origin` to `https://sentryiq.bichet.co.za`; incomplete or misdirected configuration fails closed.
 
 ## Protocol
 
