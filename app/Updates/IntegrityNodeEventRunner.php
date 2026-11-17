@@ -73,7 +73,7 @@ final class IntegrityNodeEventRunner
                 || !hash_equals($artifactDigest, $result['artifact_sha256'])) {
                 throw new RuntimeException('Local verification inputs changed after the Node 4 challenge was issued.');
             }
-        } catch (\\Throwable $exception) {
+        } catch (\Throwable $exception) {
             $this->alertFailure('local_verification_failed', [
                 'phase' => 'verification',
                 'release_version' => $version,
