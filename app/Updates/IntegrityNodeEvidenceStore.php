@@ -56,7 +56,7 @@ final class IntegrityNodeEvidenceStore
      */
     public function append(string $signedEnvelope, string $expectedVersion, string $expectedCommit, string $expectedManifestDigest, string $expectedArtifactDigest): array
     {
-        if ($signedEnvelope === '' || strlen($signedEnvelope) > 16384) {
+        if ($signedEnvelope === '' || strlen($signedEnvelope) > 65536) {
             throw new RuntimeException('Node C signed evidence is empty or exceeds the size limit.');
         }
         try {
@@ -70,7 +70,7 @@ final class IntegrityNodeEvidenceStore
         }
         $payloadBytes = base64_decode($envelope['payload'], true);
         $signature = base64_decode($envelope['signature'], true);
-        if (!is_string($payloadBytes) || $payloadBytes === '' || strlen($payloadBytes) > 8192
+        if (!is_string($payloadBytes) || $payloadBytes === '' || strlen($payloadBytes) > 32768
             || !is_string($signature) || strlen($signature) !== SODIUM_CRYPTO_SIGN_BYTES
             || !sodium_crypto_sign_verify_detached($signature, $payloadBytes, $this->publicKey)) {
             throw new RuntimeException('Node C evidence signature is invalid.');
@@ -138,6 +138,10 @@ final class IntegrityNodeEvidenceStore
             throw new RuntimeException('Node C signed decision does not match its signed mismatch evidence.');
         }
 
+        $existingRecords = glob($this->directory . '/report-*.json');
+        if (!is_array($existingRecords) || count($existingRecords) >= 10000) {
+            throw new RuntimeException('Node C private evidence store is full or unreadable.');
+        }
         $evidenceId = hash('sha256', $signedEnvelope);
         $filename = 'report-' . $payload['issued_at'] . '-' . $payload['nonce'] . '.json';
         $destination = $this->directory . '/' . $filename;
