@@ -50,6 +50,7 @@ on:
   push:
     branches: [feat/integrity-node-native-sigstore-runtime]
     paths:
+      - 'docs/security/private-host-attestation-contract.md'
       - 'app/Updates/PrivateHostAttestationCollector.php'
       - 'app/Updates/PrivateHostAttestationRequestHandler.php'
       - 'app/Updates/PrivateHostAttestationNonceStore.php'
