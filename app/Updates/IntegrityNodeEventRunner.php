@@ -75,6 +75,17 @@ final class IntegrityNodeEventRunner
                 || !hash_equals($artifactDigest, $result['artifact_sha256'])) {
                 throw new RuntimeException('Local verification inputs changed after the Node 4 challenge was issued.');
             }
+
+            // Re-hash the exact staged files after verification and immediately
+            // before report submission. Matching digests in the signed result
+            // alone do not detect a local file replacement after the verifier ran.
+            $currentManifestDigest = hash_file('sha256', $manifest);
+            $currentArtifactDigest = hash_file('sha256', $artifact);
+            if (!is_string($currentManifestDigest) || !is_string($currentArtifactDigest)
+                || !hash_equals($manifestDigest, $currentManifestDigest)
+                || !hash_equals($artifactDigest, $currentArtifactDigest)) {
+                throw new RuntimeException('Local release artifacts changed during verification.');
+            }
         } catch (\Throwable $exception) {
             if ($exception instanceof IntegrityNodeAlertedException) {
                 throw $exception;
