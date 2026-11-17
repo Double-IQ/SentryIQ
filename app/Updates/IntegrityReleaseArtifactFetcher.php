@@ -50,6 +50,9 @@ final class IntegrityReleaseArtifactFetcher
             throw new RuntimeException('Release staging directory must be an absolute path.');
         }
         $parts = array_values(array_filter(explode(DIRECTORY_SEPARATOR, $path), static fn(string $part): bool => $part !== ''));
+        if ($parts === []) {
+            throw new RuntimeException('Release staging directory cannot be the filesystem root.');
+        }
         $current = DIRECTORY_SEPARATOR;
         foreach ($parts as $part) {
             if ($part === '.' || $part === '..') {
