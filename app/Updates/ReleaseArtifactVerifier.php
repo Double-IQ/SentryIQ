@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SentryIQ\\Updates;
+namespace SentryIQ\Updates;
 
 /** Verifies one named artifact against Sigstore and returns authenticated claims. */
 interface ReleaseArtifactVerifier
