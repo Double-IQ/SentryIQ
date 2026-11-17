@@ -26,6 +26,7 @@ use SentryIQ\Updates\IntegrityDeployedReleaseResolver;
 use SentryIQ\Updates\IntegrityReleaseArtifactFetcher;
 use SentryIQ\Updates\IntegrityReportSigner;
 use SentryIQ\Updates\NativeSigstoreIntegrityAttestationVerifier;
+use SentryIQ\Updates\PrivateHostAttestationVerifier;
 
 // These values are supplied only by this host's protected configuration.
 $nodeId = 'integrity-a'; // exactly one of integrity-a, integrity-b, integrity-c
