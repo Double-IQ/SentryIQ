@@ -1,0 +1,210 @@
+<?php
+
+declare(strict_types=1);
+
+namespace SentryIQ\\Updates;
+
+use RuntimeException;
+
+/**
+ * Read-only production-host collector core.
+ *
+ * It has no HTTP listener and accepts no caller-supplied inventory. The
+ * administrator pins inventories and the signing key in a private config;
+ * a host-specific transport may invoke collect() and return its envelope.
+ */
+final class PrivateHostAttestationCollector
+{
+    private string $publicRoot;
+    private string $privateRoot;
+    private string $secretKey;
+
+    /**
+     * @param array<string,string> $expectedFiles Relative to publicRoot => SHA-256
+     * @param array<string,array{path:string,sha256:string}> $privateConfig
+     *        policy ID => privateRoot-relative path and approved SHA-256
+     */
+    public function __construct(
+        string $collectorId,
+        string $publicWebRoot,
+        string $privateDataRoot,
+        string $signingKeyPath,
+        private readonly array $expectedFiles,
+        private readonly array $privateConfig,
+        private readonly string $targetOrigin = 'https://sentryiq.bichet.co.za',
+        ?callable $clock = null
+    ) {
+        if (!preg_match('/^[a-z0-9][a-z0-9._-]{2,63}$/', $collectorId)) {
+            throw new RuntimeException('Collector identity is invalid.');
+        }
+        $this->collectorId = $collectorId;
+        $this->clock = $clock ?? static fn(): int => time();
+
+        $web = realpath($publicWebRoot);
+        $private = realpath($privateDataRoot);
+        if (!is_string($web) || !is_dir($web) || is_link($publicWebRoot)
+            || !is_string($private) || !is_dir($private) || is_link($privateDataRoot)
+            || $private === $web
+            || str_starts_with($private . DIRECTORY_SEPARATOR, rtrim($web, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
+            throw new RuntimeException('Collector requires a real private data directory outside the public webroot.');
+        }
+        $this->publicRoot = $web;
+        $this->privateRoot = $private;
+
+        $origin = parse_url($targetOrigin);
+        if (!is_array($origin) || ($origin['scheme'] ?? null) !== 'https'
+            || strtolower((string)($origin['host'] ?? '')) !== 'sentryiq.bichet.co.za'
+            || (isset($origin['port']) && $origin['port'] !== 443)
+            || isset($origin['user']) || isset($origin['pass'])
+            || isset($origin['query']) || isset($origin['fragment'])
+            || ($origin['path'] ?? '') !== '') {
+            throw new RuntimeException('Collector target origin must be the canonical SentryIQ HTTPS origin.');
+        }
+        $this->targetOrigin = rtrim($targetOrigin, '/');
+
+        if ($expectedFiles === [] || count($expectedFiles) > 5000 || count($privateConfig) > 100) {
+            throw new RuntimeException('Collector inventory is empty or exceeds its bounds.');
+        }
+        foreach ($expectedFiles as $path => $digest) {
+            if (!is_string($path) || !$this->safeRelativePath($path) || !is_string($digest)
+                || !preg_match('/^[a-f0-9]{64}$/', $digest)) {
+                throw new RuntimeException('Collector release inventory contains an invalid path or SHA-256.');
+            }
+        }
+        foreach ($privateConfig as $id => $entry) {
+            if (!is_string($id) || !preg_match('/^[a-z0-9][a-z0-9._-]{1,95}$/', $id)
+                || !is_array($entry) || !is_string($entry['path'] ?? null)
+                || !$this->safeRelativePath($entry['path'])
+                || !is_string($entry['sha256'] ?? null)
+                || !preg_match('/^[a-f0-9]{64}$/', $entry['sha256'])) {
+                throw new RuntimeException('Collector private configuration inventory is invalid.');
+            }
+        }
+
+        $keyReal = realpath($signingKeyPath);
+        if (!is_string($keyReal) || !is_file($keyReal) || is_link($signingKeyPath)
+            || !str_starts_with($keyReal, rtrim($private, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
+            throw new RuntimeException('Collector signing key must be a regular file inside private data storage.');
+        }
+        $mode = fileperms($keyReal);
+        if (!is_int($mode) || (($mode & 0077) !== 0)) {
+            throw new RuntimeException('Collector signing key permissions must deny all group and other access.');
+        }
+        $encoded = @file_get_contents($keyReal);
+        $key = is_string($encoded) ? base64_decode(trim($encoded), true) : false;
+        if (!is_string($key) || strlen($key) !== SODIUM_CRYPTO_SIGN_SECRETKEYBYTES) {
+            throw new RuntimeException('Collector signing key must contain a base64 Ed25519 secret key.');
+        }
+        $this->secretKey = $key;
+    }
+
+    private string $collectorId;
+    private string $targetOrigin;
+    /** @var callable():int */
+    private $clock;
+
+    /**
+     * @return array{payload:string,signature:string}
+     */
+    public function collect(
+        string $nonce,
+        string $releaseVersion,
+        string $commit,
+        string $manifestDigest,
+        string $artifactDigest
+    ): array {
+        $nonce = strtolower(trim($nonce));
+        $version = trim($releaseVersion);
+        if (str_starts_with($version, 'v')) $version = substr($version, 1);
+        $commit = strtolower(trim($commit));
+        $manifestDigest = strtolower(trim($manifestDigest));
+        $artifactDigest = strtolower(trim($artifactDigest));
+        if (!preg_match('/^[a-f0-9]{64}$/', $nonce)
+            || !preg_match('/^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$/', $version)
+            || !preg_match('/^[a-f0-9]{40}$/', $commit)
+            || !preg_match('/^[a-f0-9]{64}$/', $manifestDigest)
+            || !preg_match('/^[a-f0-9]{64}$/', $artifactDigest)) {
+            throw new RuntimeException('Collector challenge or release identity is invalid.');
+        }
+        $now = ($this->clock)();
+        if (!is_int($now) || $now < 1) throw new RuntimeException('Collector clock is invalid.');
+
+        $files = [];
+        $mismatches = false;
+        foreach ($this->expectedFiles as $path => $expected) {
+            $entry = $this->inspect($this->publicRoot, $path, $expected);
+            $files[] = ['path' => $path, 'expected_sha256' => $expected] + $entry;
+            if ($entry['result'] !== 'match') $mismatches = true;
+        }
+        $config = [];
+        foreach ($this->privateConfig as $id => $policy) {
+            $entry = $this->inspect($this->privateRoot, $policy['path'], $policy['sha256']);
+            $config[] = ['policy_id' => $id, 'expected_sha256' => $policy['sha256']] + $entry;
+            if ($entry['result'] !== 'match') $mismatches = true;
+        }
+
+        $payload = [
+            'schema_version' => 1,
+            'collector_id' => $this->collectorId,
+            'issued_at' => $now,
+            'expires_at' => $now + 60,
+            'nonce' => $nonce,
+            'target_origin' => $this->targetOrigin,
+            'repository' => 'Double-IQ/SentryIQ',
+            'repository_id' => '1345956206',
+            'release_version' => $version,
+            'tag' => 'v' . $version,
+            'commit' => $commit,
+            'manifest_sha256' => $manifestDigest,
+            'artifact_sha256' => $artifactDigest,
+            'files' => $files,
+            'private_config' => $config,
+            'decision' => $mismatches ? 'reject' : 'approve',
+        ];
+        $bytes = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        return [
+            'payload' => base64_encode($bytes),
+            'signature' => base64_encode(sodium_crypto_sign_detached($bytes, $this->secretKey)),
+        ];
+    }
+
+    /** @return array{result:string,observed_sha256:?string} */
+    private function inspect(string $root, string $relative, string $expected): array
+    {
+        $current = $root;
+        $parts = explode('/', $relative);
+        foreach ($parts as $index => $part) {
+            $current .= DIRECTORY_SEPARATOR . $part;
+            if (is_link($current)) return ['result' => 'symlink', 'observed_sha256' => null];
+            if (!file_exists($current)) return ['result' => 'missing', 'observed_sha256' => null];
+            if ($index < count($parts) - 1 && !is_dir($current)) {
+                return ['result' => 'unreadable', 'observed_sha256' => null];
+            }
+        }
+        if (!is_file($current) || !is_readable($current)) {
+            return ['result' => 'unreadable', 'observed_sha256' => null];
+        }
+        $digest = @hash_file('sha256', $current);
+        if (!is_string($digest)) return ['result' => 'unreadable', 'observed_sha256' => null];
+        return [
+            'result' => hash_equals($expected, $digest) ? 'match' : 'digest_mismatch',
+            'observed_sha256' => $digest,
+        ];
+    }
+
+    private function safeRelativePath(string $path): bool
+    {
+        if ($path === '' || strlen($path) > 240 || str_starts_with($path, '/')
+            || str_contains($path, '\\\\') || str_contains($path, "\0")) return false;
+        foreach (explode('/', $path) as $part) {
+            if ($part === '' || $part === '.' || $part === '..'
+                || !preg_match('/^[A-Za-z0-9._-]+$/', $part)) return false;
+        }
+        return true;
+    }
+
+    public function __destruct()
+    {
+        if (isset($this->secretKey) && $this->secretKey !== '') sodium_memzero($this->secretKey);
+    }
+}
