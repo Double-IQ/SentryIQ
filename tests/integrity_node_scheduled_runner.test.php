@@ -22,7 +22,7 @@ $private = $root . '/private';
 mkdir($webroot, 0700, true);
 mkdir($private, 0700, true);
 $fetcher = new IntegrityReleaseArtifactFetcher();
-$releaseState = new SentryIQ\\Updates\\IntegrityNodeReleaseStateStore($private, $webroot);
+$releaseState = new SentryIQ\Updates\IntegrityNodeReleaseStateStore($private, $webroot);
 $releaseState->initializeBaseline('0.1.3', str_repeat('a', 40));
 $alerts = [];
 $fetchCalls = 0;
