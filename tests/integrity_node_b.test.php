@@ -66,6 +66,9 @@ try {
 $missingAlertRejected = false;
 try { new IntegrityNodeB($signer, $verifier, $fetch); } catch (RuntimeException) { $missingAlertRejected = true; }
 nodeBAssert($missingAlertRejected, 'Node B must refuse startup without a direct owner-alert transport.');
+$missingPrivateHostRejected = false;
+try { new IntegrityNodeB($signer, $verifier, $fetch, $alertNoop, $headerNoop); } catch (RuntimeException) { $missingPrivateHostRejected = true; }
+nodeBAssert($missingPrivateHostRejected, 'Node B must refuse startup without private-host attestation.');
 
     $node = new IntegrityNodeB($signer, $verifier, $fetch, $alertNoop, $headerNoop, $privateHostNoop);
     $approved = $node->verify(
@@ -114,6 +117,29 @@ nodeBAssert($missingAlertRejected, 'Node B must refuse startup without a direct 
     nodeBAssert($rejected['approved'] === false, 'Changed public file must reject.');
     nodeBAssert($rejected['mismatches'][0]['reason'] === 'content_mismatch', 'Mismatch evidence should be retained.');
     nodeBAssert(count($alerts) === 1 && $alerts[0][0] === 'integrity-b' && $alerts[0][1] === 'origin_integrity_mismatch', 'A rejected origin must trigger the node\'s direct owner alert.');
+    $privateHostAlerts = [];
+    $privateHostRejectedNode = new IntegrityNodeB(
+        $signer,
+        $verifier,
+        $fetch,
+        static function (string $nodeId, string $reason, array $context) use (&$privateHostAlerts): void {
+            $privateHostAlerts[] = [$nodeId, $reason, $context];
+        },
+        $headerNoop,
+        static fn(string $version, string $commit, string $manifestDigest, string $artifactDigest, string $nonce, array $manifest, string $origin): array => [
+            'approved' => false,
+            'mismatches' => [['path' => 'app/Updates/UpdateManager.php', 'reason' => 'digest_mismatch']],
+        ]
+    );
+    $privateHostRejected = $privateHostRejectedNode->verify(
+        $manifestPath, $artifactPath, '0.1.3', str_repeat('a', 40), '0.1.2',
+        'https://example.invalid/SentryIQ', ['assets/app.js'], str_repeat('f', 64)
+    );
+    nodeBAssert($privateHostRejected['approved'] === false
+        && in_array(['path' => '@private-host-attestation', 'reason' => 'private_host_attestation_failed'], $privateHostRejected['mismatches'], true),
+        'A signed private-host rejection must reject the overall node decision.');
+    nodeBAssert(count($privateHostAlerts) === 1 && $privateHostAlerts[0][1] === 'private_host_attestation_rejected',
+        'A signed private-host rejection must trigger a direct owner alert.');
 
     $unsafeRejected = false;
     try {
