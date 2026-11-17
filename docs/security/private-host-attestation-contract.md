@@ -1,169 +1,85 @@
 # Private host deployment attestation contract
 
-- **Status:** Required architecture contract; collector implementation and host deployment remain outstanding.
 - **Target:** Production SentryIQ application host.
 - **Independent verifiers:** Integrity Nodes A and B.
-- **Not a separate failure domain:** BTM-SA / Node 4 shares the SentryIQ host.
-- **Not the target:** HelioHost is the separate Node C host, not the production application host.
+- **Shared failure domain:** BTM-SA / Node 4 shares the SentryIQ host.
+- **Separate host:** HelioHost is Node C only; it is not the SentryIQ application host.
+- **Implementation status:** Collector core, A/B HTTPS client, framework-neutral authenticated handler, durable nonce store, and regression tests exist in this branch. No host service, listener, keys, credentials, policy baselines, or production deployment have been provisioned.
 
-## Why this exists
+## Security boundary
 
-The public-origin checks verify signed static assets and HTTP security headers. They cannot prove the integrity of private PHP source, private runtime files, PHP configuration, or files outside the public webroot. A public PHP endpoint that simply hashes files is not sufficient: a compromised web application could alter its response or use any signing key readable by its PHP process.
+Public-origin checks cover signed static assets and HTTP security headers. They cannot establish the integrity of private PHP source, private runtime files, PHP configuration, or other files outside the public webroot.
 
-A private host attestor must therefore have a trust boundary separate from the SentryIQ web application. If the host cannot provide that boundary, the system must report the private-code attestation capability as unavailable; it must not infer that the private files are healthy from successful HTTP checks.
+The collector must run outside the public application request path under a dedicated OS identity or equivalent platform isolation. Its signing key and policy must be inaccessible to the SentryIQ PHP-FPM/web identity. It must have read-only access to the selected application/private files and no write access to application code, release artifacts, TUF roots, Node A/B keys, Node 4 event data, or alert configuration. If the hosting platform cannot provide this boundary, private-host attestation remains unavailable and must fail closed; a public PHP endpoint holding the signing key is not an acceptable substitute.
 
-## Host-side collector requirements
+## Implemented software
 
-The collector runs on the production SentryIQ host under a dedicated OS identity or equivalent platform isolation:
+### Collector core
 
-- It has read-only access to the deployed application tree, the private runtime files copied during first-run, and the specific private configuration files included in the attestation policy.
-- It has no write access to the application, webroot, release artifacts, TUF roots, Node A/B keys, Node 4 event store, or alert configuration.
-- Its signing key is not readable by the SentryIQ PHP-FPM/web application identity. Prefer a hardware-backed or host-managed signing key. A key stored in a file readable by the web application does not provide this trust boundary.
-- Its path inventory is fixed in protected collector configuration. A remote requester may supply a nonce, but may never supply arbitrary filesystem paths, commands, or file contents.
-- It returns hashes and metadata only. It never returns PHP source, configuration contents, credentials, cookies, vault data, or other secrets.
-- It runs independently of application request handling and continues to report failures if the SentryIQ web application is unavailable.
+`app/Updates/PrivateHostAttestationCollector.php` implements read-only inspection and detached Ed25519 signing. Its constructor receives a fixed administrator-supplied policy:
+- public-webroot-relative expected file paths and SHA-256 digests, with optional pinned permission modes;
+- optional monitored directories, where unexpected files and symlinks are reported;
+- private-data-root-relative configuration paths and approved SHA-256 digests;
+- collector identity and a protected Ed25519 secret-key file.
 
-If the host platform cannot run a separate identity/service or protect the signing key from the web application, use a provider-supported file-integrity/deployment-attestation mechanism instead. Do not downgrade this requirement to a key embedded in the public PHP application.
+The collector rejects invalid relative paths, symlinked inspected paths, missing/unreadable files, digest mismatches, optional permission mismatches, and discovered unexpected files. It returns hashes and metadata only, never file contents. It signs both approval and rejection decisions over the exact JSON payload bytes.
 
-## Files and expected state
+The signing key must be a regular file under the private data directory and deny group/other access. These PHP filesystem checks are not a substitute for OS-level ownership, ACL, race resistance, or isolation from privileged processes. The core does not itself verify a Sigstore manifest, derive the expected inventory, establish file ownership baselines, or provision the signing key.
 
-The collector obtains the expected release inventory only from the authenticated native Sigstore release-verification path:
+### A/B transport client
 
-1. Verify the release manifest and ZIP using the same pinned GitHub/SLSA trust policy used by the integrity nodes.
-2. Bind the report to the exact release version, source commit, manifest SHA-256 and ZIP SHA-256.
-3. For ordinary deployed application files, compare the on-disk bytes with the matching signed manifest entry.
-4. For packaged runtime/<name> files moved into private storage by first-run, compare the private deployed file with the corresponding signed runtime_files entry. The mapping is explicit and must not be inferred from arbitrary path names.
-5. For private configuration files that are intentionally not part of the release ZIP, compare only their hashes against an operator-approved configuration baseline held outside the web application and outside the collector's writable area. Secret values are never emitted.
-6. Report missing, extra, unreadable, symlinked, permission-changed, or digest-mismatched files as failures. Do not silently omit a file because it cannot be read.
+`app/Updates/PrivateHostAttestationClient.php` accepts only `integrity-a` or `integrity-b`, a strong URL-safe bearer token, and the pinned HTTPS route `https://sentryiq.bichet.co.za/private-host-attestation`. It sends only node identity, nonce, release version, commit, manifest digest, and artifact digest. It sends no paths or expected hashes. TLS peer/host verification is mandatory, redirects are disabled, and timeouts and response sizes are bounded. The JSON envelope is passed unchanged to the independently pinned node-side verifier.
 
-The private configuration baseline must be changed only through an independently authenticated administrative procedure. A change to credentials or configuration is not automatically approved merely because the current application host presents a new hash.
+Each node must have its own bearer token, collector public key, and locally held expected file/configuration maps. Neither node may accept trust material or expected baselines supplied by the production host.
 
-## Challenge and signed response
+### Host request handler and replay store
 
-Nodes A and B independently request an attestation using a fresh random 32-byte nonce. Authenticate each node with its own credential or mutual TLS identity; do not share a master token. The collector accepts only a nonce and a bounded request schema.
+`app/Updates/PrivateHostAttestationRequestHandler.php` is framework-neutral service logic, not an HTTP listener. It accepts POST JSON only, authenticates the bearer token, binds each distinct token to exactly one of the A/B node identities, rejects extra fields and caller-selected paths, and calls the collector only after the nonce callback accepts the challenge. It returns 409 for replay, 401 for authentication failure, 400 for malformed requests, and 503 for collector or replay-store failure.
 
-The collector returns a detached Ed25519 signature over the exact UTF-8 payload bytes. The signed payload contains at least:
+`app/Updates/PrivateHostAttestationNonceStore.php` supplies a filesystem-backed nonce callback. It stores SHA-256 hashes of node/nonce pairs, uses an exclusive lock, atomically replaces a bounded state file, prunes expired entries, and fails closed rather than discarding replay history when full. Its directory must be private, outside the webroot, and writable only by the isolated service identity.
 
-- schema version, collector identity/version, issue and expiry times, and the exact request nonce;
-- canonical SentryIQ origin and canonical repository identity;
-- release version, tag, source commit, manifest digest and ZIP digest;
-- a bounded list of fixed-policy file results, each containing path, expected digest, observed digest and result;
-- bounded private-configuration hash results, containing policy identifiers and hashes only;
-- overall approve or reject decision and explicit mismatch reasons.
+The listener, network routing, TLS termination/reverse proxy, OS service identity, process supervision, key provisioning, bearer-token provisioning, policy generation, and service ownership/ACL setup are not implemented here.
 
-The response is short-lived, nonce-bound, and single-use from the verifier's perspective. Nodes A and B pin the collector public key independently. They verify the signature over the exact received payload bytes, validate the nonce and freshness, and compare the release identity with their own independently verified release. Node 4 is not a trust anchor for this process.
+## Policy and release binding
 
-### Verifier payload contract implemented for Nodes A and B
+The operator must produce the collector's fixed inventory from the same authenticated native Sigstore release-verification path used by the integrity nodes:
+1. Verify the signed release manifest and exact ZIP with the pinned GitHub/SLSA trust policy.
+2. Bind the attestation to release version, source commit, manifest SHA-256, and ZIP SHA-256.
+3. Map ordinary deployed files to signed manifest entries.
+4. Map private runtime files moved during first-run to the corresponding signed runtime inventory entries explicitly.
+5. Pin private configuration hashes through an independently authenticated administrative approval process. A new hash is not approved merely because the host reports it.
+6. Define monitored directories and permission/ownership baselines explicitly. Do not infer policy from arbitrary paths or from the live host's untrusted claims.
 
-The node-side `PrivateHostAttestationVerifier` accepts a JSON envelope containing base64 `payload` bytes and a base64 Ed25519 `signature`. The signature covers the exact decoded payload bytes. The signed payload uses `schema_version: 1` and contains:
+The current collector accepts fixed expected maps supplied by its protected bootstrap; it does not generate or cryptographically verify those maps itself. Policy generation and independent approval are deployment gates. Ownership-baseline enforcement is not currently implemented.
 
-- `collector_id`, `issued_at`, `expires_at`, `nonce`;
-- `target_origin`, `repository`, `repository_id`, `release_version`, `tag`, `commit`;
-- `manifest_sha256`, `artifact_sha256`;
-- `files`: one record for every independently pinned deployed-file path, with `expected_sha256`, `observed_sha256`, and result `match`, `missing`, `unreadable`, `symlink`, `permission_mismatch`, or `digest_mismatch`; unexpected deployed paths use result `unexpected`;
-- `private_config`: one record for every independently pinned configuration policy ID, with expected/observed hashes and result `match`, `missing`, `unreadable`, or `digest_mismatch`;
-- `decision`: `approve` only when every required item matches and no unexpected files exist; otherwise `reject`.
+## Signed response and verifier contract
 
-The verifier rejects an omitted expected path or policy ID, duplicate records, a changed expected digest, an unexpected approval, invalid signature, wrong release identity, wrong nonce, stale/future report, or a payload exceeding the strict size bounds. A valid signed rejection is returned as a failed attestation so the node can sign and retain the rejection evidence. A missing/invalid response throws and activates the node's direct owner-alert path.
+The collector signs exact UTF-8 JSON payload bytes using Ed25519. The node-side `PrivateHostAttestationVerifier` validates the signature, schema, collector identity, timestamp window, nonce, canonical origin/repository, release identity and digests, expected file/configuration records, and overall decision. A signed rejection is retained as failed evidence; transport, signature, freshness, schema, or replay failures fail the run and activate the node's direct owner-alert route.
 
-The A/B node constructors now require a private-host verification callback in addition to release Sigstore verification, origin asset checks, header checks, and direct alert delivery. Immediately before the collector request, each node generates a fresh local 32-byte nonce with a cryptographically secure random source; this nonce is independent of the Node 4 event-plane challenge. The callback receives the release version, commit, manifest/ZIP digests, locally generated collector nonce, parsed signed manifest, and target origin. It must authenticate to the collector with that node's own credential, verify the returned envelope using a locally pinned collector public key and locally held file/config baselines, and return the verifier result. It must not accept a collector key or expected baseline supplied by the production host. A signed rejection is included in the node's own signed event report; transport, signature, freshness, or schema failures alert directly and fail the run.
+The payload includes:
+- schema version, collector ID, issue/expiry timestamps, and exact request nonce;
+- canonical SentryIQ origin and repository identity;
+- release version/tag, commit, manifest digest, and artifact digest;
+- bounded file results with expected/observed digests and result codes;
+- bounded private-configuration results identified by policy ID and hashes only;
+- an approve/reject decision.
 
-This verifier and the A/B integration seam are implemented and regression-tested. The production-host collector, authenticated transport, independently approved configuration baselines, and per-node bootstrap wiring are still not implemented or deployed. Until those pieces exist, Nodes A and B must not be configured with a placeholder callback that always approves.
+Each A/B node generates its own fresh 32-byte nonce immediately before its collector request, independently of the Node 4 event-plane challenge. The collector handler consumes each node/nonce pair once. Node 4 is not a trust anchor and cannot override an A/B decision.
 
-A missing, stale, malformed, replayed, unsigned, or mismatched response is a failed attestation and triggers each node's direct owner-alert path. No response must never be interpreted as approval.
+## Operational acceptance gates
 
-## Evidence and failure isolation
+Before either node is configured to rely on this capability, demonstrate on the actual production host:
+1. A clean release and independently approved private-config baseline produce a valid signed approval.
+2. Changes to private PHP/runtime/configuration files produce signed rejection without disclosing contents.
+3. Missing, unreadable, symlinked, extra, and permission-changed files fail closed.
+4. Forged signatures, altered payloads, wrong keys, wrong release identities/digests, stale/future timestamps, and replayed nonces are rejected.
+5. Callers cannot request arbitrary paths, commands, or file contents.
+6. The web application identity cannot read the signing key, alter policy, or alter service evidence.
+7. Collector, application, and host outages trigger independent A/B alerts.
+8. No Node 4 result can turn a failed or missing private-host attestation into approval.
 
-- The collector keeps a bounded local audit log containing signed report identifiers and outcomes, not secret file contents.
-- Nodes A and B retain their own accepted/rejected evidence and alert independently.
-- Node 4 may correlate a summary as an additional service, but cannot suppress A/B alerts or change the collector trust key.
-- Export an evidence digest or immutable copy outside the SentryIQ host where available. Evidence stored only on the shared SentryIQ/Node 4 host is not tamper-proof against host administrators.
-- A host-level outage or root compromise remains a common-mode risk for SentryIQ and Node 4. Nodes A/B must detect unavailable host attestation and alert through their independent routes.
-
-## Acceptance tests
-
-Before this capability is called operational, prove all of the following:
-
-1. A clean deployed release and approved private-config baseline produce a valid signed report.
-2. Changing one private PHP file produces a signed rejection identifying the path and digest mismatch.
-3. Changing a private runtime file moved by first-run is detected against its signed runtime_files entry.
-4. Changing a private config file produces a rejection without disclosing its contents.
-5. Missing, unreadable, symlinked, extra and permission-changed files fail closed.
-6. A forged signature, changed payload byte, wrong collector key, wrong release identity, wrong manifest/ZIP digest, stale timestamp or replayed nonce is rejected.
-7. A caller cannot request arbitrary paths or read file contents.
-8. The web application identity cannot read or use the collector signing key, modify the collector policy, or alter its evidence.
-9. Collector outage, SentryIQ web application outage and host outage all cause independent A/B alerts.
-10. No Node 4 result can turn a failed or missing private host attestation into approval.
+The current tests exercise the collector, A/B client, handler, replay store, signature verification, replay rejection, token/node binding, malformed requests, unexpected files, and mismatch rejection. CI passing demonstrates software regression coverage only; it does not prove production-host isolation, ownership, network reachability, or deployment readiness.
 
 ## Deployment boundary
 
-This contract applies only to the production SentryIQ application host. It is not a task for HelioHost Node C and not a claim that BTM-SA / Node 4 is independently hosted. Implementation requires confirmation of the application host's supported process identities, filesystem ACLs, scheduler and service/endpoint capabilities. No host configuration or deployment is performed by this document.
-
-
-## Collector core implementation status
-
-`app/Updates/PrivateHostAttestationCollector.php` now implements the read-only signing core for the schema above. Its administrator-supplied policy is fixed at construction: public-webroot-relative file paths and SHA-256 digests, private-data-root-relative configuration paths and approved digests, a collector ID, and a protected Ed25519 secret-key file. A request can provide only the nonce and release identity fields; it cannot choose paths or retrieve file contents. The collector returns a detached signature over the exact JSON payload bytes and signs a rejection when a pinned file or configuration digest differs, is missing, is unreadable, or is symlinked.
-
-The signing-key file must reside inside the private data directory and have no group/other permissions. The private data directory must resolve outside the public webroot. The class deliberately does not create an HTTP listener, accept arbitrary remote requests, provision OS identities, or choose its own policy. A host adapter must run it under a dedicated OS identity that cannot write the application or policy and whose key is unreadable to PHP-FPM. Do not load this class from the public application request path.
-
-This is a collector core, not yet a deployable host service. The current core does not yet discover unexpected files or enforce per-file mode/ownership baselines, and its PHP filesystem checks do not replace OS-level isolation against a hostile privileged process. Those controls, a host-supported authenticated transport, collector key provisioning, and a verified deployment-to-policy generation process remain acceptance blockers. The existing verifier continues to fail closed on unexpected entries and permission-mismatch evidence, but this core does not yet emit those result classes.
-
-The collector regression test exercises a clean signed approval, signed digest and permission-mismatch rejections, unexpected-file detection, invalid challenge rejection, and refusal to place private storage inside the webroot. The native integrity CI workflow now lints and executes that test on PHP 8.1 through 8.5. Passing this test does not establish host isolation or production deployment.
-
-
-## A/B HTTPS transport client
-
-`PrivateHostAttestationClient` now implements the node-side authenticated request transport. It accepts only `integrity-a` or `integrity-b`, a distinct URL-safe bearer token, and the pinned HTTPS route `https://sentryiq.bichet.co.za/private-host-attestation`. It sends only the node ID, fresh nonce, release version, source commit, manifest digest and artifact digest. It never sends file paths or expected hashes. Redirects are disabled, TLS peer and hostname validation are mandatory, request timeouts and response sizes are bounded, and non-200 or malformed responses fail closed. The returned envelope bytes are passed unchanged to the independently pinned `PrivateHostAttestationVerifier`.
-
-This defines the A/B-to-host transport contract, not the host-side service. The route must be terminated by a host adapter that authenticates the node token, enforces one-time/fresh challenge handling, invokes the collector under its separate OS identity, and returns only the signed envelope. Do not implement this route as a PHP-FPM script that can read the collector signing key. The host adapter and service isolation remain unimplemented and must be validated against the actual hosting platform before enabling either node callback.
-
-
-Example Node A callback wiring (Node B uses its own token, public key and pinned baselines):
-
-```php
-$privateHostClientA = new PrivateHostAttestationClient(
-    'integrity-a',
-    $collectorBearerTokenA
-);
-$privateHostVerifierA = new PrivateHostAttestationVerifier(
-    $collectorPublicKeyA
-);
-$verifyPrivateHostA = static function (
-    string $version,
-    string $commit,
-    string $manifestDigest,
-    string $artifactDigest,
-    string $nonce,
-    array $manifest,
-    string $origin
-) use ($privateHostClientA, $privateHostVerifierA, $expectedFilesA, $expectedPrivateConfigA): array {
-    $envelope = $privateHostClientA->request(
-        $nonce,
-        $version,
-        $commit,
-        $manifestDigest,
-        $artifactDigest
-    );
-    return $privateHostVerifierA->assertAttested(
-        $envelope,
-        $nonce,
-        $version,
-        $commit,
-        $manifestDigest,
-        $artifactDigest,
-        $expectedFilesA,
-        $expectedPrivateConfigA
-    );
-};
-```
-
-Pass `$verifyPrivateHostA` as the final `IntegrityNodeA` constructor argument. Keep `$collectorBearerTokenA`, `$collectorPublicKeyA`, and both expected maps in Node A's private runtime configuration. Node B must independently use `integrity-b` and different credentials/key material. The callback example is wiring only; it cannot succeed against production until the host-side service owns and serves the pinned route.
-
-
-## Host-side authenticated request handler
-
-`PrivateHostAttestationRequestHandler` now implements the framework-neutral service logic behind the pinned route. It accepts POST JSON only, requires the JSON content type, authenticates the bearer token before parsing the request, maps each token to exactly one node identity, rejects unknown/extra request fields, and never accepts caller-selected paths. It invokes the collector only after the injected nonce-consumption callback atomically accepts the node/nonce pair. Replays return HTTP 409; authentication failures return 401; malformed requests return 400; collector or replay-store failures return 503. Responses contain only the signed envelope or a generic error.
-
-The handler requires a durable `consumeNonce(nodeId, nonce, expiresAt): bool` implementation. `PrivateHostAttestationNonceStore` now supplies a filesystem-backed implementation: it stores only SHA-256 hashes of node/nonce pairs, locks across concurrent workers, atomically replaces a bounded state file, prunes expired records, and refuses to discard replay history when full. Its directory must be outside the webroot and writable only by the isolated service identity. The regression test proves that replay history survives construction of a second store instance. Production still needs the host operator to create and permission that directory under the actual service identity.
-
-The end-to-end regression test now drives the A/B client through the request handler into the collector and verifies the returned Ed25519 envelope, then checks replay rejection, token/node binding, arbitrary-path rejection, method restrictions and distinct A/B credentials. The actual network listener, TLS termination/reverse-proxy configuration, durable replay store and dedicated OS service remain host-specific deployment work.
+This contract applies only to the production SentryIQ application host. It is not a task for HelioHost Node C and does not describe BTM-SA / Node 4 as an independent host. The actual hosting platform's process identities, filesystem ACLs, scheduler, service/endpoint support, and TLS/reverse-proxy capabilities must be established before deployment. No host configuration or production deployment is performed by this repository change.
