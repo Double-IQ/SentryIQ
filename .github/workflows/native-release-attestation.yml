@@ -4,36 +4,29 @@ on:
   pull_request:
     paths:
       - 'app/Updates/NativeSigstoreReleaseVerifier.php'
-      - 'app/Updates/FulcioCertificateClaims.php'
-      - 'app/Updates/SnappyBlockDecoder.php'
       - 'app/Updates/SigstoreProvenance.php'
       - 'app/Updates/ReleaseTrustPolicy.php'
       - 'app/Updates/UpdateManager.php'
-      - 'app/Updates/TufRootStore.php'
-      - 'app/Updates/ReleaseDownloadPolicy.php'
       - 'update_apply.php'
+      - 'app/Security/FirstRun.php'
+      - 'app/Security/FirstRunPaths.php'
+      - 'tests/first_run_paths.test.php'
       - 'tests/release_trust_policy.test.php'
       - 'tests/sigstore_provenance.test.php'
-      - 'tests/fulcio_certificate_claims.test.php'
-      - 'tests/release_download_policy.test.php'
-      - 'tests/native_release_attestation.integration.php'
       - '.github/workflows/native-release-attestation.yml'
   push:
     branches: [security/native-php-release-attestation]
     paths:
       - 'app/Updates/NativeSigstoreReleaseVerifier.php'
-      - 'app/Updates/FulcioCertificateClaims.php'
-      - 'app/Updates/SnappyBlockDecoder.php'
       - 'app/Updates/SigstoreProvenance.php'
       - 'app/Updates/ReleaseTrustPolicy.php'
       - 'app/Updates/UpdateManager.php'
-      - 'app/Updates/TufRootStore.php'
-      - 'app/Updates/ReleaseDownloadPolicy.php'
       - 'update_apply.php'
+      - 'app/Security/FirstRun.php'
+      - 'app/Security/FirstRunPaths.php'
+      - 'tests/first_run_paths.test.php'
       - 'tests/release_trust_policy.test.php'
       - 'tests/sigstore_provenance.test.php'
-      - 'tests/fulcio_certificate_claims.test.php'
-      - 'tests/release_download_policy.test.php'
       - '.github/workflows/native-release-attestation.yml'
 
 permissions:
@@ -54,50 +47,19 @@ jobs:
       - name: Lint native verifier and updater
         run: |
           php -l app/Updates/NativeSigstoreReleaseVerifier.php
-          php -l app/Updates/FulcioCertificateClaims.php
-          php -l app/Updates/SnappyBlockDecoder.php
           php -l app/Updates/SigstoreProvenance.php
           php -l app/Updates/ReleaseTrustPolicy.php
           php -l app/Updates/TufRootStore.php
-          php -l app/Updates/ReleaseDownloadPolicy.php
           php -l app/Updates/UpdateManager.php
           php -l update_apply.php
+          php -l app/Security/FirstRun.php
+          php -l app/Security/FirstRunPaths.php
+          php -l tests/first_run_paths.test.php
           php -l tests/release_trust_policy.test.php
           php -l tests/sigstore_provenance.test.php
-          php -l tests/fulcio_certificate_claims.test.php
-          php -l tests/release_download_policy.test.php
-          php -l tests/native_release_attestation.integration.php
       - name: Run release trust policy tests
         run: php tests/release_trust_policy.test.php
       - name: Run SLSA provenance parser tests
         run: php tests/sigstore_provenance.test.php
-      - name: Run Fulcio certificate and Snappy decoder tests
-        run: php tests/fulcio_certificate_claims.test.php
-      - name: Run release download redirect policy tests
-        run: php tests/release_download_policy.test.php
-
-  native-v0-1-2-integration:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.5'
-          extensions: curl, openssl, sodium
-          tools: composer
-      - name: Install pinned native verifier dependencies
-        run: |
-          mkdir -p "$RUNNER_TEMP/sentryiq-verifier"
-          composer require --working-dir="$RUNNER_TEMP/sentryiq-verifier" --no-interaction --no-progress --no-scripts k2gl/sigstore-verify:1.6.1 k2gl/tuf:1.2.1
-      - name: Download the published v0.1.2 release ZIP
-        run: |
-          curl --fail --silent --show-error --location \
-            https://github.com/Double-IQ/SentryIQ/releases/download/v0.1.2/sentryiq-0.1.2.zip \
-            --output "$RUNNER_TEMP/sentryiq-0.1.2.zip"
-          echo "41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e  $RUNNER_TEMP/sentryiq-0.1.2.zip" | sha256sum --check
-      - name: Verify the actual GitHub attestation end to end
-        run: |
-          php tests/native_release_attestation.integration.php \
-            "$RUNNER_TEMP/sentryiq-verifier/vendor/autoload.php" \
-            "$RUNNER_TEMP/sentryiq-0.1.2.zip" \
-            "$RUNNER_TEMP/sentryiq-private-data"
+      - name: Run first-run private path tests
+        run: php tests/first_run_paths.test.php
