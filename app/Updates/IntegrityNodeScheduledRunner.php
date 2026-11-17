@@ -104,6 +104,13 @@ final class IntegrityNodeScheduledRunner
                 rtrim($this->privateDataDirectory, '/') . '/integrity-releases/' . $version,
                 $this->publicWebRoot
             );
+            $manifestDigest = hash_file('sha256', $staged['manifest_path']);
+            $artifactDigest = hash_file('sha256', $staged['artifact_path']);
+            if (!is_string($manifestDigest) || !preg_match('/^[a-f0-9]{64}$/', $manifestDigest)
+                || !is_string($artifactDigest) || !preg_match('/^[a-f0-9]{64}$/', $artifactDigest)) {
+                throw new RuntimeException('Unable to calculate staged release artifact digests.');
+            }
+            $this->releaseState->assertCandidate($version, $commit, $manifestDigest, $artifactDigest);
         } catch (Throwable $exception) {
             throw new RuntimeException('Release selection or artifact staging failed.', 0, $exception);
         }
@@ -131,7 +138,7 @@ final class IntegrityNodeScheduledRunner
                 $this->targetOrigin
             );
             if (($result['approved'] ?? null) === true) {
-                $this->releaseState->recordApproved($version, $commit);
+                $this->releaseState->recordApproved($version, $commit, $manifestDigest, $artifactDigest);
             }
             return $result + ['release_version' => $version, 'release_commit' => $commit];
         }
@@ -144,7 +151,7 @@ final class IntegrityNodeScheduledRunner
                 throw new RuntimeException('Integrity Node verifier returned an invalid result.');
             }
             if ($result['approved'] === true) {
-                $this->releaseState->recordApproved($version, $commit);
+                $this->releaseState->recordApproved($version, $commit, $manifestDigest, $artifactDigest);
             }
             return $result + ['release_version' => $version, 'release_commit' => $commit];
         } catch (Throwable $exception) {
