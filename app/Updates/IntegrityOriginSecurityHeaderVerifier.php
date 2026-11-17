@@ -14,7 +14,7 @@ final class IntegrityOriginSecurityHeaderVerifier
 
     public function __construct(?callable $request = null)
     {
-        $this->request = $request ?? fn(string $url): array => $this->curlHead($url);
+        $this->request = $request ?? fn(string $url): array => $this->curlGet($url);
     }
 
     /**
@@ -82,7 +82,7 @@ final class IntegrityOriginSecurityHeaderVerifier
     }
 
     /** @return array{status:int,headers:array<string,string>} */
-    private function curlHead(string $url): array
+    private function curlGet(string $url): array
     {
         if (!function_exists('curl_init')) {
             throw new RuntimeException('PHP cURL is required for origin security header verification.');
