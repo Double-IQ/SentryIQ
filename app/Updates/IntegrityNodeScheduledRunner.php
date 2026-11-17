@@ -137,6 +137,7 @@ final class IntegrityNodeScheduledRunner
                 $commit,
                 $this->targetOrigin
             );
+            $this->assertStagedDigestsUnchanged($staged, $manifestDigest, $artifactDigest);
             if (($result['approved'] ?? null) === true) {
                 $this->releaseState->recordApproved($version, $commit, $manifestDigest, $artifactDigest);
             }
@@ -156,6 +157,18 @@ final class IntegrityNodeScheduledRunner
             return $result + ['release_version' => $version, 'release_commit' => $commit];
         } catch (Throwable $exception) {
             throw new RuntimeException('Scheduled integrity verification failed.', 0, $exception);
+        }
+    }
+
+    /** @param array{manifest_path:string,artifact_path:string} $staged */
+    private function assertStagedDigestsUnchanged(array $staged, string $manifestDigest, string $artifactDigest): void
+    {
+        $currentManifestDigest = hash_file('sha256', $staged['manifest_path']);
+        $currentArtifactDigest = hash_file('sha256', $staged['artifact_path']);
+        if (!is_string($currentManifestDigest) || !is_string($currentArtifactDigest)
+            || !hash_equals($manifestDigest, $currentManifestDigest)
+            || !hash_equals($artifactDigest, $currentArtifactDigest)) {
+            throw new RuntimeException('Staged release artifacts changed during integrity verification.');
         }
     }
 
