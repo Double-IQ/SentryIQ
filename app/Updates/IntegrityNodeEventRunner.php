@@ -48,7 +48,7 @@ final class IntegrityNodeEventRunner
         $artifactDigest = hash_file('sha256', $artifact);
         if (!is_string($manifestDigest) || !is_string($artifactDigest)) {
             $this->alertFailure('local_evidence_unreadable', ['phase' => 'prepare']);
-            throw new RuntimeException('Unable to bind Node 4 challenge to local release files.');
+            throw new IntegrityNodeAlertedException('Unable to bind Node 4 challenge to local release files.');
         }
         $releaseVersion = trim($releaseVersion);
         $version = str_starts_with($releaseVersion, 'v') ? substr($releaseVersion, 1) : $releaseVersion;
@@ -63,7 +63,7 @@ final class IntegrityNodeEventRunner
             );
         } catch (\Throwable $exception) {
             $this->alertFailure('node4_challenge_unavailable', ['phase' => 'challenge']);
-            throw new RuntimeException('Node 4 challenge request failed; independent owner alert was attempted.', 0, $exception);
+            throw new IntegrityNodeAlertedException('Node 4 challenge request failed after independent owner alert delivery.', 0, $exception);
         }
 
         try {
@@ -76,21 +76,22 @@ final class IntegrityNodeEventRunner
                 throw new RuntimeException('Local verification inputs changed after the Node 4 challenge was issued.');
             }
         } catch (\Throwable $exception) {
-            if (!$exception instanceof IntegrityNodeAlertedException) {
-                $this->alertFailure('local_verification_failed', [
-                    'phase' => 'verification',
-                    'release_version' => $version,
-                    'exception' => get_class($exception),
-                ]);
+            if ($exception instanceof IntegrityNodeAlertedException) {
+                throw $exception;
             }
-            throw new RuntimeException('Local integrity verification failed; independent owner alert was attempted.', 0, $exception);
+            $this->alertFailure('local_verification_failed', [
+                'phase' => 'verification',
+                'release_version' => $version,
+                'exception' => get_class($exception),
+            ]);
+            throw new IntegrityNodeAlertedException('Local integrity verification failed after independent owner alert delivery.', 0, $exception);
         }
 
         try {
             $acknowledgement = $this->client->submitReport($result['report']);
         } catch (\Throwable $exception) {
             $this->alertFailure('node4_report_delivery_failed', ['phase' => 'report']);
-            throw new RuntimeException('Node 4 report delivery failed; independent owner alert was attempted.', 0, $exception);
+            throw new IntegrityNodeAlertedException('Node 4 report delivery failed after independent owner alert delivery.', 0, $exception);
         }
         return $result + [
             'challenge_expires_at' => $challenge['expires_at'],
