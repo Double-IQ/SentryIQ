@@ -95,10 +95,36 @@ final class PrivateHostAttestationNonceStore
             }
             $state['nonces'][$key] = $expiresAt;
             $encoded = json_encode($state, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n";
-            $temporary = $this->statePath . '.tmp-' . bin2hex(random_bytes(8));
-            $written = @file_put_contents($temporary, $encoded, LOCK_EX);
-            if ($written !== strlen($encoded) || !@chmod($temporary, 0600)
-                || !@rename($temporary, $this->statePath) || !@chmod($this->statePath, 0600)) {
+            $temporary = $this->statePath . '.tmp-' . bin2hex(random_bytes(16));
+            // Exclusive creation prevents a pre-planted symlink or file from
+            // redirecting the write, even if the random name is observed.
+            $handle = @fopen($temporary, 'x+b');
+            if ($handle === false) {
+                throw new RuntimeException('Unable to exclusively create attestation nonce state temporary file.');
+            }
+            try {
+                if (!@chmod($temporary, 0600)) {
+                    throw new RuntimeException('Unable to restrict attestation nonce state temporary file permissions.');
+                }
+                $offset = 0;
+                $length = strlen($encoded);
+                while ($offset < $length) {
+                    $written = @fwrite($handle, substr($encoded, $offset));
+                    if (!is_int($written) || $written < 1) {
+                        throw new RuntimeException('Unable to write complete attestation nonce state.');
+                    }
+                    $offset += $written;
+                }
+                if (!@fflush($handle) || !@fsync($handle)) {
+                    throw new RuntimeException('Unable to flush attestation nonce state to storage.');
+                }
+            } catch (\\Throwable $exception) {
+                fclose($handle);
+                @unlink($temporary);
+                throw $exception;
+            }
+            fclose($handle);
+            if (!@rename($temporary, $this->statePath)) {
                 @unlink($temporary);
                 throw new RuntimeException('Unable to atomically persist attestation nonce state.');
             }
