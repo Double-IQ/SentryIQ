@@ -114,7 +114,8 @@ php /absolute/path/to/SentryIQ/bin/integrity-node4-monitor.php
 
 The script refuses web execution and refuses to run until the private storage,
 target origin and alert transport are configured. It exits zero only when both
-independent node reports are fresh and approved. The A/B nodes still need their
+independent node reports are fresh and approved and the alert outbox has no
+undelivered notifications. The A/B nodes still need their
 own independent schedules to call `IntegrityNodeEventRunner`; Node 4's cron
 does not replace those checks.
 
