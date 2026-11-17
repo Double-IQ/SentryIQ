@@ -14,6 +14,8 @@ on:
       - 'app/Updates/IntegrityDeployedReleaseResolver.php'
       - 'app/Updates/IntegrityNodeReleaseStateStore.php'
       - 'app/Updates/IntegrityPublicAssetPolicy.php'
+      - 'app/Updates/IntegrityOriginSecurityHeaderVerifier.php'
+      - 'tests/integrity_origin_security_header_verifier.test.php'
       - 'scripts/build-release-manifest.py'
       - 'tests/build_release_manifest.test.py'
       - 'tests/integrity_public_asset_policy.test.php'
@@ -85,7 +87,8 @@ jobs:
             tests/integrity_deployed_release_resolver.test.php \
             tests/integrity_node_release_state.test.php \
             tests/integrity_node_scheduled_runner.test.php \
-            tests/integrity_public_asset_policy.test.php; do
+            tests/integrity_public_asset_policy.test.php \\
+            tests/integrity_origin_security_header_verifier.test.php; do
             php -l "$file"
           done
       - name: Run native trust and runtime regression tests
@@ -103,5 +106,6 @@ jobs:
           php tests/integrity_node_event_runner.test.php
           php tests/integrity_node_scheduled_runner.test.php
           php tests/integrity_public_asset_policy.test.php
+          php tests/integrity_origin_security_header_verifier.test.php
           python3 tests/build_release_manifest.test.py
           python3 tests/origin_security_headers.test.py
