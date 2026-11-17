@@ -33,6 +33,12 @@ return [
     'data_dir' => '/absolute/path/outside/httpdocs/sentryiq-data',
     'integrity_event' => [
         'enabled' => true,
+        'target_origin' => 'https://sentryiq.example',
+        // A private callable that sends one incident and returns true only on success.
+        'alert_sender' => static function (array $incident, string $idempotencyKey): bool {
+            // Connect this to the host's configured mail or webhook transport.
+            return false;
+        },
         'storage_dir' => '/absolute/path/outside/httpdocs/sentryiq-data/integrity-events',
         'node_tokens' => [
             'integrity-a' => '<unique-random-token-for-node-a>',
@@ -93,3 +99,19 @@ private directory creation, token/key installation, HTTPS reachability,
 scheduled challenge/report exchange, incident correlation and notification
 delivery require separate verification on the existing SentryIQ host. No
 production configuration or host files are changed by this pull request.
+
+
+## Scheduled processing
+
+After a real `alert_sender` callable is configured, schedule the CLI monitor
+under the SentryIQ account (for example, every five minutes):
+
+```sh
+php /absolute/path/to/SentryIQ/bin/integrity-node4-monitor.php
+```
+
+The script refuses web execution and refuses to run until the private storage,
+target origin and alert transport are configured. It exits zero only when both
+independent node reports are fresh and approved. The A/B nodes still need their
+own independent schedules to call `IntegrityNodeEventRunner`; Node 4's cron
+does not replace those checks.
