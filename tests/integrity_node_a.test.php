@@ -46,6 +46,19 @@ $verifier = static function (string $path, string $version, string $commit, stri
 $fetch = static fn(string $url): string => $publicBody;
 
 try {
+    $wrongSigner = new IntegrityReportSigner(
+        'integrity-b',
+        base64_encode(sodium_crypto_sign_secretkey($keypair)),
+        static fn(): int => 1794200000
+    );
+    $wrongIdentityRejected = false;
+    try {
+        new IntegrityNodeA($wrongSigner, $verifier, $fetch);
+    } catch (RuntimeException) {
+        $wrongIdentityRejected = true;
+    }
+    nodeAAssert($wrongIdentityRejected, 'Node A must reject a signer configured with Node B identity.');
+
     $node = new IntegrityNodeA($signer, $verifier, $fetch);
     $approved = $node->verify(
         $manifestPath,
