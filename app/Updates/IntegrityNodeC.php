@@ -29,7 +29,7 @@ final class IntegrityNodeC
      * @param callable(string,string,string,string):void $verifyAttestation
      *        Arguments: artifact path, release version, source commit, installed version.
      * @param callable(string):string|null $fetch Test seam; production uses HTTPS cURL.
-     * @param callable(string,string,array<string,mixed>):void|null $notifyFailure Direct owner alert transport, independent of Node 4.
+     * @param callable(string,string,array<string,mixed>):void $notifyFailure (required; null is rejected) Direct owner alert transport, independent of Node 4.
      */
     public function __construct(
         private readonly IntegrityReportSigner $signer,
