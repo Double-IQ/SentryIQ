@@ -420,10 +420,12 @@
                 body: JSON.stringify({ action: 'finalize_rotation', csrf_token: csrfToken() })
             });
             const payload = await readJson(response);
-            const retiredKeyId = payload.rotation.from_key_id;
-            if (unlockedPrivateKeys) delete unlockedPrivateKeys[retiredKeyId];
-            if (unlockedPublicKeys) delete unlockedPublicKeys[retiredKeyId];
-            if (legacyKeyId === retiredKeyId) legacyKeyId = null;
+            if (payload.rotation.status === 'completed') {
+                const retiredKeyId = payload.rotation.from_key_id;
+                if (unlockedPrivateKeys) delete unlockedPrivateKeys[retiredKeyId];
+                if (unlockedPublicKeys) delete unlockedPublicKeys[retiredKeyId];
+                if (legacyKeyId === retiredKeyId) legacyKeyId = null;
+            }
             return payload.rotation;
         } finally {
             cryptoApi().clearSecret(verified.prfOutput);
