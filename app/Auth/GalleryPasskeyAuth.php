@@ -141,6 +141,7 @@ function gallery_passkey_keyring_payload(GalleryKeyStore $galleryKeys): ?array
     return [
         'version' => 2,
         'active_key_id' => $keyring['active_key_id'],
+        'legacy_key_id' => $keyring['legacy_key_id'] ?? null,
         'keys' => $keys,
     ];
 }
