@@ -200,7 +200,11 @@
                 }
             }
             for (const role of roles) {
-                await uploadCiphertext(reservation.uploadUrls[role], encrypted[role].ciphertext);
+                try {
+                    await uploadCiphertext(reservation.uploadUrls[role], encrypted[role].ciphertext);
+                } finally {
+                    encrypted[role].ciphertext.fill(0);
+                }
             }
             const envelopes = {};
             for (const role of roles) envelopes[role] = encrypted[role].envelope;
@@ -261,7 +265,11 @@
         });
         if (!response.ok) throw new Error('Unable to download encrypted Gallery data (' + response.status + ').');
         const ciphertext = await response.arrayBuffer();
-        return secure.decryptObject(ciphertext, signed.envelope, photoId, role);
+        try {
+            return await secure.decryptObject(ciphertext, signed.envelope, photoId, role);
+        } finally {
+            new Uint8Array(ciphertext).fill(0);
+        }
     }
 
     async function loadPhoto(photoId) {
