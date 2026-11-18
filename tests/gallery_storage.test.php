@@ -235,6 +235,20 @@ try {
         fn() => $objectStore->replaceEnvelope($photoId, 'original', $updatedHash, $legacyEnvelope + ['keyId' => 'gk_unknown01'], ['gk_testkey01']),
         'Envelope replacement must reject a key outside the keyring.'
     );
+    // Unknown object roles must fail closed rather than being omitted from the
+    // authoritative inventory used to authorize irreversible key retirement.
+    $records = json_decode((string)file_get_contents($directory . '/gallery_objects.json'), true, 32, JSON_THROW_ON_ERROR);
+    $records[$photoId]['objects']['unexpected'] = $records[$photoId]['objects']['original'];
+    file_put_contents($directory . '/gallery_objects.json', json_encode($records, JSON_THROW_ON_ERROR));
+    @chmod($directory . '/gallery_objects.json', 0600);
+    expectFailure(
+        fn() => $objectStore->keyReferenceInventory('gk_legacy01'),
+        'Key retirement inventory must reject active objects containing unrecognized roles.'
+    );
+    unset($records[$photoId]['objects']['unexpected']);
+    file_put_contents($directory . '/gallery_objects.json', json_encode($records, JSON_THROW_ON_ERROR));
+    @chmod($directory . '/gallery_objects.json', 0600);
+
     $inventory = $objectStore->keyReferenceInventory('gk_legacy01');
     check(($inventory['gk_legacy01'] ?? 0) === 3, 'Successfully rewrapped objects must stop referencing the legacy key.');
     check(($inventory['gk_testkey01'] ?? 0) === 5, 'Rewrapped objects must reference their replacement key.');
