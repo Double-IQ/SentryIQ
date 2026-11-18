@@ -20,7 +20,7 @@ This document is the single working checklist for the reset security review and 
 
 ## Current progress
 
-**Phase 1: 7/30 findings/tasks completed.**
+**Phase 1: 8/30 findings/tasks completed.**
 
 - Completed: 1.1 — identified the public installation diagnostic endpoint as an exposure requiring protection.
 - Completed: 1.2 — authentication protection merged in [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53); production deployment/runtime verification remains outstanding and is not claimed.
@@ -29,7 +29,8 @@ This document is the single working checklist for the reset security review and 
 - Completed: 2.1 — audited CSP emission points on `main`; both the central and Gallery policies permit inline scripts and inline styles. See findings below.
 - Completed: 2.2 — inventoried inline script blocks, event-handler attributes, and JavaScript dependencies on `main`; migration plan recorded below.
 - Completed: 2.3 — reviewed server-rendered output, record-card serialization, diagnostic JSON embedding, and DOM insertion sinks; findings and hardening actions recorded below.
-- Next item, pending user review: **2.4** — audit CSRF protections on every state-changing action.
+- Completed: 2.4 — audited CSRF enforcement across authentication, vault, documents, Gallery settings/diagnostics, passkeys, and first-run setup.
+- Next item, pending user review: **2.5** — verify browser security headers, HTTPS behaviour, and cookie attributes.
 - No four-node deployment task is marked complete by this document.
 
 ---
@@ -76,7 +77,13 @@ All findings must be verified against `main`. The existing application is the ba
   - **Hardening finding (not confirmed exploitable XSS):** `diagnostics/self_test.php` embeds `$browserTests` and `$results` into executable `<script>` blocks using `json_encode()` without `JSON_HEX_TAG` (and embeds `$csrf`/build metadata without a uniform script-data encoding helper). `$results` can include environment/configuration-derived strings, including the request Host value and configuration exception details. JSON string encoding alone does not neutralize a literal `</script>` for the HTML parser. This is a context-encoding weakness; exploitability depends on an attacker being able to influence one of those diagnostic values and induce an authenticated diagnostic request. Correct it by using a single script-context encoder with `JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR` for every PHP-to-JavaScript value, or move data into non-executable JSON with equivalent safe encoding. Add a regression test using a `</script><script>` payload in a controlled diagnostic value.
   - Context note: `htmlspecialchars()` defaults are used in a few older output expressions without explicit flags/charset, while newer adjacent expressions specify `ENT_QUOTES, 'UTF-8'`. PHP 8.3's defaults include quote escaping, so no concrete bypass was demonstrated, but standardize all HTML text/attribute output to explicit `ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'` during remediation.
   - No application code or production configuration was changed during this audit. This item records the audit and the exact hardening target; the actual remediation is tracked as a follow-up implementation before CSP tightening. No confirmed exploitable XSS was established in the inspected paths.
-- [ ] **2.4** Audit CSRF protections on every state-changing action.
+- [x] **2.4** Audit CSRF protections on every state-changing action.
+  - Audited `app/Security/SecurityBootstrap.php`, `index.php`, `app/Auth/AuthFlow.php`, `app/Auth/PasskeyAuth.php`, `app/Security/FirstRun.php`, Vault action handlers (`app/Vault/Actions.php`, `CategoryActions.php`, `RecordActions.php`), document handlers (`app/Documents/Upload.php`, `Delete.php`), Gallery settings/diagnostic handlers (`app/Gallery/Settings.php`, `gallery_b2_settings.php`, `gallery_b2_diagnostic.php`), and the retired Gallery server endpoints.
+  - Central CSRF implementation: `sentryiq_csrf_token()` creates a 256-bit random hex token in the session. `sentryiq_require_csrf()` accepts POST only, supports form field or `X-CSRF-Token`, rejects missing/mismatched tokens with 403, and uses `hash_equals()`. The session cookie is configured `SameSite=Strict`, `HttpOnly`, and `Secure`; session IDs use strict mode. Authentication success regenerates the session ID and rotates the CSRF token.
+  - Covered state-changing operations: password/recovery login steps and first-run completion call `sentryiq_require_csrf()`; vault add/edit/delete/category/settings/folder handlers call it; document upload/delete call it after authentication; Gallery settings save/disconnect call it and additionally require fresh authentication; Gallery B2 diagnostic `prepare` validates the session token manually before issuing short-lived B2 operation URLs; passkey register/delete validate the JSON request token manually with `hash_equals()` and require authentication. Vault lock POST validates CSRF in both the bootstrap lock hook and the index entry point. Legacy server-side Gallery upload/delete/album endpoints return 410 and do not mutate state.
+  - Forms on the index page receive a token from the meta tag via the page initializer; explicit forms on first-run, Gallery, and B2 settings pages render a hidden token. Passkey browser requests carry the token in JSON. The B2 diagnostic fetch sends the token in JSON. No state-changing GET operation was identified in the inspected flows; passkey GET options endpoints only create short-lived session challenges and do not mutate account or stored application data.
+  - Findings/limitations: (1) CSRF enforcement is not centralized automatically at the HTTP router; each handler must remember to invoke it. Current audited mutation handlers do so, but future endpoints need regression coverage. (2) Passkey register/delete and B2 diagnostic duplicate the token comparison instead of using one shared JSON-request verifier, creating drift risk. (3) The index page's automatic token injection depends on its JavaScript initializer; any newly introduced POST form on that page must include a token explicitly or be covered by the initializer. (4) The login passkey assertion POST does not use a CSRF token, but it is an unauthenticated login ceremony bound to a session challenge, WebAuthn origin/RP ID, and authenticator signature; no authenticated state-changing action is exposed through that operation.
+  - No missing CSRF check was confirmed in the reviewed state-changing handlers. No application code or production configuration was changed; this is an audit result, not a remediation.
 - [ ] **2.5** Verify browser security headers, HTTPS behaviour, and cookie attributes.
 
 ## 3. PHP application security
@@ -173,6 +180,7 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 | 2026-11-18 | 2.1 | `app/Security/SecurityBootstrap.php`, `app/Gallery/SecurePage.php`, `.htaccess`, `.user.ini` on `main` | Found two CSP emission points; both permit `unsafe-inline` for scripts and styles. Recorded migration dependencies; no policy changed | Yes |
 | 2026-11-18 | 2.2 | Inline script/handler inventory across PHP templates and JS assets on `main` | Recorded 10 inline script blocks in 9 PHP files, inline event attributes in 5 templates, JavaScript selector coupling, and staged migration/test plan; no code changed | Yes |
 | 2026-11-18 | 2.3 | Reviewed Vault, Documents, Passkey, Gallery, and diagnostic templates/assets on `main` | No confirmed exploitable XSS in inspected paths; recorded a script-context JSON-encoding hardening finding in `diagnostics/self_test.php`, verified safe fixed-markup/escaped DOM sinks, and documented remediation/test requirements; no code changed | Yes |
+| 2026-11-18 | 2.4 | Audited central CSRF helper and authentication, Vault, Documents, Gallery, passkey, and first-run mutation handlers on `main` | No missing CSRF check confirmed in reviewed state-changing handlers; recorded decentralized enforcement, duplicated JSON token checks, and JS-dependent index form injection as maintenance risks; no code changed | Yes |
 
 ## Working rules
 
