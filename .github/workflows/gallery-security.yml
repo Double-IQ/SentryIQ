@@ -57,5 +57,8 @@ jobs:
       - name: Test private data directory boundary
         run: php tests/private_data_path.test.php
 
+      - name: Test vault icon SSRF protections
+        run: php tests/vault_icon_ssrf.test.php
+
       - name: Test GitHub CLI attestation adapter contract
         run: php tests/github_cli_attestation_verifier.test.php
