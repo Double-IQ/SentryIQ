@@ -10,8 +10,10 @@ header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
 
 require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryKeyStore.php';
+require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryRotationLock.php';
 
 use SentryIQCloud\Gallery\Storage\GalleryKeyStore;
+use SentryIQCloud\Gallery\Storage\GalleryRotationLock;
 
 function gallery_passkey_json(array $payload, int $status = 200): never
 {
@@ -355,22 +357,24 @@ try {
             || $galleryKeys->credentialEnvelope($verifiedId) === null) {
             throw new RuntimeException('Verify an enrolled Gallery passkey before adding an encryption key.');
         }
-        if ($galleryKeys->activeKeyId() === null) {
-            $galleryKeys->migrateToKeyring('gk_' . bin2hex(random_bytes(16)));
-        }
         $keyId = (string)($request['keyId'] ?? '');
-        $galleryKeys->addWrappingKey(
-            $keyId,
-            (array)($request['publicKey'] ?? []),
-            (array)($request['privateKeyEnvelope'] ?? [])
-        );
+        $updated = GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $keyId, $request): array {
+            if ($galleryKeys->activeKeyId() === null) {
+                $galleryKeys->migrateToKeyring('gk_' . bin2hex(random_bytes(16)));
+            }
+            $galleryKeys->addWrappingKey(
+                $keyId,
+                (array)($request['publicKey'] ?? []),
+                (array)($request['privateKeyEnvelope'] ?? [])
+            );
+            return [
+                'activeKeyId' => $galleryKeys->activeKeyId(),
+                'keyIds' => $galleryKeys->keyIds(),
+                'keyring' => gallery_passkey_keyring_payload($galleryKeys),
+            ];
+        });
         unset($_SESSION['gallery_passkey_verified_credential'], $_SESSION['gallery_passkey_verified_at']);
-        gallery_passkey_json([
-            'status' => 'ok',
-            'activeKeyId' => $galleryKeys->activeKeyId(),
-            'keyIds' => $galleryKeys->keyIds(),
-            'keyring' => gallery_passkey_keyring_payload($galleryKeys),
-        ]);
+        gallery_passkey_json(['status' => 'ok'] + $updated);
     }
 
     if ($action === 'remove_credential') {
