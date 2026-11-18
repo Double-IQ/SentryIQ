@@ -102,7 +102,9 @@ test('Gallery rotation resumes safely after an interrupted envelope migration', 
     assert.equal(envelopes.preview.keyId, undefined);
     assert.equal(envelopes.metadata.keyId, undefined);
 
-    const resumed = await globalThis.SentryIQGalleryStorage.migrateEnvelopesToKey('gk_target01');
+    const progress = [];
+    const resumed = await globalThis.SentryIQGalleryStorage.migrateEnvelopesToKey('gk_target01', (state) => progress.push(state));
+    assert.equal(progress.at(-1).updated + progress.at(-1).skipped, 4, 'Resume progress must include envelopes already migrated by the earlier run.');
     assert.equal(resumed.updated, 2);
     assert.equal(resumed.skipped, 2);
     assert.equal(resumed.total, 4);
