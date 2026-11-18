@@ -17,6 +17,18 @@ if (PHP_SAPI !== 'cli') {
     sentryiq_require_auth();
 }
 
+$writeDiagnosticLog = PHP_SAPI === 'cli';
+if (PHP_SAPI !== 'cli') {
+    $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+    if ($method === 'POST') {
+        sentryiq_require_csrf();
+        $writeDiagnosticLog = true;
+    } elseif (!in_array($method, ['GET', 'HEAD'], true)) {
+        http_response_code(405);
+        exit('Method not allowed.');
+    }
+}
+
 header('Content-Type: application/json; charset=utf-8');
 
 $webRoot = __DIR__;
@@ -82,7 +94,7 @@ if ($record['config_exists'] === false && $record['first_run_exists'] === false)
     $record['index_failure_reason'] = 'no_index_startup_failure_detected';
 }
 
-if (is_dir($inferredDataDir)) {
+if ($writeDiagnosticLog && is_dir($inferredDataDir)) {
     $line = json_encode($record, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     if (is_string($line)) {
         @file_put_contents($logFile, $line . PHP_EOL, FILE_APPEND | LOCK_EX);
