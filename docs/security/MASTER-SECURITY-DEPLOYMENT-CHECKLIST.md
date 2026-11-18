@@ -20,7 +20,7 @@ This document is the single working checklist for the reset security review and 
 
 ## Current progress
 
-**Phase 1: 15/30 findings/tasks completed.**
+**Phase 1: 16/30 findings/tasks completed.**
 
 - Completed: 1.1 — identified the public installation diagnostic endpoint as an exposure requiring protection.
 - Completed: 1.2 — authentication protection merged in [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53); production deployment/runtime verification remains outstanding and is not claimed.
@@ -37,7 +37,8 @@ This document is the single working checklist for the reset security review and 
 - Completed: 3.4 — reviewed session startup, cookie configuration, ID rotation, pending-auth state, idle timeout, fresh-auth enforcement, lock/logout invalidation, and session expiry. Recorded the lack of an absolute authenticated-session lifetime and the requirement that every route re-check authentication after idle timeout destroys the session.
 - Completed: 3.5 — audited authorization gates across Vault, documents, Gallery, passkeys, updates, logs, storage, and diagnostics. No unauthenticated access to core vault/document/Gallery data operations was confirmed in the reviewed handlers; recorded missing fresh-auth protection for passkey credential changes and direct access to include-only UI partials as hardening issues.
 - Completed: 3.6 — reviewed file-backed persistence, Vault URL/input validation, icon fetching, document uploads/downloads, Gallery object authorization/storage, and error handling. Recorded a data-directory web-root boundary failure, SSRF in icon fetching, unverified B2 object sizes, and document metadata concurrency/path hardening gaps.
-- Next audit item: **4.1** — verify private runtime/data directories are outside the public web root.
+- Completed: 4.1 — traced first-run, configured, and relocated private data-directory paths and checked runtime validation against DOCUMENT_ROOT. Confirmed first-run has a partial path-name heuristic, but shared runtime validation and the settings relocation path do not enforce the web-root boundary.
+- Next audit item: **4.2** — review filesystem ownership and permissions, symlink handling, path traversal, and atomic writes.
 - No four-node deployment task is marked complete by this document.
 
 ---
@@ -166,7 +167,15 @@ All findings must be verified against `main`. The existing application is the ba
 
 ## 4. Private data and encryption
 
-- [ ] **4.1** Verify private runtime/data directories are outside the public web root.
+- [x] **4.1** Verify private runtime/data directories are outside the public web root.
+  - Traced the private runtime path from `app/Security/FirstRun.php::first_run_data_dir()`, the root `sentryiq_config.php` pointer, `app/Security/SecurityBootstrap.php::sentryiq_data_dir()`, `private_data/vault_engine.php::sentryiq_is_trusted_data_directory()`, and the authenticated data-directory relocation workflow in `app/Vault/Actions.php` on `main`.
+  - First-run derives a directory above the application tree and `first_run_prepare_dir()` rejects path strings containing `/public_html`, `/htdocs`, or `/www`; this is a heuristic and does not compare the canonical target with the actual `DOCUMENT_ROOT`, so it is not a reliable universal boundary across hosting layouts.
+  - **Confirmed enforcement failure:** the shared `sentryiq_data_dir()` helper checks only absolute path, existence, and that the top-level directory is not a symlink. `sentryiq_is_trusted_data_directory()` additionally checks canonical realpath, private permissions (no group/world bits), and writability, but never compares the canonical directory with `$_SERVER['DOCUMENT_ROOT']`. The authenticated settings relocation path calls this helper and copies `passwords.enc`, runtime PHP files, audit/diagnostic logs, and icon files into the requested directory. Thus a path under the public web root can pass the common trust check if it is owner-only and writable; this is the concrete gap recorded under 3.6.
+  - Gallery B2 credential loading, `GalleryObjectStore`, and `GalleryKeyStore` independently reject data directories under DOCUMENT_ROOT, but Vault and Documents rely on the weaker shared helper and do not have equivalent independent containment checks. This creates inconsistent protection across storage domains.
+  - The checked-in root `.htaccess` contains endpoint rewrites only; it does not deny direct HTTP access to `passwords.enc`, JSON token files, logs, or other arbitrary data files if the configured runtime directory is placed beneath the document root. Whether a 0700 directory is served depends on the hosting/web-server execution identity, so actual exposure is deployment-dependent; the application must not rely on filesystem mode alone.
+  - The root config pointer is intentionally in the application tree and is a PHP-returned configuration file; its source is not emitted by normal PHP execution, but it contains the configured absolute data-directory path and should remain protected against accidental static-source serving if PHP handling fails. No private runtime directory currently exists in the repository snapshot itself; production path, ownership, and access behaviour could not be inspected.
+  - **Result:** the intended architecture is private storage outside DOCUMENT_ROOT, but the current application does not enforce that invariant on all configured/migrated paths. Treat as a high-priority remediation: canonicalize both paths, reject equality/descendants of DOCUMENT_ROOT in the shared helper and migration UI, fail closed if DOCUMENT_ROOT is unavailable for web requests, and add tests for common/custom docroot names, nested paths, symlinks, and legitimate sibling directories.
+  - **Test status:** source/config review only. No production filesystem or HTTP direct-access test was possible. No application code, data, or production configuration was changed.
 - [ ] **4.2** Review filesystem ownership and permissions, symlink handling, path traversal, and atomic writes.
 - [ ] **4.3** Audit vault encryption, key derivation, key lifecycle, and recovery paths.
 - [ ] **4.4** Audit Gallery and document encryption, storage authorization, and signed-URL lifecycle.
@@ -257,6 +266,7 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 | 2026-11-18 | 3.4 | Reviewed centralized session startup, cookie policy, authentication rotation, idle/fresh-auth windows, and lock/logout on `main` | Confirmed strict/cookie-only sessions, Secure/HttpOnly/SameSite=Strict, session ID rotation after full auth, 15-minute idle and 5-minute fresh-auth controls; recorded no absolute session lifetime and route recheck dependency; no code changed | Yes |
 | 2026-11-18 | 3.5 | Audited authorization gates across Vault, Documents, Gallery, passkeys, updates, logs, storage, and diagnostics on `main` | No core data route bypass confirmed; recorded missing fresh-auth on passkey credential changes and direct execution of include-only Vault templates; no code changed | Yes |
 | 2026-11-18 | 3.6 | Reviewed file-backed storage, Vault input/URL handling, document uploads, Gallery object stores/signed URLs, and error handling on `main` | Found data-directory relocation can select a path under DOCUMENT_ROOT, SSRF in icon fetcher, B2 object size not verified before commit, and document metadata lock/path hardening gaps; source audit only, no code changed | Yes |
+| 2026-11-18 | 4.1 | Traced first-run, shared runtime, and settings relocation paths; compared canonical paths with DOCUMENT_ROOT enforcement | Confirmed first-run path-name heuristic but no shared web-root containment check; Gallery stores have independent checks while Vault/Documents rely on weak helper; no production filesystem test possible | Yes |
 
 ## Working rules
 
