@@ -39,6 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_updates'])) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SentryIQ — System Updates</title>
 <link rel="stylesheet" href="assets/css/sentryiq.css">
+<script src="assets/js/sentryiq_navigation.js" defer></script>
 <style>
 .update-card{max-width:760px;margin:20px auto;padding:20px;border:1px solid #e9ecef;border-radius:12px;background:#fff}
 .update-meta{font-size:13px;color:#666;line-height:1.6}
@@ -68,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_updates'])) {
                 <div class="update-warning"><strong>Update available:</strong> SentryIQ <?php echo htmlspecialchars((string)$result['latest_version'], ENT_QUOTES, 'UTF-8'); ?></div>
                 <p class="update-meta"><?php echo htmlspecialchars((string)$result['name'], ENT_QUOTES, 'UTF-8'); ?> · <?php echo htmlspecialchars((string)$result['published_at'], ENT_QUOTES, 'UTF-8'); ?></p>
                 <?php if ((string)($result['body'] ?? '') !== ''): ?><div class="update-notes"><?php echo htmlspecialchars((string)$result['body'], ENT_QUOTES, 'UTF-8'); ?></div><?php endif; ?>
-                <form method="POST" action="update_apply.php" style="margin-top:20px;" onsubmit="return confirm('Install this SentryIQ update now? The vault will be locked after the update and you will need to unlock it again.');">
+                <form method="POST" action="update_apply.php" style="margin-top:20px;" data-confirm-submit="Install this SentryIQ update now? The vault will be locked after the update and you will need to unlock it again.">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
                     <button class="btn btn-primary" type="submit">Install Update</button>
                 </form>
