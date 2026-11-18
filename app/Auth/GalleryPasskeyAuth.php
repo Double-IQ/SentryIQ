@@ -442,10 +442,7 @@ try {
             if (in_array($fromKeyId, $galleryKeys->keyIds(), true)) {
                 $galleryKeys->retireWrappingKey($fromKeyId, ['complete' => true, 'references' => $references]);
             }
-            return $rotationJournal->complete((string)$current['id'], [
-                'complete' => true,
-                'references' => $references,
-            ]);
+            return $rotationJournal->complete((string)$current['id']);
         });
         unset($_SESSION['gallery_passkey_verified_credential'], $_SESSION['gallery_passkey_verified_at']);
         gallery_passkey_json(['status' => 'ok', 'rotation' => $rotation]);
