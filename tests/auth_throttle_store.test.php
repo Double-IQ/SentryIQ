@@ -49,6 +49,20 @@ try {
     $store->clear('master', $ip);
     throttleCheck(!$store->blocked('master', $ip, 5, 900, 1005), 'Clearing the throttle must remove the lockout.');
 
+    // Email-send cooldown claims are atomic and independent from password failures.
+    throttleCheck(
+        $store->claimCooldown('2fa_email', $ip, 60, 2000),
+        'The first 2FA email cooldown claim must succeed.'
+    );
+    throttleCheck(
+        !$store->claimCooldown('2fa_email', $ip, 60, 2001),
+        'A second 2FA email send inside the cooldown must be rejected.'
+    );
+    throttleCheck(
+        $store->claimCooldown('2fa_email', $ip, 60, 2060),
+        'A new 2FA email send must be allowed after the cooldown expires.'
+    );
+
     // Independent PHP processes increment the same counter concurrently.
     $concurrentPath = $root . '/concurrent.json';
     $childCode = 'require ' . var_export(dirname(__DIR__) . '/app/Auth/ThrottleStore.php', true) . ';'
