@@ -58,7 +58,8 @@ final class ThrottleStore
             $first = $entry['first'] ?? null;
             $lockedUntil = $entry['locked_until'] ?? null;
             if (!is_int($count) || !is_int($first) || !is_int($lockedUntil)
-                || $count < 0 || $first < 0 || $lockedUntil < 0) {
+                || $count < 0 || $first < 0 || $lockedUntil < 0
+                || $first > $now + 5 || $lockedUntil > $now + 86400) {
                 throw new RuntimeException('Authentication throttle state is invalid.');
             }
             if ($first === 0 || ($now - $first) > $window) {
