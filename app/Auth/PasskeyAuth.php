@@ -184,7 +184,18 @@ try {
         $removed=false; $remaining=[];
         foreach ($credentials as $record) { if (is_array($record)&&hash_equals((string)($record['credential_id']??''),$credentialId)) { $removed=true; continue; } $remaining[]=$record; }
         if (!$removed) throw new RuntimeException('Passkey not found.');
-        if ($dataDir = sentryiq_data_dir()) { require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryKeyStore.php'; (new \SentryIQCloud\Gallery\Storage\GalleryKeyStore($dataDir . '/gallery_keys.json'))->removeCredentialEnvelope($credentialId); }
+        if ($dataDir = sentryiq_data_dir()) {
+            require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryKeyStore.php';
+            require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryRotationLock.php';
+            require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryRotationStore.php';
+            \SentryIQCloud\Gallery\Storage\GalleryRotationLock::synchronized($dataDir, function () use ($dataDir, $credentialId): void {
+                $rotation = (new \SentryIQCloud\Gallery\Storage\GalleryRotationStore($dataDir . '/gallery_rotation.json'))->current();
+                if (is_array($rotation) && in_array(($rotation['status'] ?? ''), ['running', 'ready_to_retire'], true)) {
+                    throw new RuntimeException('A passkey cannot be removed while Gallery key rotation is active or awaiting retirement.');
+                }
+                (new \SentryIQCloud\Gallery\Storage\GalleryKeyStore($dataDir . '/gallery_keys.json'))->removeCredentialEnvelope($credentialId);
+            });
+        }
         $store['credentials']=$remaining; pk_save($store); pk_log_security_event('PASSKEY_REMOVED',pk_visitor_ip(),(string)($_SESSION['app_username']??'unknown'),['credential_id'=>$credentialId]); passkey_auth_json(['status'=>'ok']);
     }
     if ($action==='login') {
