@@ -11,9 +11,13 @@ header('X-Content-Type-Options: nosniff');
 
 require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryKeyStore.php';
 require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryRotationLock.php';
+require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryRotationStore.php';
+require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryObjectStore.php';
 
 use SentryIQCloud\Gallery\Storage\GalleryKeyStore;
 use SentryIQCloud\Gallery\Storage\GalleryRotationLock;
+use SentryIQCloud\Gallery\Storage\GalleryRotationStore;
+use SentryIQCloud\Gallery\Storage\GalleryObjectStore;
 
 function gallery_passkey_json(array $payload, int $status = 200): never
 {
@@ -152,6 +156,8 @@ try {
     $dataDirectory = gallery_passkey_data_directory();
     $passkeyPath = $dataDirectory . '/passkeys.json';
     $galleryKeys = new GalleryKeyStore($dataDirectory . '/gallery_keys.json');
+    $galleryObjects = new GalleryObjectStore($dataDirectory . '/gallery_objects.json');
+    $rotationJournal = new GalleryRotationStore($dataDirectory . '/gallery_rotation.json');
     $origin = gallery_passkey_origin();
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'recovery-envelope') {
@@ -165,6 +171,16 @@ try {
                 'keyring' => gallery_passkey_keyring_payload($galleryKeys),
             ],
         ]);
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'rotation-status') {
+        $state = GalleryRotationLock::synchronized($dataDirectory, function () use ($rotationJournal, $galleryObjects, $galleryKeys): array {
+            return [
+                'rotation' => $rotationJournal->current(),
+                'references' => $galleryObjects->keyReferenceInventory($galleryKeys->legacyKeyId()),
+            ];
+        });
+        gallery_passkey_json(['status' => 'ok'] + $state);
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'devices') {
@@ -348,6 +364,80 @@ try {
         $galleryKeys->addCredentialEnvelope($credentialId, (array)($request['credentialEnvelope'] ?? []));
         unset($_SESSION['gallery_passkey_verified_credential'], $_SESSION['gallery_passkey_verified_at']);
         gallery_passkey_json(['status' => 'ok']);
+    }
+
+    if ($action === 'begin_rotation') {
+        $verifiedId = (string)($_SESSION['gallery_passkey_verified_credential'] ?? '');
+        $verifiedAt = (int)($_SESSION['gallery_passkey_verified_at'] ?? 0);
+        if ($verifiedId === '' || $verifiedAt < time() - 180 || $galleryKeys->credentialEnvelope($verifiedId) === null) {
+            throw new RuntimeException('Verify an enrolled Gallery passkey before starting key rotation.');
+        }
+        $targetKeyId = (string)($request['targetKeyId'] ?? '');
+        $rotation = GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $rotationJournal, $targetKeyId): array {
+            $existing = $rotationJournal->current();
+            if (is_array($existing) && ($existing['status'] ?? '') === 'running') {
+                if (($existing['to_key_id'] ?? '') !== $targetKeyId) throw new RuntimeException('A different Gallery key rotation is already running.');
+                $active = $galleryKeys->activeKeyId();
+                if ($active === ($existing['from_key_id'] ?? null)) $galleryKeys->activateWrappingKey($targetKeyId);
+                elseif ($active !== $targetKeyId) throw new RuntimeException('Gallery active key does not match the rotation journal.');
+                return $existing;
+            }
+            $fromKeyId = $galleryKeys->activeKeyId();
+            if ($fromKeyId === null || !in_array($targetKeyId, $galleryKeys->keyIds(), true) || $targetKeyId === $fromKeyId) {
+                throw new RuntimeException('Select a different enrolled Gallery encryption key.');
+            }
+            $started = $rotationJournal->begin($fromKeyId, $targetKeyId);
+            try {
+                $galleryKeys->activateWrappingKey($targetKeyId);
+            } catch (Throwable $exception) {
+                $rotationJournal->abort($started['id']);
+                throw $exception;
+            }
+            return $started;
+        });
+        unset($_SESSION['gallery_passkey_verified_credential'], $_SESSION['gallery_passkey_verified_at']);
+        gallery_passkey_json(['status' => 'ok', 'rotation' => $rotation]);
+    }
+
+    if ($action === 'abort_rotation') {
+        $verifiedId = (string)($_SESSION['gallery_passkey_verified_credential'] ?? '');
+        $verifiedAt = (int)($_SESSION['gallery_passkey_verified_at'] ?? 0);
+        if ($verifiedId === '' || $verifiedAt < time() - 180 || $galleryKeys->credentialEnvelope($verifiedId) === null) {
+            throw new RuntimeException('Verify an enrolled Gallery passkey before aborting key rotation.');
+        }
+        $rotation = GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $rotationJournal): array {
+            $current = $rotationJournal->current();
+            if (!is_array($current) || ($current['status'] ?? '') !== 'running') throw new RuntimeException('No active Gallery key rotation is available.');
+            $active = $galleryKeys->activeKeyId();
+            if ($active === ($current['to_key_id'] ?? null)) $galleryKeys->activateWrappingKey((string)$current['from_key_id']);
+            elseif ($active !== ($current['from_key_id'] ?? null)) throw new RuntimeException('Gallery active key does not match the rotation journal.');
+            return $rotationJournal->abort((string)$current['id']);
+        });
+        unset($_SESSION['gallery_passkey_verified_credential'], $_SESSION['gallery_passkey_verified_at']);
+        gallery_passkey_json(['status' => 'ok', 'rotation' => $rotation]);
+    }
+
+    if ($action === 'finalize_rotation') {
+        $verifiedId = (string)($_SESSION['gallery_passkey_verified_credential'] ?? '');
+        $verifiedAt = (int)($_SESSION['gallery_passkey_verified_at'] ?? 0);
+        if ($verifiedId === '' || $verifiedAt < time() - 180 || $galleryKeys->credentialEnvelope($verifiedId) === null) {
+            throw new RuntimeException('Verify an enrolled Gallery passkey before finalizing key rotation.');
+        }
+        $rotation = GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $galleryObjects, $rotationJournal): array {
+            $current = $rotationJournal->current();
+            if (!is_array($current) || ($current['status'] ?? '') !== 'running') throw new RuntimeException('No active Gallery key rotation is available.');
+            if ($galleryKeys->activeKeyId() !== ($current['to_key_id'] ?? null)) {
+                throw new RuntimeException('The target Gallery key is not active.');
+            }
+            $references = $galleryObjects->keyReferenceInventory($galleryKeys->legacyKeyId());
+            if (($references[$current['from_key_id']] ?? 0) !== 0) {
+                throw new RuntimeException('Gallery key rotation is not complete. Some objects or pending uploads still reference the old key.');
+            }
+            $galleryKeys->retireWrappingKey((string)$current['from_key_id'], ['complete' => true, 'references' => $references]);
+            return $rotationJournal->complete((string)$current['id']);
+        });
+        unset($_SESSION['gallery_passkey_verified_credential'], $_SESSION['gallery_passkey_verified_at']);
+        gallery_passkey_json(['status' => 'ok', 'rotation' => $rotation]);
     }
 
     if ($action === 'add_wrapping_key') {
