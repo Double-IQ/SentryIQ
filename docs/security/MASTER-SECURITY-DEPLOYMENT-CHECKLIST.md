@@ -20,7 +20,7 @@ This document is the single working checklist for the reset security review and 
 
 ## Current progress
 
-**Phase 1: 8/30 findings/tasks completed.**
+**Phase 1: 9/30 findings/tasks completed.**
 
 - Completed: 1.1 — identified the public installation diagnostic endpoint as an exposure requiring protection.
 - Completed: 1.2 — authentication protection merged in [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53); production deployment/runtime verification remains outstanding and is not claimed.
@@ -30,7 +30,8 @@ This document is the single working checklist for the reset security review and 
 - Completed: 2.2 — inventoried inline script blocks, event-handler attributes, and JavaScript dependencies on `main`; migration plan recorded below.
 - Completed: 2.3 — reviewed server-rendered output, record-card serialization, diagnostic JSON embedding, and DOM insertion sinks; findings and hardening actions recorded below.
 - Completed: 2.4 — audited CSRF enforcement across authentication, vault, documents, Gallery settings/diagnostics, passkeys, and first-run setup.
-- Next item, pending user review: **2.5** — verify browser security headers, HTTPS behaviour, and cookie attributes.
+- Completed: 2.5 — reviewed central response headers, HTTPS enforcement, session cookie parameters, logout cookie invalidation, and page-specific header overrides.
+- Next item, pending user review: **3.1** — audit the security bootstrap and every public application entry point.
 - No four-node deployment task is marked complete by this document.
 
 ---
@@ -84,7 +85,15 @@ All findings must be verified against `main`. The existing application is the ba
   - Forms on the index page receive a token from the meta tag via the page initializer; explicit forms on first-run, Gallery, and B2 settings pages render a hidden token. Passkey browser requests carry the token in JSON. The B2 diagnostic fetch sends the token in JSON. No state-changing GET operation was identified in the inspected flows; passkey GET options endpoints only create short-lived session challenges and do not mutate account or stored application data.
   - Findings/limitations: (1) CSRF enforcement is not centralized automatically at the HTTP router; each handler must remember to invoke it. Current audited mutation handlers do so, but future endpoints need regression coverage. (2) Passkey register/delete and B2 diagnostic duplicate the token comparison instead of using one shared JSON-request verifier, creating drift risk. (3) The index page's automatic token injection depends on its JavaScript initializer; any newly introduced POST form on that page must include a token explicitly or be covered by the initializer. (4) The login passkey assertion POST does not use a CSRF token, but it is an unauthenticated login ceremony bound to a session challenge, WebAuthn origin/RP ID, and authenticator signature; no authenticated state-changing action is exposed through that operation.
   - No missing CSRF check was confirmed in the reviewed state-changing handlers. No application code or production configuration was changed; this is an audit result, not a remediation.
-- [ ] **2.5** Verify browser security headers, HTTPS behaviour, and cookie attributes.
+- [x] **2.5** Verify browser security headers, HTTPS behaviour, and cookie attributes.
+  - Reviewed `app/Security/SecurityBootstrap.php`, `app/Gallery/SecurePage.php`, `gallery_b2_diagnostic.php`, `gallery_b2_settings.php`, and the root `.htaccess` / `.user.ini` files on `main`.
+  - Central bootstrap emits `Cache-Control: no-store, no-cache, must-revalidate, max-age=0`, `Pragma: no-cache`, `Expires: 0`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()`, and a restrictive baseline CSP (`default-src 'self'`, `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`, `form-action 'self'`; `img-src 'self' data:`). CSP still allows `unsafe-inline` for script/style, already recorded under 2.1/2.2.
+  - HTTPS enforcement: non-CLI requests are rejected unless `$_SERVER['HTTPS'] === 'on'` or `SERVER_PORT === '443'`. This prevents ordinary direct HTTP requests, but relies on server-provided HTTPS/port values; reverse-proxy deployments must preserve a trustworthy HTTPS indicator. Do not trust arbitrary forwarded headers without a configured trusted-proxy boundary.
+  - Session cookie: lifetime 0, path `/`, Secure, HttpOnly, SameSite=Strict; strict session mode and cookie-only sessions enabled. No explicit cookie domain is set, so the cookie remains host-only. Logout/lock expires the cookie using the active path/domain/Secure/HttpOnly attributes before destroying the session.
+  - **Confirmed hardening gap:** no `Strict-Transport-Security` (HSTS) header is emitted by the central bootstrap or the inspected page-specific handlers/config files. Once the production hostname and all relevant subdomains are confirmed HTTPS-only, add HSTS at the trusted TLS termination/web-server layer (or central app layer if appropriate), initially with a conservative max-age; do not enable `includeSubDomains` or preload until every covered hostname is verified HTTPS-capable.
+  - **Header consistency gap:** `gallery_b2_diagnostic.php` and `gallery_b2_settings.php` emit some defensive headers again, but the Gallery settings page does not independently emit `X-Frame-Options` / `Permissions-Policy` / CSP; it currently inherits them from bootstrap. `app/Gallery/SecurePage.php` and `gallery_b2_diagnostic.php` emit a second CSP in addition to the central CSP. Browsers enforce multiple CSP policies cumulatively, which can cause functional restrictions (for example, Gallery's `blob:` image allowance is not present in the central policy); reconcile to one centrally generated, route-aware policy during CSP remediation. The diagnostic/settings pages inherit baseline clickjacking protections from bootstrap when the bootstrap reaches its normal header-emission stage.
+  - **Ordering note:** the bootstrap's lock-vault POST handling and several redirect branches occur before its common security-header block. Those early redirect responses may therefore omit the baseline response headers; move common header emission earlier in the bootstrap as part of remediation, while preserving the HTTPS rejection and session initialization order.
+  - No production headers, TLS configuration, or application code were changed. No live response/header test or production proxy configuration was available in this repository-only audit; actual deployed TLS/HSTS behaviour remains unverified.
 
 ## 3. PHP application security
 
@@ -181,6 +190,7 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 | 2026-11-18 | 2.2 | Inline script/handler inventory across PHP templates and JS assets on `main` | Recorded 10 inline script blocks in 9 PHP files, inline event attributes in 5 templates, JavaScript selector coupling, and staged migration/test plan; no code changed | Yes |
 | 2026-11-18 | 2.3 | Reviewed Vault, Documents, Passkey, Gallery, and diagnostic templates/assets on `main` | No confirmed exploitable XSS in inspected paths; recorded a script-context JSON-encoding hardening finding in `diagnostics/self_test.php`, verified safe fixed-markup/escaped DOM sinks, and documented remediation/test requirements; no code changed | Yes |
 | 2026-11-18 | 2.4 | Audited central CSRF helper and authentication, Vault, Documents, Gallery, passkey, and first-run mutation handlers on `main` | No missing CSRF check confirmed in reviewed state-changing handlers; recorded decentralized enforcement, duplicated JSON token checks, and JS-dependent index form injection as maintenance risks; no code changed | Yes |
+| 2026-11-18 | 2.5 | Reviewed central security bootstrap, Gallery page-specific headers, HTTPS gate, session cookie setup/invalidation, `.htaccess`, and `.user.ini` on `main` | Recorded missing HSTS, CSP duplication/reconciliation, early-redirect header ordering, and trusted-proxy verification requirements; no code or production TLS configuration changed; live headers remain unverified | Yes |
 
 ## Working rules
 
