@@ -191,6 +191,32 @@
         return { publicKey, privateKeyEnvelope };
     }
 
+    async function unlockKeyringWithRoot(keyring, rootKey) {
+        if (!keyring || keyring.version !== 2 || !keyring.keys || typeof keyring.keys !== 'object'
+            || !keyring.active_key_id || !Object.prototype.hasOwnProperty.call(keyring.keys, keyring.active_key_id)) {
+            throw new Error('The Gallery encryption keyring is invalid.');
+        }
+        if (bytes(rootKey).byteLength !== 32) throw new Error('The unlocked Gallery root key is invalid.');
+        if (keyring.legacy_key_id !== undefined && keyring.legacy_key_id !== null) validateKeyId(keyring.legacy_key_id);
+        const privateKeys = Object.create(null);
+        const publicKeys = Object.create(null);
+        for (const keyId of Object.keys(keyring.keys)) {
+            validateKeyId(keyId);
+            const entry = keyring.keys[keyId];
+            if (!entry || !entry.public_key || !entry.private_key_envelope) {
+                throw new Error('The Gallery encryption keyring entry is invalid.');
+            }
+            publicKeys[keyId] = entry.public_key;
+            privateKeys[keyId] = await decryptPrivateKey(entry.private_key_envelope, rootKey);
+        }
+        return {
+            privateKeys,
+            publicKeys,
+            activeKeyId: keyring.active_key_id,
+            legacyKeyId: keyring.legacy_key_id || null
+        };
+    }
+
     async function unlockKeyringIdentity(keyring, credentialEnvelope, prfOutput, credentialId) {
         if (!keyring || keyring.version !== 2 || !keyring.keys || typeof keyring.keys !== 'object'
             || !keyring.active_key_id || !Object.prototype.hasOwnProperty.call(keyring.keys, keyring.active_key_id)) {
@@ -426,6 +452,7 @@
         unlockIdentity: unlockIdentity,
         createAdditionalWrappingKey: createAdditionalWrappingKey,
         unlockKeyringIdentity: unlockKeyringIdentity,
+        unlockKeyringWithRoot: unlockKeyringWithRoot,
         unlockKeyringIdentityWithRecovery: unlockKeyringIdentityWithRecovery,
         wrapRootKeyForPasskey: wrapRootKeyForPasskey,
         wrapRootKeyForRecovery: wrapRootKeyForRecovery,
