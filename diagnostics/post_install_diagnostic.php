@@ -6,6 +6,7 @@ declare(strict_types=1);
 // Keep web access behind the normal SentryIQ authenticated session; when the
 // application is not installed, allow this diagnostic only from the CLI.
 require_once dirname(__DIR__) . '/app/Security/SecurityBootstrap.php';
+require_once dirname(__DIR__) . '/app/Security/BoundedLog.php';
 sentryiq_security_bootstrap();
 
 if (PHP_SAPI !== 'cli') {
@@ -97,7 +98,7 @@ if ($record['config_exists'] === false && $record['first_run_exists'] === false)
 if ($writeDiagnosticLog && is_dir($inferredDataDir)) {
     $line = json_encode($record, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     if (is_string($line)) {
-        @file_put_contents($logFile, $line . PHP_EOL, FILE_APPEND | LOCK_EX);
+        \\SentryIQ\\Security\\BoundedLog::append($logFile, $line . PHP_EOL);
         @chmod($logFile, 0600);
     }
 }
