@@ -322,11 +322,21 @@ function cleanup_expired_tokens(): void
 {
     $dataDir = sentryiq_data_dir();
     if (!isset($_SESSION) || $dataDir === '') return;
-    foreach (glob($dataDir . '/token_*.json') ?: [] as $file) {
-        if (is_link($file)) continue;
+    $now = time();
+    $tokenFiles = array_slice(glob($dataDir . '/token_*.json') ?: [], 0, 200);
+    foreach ($tokenFiles as $file) {
+        if (is_link($file) || !is_file($file)) continue;
         $raw = @file_get_contents($file);
         $token = is_string($raw) ? json_decode($raw, true) : null;
-        if (!is_array($token) || (int)($token['expires'] ?? 0) <= time()) {
+        if (!is_array($token) || (int)($token['expires'] ?? 0) <= $now) {
+            @unlink($file);
+        }
+    }
+    $claimedFiles = array_slice(glob($dataDir . '/consumed_*.token') ?: [], 0, 200);
+    foreach ($claimedFiles as $file) {
+        if (is_link($file) || !is_file($file)) continue;
+        $modified = @filemtime($file);
+        if (is_int($modified) && $modified <= $now - 600) {
             @unlink($file);
         }
     }
