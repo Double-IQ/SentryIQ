@@ -223,13 +223,7 @@
     }
 
     async function cleanupPending() {
-        const response = await fetch('gallery_storage.php?action=cleanup_pending', {
-            method: 'GET',
-            credentials: 'same-origin',
-            cache: 'no-store',
-            headers: { Accept: 'application/json' }
-        });
-        const payload = await jsonResponse(response);
+        const payload = await post('cleanup_pending');
         const pending = payload.pending || {};
         for (const photoId of Object.keys(pending)) {
             const urls = pending[photoId] || {};
