@@ -121,6 +121,7 @@ header('Content-Security-Policy: ' . $csp);
                 <h2 style="margin-bottom:0;">Your private photos</h2>
                 <div class="secure-gallery-actions">
                     <button id="secure-gallery-add-passkey" class="btn" type="button">Add this passkey</button>
+                    <button id="secure-gallery-add-key" class="btn" type="button">Add encryption key</button>
                     <button id="secure-gallery-lock" class="btn" type="button">Lock Gallery</button>
                 </div>
             </div>
