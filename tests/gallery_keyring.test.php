@@ -60,6 +60,10 @@ keyringMustFail(
     fn() => GalleryKeyring::retireWithInventory($keyring, $firstId, ['complete' => true, 'references' => [$firstId => 1]]),
     'A key still referenced by an object must not be retired.'
 );
+keyringMustFail(
+    fn() => GalleryKeyring::retireWithInventory($keyring, $firstId, ['complete' => true, 'references' => ['gk_unknown01' => 1]]),
+    'An authoritative inventory that references an unknown key must be rejected.'
+);
 $keyring = GalleryKeyring::retireWithInventory($keyring, $firstId, ['complete' => true, 'references' => [$secondId => 1]]);
 keyringCheck(!isset($keyring['keys'][$firstId]), 'An unreferenced inactive key may be retired only with a complete inventory.');
 keyringCheck(isset($keyring['keys'][$secondId]), 'Retirement must preserve the active key.');
