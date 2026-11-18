@@ -57,10 +57,10 @@ $csrf = sentryiq_csrf_token();
         </div>
     </div>
     <div id="vault-mobile-menu" class="vault-tabs">
-        <button class="tab-btn" type="button" onclick="window.location.href='index.php?pane=view'">📋 Vault</button>
-        <button class="tab-btn" type="button" onclick="window.location.href='documents.php'">📄 Docs</button>
-        <button class="tab-btn" type="button" onclick="window.location.href='gallery.php'">🖼️ Gallery</button>
-        <button class="tab-btn active" type="button" onclick="window.location.href='index.php?pane=settings'">⚙️ System</button>
+        <button class="tab-btn" type="button" data-sentryiq-nav="index.php?pane=view">📋 Vault</button>
+        <button class="tab-btn" type="button" data-sentryiq-nav="documents.php">📄 Docs</button>
+        <button class="tab-btn" type="button" data-sentryiq-nav="gallery.php">🖼️ Gallery</button>
+        <button class="tab-btn active" type="button" data-sentryiq-nav="index.php?pane=settings">⚙️ System</button>
         <form method="POST" class="vault-menu-lock-form"><input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>"><input type="hidden" name="lock_vault" value="1"><button type="submit" class="tab-btn vault-menu-lock-button">🔒 Lock Vault</button></form>
     </div>
     <div class="passkeys-back"><a href="index.php?pane=settings" class="btn">← System Settings</a></div>
@@ -75,8 +75,7 @@ $csrf = sentryiq_csrf_token();
         <p class="passkey-note">SentryIQ will not let you remove the last registered passkey. If you lose access to a device, use the password recovery route to regain access and register a replacement passkey.</p>
     </div>
 </div>
-<script>
-(function(){var toggle=document.querySelector('.vault-mobile-menu-toggle'),menu=document.getElementById('vault-mobile-menu');if(toggle&&menu)toggle.addEventListener('click',function(){var open=menu.classList.toggle('mobile-open');toggle.setAttribute('aria-expanded',open?'true':'false');});var csrf=document.querySelector('meta[name="csrf-token"]').content,message=document.getElementById('passkey-message');function showMessage(text,ok){message.textContent=text;message.className=ok?'success':'error';message.style.display='block';}document.querySelectorAll('.remove-passkey').forEach(function(button){button.addEventListener('click',async function(){if(button.disabled)return;if(!window.confirm('Remove this passkey? This device will no longer be able to unlock SentryIQ.'))return;button.disabled=true;try{var response=await fetch('passkey_auth.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',csrf_token:csrf,credential_id:button.dataset.credential})});var result=await response.json();if(!response.ok||result.status!=='ok')throw new Error(result.message||'Unable to remove the passkey.');window.location.reload();}catch(error){showMessage(error&&error.message?error.message:'Unable to remove the passkey.',false);button.disabled=false;}});});}());
-</script>
+<script src="assets/js/sentryiq_navigation.js" defer></script>
+<script src="assets/js/passkeys.js" defer></script>
 </body>
 </html>
