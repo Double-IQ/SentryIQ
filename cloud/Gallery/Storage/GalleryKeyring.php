@@ -131,29 +131,6 @@ final class GalleryKeyring
     }
 
     /**
-     * Retire only after the caller supplies an authoritative inventory of all
-     * remaining object key references. An empty/unknown inventory is not safe.
-     */
-    public static function retire(array $keyring, string $keyId, array $referencedKeyIds): array
-    {
-        self::validate($keyring);
-        self::validateKeyId($keyId);
-        if (!isset($keyring['keys'][$keyId])) throw new RuntimeException('Gallery key is already absent.');
-        if ($keyring['active_key_id'] === $keyId) throw new RuntimeException('The active Gallery key cannot be retired.');
-        if ($referencedKeyIds === []) throw new RuntimeException('An authoritative Gallery object inventory is required before key retirement.');
-        foreach ($referencedKeyIds as $reference) {
-            if (!is_string($reference)) throw new RuntimeException('Gallery object key inventory is invalid.');
-            self::validateKeyId($reference);
-            if ($reference === $keyId) throw new RuntimeException('Gallery key is still referenced by encrypted objects.');
-        }
-        if (count($keyring['keys']) <= 1) throw new RuntimeException('The final Gallery encryption key cannot be retired.');
-        unset($keyring['keys'][$keyId]);
-        if (($keyring['legacy_key_id'] ?? null) === $keyId) unset($keyring['legacy_key_id']);
-        self::validate($keyring);
-        return $keyring;
-    }
-
-    /**
      * Retire a key only with an explicit complete inventory produced while
      * holding the shared Gallery rotation lock. Empty inventories are valid
      * only when completeness is explicitly asserted by the trusted caller.
