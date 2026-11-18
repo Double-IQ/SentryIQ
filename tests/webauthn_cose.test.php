@@ -39,9 +39,13 @@ if ($key === false) throw new RuntimeException('Unable to generate P-256 test ke
 $details = openssl_pkey_get_details($key);
 $x = $details['ec']['x'] ?? null;
 $y = $details['ec']['y'] ?? null;
-if (!is_string($x) || !is_string($y) || strlen($x) !== 32 || strlen($y) !== 32) {
-    throw new RuntimeException('OpenSSL did not return P-256 public coordinates.');
+if (!is_string($x) || !is_string($y) || strlen($x) > 32 || strlen($y) > 32) {
+    throw new RuntimeException('OpenSSL did not return valid P-256 public coordinates.');
 }
+// OpenSSL may return big-endian coordinates without leading zero octets.
+// COSE EC2 encodes both coordinates as fixed-width 32-byte values.
+$x = str_pad($x, 32, "\\0", STR_PAD_LEFT);
+$y = str_pad($y, 32, "\\0", STR_PAD_LEFT);
 
 $coseBytes = coseFixture($x, $y);
 $offset = 0;
