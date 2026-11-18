@@ -72,6 +72,31 @@ final class ThrottleStore
         });
     }
 
+    public function claimCooldown(string $scope, string $ip, int $cooldown, ?int $now = null): bool
+    {
+        $this->validatePolicy($scope, $ip, 1, $cooldown, $cooldown);
+        $now ??= time();
+        return $this->withLock(LOCK_EX, function () use ($scope, $ip, $cooldown, $now): bool {
+            $data = $this->readUnlocked();
+            $key = $this->key($scope, $ip);
+            $entry = $data[$key] ?? ['count' => 0, 'first' => 0, 'locked_until' => 0];
+            $count = $entry['count'] ?? null;
+            $first = $entry['first'] ?? null;
+            $lockedUntil = $entry['locked_until'] ?? null;
+            if (!is_int($count) || !is_int($first) || !is_int($lockedUntil)
+                || $count < 0 || $first < 0 || $lockedUntil < 0
+                || $first > $now + 5 || $lockedUntil > $now + 86400) {
+                throw new RuntimeException('Authentication throttle state is invalid.');
+            }
+            if ($lockedUntil > $now || ($first > 0 && ($now - $first) < $cooldown)) {
+                return false;
+            }
+            $data[$key] = ['count' => 1, 'first' => $now, 'locked_until' => $now + $cooldown];
+            $this->writeUnlocked($data);
+            return true;
+        });
+    }
+
     public function clear(string $scope, string $ip): void
     {
         $this->validatePolicy($scope, $ip, 1, 1, 1);
