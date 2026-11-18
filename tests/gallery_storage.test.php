@@ -209,6 +209,12 @@ try {
     $replacementEnvelope = $legacyEnvelope;
     $replacementEnvelope['keyId'] = 'gk_testkey01';
     $replacementEnvelope['wrappedDek'] = str_repeat('Z', 512);
+    $badNonceEnvelope = $replacementEnvelope;
+    $badNonceEnvelope['nonce'] = str_repeat('P', 16);
+    expectFailure(
+        fn() => $objectStore->replaceEnvelope($photoId, 'original', $legacyHash, $badNonceEnvelope, ['gk_testkey01']),
+        'Envelope replacement must not change the AES-GCM nonce when only rewrapping a DEK.'
+    );
     expectFailure(
         fn() => $objectStore->replaceEnvelope($photoId, 'original', str_repeat('0', 64), $replacementEnvelope, ['gk_testkey01']),
         'Envelope replacement must reject a stale compare-and-swap hash.'
