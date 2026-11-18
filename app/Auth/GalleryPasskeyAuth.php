@@ -175,9 +175,14 @@ try {
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'rotation-status') {
         $state = GalleryRotationLock::synchronized($dataDirectory, function () use ($rotationJournal, $galleryObjects, $galleryKeys): array {
+            $references = $galleryKeys->activeKeyId() === null
+                ? []
+                : $galleryObjects->keyReferenceInventory($galleryKeys->legacyKeyId());
             return [
                 'rotation' => $rotationJournal->current(),
-                'references' => $galleryObjects->keyReferenceInventory($galleryKeys->legacyKeyId()),
+                'references' => $references,
+                'keyIds' => $galleryKeys->keyIds(),
+                'activeKeyId' => $galleryKeys->activeKeyId(),
             ];
         });
         gallery_passkey_json(['status' => 'ok'] + $state);
@@ -429,11 +434,14 @@ try {
             if ($galleryKeys->activeKeyId() !== ($current['to_key_id'] ?? null)) {
                 throw new RuntimeException('The target Gallery key is not active.');
             }
-            $references = $galleryObjects->keyReferenceInventory($galleryKeys->legacyKeyId());
-            if (($references[$current['from_key_id']] ?? 0) !== 0) {
-                throw new RuntimeException('Gallery key rotation is not complete. Some objects or pending uploads still reference the old key.');
+            $fromKeyId = (string)$current['from_key_id'];
+            if (in_array($fromKeyId, $galleryKeys->keyIds(), true)) {
+                $references = $galleryObjects->keyReferenceInventory($galleryKeys->legacyKeyId());
+                if (($references[$fromKeyId] ?? 0) !== 0) {
+                    throw new RuntimeException('Gallery key rotation is not complete. Some objects or pending uploads still reference the old key.');
+                }
+                $galleryKeys->retireWrappingKey($fromKeyId, ['complete' => true, 'references' => $references]);
             }
-            $galleryKeys->retireWrappingKey((string)$current['from_key_id'], ['complete' => true, 'references' => $references]);
             return $rotationJournal->complete((string)$current['id']);
         });
         unset($_SESSION['gallery_passkey_verified_credential'], $_SESSION['gallery_passkey_verified_at']);
