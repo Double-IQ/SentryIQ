@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/security_bootstrap.php';
 require_once __DIR__ . '/WebAuthnCose.php';
+require_once __DIR__ . '/WebAuthnChallenge.php';
 sentryiq_security_bootstrap();
 header('Content-Type: application/json; charset=utf-8');
 
@@ -143,12 +144,12 @@ try {
     if ($_SERVER['REQUEST_METHOD']==='GET'&&$action==='register-options') {
         sentryiq_require_auth(); $user=trim((string)($_SESSION['app_username']??''));
         if ($user==='') throw new RuntimeException('Authenticated username is unavailable.');
-        $challenge=random_bytes(32); $salt=pk_request_salt($store); $_SESSION['pk_register_challenge']=pk_b64($challenge); $_SESSION['pk_register_salt']=pk_b64($salt);
-        passkey_auth_json(['status'=>'ok','options'=>['challenge'=>pk_b64($challenge),'rp'=>['id'=>$origin['rp_id'],'name'=>'SentryIQ'],'user'=>['id'=>pk_b64(hash('sha256','sentryiq-user|'.$user,true)),'name'=>$user,'displayName'=>'SentryIQ Vault'],'pubKeyCredParams'=>[['type'=>'public-key','alg'=>-7]],'authenticatorSelection'=>['residentKey'=>'required','requireResidentKey'=>true,'userVerification'=>'required'],'timeout'=>60000,'attestation'=>'none','extensions'=>['prf'=>['eval'=>['first'=>pk_b64($salt)]]]]]);
+        $challenge=random_bytes(32); $challengeEncoded=\\SentryIQ\\Auth\\WebAuthnChallenge::issue($_SESSION,'register',$challenge,time()); $salt=pk_request_salt($store); $_SESSION['pk_register_salt']=pk_b64($salt);
+        passkey_auth_json(['status'=>'ok','options'=>['challenge'=>$challengeEncoded,'rp'=>['id'=>$origin['rp_id'],'name'=>'SentryIQ'],'user'=>['id'=>pk_b64(hash('sha256','sentryiq-user|'.$user,true)),'name'=>$user,'displayName'=>'SentryIQ Vault'],'pubKeyCredParams'=>[['type'=>'public-key','alg'=>-7]],'authenticatorSelection'=>['residentKey'=>'required','requireResidentKey'=>true,'userVerification'=>'required'],'timeout'=>60000,'attestation'=>'none','extensions'=>['prf'=>['eval'=>['first'=>pk_b64($salt)]]]]]);
     }
     if ($_SERVER['REQUEST_METHOD']==='GET'&&$action==='login-options') {
         $salt=pk_unb64((string)($store['prf_salt']??'')); if ($salt===false||strlen($salt)!==32||empty($store['credentials'])||!is_array($store['credentials'])) throw new RuntimeException('No passkey is registered.');
-        $challenge=random_bytes(32); $_SESSION['pk_login_challenge']=pk_b64($challenge); passkey_auth_json(['status'=>'ok','options'=>['challenge'=>pk_b64($challenge),'rpId'=>$origin['rp_id'],'userVerification'=>'required','timeout'=>60000,'extensions'=>['prf'=>['eval'=>['first'=>pk_b64($salt)]]]]]);
+        $challenge=random_bytes(32); $challengeEncoded=\\SentryIQ\\Auth\\WebAuthnChallenge::issue($_SESSION,'login',$challenge,time()); passkey_auth_json(['status'=>'ok','options'=>['challenge'=>$challengeEncoded,'rpId'=>$origin['rp_id'],'userVerification'=>'required','timeout'=>60000,'extensions'=>['prf'=>['eval'=>['first'=>pk_b64($salt)]]]]]);
     }
     if ($_SERVER['REQUEST_METHOD']!=='POST') throw new RuntimeException('POST required.');
     $raw=file_get_contents('php://input'); $request=is_string($raw)?json_decode($raw,true,32,JSON_THROW_ON_ERROR):null; if (!is_array($request)) throw new RuntimeException('Invalid passkey request.');
@@ -156,10 +157,10 @@ try {
     if ($action==='register') {
         sentryiq_require_auth(); $providedCsrf=(string)($request['csrf_token']??''); $expectedCsrf=(string)($_SESSION['csrf_token']??'');
         if ($expectedCsrf===''||$providedCsrf===''||!hash_equals($expectedCsrf,$providedCsrf)) throw new RuntimeException('Security validation failed.');
-        $challenge=pk_unb64((string)($_SESSION['pk_register_challenge']??'')); $salt=pk_unb64((string)($_SESSION['pk_register_salt']??'')); if ($challenge===false||strlen($challenge)!==32||$salt===false||strlen($salt)!==32) throw new RuntimeException('Passkey registration session expired.');
+        $challenge=\\SentryIQ\\Auth\\WebAuthnChallenge::consume($_SESSION,'register',time()); $salt=pk_unb64((string)($_SESSION['pk_register_salt']??'')); if ($salt===false||strlen($salt)!==32) throw new RuntimeException('Passkey registration session expired.');
         $rawId=pk_unb64((string)($request['rawId']??'')); $clientData=pk_unb64((string)($request['clientDataJSON']??'')); $authData=pk_unb64((string)($request['authenticatorData']??'')); $publicKey=pk_unb64((string)($request['publicKey']??'')); $prf=pk_unb64((string)($request['prf']??''));
         if ($rawId===false||$clientData===false||$authData===false||$publicKey===false||$prf===false||strlen($rawId)<16||strlen($prf)!==32) throw new RuntimeException('Incomplete passkey registration response.');
-        pk_validate_client($clientData,'webauthn.create',pk_b64($challenge),$origin['origin']); $auth=pk_auth_data($authData,$origin['rp_id'],true); if (!hash_equals($rawId,$auth['credential_id'])) throw new RuntimeException('Passkey credential identifier mismatch.');
+        pk_validate_client($clientData,'webauthn.create',$challenge,$origin['origin']); $auth=pk_auth_data($authData,$origin['rp_id'],true); if (!hash_equals($rawId,$auth['credential_id'])) throw new RuntimeException('Passkey credential identifier mismatch.');
         $key=@openssl_pkey_get_public($publicKey); if ($key===false) throw new RuntimeException('Invalid passkey public key.'); $details=openssl_pkey_get_details($key); if (!is_array($details)||(int)($details['type']??-1)!==OPENSSL_KEYTYPE_EC||($details['ec']['curve_name']??'')!=='prime256v1') throw new RuntimeException('SentryIQ requires an ES256 passkey.');
         $attestedCoseOffset = 0;
         $attestedCose = \SentryIQ\Auth\WebAuthnCose::decodeFirst($auth['cose_public_key'], $attestedCoseOffset);
@@ -188,9 +189,9 @@ try {
         $store['credentials']=$remaining; pk_save($store); pk_log_security_event('PASSKEY_REMOVED',pk_visitor_ip(),(string)($_SESSION['app_username']??'unknown'),['credential_id'=>$credentialId]); passkey_auth_json(['status'=>'ok']);
     }
     if ($action==='login') {
-        $challenge=pk_unb64((string)($_SESSION['pk_login_challenge']??'')); $salt=pk_unb64((string)($store['prf_salt']??'')); if ($challenge===false||strlen($challenge)!==32||$salt===false||strlen($salt)!==32) throw new RuntimeException('Passkey login session expired.');
+        $challenge=\\SentryIQ\\Auth\\WebAuthnChallenge::consume($_SESSION,'login',time()); $salt=pk_unb64((string)($store['prf_salt']??'')); if ($salt===false||strlen($salt)!==32) throw new RuntimeException('Passkey login session expired.');
         $rawId=pk_unb64((string)($request['rawId']??'')); $clientData=pk_unb64((string)($request['clientDataJSON']??'')); $authData=pk_unb64((string)($request['authenticatorData']??'')); $signature=pk_unb64((string)($request['signature']??'')); $prf=pk_unb64((string)($request['prf']??'')); if ($rawId===false||$clientData===false||$authData===false||$signature===false||$prf===false||strlen($prf)!==32) throw new RuntimeException('Incomplete passkey authentication response.');
-        pk_validate_client($clientData,'webauthn.get',pk_b64($challenge),$origin['origin']); $auth=pk_auth_data($authData,$origin['rp_id'],false); $id=pk_b64($rawId); $found=null; foreach ((array)($store['credentials']??[]) as $index=>$record) if (is_array($record)&&hash_equals((string)($record['credential_id']??''),$id)) {$found=[$index,$record];break;}
+        pk_validate_client($clientData,'webauthn.get',$challenge,$origin['origin']); $auth=pk_auth_data($authData,$origin['rp_id'],false); $id=pk_b64($rawId); $found=null; foreach ((array)($store['credentials']??[]) as $index=>$record) if (is_array($record)&&hash_equals((string)($record['credential_id']??''),$id)) {$found=[$index,$record];break;}
         if ($found===null) throw new RuntimeException('Unknown passkey.'); [$index,$record]=$found; $publicKey=pk_unb64((string)($record['public_key']??'')); if ($publicKey===false) throw new RuntimeException('Stored passkey public key is invalid.'); $key=@openssl_pkey_get_public($publicKey); if ($key===false) throw new RuntimeException('Stored passkey public key is invalid.');
         $clientHash=hash('sha256',$clientData,true); if (openssl_verify($authData.$clientHash,$signature,$key,OPENSSL_ALGO_SHA256)!==1) throw new RuntimeException('Passkey signature verification failed.'); $previous=(int)($record['sign_count']??0); if ($auth['counter']!==0&&$previous!==0&&$auth['counter']<=$previous) throw new RuntimeException('Passkey signature counter validation failed.');
         $masterKey=pk_unwrap((array)($record['wrap']??[]),$prf,$salt,$id); if ($masterKey===false) throw new RuntimeException('Passkey could not unlock the vault.'); $store['credentials'][$index]['sign_count']=max($previous,$auth['counter']); pk_save($store); unset($_SESSION['pk_login_challenge']); sentryiq_mark_authenticated($masterKey,(string)$record['username']); pk_log_security_event('VAULT_LOGIN_PASSKEY',pk_visitor_ip(),(string)$record['username'],['stage'=>'passkey']); passkey_auth_json(['status'=>'ok']);
