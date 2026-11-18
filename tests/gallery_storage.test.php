@@ -161,6 +161,19 @@ try {
     check(count($objectStore->all()) === 1, 'Active Gallery objects must be listed.');
     check(isset($objectStore->find($photoId)['objects']['metadata']['envelope']), 'Encrypted metadata envelope must be stored.');
 
+    $legacyPendingPhotoId = bin2hex(random_bytes(16));
+    $legacyPendingKeys = [];
+    $legacyPendingEnvelopes = $envelopes;
+    foreach (['original', 'thumbnail', 'preview', 'metadata'] as $role) {
+        $legacyPendingKeys[$role] = BackblazeB2Signer::newObjectKey($role);
+        $legacyPendingEnvelopes[$role]['photoId'] = $legacyPendingPhotoId;
+    }
+    $objectStore->createPending($legacyPendingPhotoId, $legacyPendingKeys);
+    $objectStore->commit($legacyPendingPhotoId, $legacyPendingEnvelopes, $sizes, ['gk_legacy01'], true);
+    check(($objectStore->find($legacyPendingPhotoId)['status'] ?? '') === 'active',
+        'A pre-migration reservation must be allowed to finish with legacy untagged envelopes.');
+    $objectStore->remove($legacyPendingPhotoId);
+
     $keyedPhotoId = bin2hex(random_bytes(16));
     $keyedObjectKeys = [];
     $keyedEnvelopes = $envelopes;
