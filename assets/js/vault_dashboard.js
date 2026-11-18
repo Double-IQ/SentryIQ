@@ -44,7 +44,7 @@
             return;
         }
         const card = event.target.closest('.vault-record-card[data-vault-record]');
-        if (card && !event.target.closest('button')) {
+        if (card && (!event.target.closest('button') || event.target.closest('.inspect-button'))) {
             try { window.viewRecordDetails.apply(null, JSON.parse(card.getAttribute('data-vault-record'))); } catch (error) { console.error('Unable to open vault record.'); }
         }
     });
