@@ -59,6 +59,13 @@ final class GalleryKeyStore
             ? $store['active_key_id'] : null;
     }
 
+    public function legacyKeyId(): ?string
+    {
+        $store = $this->read();
+        return ($store['version'] ?? null) === 2 && is_string($store['legacy_key_id'] ?? null)
+            ? $store['legacy_key_id'] : null;
+    }
+
     public function keyIds(): array
     {
         $store = $this->read();
