@@ -33,6 +33,10 @@ globalThis.createImageBitmap = async () => ({
 
 globalThis.SentryIQSecureGallery = {
     isUnlocked: () => true,
+    async ensureKeyAvailable(keyId) {
+        requests.push({ kind: 'ensure-key', keyId });
+        return true;
+    },
     async encryptObject(plaintext, photoId, role, keyId) {
         const input = plaintext instanceof ArrayBuffer ? new Uint8Array(plaintext) : new Uint8Array(plaintext.buffer, plaintext.byteOffset, plaintext.byteLength);
         const ciphertext = Uint8Array.from(input, (value) => value ^ 0xff);
@@ -85,6 +89,9 @@ test('Gallery upload sends encrypted objects to B2 and metadata-only commits to 
     const b2Requests = requests.filter((item) => item.kind === 'b2');
     assert.equal(phpRequests.length, 2, 'PHP should receive only allocation and envelope commit requests');
     assert.equal(b2Requests.length, 4, 'The browser should upload all four encrypted object roles directly to B2');
+    const ensureRequests = requests.filter((item) => item.kind === 'ensure-key');
+    assert.equal(ensureRequests.length, 1, 'The browser should load the exact key bound to the upload reservation.');
+    assert.equal(ensureRequests[0].keyId, 'gk_testkey01');
 
     const commit = phpRequests.find((item) => item.body.action === 'commit');
     assert.ok(commit, 'PHP should receive the encrypted object envelopes');
