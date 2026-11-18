@@ -98,8 +98,9 @@ final class GalleryKeyStore
     }
 
     /**
-     * Add an inactive wrapping key. Activation is intentionally unavailable
-     * until object envelopes carry key IDs.
+     * Activate a wrapping key after the caller has established the migration
+     * transaction under GalleryRotationLock. The keyring retains prior keys
+     * until a complete object inventory authorizes their retirement.
      */
     public function activateWrappingKey(string $keyId): array
     {
