@@ -169,7 +169,7 @@ try {
         $keyedEnvelopes[$role]['photoId'] = $keyedPhotoId;
         $keyedEnvelopes[$role]['keyId'] = 'gk_testkey01';
     }
-    $objectStore->createPending($keyedPhotoId, $keyedObjectKeys);
+    $objectStore->createPending($keyedPhotoId, $keyedObjectKeys, 'gk_testkey01');
     expectFailure(
         fn() => $objectStore->commit($keyedPhotoId, $keyedEnvelopes, $sizes, ['gk_otherkey01'], true),
         'The object store must reject envelopes referencing a key outside the persisted keyring.'
@@ -179,6 +179,40 @@ try {
     check(($objectStore->find($keyedPhotoId)['objects']['original']['envelope']['keyId'] ?? '') === 'gk_testkey01',
         'The object store must persist an authorized key identifier with each encrypted object.');
 
+    $inventory = $objectStore->keyReferenceInventory('gk_legacy01');
+    check(($inventory['gk_legacy01'] ?? 0) === 4, 'Legacy objects without key IDs must be attributed to the migrated legacy key.');
+    check(($inventory['gk_testkey01'] ?? 0) === 4, 'Key-aware object references must be counted.');
+
+    $legacyEnvelope = $objectStore->find($photoId)['objects']['original']['envelope'];
+    $legacyHash = GalleryObjectStore::envelopeHash($legacyEnvelope);
+    $replacementEnvelope = $legacyEnvelope;
+    $replacementEnvelope['keyId'] = 'gk_testkey01';
+    $replacementEnvelope['wrappedDek'] = str_repeat('Z', 512);
+    expectFailure(
+        fn() => $objectStore->replaceEnvelope($photoId, 'original', str_repeat('0', 64), $replacementEnvelope, ['gk_testkey01']),
+        'Envelope replacement must reject a stale compare-and-swap hash.'
+    );
+    $updatedHash = $objectStore->replaceEnvelope($photoId, 'original', $legacyHash, $replacementEnvelope, ['gk_testkey01']);
+    check(hash_equals($updatedHash, GalleryObjectStore::envelopeHash($replacementEnvelope)),
+        'Envelope replacement must return the new revision hash.');
+    expectFailure(
+        fn() => $objectStore->replaceEnvelope($photoId, 'original', $updatedHash, $legacyEnvelope + ['keyId' => 'gk_unknown01'], ['gk_testkey01']),
+        'Envelope replacement must reject a key outside the keyring.'
+    );
+    $inventory = $objectStore->keyReferenceInventory('gk_legacy01');
+    check(($inventory['gk_legacy01'] ?? 0) === 3, 'Successfully rewrapped objects must stop referencing the legacy key.');
+    check(($inventory['gk_testkey01'] ?? 0) === 5, 'Rewrapped objects must reference their replacement key.');
+
+    $pendingPhotoId = bin2hex(random_bytes(16));
+    $pendingKeys = [];
+    foreach (['original', 'thumbnail', 'preview', 'metadata'] as $role) {
+        $pendingKeys[$role] = BackblazeB2Signer::newObjectKey($role);
+    }
+    $objectStore->createPending($pendingPhotoId, $pendingKeys, 'gk_testkey01');
+    $inventory = $objectStore->keyReferenceInventory('gk_legacy01');
+    check(($inventory['gk_testkey01'] ?? 0) === 6, 'In-flight upload reservations must count against key retirement.');
+
+    check($objectStore->remove($pendingPhotoId) !== null, 'Pending Gallery reservation should be removable.');
     check($objectStore->remove($keyedPhotoId) !== null, 'Keyed Gallery object record should be removable.');
     check($objectStore->remove($photoId) !== null, 'Gallery object record should be removable.');
     check($objectStore->all() === [], 'Removed Gallery object must no longer be listed.');
