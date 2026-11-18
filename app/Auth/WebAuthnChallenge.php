@@ -53,6 +53,17 @@ final class WebAuthnChallenge
         return $encoded;
     }
 
+    public static function assertFreshAuthentication(array $session, int $now, int $ttlSeconds): void
+    {
+        $authenticatedAt = $session['authenticated_at'] ?? null;
+        if (!is_int($authenticatedAt)
+            || $authenticatedAt <= 0
+            || $authenticatedAt > $now + self::MAX_FUTURE_SKEW_SECONDS
+            || $now - $authenticatedAt > $ttlSeconds) {
+            throw new RuntimeException('Fresh authentication is required for passkey credential changes.');
+        }
+    }
+
     private static function assertPurpose(string $purpose): void
     {
         if (!in_array($purpose, ['register', 'login'], true)) {
