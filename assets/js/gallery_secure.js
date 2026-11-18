@@ -16,10 +16,22 @@
     let pendingSetup = null;
     let recoveryIdentity = null;
     let sessionGeneration = 0;
+    const transientSecrets = new Set();
+
+    function trackSecret(value) {
+        if (value instanceof Uint8Array) transientSecrets.add(value);
+        return value;
+    }
+
+    function clearSecret(value) {
+        if (!(value instanceof Uint8Array)) return;
+        cryptoApi().clearSecret(value);
+        transientSecrets.delete(value);
+    }
 
     function assertSessionGeneration(generation, result) {
         if (generation !== sessionGeneration) {
-            if (result && result.rootKey) cryptoApi().clearSecret(result.rootKey);
+            if (result && result.rootKey) clearSecret(result.rootKey);
             if (result && result.privateKeys) {
                 Object.keys(result.privateKeys).forEach(function (keyId) { delete result.privateKeys[keyId]; });
             }
@@ -58,6 +70,7 @@
         if (!root.PublicKeyCredential || !navigator.credentials || !navigator.credentials.get) {
             throw new Error('This browser does not support the passkey operation required by secure Gallery.');
         }
+        const generation = sessionGeneration;
         const publicKey = optionsPayload.options;
         publicKey.challenge = cryptoApi().fromBase64Url(publicKey.challenge).buffer;
         if (publicKey.allowCredentials) {
@@ -65,18 +78,19 @@
                 return { type: 'public-key', id: cryptoApi().fromBase64Url(item.id).buffer };
             });
         }
-        const prfInput = cryptoApi().fromBase64Url(publicKey.extensions.prf.eval.first);
+        const prfInput = trackSecret(cryptoApi().fromBase64Url(publicKey.extensions.prf.eval.first));
         publicKey.extensions.prf.eval.first = prfInput.buffer;
         let prfOutput = null;
         try {
             const credential = await navigator.credentials.get({ publicKey: publicKey });
+            assertSessionGeneration(generation);
             if (!credential) throw new Error('Passkey authentication was cancelled.');
             const extensionResults = credential.getClientExtensionResults ? credential.getClientExtensionResults() : {};
             const prfResult = extensionResults && extensionResults.prf && extensionResults.prf.results
                 ? extensionResults.prf.results.first
                 : null;
             if (!prfResult) throw new Error('This passkey does not support the PRF extension required by secure Gallery.');
-            prfOutput = new Uint8Array(prfResult);
+            prfOutput = trackSecret(new Uint8Array(prfResult));
             if (prfOutput.byteLength !== 32) throw new Error('The passkey returned an invalid Gallery key result.');
 
             const response = credential.response;
@@ -96,6 +110,7 @@
                 body: JSON.stringify(body)
             });
             const verified = await readJson(verifiedResponse);
+            assertSessionGeneration(generation);
             return {
                 credentialId: verified.credentialId,
                 identity: verified.identity,
@@ -103,8 +118,8 @@
                 accountSalt: prfInput
             };
         } catch (error) {
-            if (prfOutput) cryptoApi().clearSecret(prfOutput);
-            cryptoApi().clearSecret(prfInput);
+            if (prfOutput) clearSecret(prfOutput);
+            clearSecret(prfInput);
             throw error;
         }
     }
@@ -146,6 +161,7 @@
                     verified.prfOutput,
                     verified.credentialId
                 );
+            trackSecret(unlocked.rootKey);
             assertSessionGeneration(generation, unlocked);
             unlockedPrivateKeys = unlocked.privateKeys || null;
             unlockedPublicKeys = unlocked.publicKeys || null;
@@ -157,8 +173,8 @@
             return { status: 'unlocked' };
         } finally {
             if (!retainPendingSetup) {
-                cryptoApi().clearSecret(verified.prfOutput);
-                cryptoApi().clearSecret(verified.accountSalt);
+                clearSecret(verified.prfOutput);
+                clearSecret(verified.accountSalt);
             }
         }
     }
@@ -197,10 +213,11 @@
                 pendingSetup.accountSalt,
                 pendingSetup.credentialId
             );
+            trackSecret(identity.rootKey);
             assertSessionGeneration(generation, identity);
-            recoveryKey = await cryptoApi().createRecoveryKey();
+            recoveryKey = trackSecret(await cryptoApi().createRecoveryKey());
             assertSessionGeneration(generation);
-            recoverySalt = cryptoApi().createAccountSalt();
+            recoverySalt = trackSecret(cryptoApi().createAccountSalt());
             const recoveryEnvelope = await cryptoApi().wrapRootKeyForRecovery(identity.rootKey, recoveryKey, recoverySalt);
             assertSessionGeneration(generation);
             if (!pendingSetup) throw new Error('Secure Gallery was locked during setup.');
@@ -213,9 +230,9 @@
             return { recoveryCode: pendingSetup.recoveryCode };
         } finally {
             if (!retainedIdentity) {
-                if (identity) cryptoApi().clearSecret(identity.rootKey);
-                if (recoveryKey) cryptoApi().clearSecret(recoveryKey);
-                if (recoverySalt) cryptoApi().clearSecret(recoverySalt);
+                if (identity) clearSecret(identity.rootKey);
+                if (recoveryKey) clearSecret(recoveryKey);
+                if (recoverySalt) clearSecret(recoverySalt);
             }
         }
     }
@@ -250,14 +267,15 @@
             setup.prfOutput,
             setup.credentialId
         );
+        trackSecret(activeKeys.rootKey);
         assertSessionGeneration(generation, activeKeys);
         unlockedPrivateKey = activeKeys.privateKey;
-        cryptoApi().clearSecret(activeKeys.rootKey);
+        clearSecret(activeKeys.rootKey);
         unlockedRootKey = identity.rootKey;
         unlockedPublicKey = identity.publicKey;
-        cryptoApi().clearSecret(setup.prfOutput);
-        cryptoApi().clearSecret(setup.accountSalt);
-        cryptoApi().clearSecret(setup.recoveryKey);
+        clearSecret(setup.prfOutput);
+        clearSecret(setup.accountSalt);
+        clearSecret(setup.recoveryKey);
         pendingSetup = null;
         recoveryIdentity = null;
         return { status: 'initialized' };
@@ -282,7 +300,7 @@
             if (!recoveryIdentity || !recoveryIdentity.recoveryEnvelope) {
                 throw new Error('Gallery recovery is not available. Initialize secure Gallery first.');
             }
-            recoveryKey = cryptoApi().fromBase64Url(String(recoveryCode || '').trim());
+            recoveryKey = trackSecret(cryptoApi().fromBase64Url(String(recoveryCode || '').trim()));
             if (recoveryKey.byteLength !== 32) {
                 recoveryKey.fill(0);
                 throw new Error('The Gallery recovery code is invalid.');
@@ -298,6 +316,7 @@
                     recoveryIdentity.recoveryEnvelope,
                     recoveryKey
                 );
+            trackSecret(unlocked.rootKey);
             assertSessionGeneration(generation, unlocked);
             unlockedPrivateKeys = unlocked.privateKeys || null;
             unlockedPublicKeys = unlocked.publicKeys || null;
@@ -391,6 +410,7 @@
                 verified.prfOutput,
                 verified.credentialId
             );
+            trackSecret(refreshed.rootKey);
             assertSessionGeneration(generation, refreshed);
             unlockedPrivateKeys = refreshed.privateKeys;
             unlockedPublicKeys = refreshed.publicKeys;
@@ -398,7 +418,7 @@
             legacyKeyId = refreshed.legacyKeyId || null;
             unlockedPrivateKey = unlockedPrivateKeys[activeKeyId];
             unlockedPublicKey = unlockedPublicKeys[activeKeyId];
-            cryptoApi().clearSecret(refreshed.rootKey);
+            clearSecret(refreshed.rootKey);
             refreshed = null;
             return { status: 'added', keyId: keyId };
         } finally {
@@ -647,6 +667,7 @@
 
     function lock() {
         sessionGeneration++;
+        Array.from(transientSecrets).forEach(clearSecret);
         if (root.SentryIQGalleryStorage
             && typeof root.SentryIQGalleryStorage.invalidatePendingDecrypts === 'function') {
             root.SentryIQGalleryStorage.invalidatePendingDecrypts();
