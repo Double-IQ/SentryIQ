@@ -333,6 +333,46 @@
         }
     }
 
+    async function rewrapObjectEnvelope(envelope, privateKeyOrMap, newPublicKeyJwk, newKeyId, expectedPhotoId, expectedRole) {
+        const subtle = requireCrypto().subtle;
+        if (!envelope || envelope.version !== VERSION || envelope.algorithm !== 'A256GCM' || envelope.keyWrap !== 'RSA-OAEP-256') {
+            throw new Error('Unsupported Gallery object envelope.');
+        }
+        if (envelope.photoId !== expectedPhotoId || envelope.role !== expectedRole) {
+            throw new Error('Gallery object metadata does not match the requested object.');
+        }
+        if (envelope.keyId !== undefined) validateKeyId(envelope.keyId);
+        validateKeyId(newKeyId);
+        const oldPrivateKey = envelope.keyId && privateKeyOrMap && Object.prototype.hasOwnProperty.call(privateKeyOrMap, envelope.keyId)
+            ? privateKeyOrMap[envelope.keyId]
+            : (privateKeyOrMap && privateKeyOrMap.type === 'private' ? privateKeyOrMap : null);
+        if (!oldPrivateKey) throw new Error('No Gallery private key is available to rewrap this object.');
+        const nonce = fromBase64Url(envelope.nonce);
+        const wrappedDek = fromBase64Url(envelope.wrappedDek);
+        if (nonce.byteLength !== 12 || wrappedDek.byteLength !== 384) throw new Error('Invalid Gallery object envelope.');
+        const newPublicKey = await importGalleryPublicKey(newPublicKeyJwk);
+        let dekRaw;
+        try {
+            dekRaw = await subtle.decrypt({ name: 'RSA-OAEP' }, oldPrivateKey, wrappedDek);
+        } catch (_) {
+            throw new Error('Unable to unlock this Gallery object for key migration.');
+        }
+        if (dekRaw.byteLength !== 32) {
+            new Uint8Array(dekRaw).fill(0);
+            throw new Error('Invalid Gallery object key.');
+        }
+        try {
+            const newWrappedDek = await subtle.encrypt({ name: 'RSA-OAEP' }, newPublicKey, dekRaw);
+            return {
+                ...envelope,
+                keyId: newKeyId,
+                wrappedDek: toBase64Url(newWrappedDek)
+            };
+        } finally {
+            new Uint8Array(dekRaw).fill(0);
+        }
+    }
+
     async function decryptObject(ciphertext, envelope, privateKeyOrMap, expectedPhotoId, expectedRole) {
         const subtle = requireCrypto().subtle;
         if (!envelope || envelope.version !== VERSION || envelope.algorithm !== 'A256GCM' || envelope.keyWrap !== 'RSA-OAEP-256') {
@@ -387,6 +427,7 @@
         clearSecret: function (secret) { if (secret instanceof Uint8Array) secret.fill(0); },
         encryptObject: encryptObject,
         decryptObject: decryptObject,
+        rewrapObjectEnvelope: rewrapObjectEnvelope,
         toBase64Url: toBase64Url,
         fromBase64Url: fromBase64Url
     });
