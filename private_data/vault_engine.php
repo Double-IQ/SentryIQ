@@ -56,6 +56,10 @@ function sentryiq_is_trusted_data_directory(?string $directory = null): bool
     if (rtrim($real, '/') !== $directory) {
         throw new RuntimeException('trusted_directory:realpath_mismatch');
     }
+    if (function_exists('sentryiq_path_is_outside_document_root')
+        && !sentryiq_path_is_outside_document_root($directory)) {
+        throw new RuntimeException('trusted_directory:inside_document_root');
+    }
 
     $perms = @fileperms($directory);
     if ($perms === false) {
