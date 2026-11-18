@@ -123,12 +123,58 @@
         recoveryPanel.hidden = true;
         workspace.hidden = false;
         refreshDevices();
+        refreshRotationControls();
         setStatus('secure-gallery-workspace-status', 'Gallery unlocked in this browser. It will lock after 15 minutes of inactivity or 60 seconds in the background.', 'success');
     }
 
     function showRecovery(message) {
         recoveryPanel.hidden = false;
         setStatus('secure-gallery-recovery-status', message || 'Enter your saved recovery code.', 'error');
+    }
+
+    async function refreshRotationControls() {
+        const select = byId('secure-gallery-rotation-target');
+        if (!select) return;
+        try {
+            const info = SentryIQSecureGallery.getKeyInfo();
+            const status = await SentryIQSecureGallery.getRotationStatus();
+            const current = status.rotation;
+            select.replaceChildren();
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = 'Select an inactive key';
+            select.appendChild(placeholder);
+            info.keyIds.filter(function (keyId) { return keyId !== info.activeKeyId; }).forEach(function (keyId) {
+                const option = document.createElement('option');
+                option.value = keyId;
+                option.textContent = 'Key ' + keyId.slice(-8);
+                select.appendChild(option);
+            });
+            const abort = byId('secure-gallery-abort-rotation');
+            if (current && current.status === 'running') {
+                select.value = current.to_key_id;
+                byId('secure-gallery-rotate').textContent = 'Resume rotation';
+                abort.disabled = false;
+                const remaining = Number(status.references && status.references[current.from_key_id] || 0);
+                setStatus('secure-gallery-rotation-status',
+                    'Rotation in progress. ' + remaining + ' object or pending-upload reference(s) still use the previous key.',
+                    'success');
+            } else {
+                byId('secure-gallery-rotate').textContent = 'Start rotation';
+                abort.disabled = true;
+                if (current && current.status === 'completed') {
+                    setStatus('secure-gallery-rotation-status', 'Last key rotation completed. The previous key was retired after the server verified that no objects referenced it.', 'success');
+                } else if (current && current.status === 'aborted') {
+                    setStatus('secure-gallery-rotation-status', 'Last rotation was aborted. Both keys were retained and existing photos remain readable.', 'success');
+                } else if (info.keyIds.length < 2) {
+                    setStatus('secure-gallery-rotation-status', 'Add an inactive encryption key before starting rotation.');
+                } else {
+                    setStatus('secure-gallery-rotation-status', 'An inactive encryption key is ready for rotation.');
+                }
+            }
+        } catch (error) {
+            setStatus('secure-gallery-rotation-status', error.message || 'Unable to read Gallery rotation status.', 'error');
+        }
     }
 
     async function refreshPhotos() {
@@ -345,10 +391,64 @@
         try {
             const result = await SentryIQSecureGallery.addWrappingKey();
             setStatus('secure-gallery-workspace-status', 'A new inactive encryption key was added (' + result.keyId + '). Existing uploads continue using the current active key.', 'success');
+            await refreshRotationControls();
         } catch (error) {
             setStatus('secure-gallery-workspace-status', error.message || 'Unable to add an encryption key.', 'error');
         } finally {
             this.disabled = false;
+        }
+    });
+
+    byId('secure-gallery-rotate').addEventListener('click', async function () {
+        const targetKeyId = byId('secure-gallery-rotation-target').value;
+        if (!targetKeyId) {
+            setStatus('secure-gallery-rotation-status', 'Select an inactive encryption key first.', 'error');
+            return;
+        }
+        if (!window.confirm('Switch new uploads to this key and rewrap existing photo keys? Photos stay encrypted; this operation changes only their encrypted key envelopes.')) return;
+        this.disabled = true;
+        byId('secure-gallery-abort-rotation').disabled = true;
+        try {
+            const rotation = await SentryIQSecureGallery.startRotation(targetKeyId);
+            setStatus('secure-gallery-rotation-status', 'Migrating encrypted photo-key envelopes…');
+            const result = await SentryIQGalleryStorage.migrateEnvelopesToKey(targetKeyId, function (progress) {
+                setStatus('secure-gallery-rotation-status',
+                    'Migrated ' + progress.updated + ' of ' + progress.total + ' photo-key envelope(s)…');
+            });
+            const remaining = Number(result.references && result.references[rotation.from_key_id] || 0);
+            if (remaining > 0) {
+                setStatus('secure-gallery-rotation-status',
+                    'Migration paused safely. ' + result.updated + ' envelope(s) updated; ' + remaining +
+                    ' reference(s) still use the old key, including any in-flight uploads. Press Resume after they finish or are cleaned up.',
+                    'success');
+            } else {
+                await SentryIQSecureGallery.finalizeRotation();
+                setStatus('secure-gallery-rotation-status',
+                    'Key rotation completed. All photo envelopes now use the new key and the old key was retired.',
+                    'success');
+            }
+            await refreshRotationControls();
+        } catch (error) {
+            setStatus('secure-gallery-rotation-status', error.message || 'Key rotation stopped safely. You can resume it later.', 'error');
+            await refreshRotationControls();
+        } finally {
+            this.disabled = false;
+        }
+    });
+
+    byId('secure-gallery-abort-rotation').addEventListener('click', async function () {
+        if (!window.confirm('Abort this rotation? The previous key will become active again. Both keys will be kept, and already migrated photos will remain readable.')) return;
+        this.disabled = true;
+        byId('secure-gallery-rotate').disabled = true;
+        try {
+            await SentryIQSecureGallery.abortRotation();
+            setStatus('secure-gallery-rotation-status', 'Rotation aborted. The previous key is active again and both keys were retained.', 'success');
+            await refreshRotationControls();
+        } catch (error) {
+            setStatus('secure-gallery-rotation-status', error.message || 'Unable to abort key rotation.', 'error');
+        } finally {
+            this.disabled = true;
+            byId('secure-gallery-rotate').disabled = false;
         }
     });
 
