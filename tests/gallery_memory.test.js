@@ -133,3 +133,12 @@ test('pagehide protection is active even before the unlock-time session guard st
     assert.match(ui, /secure-gallery-unlock'\)\.addEventListener\('click',[\s\S]*?startSessionGuard\(\);\s*const result = await SentryIQSecureGallery\.unlock\(\)/);
     assert.match(ui, /secure-gallery-recover'\)\.addEventListener\('click',[\s\S]*?startSessionGuard\(\);\s*await SentryIQSecureGallery\.unlockWithRecovery/);
 });
+
+test('transient passkey and recovery secrets are tracked and cleared immediately on lock', () => {
+    assert.match(secure, /const transientSecrets = new Set\(\)/);
+    assert.match(secure, /function trackSecret\(value\)/);
+    assert.match(secure, /Array\.from\(transientSecrets\)\.forEach\(clearSecret\)/);
+    assert.match(secure, /prfOutput = trackSecret\(new Uint8Array\(prfResult\)\)/);
+    assert.match(secure, /pendingSetup\.recoveryCode = ''/);
+    assert.match(secure, /async function verifyPasskey[\s\S]*?assertSessionGeneration\(generation\)[\s\S]*?const verified = await readJson\(verifiedResponse\);\s*assertSessionGeneration\(generation\)/);
+});
