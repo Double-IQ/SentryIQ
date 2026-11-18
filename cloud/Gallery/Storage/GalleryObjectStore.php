@@ -173,6 +173,28 @@ final class GalleryObjectStore
         return hash('sha256', json_encode($envelope, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
     }
 
+    /**
+     * Atomically close a pending upload reservation before deleting its B2
+     * objects. A late commit can no longer activate an object being cancelled.
+     */
+    public function markCancelling(string $photoId): ?array
+    {
+        $this->validatePhotoId($photoId);
+        $result = null;
+        $this->mutate(function (array &$records) use ($photoId, &$result): void {
+            $record = $records[$photoId] ?? null;
+            if (!is_array($record)) return;
+            if (($record['status'] ?? '') === 'pending') {
+                $record['status'] = 'cancelling';
+                $records[$photoId] = $record;
+                $result = $record;
+                return;
+            }
+            if (($record['status'] ?? '') === 'cancelling') $result = $record;
+        });
+        return $result;
+    }
+
     public function find(string $photoId): ?array
     {
         $this->validatePhotoId($photoId);
@@ -199,8 +221,9 @@ final class GalleryObjectStore
         $records = $this->read();
         $pending = [];
         foreach ($records as $photoId => $record) {
-            if (is_string($photoId) && is_array($record) && ($record['status'] ?? '') === 'pending'
-                && (int)($record['created_at'] ?? 0) <= $threshold) {
+            if (is_string($photoId) && is_array($record)
+                && (($record['status'] ?? '') === 'cancelling'
+                    || (($record['status'] ?? '') === 'pending' && (int)($record['created_at'] ?? 0) <= $threshold))) {
                 $pending[$photoId] = $record;
             }
         }
