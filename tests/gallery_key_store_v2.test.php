@@ -73,11 +73,10 @@ try {
     keyStoreCheck($store->credentialEnvelope($credentialB) === null, 'Passkey envelope removal must work with v2 keyring storage.');
     keyStoreCheck($store->keyring()['active_key_id'] === 'gallery-key-0001', 'Credential changes must not alter key selection.');
 
-    keyStoreMustFail(
-        fn() => $store->migrateToKeyring('invalid'),
-        'A second migration attempt must not replace the persisted keyring.'
-    );
-    keyStoreCheck($store->keyring()['active_key_id'] === 'gallery-key-0001', 'Repeated migration must preserve the existing keyring.');
+    $beforeRepeatMigration = $store->keyring();
+    $afterRepeatMigration = $store->migrateToKeyring('ignored-on-existing-v2');
+    keyStoreCheck($afterRepeatMigration === $beforeRepeatMigration, 'Repeated migration must be idempotent and preserve the existing keyring.');
+    keyStoreCheck($store->keyring()['active_key_id'] === 'gallery-key-0001', 'Repeated migration must preserve the active key.');
 
     echo "Gallery key-store v2 persistence tests passed.\n";
 } finally {
