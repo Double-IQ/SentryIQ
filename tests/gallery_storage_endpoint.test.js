@@ -58,4 +58,6 @@ test('Gallery and account passkey mutations share one locked store', () => {
     assert.match(galleryPasskeyEndpoint, /gallery_passkey_save_counter\(\$passkeyPath, \$credentialId, \$counter\)/);
     assert.match(accountPasskeyEndpoint, /function pk_lock_store\([\s\S]*?pk_path\(\)\s*\.\s*'\.lock'[\s\S]*?flock\(\$handle, LOCK_EX\)/);
     assert.match(accountPasskeyEndpoint, /in_array\(\$action, \['register', 'delete', 'login'\], true\)[\s\S]*?\$passkeyStoreLock\s*=\s*pk_lock_store\(\)[\s\S]*?\$store\s*=\s*pk_store\(\)/);
+    assert.match(accountPasskeyEndpoint, /GalleryRotationLock::synchronized\(\$dataDir,[\s\S]*?GalleryRotationStore\([\s\S]*?rotation is active or awaiting retirement[\s\S]*?removeCredentialEnvelope\(\$credentialId\)/);
+    assert.match(galleryPasskeyEndpoint, /function \(\) use \(\$galleryKeys, \$rotationJournal, \$targetKeyId, \$verifiedId\)[\s\S]*?credentialEnvelope\(\$verifiedId\)/);
 });
