@@ -90,3 +90,28 @@ test('object envelope replacement is rejected outside the active rotation target
     assert.match(action, /\(\$envelope\['keyId'\]\s*\?\?\s*null\)\s*!==\s*\$rotation\['to_key_id'\]/);
     assert.match(action, /may only be replaced as part of the active key rotation/);
 });
+
+test('WebAuthn registration, login and Gallery assertion challenges are one-time', () => {
+    const accountPasskey = fs.readFileSync(
+        path.join(__dirname, '../app/Auth/PasskeyAuth.php'),
+        'utf8'
+    );
+    const registerStart = accountPasskey.indexOf("if ($action==='register')");
+    const loginStart = accountPasskey.indexOf("if ($action==='login')");
+    const register = accountPasskey.slice(registerStart, loginStart);
+    const login = accountPasskey.slice(loginStart);
+    assert.ok(register.indexOf("unset($_SESSION['pk_register_challenge']") > register.indexOf("$challenge=pk_unb64"));
+    assert.ok(register.indexOf("unset($_SESSION['pk_register_challenge']") < register.indexOf("pk_validate_client"));
+    assert.ok(login.indexOf("unset($_SESSION['pk_login_challenge'])") > login.indexOf("$challenge=pk_unb64"));
+    assert.ok(login.indexOf("unset($_SESSION['pk_login_challenge'])") < login.indexOf("pk_validate_client"));
+
+    const galleryPasskey = fs.readFileSync(
+        path.join(__dirname, '../app/Auth/GalleryPasskeyAuth.php'),
+        'utf8'
+    );
+    const verifyStart = galleryPasskey.indexOf("if ($action === 'verify')");
+    const verifyEnd = galleryPasskey.indexOf("if ($action === 'initialize')", verifyStart);
+    const verify = galleryPasskey.slice(verifyStart, verifyEnd);
+    assert.ok(verify.indexOf("unset($_SESSION['gallery_passkey_challenge']") > verify.indexOf("$challenge = gallery_passkey_unb64"));
+    assert.ok(verify.indexOf("unset($_SESSION['gallery_passkey_challenge']") < verify.indexOf("gallery_passkey_verify_client"));
+});
