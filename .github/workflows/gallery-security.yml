@@ -63,5 +63,8 @@ jobs:
       - name: Test authentication throttle exception handling
         run: php tests/auth_throttle_exception.test.php
 
+      - name: Test WebAuthn attested COSE key binding
+        run: php tests/webauthn_cose.test.php
+
       - name: Test GitHub CLI attestation adapter contract
         run: php tests/github_cli_attestation_verifier.test.php
