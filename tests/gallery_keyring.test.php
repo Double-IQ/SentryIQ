@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../cloud/Gallery/Storage/GalleryKeyring.php';
 
-use SentryIQCloud\\Gallery\\Storage\\GalleryKeyring;
+use SentryIQCloud\Gallery\Storage\GalleryKeyring;
 
 function keyringCheck(bool $condition, string $message): void
 {
@@ -56,4 +56,4 @@ keyringCheck(!isset($keyring['keys'][$firstId]), 'An unreferenced inactive key m
 keyringCheck(isset($keyring['keys'][$secondId]), 'Retirement must preserve the active key.');
 keyringMustFail(fn() => GalleryKeyring::activate($keyring, $firstId), 'A retired key must not be reactivated.');
 
-echo "Gallery keyring tests passed.\\n";
+echo "Gallery keyring tests passed.\n";
