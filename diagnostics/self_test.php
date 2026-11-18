@@ -396,9 +396,29 @@ $browserTests = [
 $csrf = function_exists('sentryiq_csrf_token') ? sentryiq_csrf_token() : '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['diagnostic_log']) && $dataDir !== '' && is_dir($dataDir) && !is_link($dataDir)) {
+    sentryiq_require_csrf();
     $raw = (string)($_POST['diagnostic_log'] ?? '');
-    $decoded = json_decode($raw, true);
-    $safe = is_array($decoded) ? $decoded : [];
+    if (strlen($raw) > 262144) {
+        http_response_code(413);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => 'Diagnostic report exceeds the size limit.']);
+        exit;
+    }
+    try {
+        $decoded = json_decode($raw, true, 32, JSON_THROW_ON_ERROR);
+    } catch (Throwable) {
+        http_response_code(400);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => 'Invalid diagnostic report.']);
+        exit;
+    }
+    if (!is_array($decoded)) {
+        http_response_code(400);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => 'Invalid diagnostic report.']);
+        exit;
+    }
+    $safe = $decoded;
     $record = [
         'timestamp' => date('c'),
         'stage' => 'SELF_TEST_BROWSER_RESULTS',
@@ -455,9 +475,9 @@ body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-seri
 </div>
 </div>
 <script>
-const tests=<?= json_encode($browserTests, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>;
-const csrf=<?= json_encode($csrf) ?>;
-let reportData={diagnosticBuild:<?= json_encode(SENTRYIQ_DIAGNOSTIC_BUILD) ?>,serverChecks:<?= json_encode($results, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>,browserChecks:[]};
+const tests=<?= json_encode($browserTests, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) ?>;
+const csrf=<?= json_encode($csrf, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) ?>;
+let reportData={diagnosticBuild:<?= json_encode(SENTRYIQ_DIAGNOSTIC_BUILD, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) ?>,serverChecks:<?= json_encode($results, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) ?>,browserChecks:[]};
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
 async function checkOne(test){
     const started=performance.now();
