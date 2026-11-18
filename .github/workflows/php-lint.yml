@@ -25,3 +25,6 @@ jobs:
           while IFS= read -r -d '' file; do
             php -l "$file"
           done < <(find . -type f -name '*.php' -not -path './.git/*' -print0)
+
+      - name: Test post-install diagnostic access controls
+        run: php tests/post_install_diagnostic_access.test.php
