@@ -51,6 +51,7 @@ This document is the single working checklist for the reset security review and 
 - Completed: 6.2 — reviewed `.user.ini`, `.htaccess`, central HTTPS/session controls, storage permissions, update write privileges, and deployment-side PHP/TLS assumptions. Several server hardening settings and live TLS/runtime facts remain unverified; the web root and updater require stronger least-privilege boundaries.
 - Completed: 6.3 — consolidated logging, exception disclosure, diagnostic endpoint access/write behaviour, embedded diagnostic JSON, token/log retention, and error-output controls. Multiple diagnostic and exception-response paths still expose unnecessary details or permit unauthenticated/CSRF-triggered log writes.
 - Completed: 6.5 — completed the final source/CI security review and consolidated unresolved risks, environmental limitations, and deployment blockers. No risks have been accepted by the user; remediation review is pending.
+- Remediation in progress: **Critical updater rollback defect** addressed in [PR #55](https://github.com/Double-IQ/SentryIQ/pull/55) on branch `security/fix-updater-rollback`. The updater now snapshots original target existence, completes all backups before replacement, skips rollback if backup preparation fails, restores only from completed backups, and reports incomplete restore attempts. Regression coverage added in `tests/update_rollback.test.php` and wired into Gallery Security Checks. CI passed on head `250c278bb729784d1b8f458e47319730d2f1acd6`: [PHP Syntax Check](https://github.com/Double-IQ/SentryIQ/actions/runs/44350821706) and [Gallery Security Checks](https://github.com/Double-IQ/SentryIQ/actions/runs/44350821845), including the new updater rollback test. **Not merged; finding remains open until review/merge.** No production update was run.
 - No four-node deployment task is marked complete by this document.
 
 ---
@@ -405,7 +406,7 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 ## Working rules
 
 1. Complete Phase 1 audit items 3.1 through 6.5 sequentially, recording each item and its evidence before moving on; do not pause for user review after every audit item.
-2. After 6.5, present the consolidated findings, test results, limitations, and prioritized remediation plan; wait for user review before starting remediation.
+2. After the consolidated Phase 1 review, proceed with the user-approved remediation plan systematically; present the completed corrections and evidence for user review before merge/deployment.
 3. Before changing code, inspect the relevant implementation on `main` and identify the concrete weakness.
 4. Make the smallest safe correction that addresses that weakness.
 5. Run focused tests, then relevant regression tests.
