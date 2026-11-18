@@ -1,7 +1,7 @@
 # SentryIQ Security and Migration Roadmap
 
 **Status:** Active planning document  
-**Last reviewed:** 2026-11-08  
+**Last reviewed:** 2026-11-18  
 **Canonical target origin:** `https://sentryiq.bichet.co.za`  
 **Current production origin:** `https://bichet.co.za/SentryIQ`
 
@@ -26,9 +26,10 @@ This document is the project-level execution plan for security hardening, zero-k
 | Backblaze B2 CORS | Exact old and new origins configured; browser-level verification still required |
 | Gallery encryption design | PR #11 merged; end-to-end acceptance testing pending |
 | Zero-knowledge password vault and documents | Not complete; PHP currently handles the master key and document crypto |
-| Signed release verification | Not implemented end-to-end |
-| Integrity Node 1 (BTM-SA) | Not deployed |
-| Integrity Node 2 (Cloudflare Workers) | Not deployed |
+| Signed release verification | Native Sigstore/SLSA verifier and scheduled-node integration implemented on stacked PR #50; not merged to main or deployed |
+| Integrity Nodes A and B | Verifier/runtime prototypes implemented on PR #50; separate provider/host provisioning, keys, schedules, baselines and direct alerts not verified |
+| Integrity Node C (HelioHost) | Compatibility prototype and tests exist; HelioHost provisioning, native runtime configuration, key and schedule not verified |
+| Node 4 (BTM-SA) | Event receiver/incident pipeline implemented on PR #50; shares the SentryIQ host and is not an independent failure domain; runtime configuration and alert transport not deployed |
 | Production subdomain cutover | Not approved or performed |
 
 ## Guardrails
@@ -111,23 +112,27 @@ The server cannot decrypt vault or document content using its database, runtime 
 ## Workstream 4 — Signed releases and independent Integrity Nodes
 
 **Tracking:** [Integrity Nodes and signed releases issue #13](https://github.com/Double-IQ/SentryIQ/issues/13)  
-**Status:** Design/issue defined; signing pipeline and both nodes pending.
+**Status:** Substantial prototype implementation exists in stacked PRs #48 and #50; no release-trust or node deployment is yet verified.
 
 ### Release trust chain
 
 - [ ] Confirm the authoritative source repository and updater target. The updater currently references `BTM-SA/SentryIQ`, while the working repository is `Double-IQ/SentryIQ`; resolve this before changing update behavior.
-- [ ] Define a versioned release manifest containing release identity, monotonic sequence/anti-rollback data, commit/build identity, file paths, sizes, SHA-256 hashes, timestamp, and signing-key ID.
-- [ ] Establish an offline or hardware-backed signing process. The signing private key must never be stored on production hosting or either verifier.
-- [ ] Sign release manifests and verify signatures in the update client before accepting an update; a checksum alone is not authenticity.
+- [x] Define a versioned release manifest containing release identity, monotonic sequence/anti-rollback data, commit/build identity, file paths, sizes, SHA-256 hashes, timestamp, and signing-key ID (prototype in merged PR #27; current format and release integration still require final review).
+- [ ] Approve and operationalise signing-key custody. The signing private key must never be stored on production hosting or either verifier.
+- [ ] Complete end-to-end signed release publication and updater enforcement. Native Sigstore/SLSA verification is implemented in stacked PRs #48/#50, but those PRs are not merged to main and no production release has been verified.
 - [ ] Make builds reproducible or otherwise attest the exact build inputs and artifact identity.
-- [ ] Add CI security gates for tests, dependency review/scanning, secret scanning, and release artifact validation.
+- [ ] Complete general CI security gates for tests, dependency review/scanning, secret scanning, and release artifact validation.
 - [ ] Protect release tags/branches and separate build, signing, and deployment permissions.
 
 ### Independent verifiers
 
-- [ ] Implement Node 1 on BTM-SA infrastructure, isolated from the production host.
-- [ ] Implement Node 2 on Cloudflare Workers, independently administered from Node 1 and production.
-- [ ] Give both nodes pinned public trust roots and independent schedules/configuration; neither node should trust the other's verdict.
+- [x] Implement verifier/runtime prototypes for Integrity Nodes A and B (included in stacked PR #50); these are code prototypes, not deployed nodes.
+- [ ] Select and verify the actual independent hosting/provider and administrative boundary for Node A.
+- [ ] Select and verify a different independent hosting/provider and administrative boundary for Node B. Do not assume BTM-SA or Cloudflare Workers is a node host unless that deployment is explicitly confirmed.
+- [ ] Provision A and B separately with pinned public trust roots, unique signing keys, unique credentials, independent schedules, private state/baselines, and direct owner-alert transports. Neither node may trust the other's verdict.
+- [x] Implement a HelioHost-compatible Node C prototype; production provisioning and its native verification runtime remain pending.
+- [x] Implement the BTM-SA / Node 4 event receiver and incident pipeline in PR #50; BTM-SA shares the SentryIQ host and is not a third independent verifier or independent failure domain.
+- [ ] Provision Node 4 with separate logical service identity, private storage, A/B public keys and unique tokens, replay-safe state, and a tested alert sender. Host-level isolation remains limited by the shared SentryIQ host.
 - [ ] Verify the signed manifest and deployed public resources, including HTML, JavaScript, CSS, service worker/manifest if introduced, redirects, TLS, response headers, and unexpected external scripts/domains.
 - [ ] Define a separate authenticated, read-only deployment attestation for private server-side files. Public HTTP scanning cannot prove the integrity of private PHP source or protected runtime configuration.
 - [ ] Compare signed node reports and alert on disagreement, stale checks, missed checks, target unavailability, or verifier failure.
@@ -180,9 +185,11 @@ Update this section whenever a phase changes. Link the PR, workflow run, test ev
 | Gallery end-to-end validation | Pending | Test report and supported-device results |
 | Client crypto/key foundation | Pending | Design review, test vectors, cross-browser results |
 | Zero-knowledge vault/documents | Pending | Migration and no-plaintext/no-key-leak test evidence |
-| Signed release pipeline | Pending | Signed artifact and verifier test |
-| Integrity Node 1 | Pending | Independent deployment and signed report |
-| Integrity Node 2 | Pending | Independent deployment and signed report |
+| Signed release pipeline | Prototype in stacked PRs #48/#50; not merged/deployed | Merge/review, approved key custody, signed production release and updater verification |
+| Integrity Node A | Code prototype; host/provider not confirmed or deployed | Independent host inspection, private config/key/baseline, schedule, signed report and direct-alert test |
+| Integrity Node B | Code prototype; host/provider not confirmed or deployed | Different independent host/provider, private config/key/baseline, schedule, signed report and direct-alert test |
+| Integrity Node C (HelioHost) | Compatibility prototype; not deployed | HelioHost account/runtime, native verifier, key, private evidence store, schedule and direct-alert test |
+| Node 4 (BTM-SA) | Event pipeline prototype; same host as SentryIQ, not deployed | Separate logical service/runtime, A/B trust config, replay store, alert transport and host-isolation checks
 | Origin hardening/incident exercise | Pending | Security test report and exercise record |
 | New-origin deployment/cutover | Pending | Acceptance checklist, restore/rollback evidence, approval |
 
