@@ -7,6 +7,7 @@ const roles = ['original', 'thumbnail', 'preview', 'metadata'];
 const photoId = 'a'.repeat(32);
 const revision = 'a'.repeat(64);
 const replacements = [];
+const envelopeHashes = Object.fromEntries(roles.map(() => []));
 const envelopes = Object.fromEntries(roles.map((role) => [role, {
     version: 1,
     algorithm: 'A256GCM',
@@ -44,7 +45,7 @@ globalThis.fetch = async (url, options = {}) => {
                     [photoId]: {
                         objects: Object.fromEntries(roles.map((role) => [role, {
                             envelope: envelopes[role],
-                            envelope_hash: revision
+                            envelope_hash: envelopeHashes[role].at(-1) || revision
                         }]))
                     }
                 }
@@ -55,7 +56,10 @@ globalThis.fetch = async (url, options = {}) => {
         const body = JSON.parse(options.body);
         if (body.action === 'replace_envelope') {
             replacements.push(body);
-            return { ok: true, json: async () => ({ status: 'ok', envelopeHash: 'b'.repeat(64) }) };
+            envelopes[body.role] = body.envelope;
+            const nextHash = String.fromCharCode(97 + envelopeHashes[body.role].length + 1).repeat(64);
+            envelopeHashes[body.role].push(nextHash);
+            return { ok: true, json: async () => ({ status: 'ok', envelopeHash: nextHash }) };
         }
         if (body.action === 'key_inventory') {
             return { ok: true, json: async () => ({ status: 'ok', complete: true, references: { gk_target01: 4 } }) };
@@ -78,6 +82,14 @@ test('Gallery rotation rewraps every object envelope without uploading photo cip
         assert.equal(item.photoId, photoId);
         assert.equal(item.expectedEnvelopeHash, revision);
         assert.equal(item.envelope.keyId, 'gk_target01');
-        assert.equal(item.envelope.nonce, envelopes[item.role].nonce);
+        assert.equal(item.envelope.nonce, 'N'.repeat(16));
     }
+
+    // Simulate a reload after all four CAS writes committed. A resumed scan
+    // must recognise the target key and must not rewrap or rewrite envelopes.
+    const resumed = await globalThis.SentryIQGalleryStorage.migrateEnvelopesToKey('gk_target01');
+    assert.equal(resumed.updated, 0);
+    assert.equal(resumed.skipped, 4);
+    assert.equal(replacements.length, 4);
+    assert.ok(roles.every((role) => envelopes[role].keyId === 'gk_target01'));
 });
