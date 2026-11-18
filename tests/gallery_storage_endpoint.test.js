@@ -61,3 +61,21 @@ test('Gallery and account passkey mutations share one locked store', () => {
     assert.match(accountPasskeyEndpoint, /GalleryRotationLock::synchronized\(\$dataDir,[\s\S]*?GalleryRotationStore\([\s\S]*?rotation is active or awaiting retirement[\s\S]*?removeCredentialEnvelope\(\$credentialId\)/);
     assert.match(galleryPasskeyEndpoint, /function \(\) use \(\$galleryKeys, \$rotationJournal, \$targetKeyId, \$verifiedId\)[\s\S]*?credentialEnvelope\(\$verifiedId\)/);
 });
+
+test('Gallery initialization and device enrollment serialize against passkey changes and rotation', () => {
+    const passkeyEndpoint = fs.readFileSync(
+        path.join(__dirname, '../app/Auth/GalleryPasskeyAuth.php'),
+        'utf8'
+    );
+    assert.match(passkeyEndpoint, /function gallery_passkey_store_lock\(\$path\)[\s\S]*?\$lockPath\s*=\s*\$path\s*\.\s*'\.lock'[\s\S]*?flock\(\$lock, LOCK_EX\)/);
+    const initializeStart = passkeyEndpoint.indexOf("if ($action === 'initialize')");
+    const addCredentialStart = passkeyEndpoint.indexOf("if ($action === 'add_credential')");
+    const rotationStart = passkeyEndpoint.indexOf("if ($action === 'begin_rotation')");
+    const initialize = passkeyEndpoint.slice(initializeStart, addCredentialStart);
+    const addCredential = passkeyEndpoint.slice(addCredentialStart, rotationStart);
+    assert.ok(initialize.indexOf('gallery_passkey_store_lock($passkeyPath)') < initialize.indexOf('GalleryRotationLock::synchronized($dataDirectory'));
+    assert.ok(addCredential.indexOf('gallery_passkey_store_lock($passkeyPath)') < addCredential.indexOf('GalleryRotationLock::synchronized($dataDirectory'));
+    assert.match(initialize, /\$galleryKeys->isInitialized\(\)/);
+    assert.match(addCredential, /A Gallery device cannot be enrolled while key rotation is active or awaiting retirement/);
+    assert.match(addCredential, /credentialEnvelope\(\$credentialId\) !== null/);
+});
