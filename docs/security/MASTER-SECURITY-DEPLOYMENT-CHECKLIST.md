@@ -20,7 +20,7 @@ This document is the single working checklist for the reset security review and 
 
 ## Current progress
 
-**Phase 1: 18/30 findings/tasks completed.**
+**Phase 1: 19/30 findings/tasks completed.**
 
 - Completed: 1.1 — identified the public installation diagnostic endpoint as an exposure requiring protection.
 - Completed: 1.2 — authentication protection merged in [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53); production deployment/runtime verification remains outstanding and is not claimed.
@@ -40,7 +40,8 @@ This document is the single working checklist for the reset security review and 
 - Completed: 4.1 — traced first-run, configured, and relocated private data-directory paths and checked runtime validation against DOCUMENT_ROOT. Confirmed first-run has a partial path-name heuristic, but shared runtime validation and the settings relocation path do not enforce the web-root boundary.
 - Completed: 4.2 — reviewed runtime/file permissions, ownership assumptions, symlink handling, path construction, temporary-file/rename patterns, and locking across Vault, Documents, Gallery and legacy stores. Core Vault and active Gallery stores have good atomic/locking controls, while document and legacy metadata stores have concurrency and symlink-hardening gaps.
 - Completed: 4.3 — reviewed Vault VMK/password/recovery wrappers, Argon2id parameters, AES-256-GCM envelopes/nonces/AAD, object encryption, Gallery RSA-OAEP/HKDF/PRF/recovery design, and existing crypto tests. Cryptographic primitives and Gallery browser-side boundary are sound in the inspected paths; recorded unbounded KDF parameters and missing Vault crypto regression tests.
-- Next audit item: **4.4** — review secrets, credentials, configuration handling, and key/credential exposure.
+- Completed: 4.4 — reviewed first-run/runtime config generation, B2 credential storage, email/2FA handling, `.gitignore`, release/CI workflows, and tracked configuration paths. No live provider credentials were found in the inspected source/workflows; recorded incomplete ignore coverage for runtime secret files and the existing web-root config-pointer exposure.
+- Next audit item: **4.5** — review logging, diagnostics, backup/recovery data, and sensitive-data leakage.
 - No four-node deployment task is marked complete by this document.
 
 ---
@@ -283,6 +284,7 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 | 2026-11-18 | 4.1 | Traced first-run, shared runtime, and settings relocation paths; compared canonical paths with DOCUMENT_ROOT enforcement | Confirmed first-run path-name heuristic but no shared web-root containment check; Gallery stores have independent checks while Vault/Documents rely on weak helper; no production filesystem test possible | Yes |
 | 2026-11-18 | 4.2 | Reviewed filesystem permissions, symlink/path handling, atomic writes, and transaction locks across Vault, Documents, and Gallery stores | Confirmed core Vault/Gallery atomic writes; recorded missing vault/document transaction locks, nested Documents symlink checks, legacy Gallery store weaknesses, and ownership verification gap; source audit only | Yes |
 | 2026-11-18 | 4.3 | Reviewed Vault and Gallery key hierarchy, KDFs, AES-GCM/RSA-OAEP/HKDF envelopes, recovery and crypto test coverage | Confirmed strong primitives/defaults and Gallery browser-side key boundary; recorded missing KDF upper bounds and absent Vault crypto tests; source review only, tests not executed | Yes |
+| 2026-11-18 | 4.4 | Reviewed private config generation, B2 credential file handling, email/2FA values, ignore rules, and CI/release workflow permissions | No provider credentials found in inspected source/workflows; recorded incomplete .gitignore coverage for generated Gallery/runtime secrets and root config pointer exposure from 4.1; no code changed | Yes |
 
 ## Working rules
 
