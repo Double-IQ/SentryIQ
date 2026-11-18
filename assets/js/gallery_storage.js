@@ -304,33 +304,49 @@
         return result.references || {};
     }
 
+    function clearPrivateMetadata(metadata) {
+        if (!metadata || typeof metadata !== 'object') return;
+        Object.keys(metadata).forEach(function (key) {
+            if (typeof metadata[key] === 'string') metadata[key] = '';
+            else metadata[key] = null;
+        });
+    }
+
     async function loadPhoto(photoId) {
-        const metadataBytes = await download(photoId, 'metadata');
-        const metadata = decodePrivateMetadata(metadataBytes);
-        const thumbnailBytes = await download(photoId, 'thumbnail');
-        let thumbnailUrl;
+        let metadata = null;
+        let thumbnailBytes = null;
         try {
+            const metadataBytes = await download(photoId, 'metadata');
+            metadata = decodePrivateMetadata(metadataBytes);
+            thumbnailBytes = await download(photoId, 'thumbnail');
             const thumbnailBlob = new Blob([thumbnailBytes], { type: storedImageType(metadata.thumbnailType) });
-            thumbnailUrl = URL.createObjectURL(thumbnailBlob);
+            const thumbnailUrl = URL.createObjectURL(thumbnailBlob);
+            objectUrls.add(thumbnailUrl);
+            return { photoId: photoId, metadata: metadata, thumbnailUrl: thumbnailUrl };
+        } catch (error) {
+            clearPrivateMetadata(metadata);
+            throw error;
         } finally {
-            new Uint8Array(thumbnailBytes).fill(0);
+            if (thumbnailBytes instanceof ArrayBuffer) new Uint8Array(thumbnailBytes).fill(0);
+            else if (thumbnailBytes instanceof Uint8Array) thumbnailBytes.fill(0);
         }
-        objectUrls.add(thumbnailUrl);
-        return { photoId: photoId, metadata: metadata, thumbnailUrl: thumbnailUrl };
     }
 
     async function openPreview(photoId) {
-        const metadataBytes = await download(photoId, 'metadata');
-        const metadata = decodePrivateMetadata(metadataBytes);
-        const previewBytes = await download(photoId, 'preview');
-        let url;
+        let metadata = null;
+        let previewBytes = null;
         try {
-            url = URL.createObjectURL(new Blob([previewBytes], { type: storedImageType(metadata.previewType) }));
+            const metadataBytes = await download(photoId, 'metadata');
+            metadata = decodePrivateMetadata(metadataBytes);
+            previewBytes = await download(photoId, 'preview');
+            const url = URL.createObjectURL(new Blob([previewBytes], { type: storedImageType(metadata.previewType) }));
+            objectUrls.add(url);
+            return url;
         } finally {
-            new Uint8Array(previewBytes).fill(0);
+            clearPrivateMetadata(metadata);
+            if (previewBytes instanceof ArrayBuffer) new Uint8Array(previewBytes).fill(0);
+            else if (previewBytes instanceof Uint8Array) previewBytes.fill(0);
         }
-        objectUrls.add(url);
-        return url;
     }
 
     async function migrateEnvelopesToKey(targetKeyId, onProgress) {
