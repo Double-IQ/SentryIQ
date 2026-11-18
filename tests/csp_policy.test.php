@@ -32,6 +32,7 @@ $templates = [
     'app/Auth/Passkeys.php',
     'app/Gallery/Settings.php',
     'app/Security/SystemLog.php',
+    'diagnostics/copy-code.php',
 ];
 
 foreach ($templates as $relativePath) {
