@@ -127,3 +127,9 @@ test('refreshed root-key copies are cleared after keyring synchronization', () =
     assert.match(secure, /async function ensureKeyAvailable[\s\S]*?finally\s*\{\s*cryptoApi\(\)\.clearSecret\(refreshed\.rootKey\)/);
     assert.match(secure, /async function syncKeyringState[\s\S]*?finally\s*\{\s*cryptoApi\(\)\.clearSecret\(refreshed\.rootKey\)/);
 });
+
+test('pagehide protection is active even before the unlock-time session guard starts', () => {
+    assert.match(ui, /window\.addEventListener\('pagehide', function \(\) \{[\s\S]*?lockWorkspace\('pagehide'\)/);
+    assert.match(ui, /secure-gallery-unlock'\)\.addEventListener\('click',[\s\S]*?startSessionGuard\(\);\s*const result = await SentryIQSecureGallery\.unlock\(\)/);
+    assert.match(ui, /secure-gallery-recover'\)\.addEventListener\('click',[\s\S]*?startSessionGuard\(\);\s*await SentryIQSecureGallery\.unlockWithRecovery/);
+});
