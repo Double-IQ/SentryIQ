@@ -211,6 +211,18 @@ try {
     $objectStore->createPending($pendingPhotoId, $pendingKeys, 'gk_testkey01');
     $inventory = $objectStore->keyReferenceInventory('gk_legacy01');
     check(($inventory['gk_testkey01'] ?? 0) === 6, 'In-flight upload reservations must count against key retirement.');
+    $cancelling = $objectStore->markCancelling($pendingPhotoId);
+    check(($cancelling['status'] ?? '') === 'cancelling', 'Cancellation must atomically close the pending reservation.');
+    check(isset($objectStore->stalePending()[$pendingPhotoId]), 'Interrupted cancellation must remain discoverable for cleanup retry.');
+    $lateCommit = $keyedEnvelopes;
+    foreach (['original', 'thumbnail', 'preview', 'metadata'] as $role) $lateCommit[$role]['photoId'] = $pendingPhotoId;
+    expectFailure(
+        fn() => $objectStore->commit($pendingPhotoId, $lateCommit, $sizes, ['gk_testkey01'], true),
+        'A late upload commit must not activate a reservation already marked for cancellation.'
+    );
+    check(($objectStore->find($pendingPhotoId)['status'] ?? '') === 'cancelling', 'A rejected late commit must leave the reservation cancelling.');
+    check(($objectStore->keyReferenceInventory('gk_legacy01')['gk_testkey01'] ?? 0) === 6,
+        'Cancelling reservations must remain in the inventory until B2 cleanup is confirmed.');
 
     check($objectStore->remove($pendingPhotoId) !== null, 'Pending Gallery reservation should be removable.');
     check($objectStore->remove($keyedPhotoId) !== null, 'Keyed Gallery object record should be removable.');
