@@ -7,6 +7,7 @@ const path = require('node:path');
 
 const storage = fs.readFileSync(path.join(__dirname, '../assets/js/gallery_storage.js'), 'utf8');
 const ui = fs.readFileSync(path.join(__dirname, '../assets/js/gallery_secure_ui.js'), 'utf8');
+const secure = fs.readFileSync(path.join(__dirname, '../assets/js/gallery_secure.js'), 'utf8');
 
 
 const originalWindow = globalThis.window;
@@ -99,4 +100,30 @@ test('photo metadata is cleared when loading fails or preview creation completes
     assert.match(storage, /function clearPrivateMetadata\([\s\S]*?metadata\[key\] = ''/);
     assert.match(storage, /async function loadPhoto\([\s\S]*?catch \(error\) \{\s*clearPrivateMetadata\(metadata\)/);
     assert.match(storage, /async function openPreview\([\s\S]*?finally \{\s*clearPrivateMetadata\(metadata\)/);
+});
+
+test('asynchronous key operations cannot restore Gallery keys after a lock', () => {
+    assert.match(secure, /let sessionGeneration = 0/);
+    assert.match(secure, /function lock\(\)\s*\{\s*sessionGeneration\+\+/);
+    const guardedOperations = [
+        'unlock', 'prepareIdentity', 'completeIdentitySetup', 'unlockWithRecovery',
+        'enrollCurrentPasskey', 'addWrappingKey', 'ensureKeyAvailable',
+        'syncKeyringState', 'startRotation', 'abortRotation', 'finalizeRotation'
+    ];
+    guardedOperations.forEach(function (name) {
+        const start = secure.indexOf('async function ' + name + '(');
+        assert.notEqual(start, -1, name + ' should exist');
+        const end = secure.indexOf('\n    }', start);
+        assert.notEqual(end, -1, name + ' should have a function boundary');
+        assert.match(
+            secure.slice(start, end),
+            /assertSessionGeneration\(generation/,
+            name + ' must reject results from an earlier unlocked session'
+        );
+    });
+});
+
+test('refreshed root-key copies are cleared after keyring synchronization', () => {
+    assert.match(secure, /async function ensureKeyAvailable[\s\S]*?finally\s*\{\s*cryptoApi\(\)\.clearSecret\(refreshed\.rootKey\)/);
+    assert.match(secure, /async function syncKeyringState[\s\S]*?finally\s*\{\s*cryptoApi\(\)\.clearSecret\(refreshed\.rootKey\)/);
 });
