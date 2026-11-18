@@ -125,6 +125,39 @@ test('photo objects decrypt only with the correct key and authenticated context'
     assert.equal(keyed.envelope.keyId, 'gk_testkey01');
     const keyedDecrypted = await gallery.decryptObject(keyed.ciphertext, keyed.envelope, unlocked.privateKey, photoId, 'original');
     assert.deepEqual(new Uint8Array(keyedDecrypted), plaintext);
+
+    const secondWrappingKey = await gallery.createAdditionalWrappingKey(unlocked.rootKey);
+    const keyring = {
+        version: 2,
+        active_key_id: 'gk_second02',
+        keys: {
+            gk_first01: { public_key: identity.publicKey, private_key_envelope: identity.privateKeyEnvelope },
+            gk_second02: { public_key: secondWrappingKey.publicKey, private_key_envelope: secondWrappingKey.privateKeyEnvelope }
+        }
+    };
+    const multiKeyUnlock = await gallery.unlockKeyringIdentity(
+        keyring, identity.credentialEnvelope, prf, credentialId
+    );
+    assert.equal(multiKeyUnlock.activeKeyId, 'gk_second02');
+    const secondKeyObject = await gallery.encryptObject(
+        plaintext, multiKeyUnlock.publicKeys.gk_second02, photoId, 'preview', 'gk_second02'
+    );
+    const secondKeyPlaintext = await gallery.decryptObject(
+        secondKeyObject.ciphertext, secondKeyObject.envelope, multiKeyUnlock.privateKeys, photoId, 'preview'
+    );
+    assert.deepEqual(new Uint8Array(secondKeyPlaintext), plaintext);
+
+    const recoveryKey = await gallery.createRecoveryKey();
+    const recoverySalt = gallery.createAccountSalt();
+    const recoveryEnvelope = await gallery.wrapRootKeyForRecovery(unlocked.rootKey, recoveryKey, recoverySalt);
+    const recoveredKeyring = await gallery.unlockKeyringIdentityWithRecovery(keyring, recoveryEnvelope, recoveryKey);
+    const recoveredPlaintext = await gallery.decryptObject(
+        secondKeyObject.ciphertext, secondKeyObject.envelope, recoveredKeyring.privateKeys, photoId, 'preview'
+    );
+    assert.deepEqual(new Uint8Array(recoveredPlaintext), plaintext);
+    gallery.clearSecret(multiKeyUnlock.rootKey);
+    gallery.clearSecret(recoveredKeyring.rootKey);
+    gallery.clearSecret(recoveryKey);
     await assert.rejects(
         gallery.encryptObject(plaintext, identity.publicKey, photoId, 'original', 'bad'),
         /Invalid Gallery encryption key identifier/
