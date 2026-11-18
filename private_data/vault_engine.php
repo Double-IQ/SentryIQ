@@ -250,7 +250,7 @@ function vault_derive_key(string $password, string $salt, int $opslimit, int $me
     if (strlen($salt) !== SODIUM_CRYPTO_PWHASH_SALTBYTES) {
         throw new RuntimeException('Invalid vault KDF salt.');
     }
-    \\SentryIQ\\Security\\VaultKdfPolicy::assertValid($opslimit, $memlimit);
+    \SentryIQ\Security\VaultKdfPolicy::assertValid($opslimit, $memlimit);
 
     $key = sodium_crypto_pwhash(
         32,
@@ -344,7 +344,7 @@ function vault_read_envelope(): array|false
     $opslimit = $rawOpslimit;
     $memlimit = $rawMemlimit;
     try {
-        \\SentryIQ\\Security\\VaultKdfPolicy::assertValid($opslimit, $memlimit);
+        \SentryIQ\Security\VaultKdfPolicy::assertValid($opslimit, $memlimit);
     } catch (Throwable) {
         throw new RuntimeException('vault_read_envelope:kdf_parameters_outside_policy');
     }
