@@ -46,7 +46,7 @@ The caller must resolve the release tag to a full commit SHA through a separatel
 - The adapter's test runner seam is only for contract tests. Synthetic JSON fixtures do not test cryptography.
 - This does not yet provide a separately pinned trust root, a canonical signed manifest, or two independent Integrity Node signatures.
 - The integration is present on PR #56 only. It is not merged or deployed. No production updater enforcement is enabled yet.
-- The updater permits only the three runtime PHP templates currently emitted by the release workflow: `email_template.php`, `vault_engine.php`, and `vault_icon_cache.php`. Changes to this list require a reviewed policy/code update.
+- The updater permits only the four runtime PHP templates currently emitted by the release workflow: `email_template.php`, `vault_engine.php`, `vault_icon_cache.php`, and `VaultKdfPolicy.php`. Changes to this list require a reviewed policy/code update.
 
 ## Tests
 
