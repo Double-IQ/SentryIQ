@@ -20,7 +20,7 @@ This document is the single working checklist for the reset security review and 
 
 ## Current progress
 
-**Phase 1: 9/30 findings/tasks completed.**
+**Phase 1: 10/30 findings/tasks completed.**
 
 - Completed: 1.1 — identified the public installation diagnostic endpoint as an exposure requiring protection.
 - Completed: 1.2 — authentication protection merged in [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53); production deployment/runtime verification remains outstanding and is not claimed.
@@ -31,7 +31,8 @@ This document is the single working checklist for the reset security review and 
 - Completed: 2.3 — reviewed server-rendered output, record-card serialization, diagnostic JSON embedding, and DOM insertion sinks; findings and hardening actions recorded below.
 - Completed: 2.4 — audited CSRF enforcement across authentication, vault, documents, Gallery settings/diagnostics, passkeys, and first-run setup.
 - Completed: 2.5 — reviewed central response headers, HTTPS enforcement, session cookie parameters, logout cookie invalidation, and page-specific header overrides.
-- Next item, pending user review: **3.1** — audit the security bootstrap and every public application entry point.
+- Completed: 3.1 — audited the central security bootstrap, root application routes, rewritten application handlers, diagnostics, and public utility endpoints on `main`; recorded an unauthenticated diagnostic endpoint exposure and a pre-install diagnostic information-disclosure condition.
+- Next audit item: **3.2** — review password authentication, password recovery, throttling, and 2FA.
 - No four-node deployment task is marked complete by this document.
 
 ---
@@ -97,7 +98,14 @@ All findings must be verified against `main`. The existing application is the ba
 
 ## 3. PHP application security
 
-- [ ] **3.1** Audit the security bootstrap and every public application entry point.
+- [x] **3.1** Audit the security bootstrap and every public application entry point.
+  - Reviewed `app/Security/SecurityBootstrap.php`, the root `.htaccess` rewrite map, root PHP routes (`index.php`, `documents.php`, `storage.php`, `update.php`, `update_apply.php`, `update_check.php`, `welcome.php`, `first_run.php`, Gallery/passkey wrappers, and public icon/OG image handlers), the rewritten `app/` handlers, and the `diagnostics/` endpoints on `main`.
+  - Most application routes inspected load the central bootstrap before doing work; sensitive pages/actions additionally require an authenticated session, fresh authentication, and/or CSRF. The `first_run.php` wrapper delegates to `app/Security/FirstRun.php`, which loads the bootstrap and rejects access once the installation pointer config exists. The retired Gallery mutation handlers return HTTP 410. Public icon/OG image endpoints serve fixed image assets and do not expose private application state.
+  - **Confirmed unauthenticated diagnostic exposure:** `diagnostics/post_install_write_diagnostic.php` does not load `SecurityBootstrap`, check authentication, restrict the HTTP method, or apply a one-time capability. A direct web request performs a write probe in the public web root (then attempts to delete it), returns absolute web-root/parent paths, directory permissions and writability, PHP version/SAPI, configuration-file state, and probe errors; it also appends diagnostic data to `private_data/install_postmortem.log` when that directory exists. The root `.htaccess` contains no rule denying this endpoint. This creates unauthenticated information disclosure and an unauthenticated filesystem-write/logging side effect that can be repeatedly triggered. **Risk: Medium (potentially higher depending on deployment permissions and log handling).** Remediation: remove the endpoint from the deployed web surface or make it CLI-only; if a web workflow is genuinely required, gate it behind a short-lived, one-time installer capability and strict method/rate controls, minimize returned details, and test that unauthenticated requests cannot create probes or append logs.
+  - **Pre-install diagnostic exposure:** `diagnostics/vault_runtime_diagnostic.php` loads the bootstrap and returns 404 once installation is complete, but while the first-run marker exists and the config pointer is absent it is reachable without an authenticated account. It reports the inferred private-data path, directory/file permissions, file size/readability, and the private config's data-directory value, and appends a diagnostic log entry. This may be intentional for installation troubleshooting, but it exposes filesystem layout during the pre-install window. Record as a lower-priority information-disclosure hardening item; prefer CLI-only access or an explicit one-time setup capability if browser access is not essential.
+  - `diagnostics/post_install_diagnostic.php` was verified to include the central bootstrap, return 404 when installed config is missing for web requests, and require an authenticated session for installed web access; its CLI path remains available. `diagnostics/self_test.php` requires an unlocked vault when installed. `diagnostics/vault_save_diagnostic.php` requires authentication. `diagnostics/copy-code.php` uses a 64-hex one-time bearer token and atomically renames the token file before displaying the code; its bearer-token lifecycle remains part of the authentication/2FA audit in 3.2.
+  - Bootstrap review reconfirmed that HTTPS rejection, lock handling, and several redirect/error paths can exit before the common response-header block; this is already recorded under 2.5 for remediation and is not counted as a new finding here. The bootstrap is loaded by the principal root application pages and rewritten sensitive handlers reviewed.
+  - Scope limitation: this was a source-level repository audit. No production web-server request, filesystem permission, or deployed `.htaccess` behaviour was available to verify. No code or production configuration was changed in this item.
 - [ ] **3.2** Review password authentication, password recovery, throttling, and 2FA.
 - [ ] **3.3** Review WebAuthn/passkey registration, authentication, challenge validation, and origin/RP binding.
 - [ ] **3.4** Review session creation, rotation, expiry, fixation protection, and logout/lock behaviour.
@@ -191,15 +199,16 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 | 2026-11-18 | 2.3 | Reviewed Vault, Documents, Passkey, Gallery, and diagnostic templates/assets on `main` | No confirmed exploitable XSS in inspected paths; recorded a script-context JSON-encoding hardening finding in `diagnostics/self_test.php`, verified safe fixed-markup/escaped DOM sinks, and documented remediation/test requirements; no code changed | Yes |
 | 2026-11-18 | 2.4 | Audited central CSRF helper and authentication, Vault, Documents, Gallery, passkey, and first-run mutation handlers on `main` | No missing CSRF check confirmed in reviewed state-changing handlers; recorded decentralized enforcement, duplicated JSON token checks, and JS-dependent index form injection as maintenance risks; no code changed | Yes |
 | 2026-11-18 | 2.5 | Reviewed central security bootstrap, Gallery page-specific headers, HTTPS gate, session cookie setup/invalidation, `.htaccess`, and `.user.ini` on `main` | Recorded missing HSTS, CSP duplication/reconciliation, early-redirect header ordering, and trusted-proxy verification requirements; no code or production TLS configuration changed; live headers remain unverified | Yes |
+| 2026-11-18 | 3.1 | Audited root routes, `.htaccess` rewrites, central bootstrap, app handlers, and diagnostic endpoints on `main` | Found unauthenticated `diagnostics/post_install_write_diagnostic.php` with filesystem probe/logging and path/permission disclosure; recorded pre-install-only disclosure in `vault_runtime_diagnostic.php`; no code changed | Yes |
 
 ## Working rules
 
-1. Work on exactly one checklist item at a time.
-2. Before changing code, inspect the relevant implementation on `main` and identify the concrete weakness.
-3. Make the smallest safe correction that addresses that weakness.
-4. Run focused tests, then relevant regression tests.
-5. Record the exact commit/PR and test evidence in this document.
-6. Stop and present the result for review. Do not silently continue to the next item.
+1. Complete Phase 1 audit items 3.1 through 6.5 sequentially, recording each item and its evidence before moving on; do not pause for user review after every audit item.
+2. After 6.5, present the consolidated findings, test results, limitations, and prioritized remediation plan; wait for user review before starting remediation.
+3. Before changing code, inspect the relevant implementation on `main` and identify the concrete weakness.
+4. Make the smallest safe correction that addresses that weakness.
+5. Run focused tests, then relevant regression tests.
+6. Record the exact commit/PR and test evidence in this document.
 7. Never claim a change is merged, deployed, or operational unless that state has been directly verified.
 8. Do not modify production data, credentials, DNS, or hosting configuration without explicit approval for that specific operation.
 9. Do not revive, merge, or deploy unfinished node prototypes as a substitute for completing this checklist.
