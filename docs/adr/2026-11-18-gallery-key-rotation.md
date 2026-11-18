@@ -1,6 +1,6 @@
 # ADR: Safe, resumable Secure Gallery key rotation
 
-- **Status:** Design accepted for implementation; no rotation code is enabled by this ADR
+- **Status:** Design accepted; keyring, key-aware envelopes and conditional envelope-update foundations implemented; full rotation remains disabled
 - **Date:** 2026-11-18
 - **Branch:** `feature/gallery-zero-knowledge-e2e`
 
@@ -18,8 +18,8 @@ Separate **RSA wrapping-key rotation** from **Gallery root-key rotation**. The f
 
 1. Give every RSA public/private key pair an immutable random `keyId`. Every object envelope records the `keyId` that can unwrap its DEK.
 2. Store a keyring, not a single mutable key: each entry contains `keyId`, public JWK and a private-key envelope encrypted under the unchanged Gallery root key. Keep one explicit `activeKeyId`.
-3. Starting rotation creates a new RSA key pair in the unlocked browser. The browser encrypts its private JWK under the existing root key and submits the new public JWK and private-key envelope. The server validates and stores the new entry, then atomically switches `activeKeyId` for new uploads. The old key remains available.
-4. The browser migrates each active object independently: download its current encrypted envelope and ciphertext, unwrap the DEK with the old private key, wrap the same DEK with the new public key, then submit only the replacement envelope. The photo ciphertext is not downloaded or re-encrypted for this operation; no plaintext image reaches PHP.
+3. Adding a wrapping key creates a new RSA key pair in the unlocked browser. The browser encrypts its private JWK under the existing root key and submits the new public JWK and private-key envelope. The server validates and stores the new entry as inactive. Active-key switching is a separate step and is not exposed until the resumable migration workflow and its locking rules are complete.
+4. The browser migrates each active object independently: read its current encrypted envelope and revision hash, unwrap the DEK locally with the old private key, wrap the same DEK with the new public key, then submit only the replacement envelope. The photo ciphertext is not downloaded or re-encrypted for this operation; no plaintext image or DEK reaches PHP.
 5. Every replacement is conditional on the object's current envelope version/hash still matching the version the browser read. A conflict means the object changed or was already migrated; refetch and retry rather than overwriting newer state.
 6. Persist a server-side migration journal with migration ID, source key ID, target key ID, start time, and state. Progress is derived from the active object index, not trusted from a browser-supplied completed counter. The client can resume after reload or another device unlocks.
 7. Uploads created after the active-key switch use the new key. Deletes may remove an object while migration is running; missing objects are treated as complete. A failed object remains readable through the old key and is retried.
@@ -57,4 +57,10 @@ Root-key rotation is not the same operation. It requires an unlocked browser to 
 
 RSA rotation can be long-running and resumable, but it does not require re-uploading or re-encrypting photo ciphertext. The old private key must remain available until the server's authoritative inventory proves it is no longer referenced. Root-key rotation is a separate coordinated recovery event and may require unavailable devices to be re-enrolled.
 
-This ADR intentionally does not change the current v1 data format or expose a rotation button. Implementing rotation before keyring/version migration and conditional object-envelope updates exist would risk irreversible data loss.
+## Implementation status
+
+The development branch now contains the backward-compatible v2 keyring persistence and migration path, active/legacy key identifiers, inactive-key enrollment, multi-key passkey/recovery unlock, key-aware object envelopes, server-side key-reference inventory (which fails closed on incomplete records), browser-side DEK-envelope rewrapping, and compare-and-swap envelope replacement. Existing v1 objects remain readable and are attributed to the original key during inventory. Regression tests cover keyring migration, multi-key unlock/recovery, envelope rewrapping, object-key validation, reference inventory and stale-revision rejection.
+
+Full rotation is **not enabled**: there is no active-key switch, rotation journal, finalize/retire operation, or UI to migrate all objects. The inactive key control only adds a key; new uploads continue using the existing active key. Key retirement is deliberately withheld until a shared lock can make the final inventory check atomic with upload commits and envelope replacements. Root-key rotation remains separate.
+
+The current v1 object envelope remains readable; `keyId` is an additive field in the existing envelope version. A future schema version may formalize this further, but must preserve this compatibility path.
