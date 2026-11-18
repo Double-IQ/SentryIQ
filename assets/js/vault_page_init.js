@@ -1,0 +1,13 @@
+if (document.body.classList.contains('sentryiq-login-splash-active')) {
+(function(){
+    var start=function(){
+        window.setTimeout(function(){
+            document.body.classList.remove('sentryiq-login-splash-active');
+            document.body.classList.add('sentryiq-login-ready');
+        },2000);
+    };
+    if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded',start,{once:true});
+    else start();
+}());
+}
+document.addEventListener('DOMContentLoaded',function(){var csrf=document.querySelector('meta[name="csrf-token"]');var token=csrf?csrf.content:'';document.querySelectorAll('form[method="POST"]').forEach(function(form){if(!form.querySelector('input[name="csrf_token"]')&&token){var input=document.createElement('input');input.type='hidden';input.name='csrf_token';input.value=token;form.appendChild(input);}if(form.querySelector('button[name="add_entry"]')){form.action='vault_actions.php';var action=document.createElement('input');action.type='hidden';action.name='action';action.value='add';form.appendChild(action);}if(form.querySelector('button[name="save_vault_settings"]')){form.action='vault_actions.php';var action2=document.createElement('input');action2.type='hidden';action2.name='action';action2.value='save_settings';form.appendChild(action2);}if(form.querySelector('button[name="edit_entry"]')){form.action='vault_actions.php';var action3=document.createElement('input');action3.type='hidden';action3.name='action';action3.value='edit';form.appendChild(action3);}if(form.querySelector('button[name="delete_entry"]')){form.action='vault_actions.php';var action4=document.createElement('input');action4.type='hidden';action4.name='action';action4.value='delete';form.appendChild(action4);}});document.querySelectorAll('a[target="_blank"]').forEach(function(a){a.rel='noopener noreferrer';});var lock=document.querySelector('a[href="?action=logout"]');if(lock){var form=document.createElement('form');form.method='POST';form.style.display='inline';var tokenInput=document.createElement('input');tokenInput.type='hidden';tokenInput.name='csrf_token';tokenInput.value=token;var actionInput=document.createElement('input');actionInput.type='hidden';actionInput.name='lock_vault';actionInput.value='1';var button=document.createElement('button');button.type='submit';button.className=lock.className;button.style.cssText=lock.getAttribute('style')||'';button.textContent=lock.textContent;form.appendChild(tokenInput);form.appendChild(actionInput);form.appendChild(button);lock.replaceWith(form);}switchVaultTab(document.body.getAttribute('data-active-pane') || 'view');});
