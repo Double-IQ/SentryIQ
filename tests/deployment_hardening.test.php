@@ -28,11 +28,7 @@ foreach ([
 }
 
 deploymentCheck(
-    preg_match('/RewriteRule\s+\^private_data/', $apache) === 1,
-    'Apache rules must deny direct requests to private_data.'
-);
-deploymentCheck(
-    preg_match('/RewriteRule\s+\^\(\?:sentryiq_config\\\\\.php\|auth_flow\\\\\.php\|\\\\\.user\\\\\.ini\)/', $apache) === 1,
+    str_contains($apache, 'RewriteRule ^(?:sentryiq_config\.php|auth_flow\.php|\.user\.ini)$ - [F,L]'),
     'Apache rules must deny direct requests to root configuration and bootstrap files.'
 );
 
