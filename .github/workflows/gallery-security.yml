@@ -45,6 +45,9 @@ jobs:
       - name: Test Gallery storage and authorization primitives
         run: php tests/gallery_storage.test.php
 
+      - name: Test document metadata locking and path security
+        run: php tests/document_store.test.php
+
       - name: Test release trust policy decisions
         run: php tests/release_trust_policy.test.php
 
