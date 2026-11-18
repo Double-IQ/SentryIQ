@@ -145,7 +145,7 @@ $logFile = defined('LOG_FILE') ? LOG_FILE : '';
 $directory = defined('SENTRYIQ_DATA_DIR') ? SENTRYIQ_DATA_DIR : '';
 $line = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 if ($directory !== '' && $logFile !== '' && is_dir($directory) && is_string($line)) {
-    \\SentryIQ\\Security\\BoundedLog::append($logFile, $line . PHP_EOL);
+    \SentryIQ\Security\BoundedLog::append($logFile, $line . PHP_EOL);
     @chmod($logFile, 0600);
 }
 
