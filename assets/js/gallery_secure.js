@@ -424,7 +424,7 @@
         decryptObject: function (data, envelope, photoId, role) {
             if (!unlockedPrivateKey) throw new Error('Secure Gallery is locked.');
             const privateKeys = unlockedPrivateKeys || unlockedPrivateKey;
-            return cryptoApi().decryptObject(data, envelope, privateKeys, photoId, role);
+            return cryptoApi().decryptObject(data, envelope, privateKeys, photoId, role, legacyKeyId);
         }
     });
 }(typeof window !== 'undefined' ? window : self));
