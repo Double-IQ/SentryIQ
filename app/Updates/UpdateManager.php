@@ -7,15 +7,27 @@ namespace SentryIQ\Updates;
 use RuntimeException;
 use ZipArchive;
 
+require_once __DIR__ . '/ReleaseTrustPolicy.php';
+require_once __DIR__ . '/GitHubCliAttestationVerifier.php';
+
 final class UpdateManager
 {
-    private const REPOSITORY = 'BTM-SA/SentryIQ';
+    private const REPOSITORY = 'Double-IQ/SentryIQ';
+    private const REPOSITORY_ID = '1345956206';
+    private const WORKFLOW_PATH = '.github/workflows/release.yml';
+    private const ALLOWED_RUNTIME_FILES = ['email_template.php', 'vault_engine.php', 'vault_icon_cache.php'];
     private const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
     private const CACHE_TTL = 21600;
+
+    private readonly GitHubCliAttestationVerifier $attestationVerifier;
+    /** @var callable|null Test seam for GitHub API responses. */
+    private $httpJsonRunner;
 
     public function __construct(
         private readonly string $applicationRoot,
         private readonly string $dataDir,
+        ?GitHubCliAttestationVerifier $attestationVerifier = null,
+        ?callable $httpJsonRunner = null,
     ) {
         if ($this->applicationRoot === '' || !str_starts_with($this->applicationRoot, '/') || !is_dir($this->applicationRoot)) {
             throw new RuntimeException('Invalid SentryIQ application root.');
@@ -23,6 +35,12 @@ final class UpdateManager
         if ($this->dataDir === '' || !str_starts_with($this->dataDir, '/') || !is_dir($this->dataDir) || is_link($this->dataDir)) {
             throw new RuntimeException('Invalid SentryIQ secure data directory.');
         }
+        $ghBinary = getenv('SENTRYIQ_GH_BINARY');
+        $this->attestationVerifier = $attestationVerifier ?? new GitHubCliAttestationVerifier(
+            new ReleaseTrustPolicy(),
+            is_string($ghBinary) ? trim($ghBinary) : ''
+        );
+        $this->httpJsonRunner = $httpJsonRunner;
     }
 
     public function currentVersion(): string
@@ -144,14 +162,20 @@ final class UpdateManager
                 throw new RuntimeException('The release package checksum does not match.');
             }
 
+            // The adjacent checksum is only transport integrity. Trust comes from
+            // GitHub's cryptographic attestation, checked against the independently
+            // resolved immutable tag commit and the local ZIP digest.
+            $expectedCommit = $this->verifyReleaseArtifact($zipPath, $latest, $current);
+
             $this->extractAndValidate($zipPath, $stagingPath, $latest);
             $manifest = json_decode((string)@file_get_contents($stagingPath . '/update-manifest.json'), true);
-            if (!is_array($manifest) || (string)($manifest['version'] ?? '') !== $latest) {
+            if (!is_array($manifest)) {
                 throw new RuntimeException('The update manifest is invalid.');
             }
+            $this->assertManifestMatchesPackage($manifest, $stagingPath, $latest, $expectedCommit);
 
             $publicFiles = $this->filesUnder($stagingPath, '', static fn(string $relative): bool => $relative !== 'update-manifest.json' && !str_starts_with($relative, 'runtime/'));
-            $runtimeFiles = $this->filesUnder($stagingPath . '/runtime', '', static fn(string $relative): bool => preg_match('/^[a-z0-9_.-]+\.php$/i', $relative) === 1);
+            $runtimeFiles = $this->filesUnder($stagingPath . '/runtime', '', static fn(string $relative): bool => preg_match('/^[a-z0-9_.-]+\\.php$/i', $relative) === 1);
 
             if ($publicFiles === [] || $runtimeFiles === []) {
                 throw new RuntimeException('The release package is incomplete.');
@@ -267,6 +291,188 @@ final class UpdateManager
         }
     }
 
+    /**
+     * Resolve the release tag to its immutable commit independently of the
+     * attestation payload, then require the configured GitHub CLI verifier.
+     */
+    private function verifyReleaseArtifact(string $artifactPath, string $version, string $installedVersion): string
+    {
+        $expectedCommit = $this->resolveReleaseCommit($version);
+        $this->attestationVerifier->assertTrustedArtifact(
+            $artifactPath,
+            $version,
+            $expectedCommit,
+            $installedVersion
+        );
+        return $expectedCommit;
+    }
+
+    /**
+     * Resolve lightweight and annotated Git tags without trusting the
+     * mutable target_commitish field returned by the Releases API.
+     */
+    private function resolveReleaseCommit(string $version): string
+    {
+        $version = $this->normalizeVersion($version);
+        if ($version === '') {
+            throw new RuntimeException('Cannot resolve an invalid SentryIQ release tag.');
+        }
+
+        $expectedRef = 'refs/tags/v' . $version;
+        $reference = $this->httpJson(
+            'https://api.github.com/repos/' . self::REPOSITORY . '/git/ref/tags/v' . $version
+        );
+        if ((string)($reference['ref'] ?? '') !== $expectedRef) {
+            throw new RuntimeException('GitHub returned a different release tag reference.');
+        }
+        $object = $reference['object'] ?? null;
+        if (!is_array($object)) {
+            throw new RuntimeException('GitHub release tag reference is malformed.');
+        }
+
+        for ($depth = 0; $depth < 5; $depth++) {
+            $sha = strtolower((string)($object['sha'] ?? ''));
+            $type = (string)($object['type'] ?? '');
+            if (!preg_match('/^[a-f0-9]{40}$/', $sha)) {
+                throw new RuntimeException('GitHub release tag contains an invalid Git object SHA.');
+            }
+            if ($type === 'commit') {
+                return $sha;
+            }
+            if ($type !== 'tag') {
+                throw new RuntimeException('GitHub release tag does not resolve to a commit.');
+            }
+            $tagObject = $this->httpJson(
+                'https://api.github.com/repos/' . self::REPOSITORY . '/git/tags/' . $sha
+            );
+            $object = $tagObject['object'] ?? null;
+            if (!is_array($object)) {
+                throw new RuntimeException('GitHub annotated release tag is malformed.');
+            }
+        }
+
+        throw new RuntimeException('GitHub release tag has too many nested tag objects.');
+    }
+
+    /**
+     * Verify every file against the manifest embedded in the attested ZIP.
+     * The manifest itself is bound by the ZIP's verified subject digest.
+     *
+     * @param array<string, mixed> $manifest
+     */
+    private function assertManifestMatchesPackage(
+        array $manifest,
+        string $stagingRoot,
+        string $version,
+        string $expectedCommit
+    ): void {
+        if (($manifest['format'] ?? null) !== 2
+            || (string)($manifest['repository'] ?? '') !== self::REPOSITORY
+            || (string)($manifest['repository_id'] ?? '') !== self::REPOSITORY_ID
+            || (string)($manifest['version'] ?? '') !== $version
+            || strtolower((string)($manifest['commit'] ?? '')) !== $expectedCommit
+            || (string)($manifest['workflow_path'] ?? '') !== self::WORKFLOW_PATH) {
+            throw new RuntimeException('The attested release manifest identity does not match this release.');
+        }
+
+        $entries = $manifest['files'] ?? null;
+        if (!is_array($entries) || $entries === [] || !array_is_list($entries)) {
+            throw new RuntimeException('The release manifest file inventory is invalid.');
+        }
+
+        $root = realpath($stagingRoot);
+        if ($root === false || !is_dir($root) || is_link($stagingRoot)) {
+            throw new RuntimeException('The extracted release directory is invalid.');
+        }
+
+        $expectedPaths = [];
+        $expectedPublic = [];
+        $expectedRuntime = [];
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) {
+                throw new RuntimeException('The release manifest contains an invalid file entry.');
+            }
+            $relative = $entry['path'] ?? null;
+            $size = $entry['size'] ?? null;
+            $digest = strtolower((string)($entry['sha256'] ?? ''));
+            $segments = is_string($relative) ? explode('/', $relative) : [];
+            if (!is_string($relative)
+                || $relative === ''
+                || str_contains($relative, '\\')
+                || str_contains($relative, "\0")
+                || preg_match('/[\x00-\x1F\x7F]/', $relative)
+                || str_starts_with($relative, '/')
+                || preg_match('/^[a-zA-Z]:/', $relative)
+                || in_array('.', $segments, true)
+                || in_array('..', $segments, true)
+                || in_array('', $segments, true)
+                || $relative === 'update-manifest.json'
+                || isset($expectedPaths[$relative])
+                || !is_int($size)
+                || $size < 0
+                || !preg_match('/^[a-f0-9]{64}$/', $digest)) {
+                throw new RuntimeException('The release manifest contains an unsafe or duplicate file entry.');
+            }
+
+            $filePath = $root . '/' . $relative;
+            $realFile = realpath($filePath);
+            if ($realFile === false
+                || !is_file($realFile)
+                || is_link($filePath)
+                || !str_starts_with($realFile, $root . DIRECTORY_SEPARATOR)) {
+                throw new RuntimeException('A manifest-listed release file is missing or escapes the staging directory.');
+            }
+            $actualSize = filesize($realFile);
+            $actualDigest = hash_file('sha256', $realFile);
+            if ($actualSize !== $size || !is_string($actualDigest) || !hash_equals($digest, strtolower($actualDigest))) {
+                throw new RuntimeException('A release file does not match its attested manifest entry: ' . $relative);
+            }
+
+            $expectedPaths[$relative] = true;
+            if (str_starts_with($relative, 'runtime/')) {
+                $runtimeName = substr($relative, strlen('runtime/'));
+                if ($runtimeName === '' || str_contains($runtimeName, '/')) {
+                    throw new RuntimeException('Runtime release files must be top-level PHP templates.');
+                }
+                $expectedRuntime[] = $runtimeName;
+            } else {
+                $expectedPublic[] = $relative;
+            }
+        }
+
+        $actualPaths = $this->filesUnder(
+            $stagingRoot,
+            '',
+            static fn(string $relative): bool => $relative !== 'update-manifest.json'
+        );
+        sort($actualPaths, SORT_STRING);
+        $manifestPaths = array_keys($expectedPaths);
+        sort($manifestPaths, SORT_STRING);
+        if ($actualPaths !== $manifestPaths) {
+            throw new RuntimeException('The extracted package contains files outside the attested manifest inventory.');
+        }
+
+        $manifestPublic = $manifest['public_files'] ?? null;
+        $manifestRuntime = $manifest['runtime_files'] ?? null;
+        if (!is_array($manifestPublic) || !is_array($manifestRuntime)
+            || !array_is_list($manifestPublic) || !array_is_list($manifestRuntime)) {
+            throw new RuntimeException('The release manifest public/runtime file lists are invalid.');
+        }
+        sort($expectedPublic, SORT_STRING);
+        sort($expectedRuntime, SORT_STRING);
+        $listedPublic = $manifestPublic;
+        $listedRuntime = $manifestRuntime;
+        sort($listedPublic, SORT_STRING);
+        sort($listedRuntime, SORT_STRING);
+        $allowedRuntime = self::ALLOWED_RUNTIME_FILES;
+        sort($allowedRuntime, SORT_STRING);
+        if ($listedPublic !== $expectedPublic
+            || $listedRuntime !== $expectedRuntime
+            || $expectedRuntime !== $allowedRuntime) {
+            throw new RuntimeException('The release manifest file allowlist does not match the approved package layout.');
+        }
+    }
+
     private function normalizeVersion(string $value): string
     {
         $value = trim($value);
@@ -276,6 +482,13 @@ final class UpdateManager
 
     private function httpJson(string $url): array
     {
+        if ($this->httpJsonRunner !== null) {
+            $result = ($this->httpJsonRunner)($url);
+            if (!is_array($result)) {
+                throw new RuntimeException('GitHub API test runner returned an invalid response.');
+            }
+            return $result;
+        }
         if (!function_exists('curl_init')) throw new RuntimeException('PHP cURL is required for update checks.');
         $ch = curl_init($url);
         curl_setopt_array($ch, [
