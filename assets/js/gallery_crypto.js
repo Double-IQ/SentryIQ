@@ -182,6 +182,61 @@
         }
     }
 
+    async function createAdditionalWrappingKey(rootKey) {
+        const subtle = requireCrypto().subtle;
+        const pair = await subtle.generateKey(RSA_ALGORITHM, true, ['encrypt', 'decrypt']);
+        const publicKey = await subtle.exportKey('jwk', pair.publicKey);
+        const privateKeyJwk = await subtle.exportKey('jwk', pair.privateKey);
+        const privateKeyEnvelope = await encryptPrivateKey(privateKeyJwk, rootKey);
+        return { publicKey, privateKeyEnvelope };
+    }
+
+    async function unlockKeyringIdentity(keyring, credentialEnvelope, prfOutput, credentialId) {
+        if (!keyring || keyring.version !== 2 || !keyring.keys || typeof keyring.keys !== 'object'
+            || !keyring.active_key_id || !Object.prototype.hasOwnProperty.call(keyring.keys, keyring.active_key_id)) {
+            throw new Error('The Gallery encryption keyring is invalid.');
+        }
+        const rootKey = await unwrapRootKeyFromPasskey(credentialEnvelope, prfOutput, credentialId);
+        const privateKeys = Object.create(null);
+        const publicKeys = Object.create(null);
+        try {
+            for (const keyId of Object.keys(keyring.keys)) {
+                validateKeyId(keyId);
+                const entry = keyring.keys[keyId];
+                if (!entry || !entry.public_key || !entry.private_key_envelope) throw new Error('The Gallery encryption keyring entry is invalid.');
+                privateKeys[keyId] = await decryptPrivateKey(entry.private_key_envelope, rootKey);
+                publicKeys[keyId] = entry.public_key;
+            }
+            return { privateKeys, publicKeys, activeKeyId: keyring.active_key_id, rootKey };
+        } catch (error) {
+            rootKey.fill(0);
+            throw error;
+        }
+    }
+
+    async function unlockKeyringIdentityWithRecovery(keyring, recoveryEnvelope, recoveryKey) {
+        if (!keyring || keyring.version !== 2 || !keyring.keys || typeof keyring.keys !== 'object'
+            || !keyring.active_key_id || !Object.prototype.hasOwnProperty.call(keyring.keys, keyring.active_key_id)) {
+            throw new Error('The Gallery encryption keyring is invalid.');
+        }
+        const rootKey = await unwrapRootKeyFromRecovery(recoveryEnvelope, recoveryKey);
+        const privateKeys = Object.create(null);
+        const publicKeys = Object.create(null);
+        try {
+            for (const keyId of Object.keys(keyring.keys)) {
+                validateKeyId(keyId);
+                const entry = keyring.keys[keyId];
+                if (!entry || !entry.public_key || !entry.private_key_envelope) throw new Error('The Gallery encryption keyring entry is invalid.');
+                privateKeys[keyId] = await decryptPrivateKey(entry.private_key_envelope, rootKey);
+                publicKeys[keyId] = entry.public_key;
+            }
+            return { privateKeys, publicKeys, activeKeyId: keyring.active_key_id, rootKey };
+        } catch (error) {
+            rootKey.fill(0);
+            throw error;
+        }
+    }
+
     async function createRecoveryKey() {
         return randomBytes(32);
     }
@@ -278,7 +333,7 @@
         }
     }
 
-    async function decryptObject(ciphertext, envelope, privateKey, expectedPhotoId, expectedRole) {
+    async function decryptObject(ciphertext, envelope, privateKeyOrMap, expectedPhotoId, expectedRole) {
         const subtle = requireCrypto().subtle;
         if (!envelope || envelope.version !== VERSION || envelope.algorithm !== 'A256GCM' || envelope.keyWrap !== 'RSA-OAEP-256') {
             throw new Error('Unsupported Gallery object envelope.');
@@ -289,6 +344,9 @@
         const nonce = fromBase64Url(envelope.nonce);
         const wrappedDek = fromBase64Url(envelope.wrappedDek);
         if (nonce.byteLength !== 12 || wrappedDek.byteLength !== 384) throw new Error('Invalid Gallery object envelope.');
+        const privateKey = envelope.keyId && privateKeyOrMap && privateKeyOrMap[envelope.keyId]
+            ? privateKeyOrMap[envelope.keyId]
+            : privateKeyOrMap;
         let dekRaw;
         try {
             dekRaw = await subtle.decrypt({ name: 'RSA-OAEP' }, privateKey, wrappedDek);
@@ -313,6 +371,9 @@
         createRecoveryKey: createRecoveryKey,
         createIdentity: createIdentity,
         unlockIdentity: unlockIdentity,
+        createAdditionalWrappingKey: createAdditionalWrappingKey,
+        unlockKeyringIdentity: unlockKeyringIdentity,
+        unlockKeyringIdentityWithRecovery: unlockKeyringIdentityWithRecovery,
         wrapRootKeyForPasskey: wrapRootKeyForPasskey,
         wrapRootKeyForRecovery: wrapRootKeyForRecovery,
         unlockIdentityWithRecovery: unlockIdentityWithRecovery,
