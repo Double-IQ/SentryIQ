@@ -212,30 +212,6 @@ final class UpdateManager
 
                 // No live file is touched until every required backup succeeds.
                 $replacementStarted = true;
-                foreach ($publicFiles as $relative) {
-                    $source = $stagingPath . '/' . $relative;
-                    $target = $this->applicationRoot . '/' . $relative;
-                    if (is_link($target)) throw new RuntimeException('Refusing to update a symbolic link: ' . $relative);
-                    if (is_file($target)) {
-                        $backup = $backupRoot . '/public/' . $relative;
-                        $this->ensureDirectory(dirname($backup), 0700);
-                        if (!@copy($target, $backup)) throw new RuntimeException('Unable to back up ' . $relative . '.');
-                        $backedPublic[$relative] = true;
-                    }
-                    $this->ensureDirectory(dirname($target), 0755);
-                }
-
-                foreach ($runtimeFiles as $relative) {
-                    $source = $stagingPath . '/runtime/' . $relative;
-                    $target = $this->dataDir . '/' . $relative;
-                    if (is_link($target)) throw new RuntimeException('Refusing to update a symbolic runtime file: ' . $relative);
-                    if (is_file($target)) {
-                        $backup = $backupRoot . '/runtime/' . $relative;
-                        $this->ensureDirectory(dirname($backup), 0700);
-                        if (!@copy($target, $backup)) throw new RuntimeException('Unable to back up runtime file ' . $relative . '.');
-                        $backedRuntime[$relative] = true;
-                    }
-                }
 
                 foreach ($publicFiles as $relative) {
                     $this->replaceFile($stagingPath . '/' . $relative, $this->applicationRoot . '/' . $relative);
@@ -261,7 +237,7 @@ final class UpdateManager
                     'to' => $latest,
                     'backup' => basename($backupRoot),
                 ];
-            } catch (\\Throwable $exception) {
+            } catch (\Throwable $exception) {
                 if ($replacementStarted) {
                     $rollbackErrors = [];
                     $rollbackErrors = array_merge(
@@ -432,7 +408,7 @@ final class UpdateManager
                 }
                 try {
                     $this->replaceFile($backupRoot . '/' . $relative, $target, $mode);
-                } catch (\\Throwable $exception) {
+                } catch (\Throwable $exception) {
                     $errors[] = 'Unable to restore ' . $relative . ': ' . $exception->getMessage();
                 }
                 continue;
