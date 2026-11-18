@@ -41,7 +41,9 @@ challengeReject(
 $expired = [];
 WebAuthnChallenge::issue($expired, 'register', random_bytes(32), 1000);
 challengeReject(
-    fn() => WebAuthnChallenge::consume($expired, 'register', 1121),
+    function () use (&$expired): void {
+        WebAuthnChallenge::consume($expired, 'register', 1121);
+    },
     'An expired registration challenge must be rejected.'
 );
 challengeCheck(
