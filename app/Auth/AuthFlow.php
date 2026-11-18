@@ -165,6 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login_step_1'])) {
                 log_security_event('AUTH_CONFIGURATION_INVALID', $ip, $username);
             } else {
                 $twoFaCode = str_pad((string)random_int(100000, 999999), 6, '0', STR_PAD_LEFT);
+                cleanup_expired_tokens();
                 $copyToken = bin2hex(random_bytes(32));
                 $expires = time() + 300;
                 $tokenPath = SENTRYIQ_DATA_DIR . '/token_' . $copyToken . '.json';
