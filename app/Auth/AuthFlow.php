@@ -192,7 +192,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login_step_1'])) {
                         $_SESSION['pending_started_at'] = time();
                         $_SESSION['two_fa_attempts'] = 0;
 
-                        $copyUrl = $baseUrl . '/copy-code.php?t=' . rawurlencode($copyToken);
+                        $copyUrl = $baseUrl . '/diagnostics/copy-code.php#t=' . rawurlencode($copyToken);
                         $safeCopyUrl = htmlspecialchars($copyUrl, ENT_QUOTES, 'UTF-8');
                         $safeCode = htmlspecialchars($twoFaCode, ENT_QUOTES, 'UTF-8');
                         $htmlMessage = '<html><body style="margin:0;padding:30px;background:#f4f6f9;font-family:Arial,sans-serif;"><div style="max-width:500px;margin:0 auto;background:#fff;padding:30px;border-radius:8px;border:1px solid #e1e4e8;"><h2 style="color:#1a1a1a;">🔒 SentryIQ Vault Access</h2><p>Your temporary verification code is:</p><div style="font-size:34px;font-weight:bold;letter-spacing:7px;margin:25px 0;color:#0066cc;">' . $safeCode . '</div><p>This code expires in <strong>5 minutes</strong>.</p><p><a href="' . $safeCopyUrl . '" style="display:inline-block;background:#0066cc;color:#fff;text-decoration:none;padding:12px 24px;border-radius:5px;font-weight:bold;">📋 Copy Code</a></p><p style="font-size:12px;color:#777;">If you did not request access, ignore this message.</p></div></body></html>';
