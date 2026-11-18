@@ -376,7 +376,7 @@
         }
     }
 
-    async function decryptObject(ciphertext, envelope, privateKeyOrMap, expectedPhotoId, expectedRole) {
+    async function decryptObject(ciphertext, envelope, privateKeyOrMap, expectedPhotoId, expectedRole, legacyKeyId) {
         const subtle = requireCrypto().subtle;
         if (!envelope || envelope.version !== VERSION || envelope.algorithm !== 'A256GCM' || envelope.keyWrap !== 'RSA-OAEP-256') {
             throw new Error('Unsupported Gallery object envelope.');
@@ -387,12 +387,13 @@
         const nonce = fromBase64Url(envelope.nonce);
         const wrappedDek = fromBase64Url(envelope.wrappedDek);
         if (nonce.byteLength !== 12 || wrappedDek.byteLength !== 384) throw new Error('Invalid Gallery object envelope.');
+        const objectKeyId = envelope.keyId || legacyKeyId;
         let privateKey;
-        if (envelope.keyId && privateKeyOrMap && Object.prototype.hasOwnProperty.call(privateKeyOrMap, envelope.keyId)) {
-            privateKey = privateKeyOrMap[envelope.keyId];
+        if (objectKeyId && privateKeyOrMap && Object.prototype.hasOwnProperty.call(privateKeyOrMap, objectKeyId)) {
+            privateKey = privateKeyOrMap[objectKeyId];
         } else if (privateKeyOrMap && privateKeyOrMap.type === 'private') {
             privateKey = privateKeyOrMap;
-        } else if (envelope.keyId) {
+        } else if (objectKeyId) {
             throw new Error('No Gallery private key is available for this encrypted object.');
         } else {
             privateKey = privateKeyOrMap;
