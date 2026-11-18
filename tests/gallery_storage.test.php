@@ -196,6 +196,15 @@ try {
         'The object store must reject envelopes referencing a key outside the persisted keyring.'
     );
     check(($objectStore->find($keyedPhotoId)['status'] ?? '') === 'pending', 'Rejected key references must leave uploads pending.');
+    $wrongReservationKey = $keyedEnvelopes;
+    foreach (['original', 'thumbnail', 'preview', 'metadata'] as $role) {
+        $wrongReservationKey[$role]['keyId'] = 'gk_otherkey01';
+    }
+    expectFailure(
+        fn() => $objectStore->commit($keyedPhotoId, $wrongReservationKey, $sizes, ['gk_testkey01', 'gk_otherkey01'], true),
+        'A valid keyring entry must still be rejected when it differs from the key bound to the upload reservation.'
+    );
+    check(($objectStore->find($keyedPhotoId)['status'] ?? '') === 'pending', 'A mismatched reservation key must not activate the upload.');
     $objectStore->commit($keyedPhotoId, $keyedEnvelopes, $sizes, ['gk_testkey01'], true);
     check(($objectStore->find($keyedPhotoId)['objects']['original']['envelope']['keyId'] ?? '') === 'gk_testkey01',
         'The object store must persist an authorized key identifier with each encrypted object.');
