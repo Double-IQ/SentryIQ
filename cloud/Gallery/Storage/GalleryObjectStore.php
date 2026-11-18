@@ -38,10 +38,10 @@ final class GalleryObjectStore
         });
     }
 
-    public function commit(string $photoId, array $envelopes, array $sizes): void
+    public function commit(string $photoId, array $envelopes, array $sizes, array $allowedKeyIds = [], bool $requireKeyId = false): void
     {
         $this->validatePhotoId($photoId);
-        $this->mutate(function (array &$records) use ($photoId, $envelopes, $sizes): void {
+        $this->mutate(function (array &$records) use ($photoId, $envelopes, $sizes, $allowedKeyIds, $requireKeyId): void {
             $record = $records[$photoId] ?? null;
             if (!is_array($record) || ($record['status'] ?? '') !== 'pending' || !is_array($record['objects'] ?? null)) {
                 throw new RuntimeException('Gallery upload reservation is unavailable or expired.');
@@ -57,6 +57,10 @@ final class GalleryObjectStore
                     || ($envelope['keyWrap'] ?? '') !== 'RSA-OAEP-256'
                     || ($envelope['photoId'] ?? '') !== $photoId
                     || ($envelope['role'] ?? '') !== $role
+                    || ($requireKeyId && !is_string($envelope['keyId'] ?? null))
+                    || (array_key_exists('keyId', $envelope)
+                        && (!is_string($envelope['keyId']) || !preg_match('/^[A-Za-z0-9_-]{8,64}$/', $envelope['keyId'])
+                            || !in_array($envelope['keyId'], $allowedKeyIds, true)))
                     || !$this->isBase64Url($envelope['nonce'] ?? null, 16)
                     || !$this->isBase64Url($envelope['wrappedDek'] ?? null, 512)
                     || !is_int($size) || $size < 17 || $size > 52428800) {
