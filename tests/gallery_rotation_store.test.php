@@ -48,6 +48,10 @@ try {
 
     $third = $journal->begin('gk_source02', 'gk_target03');
     $journal->markReadyToRetire($third['id'], 86400);
+    rotationJournalMustFail(
+        fn() => $journal->complete($third['id']),
+        'A key must not be retired before its rollback window expires.'
+    );
     $abortedDuringGrace = $journal->abort($third['id']);
     if (($abortedDuringGrace['status'] ?? '') !== 'aborted') throw new RuntimeException('A rotation must remain abortable during its rollback window.');
 
