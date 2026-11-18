@@ -153,6 +153,9 @@
                 select.appendChild(option);
             });
             const abort = byId('secure-gallery-abort-rotation');
+            const rotationActive = current && ['running', 'ready_to_retire'].includes(current.status);
+            select.disabled = !!rotationActive;
+            byId('secure-gallery-add-key').disabled = !!rotationActive;
             if (current && current.status === 'running') {
                 select.value = current.to_key_id;
                 byId('secure-gallery-rotate').textContent = 'Resume rotation';
