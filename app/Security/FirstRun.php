@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/security_bootstrap.php';
+require_once __DIR__ . '/BoundedLog.php';
 sentryiq_security_bootstrap();
 
 $pointerConfigFile = dirname(__DIR__, 2) . '/sentryiq_config.php';
@@ -33,7 +34,7 @@ function first_run_log(string $stage, array $details = []): void
     foreach ($details as $key => $value) if (is_scalar($value) || $value === null) $record[$key] = $value;
     $path = $dir . '/install_debug.log';
     $line = json_encode($record, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    if (is_string($line)) { @file_put_contents($path, $line . PHP_EOL, FILE_APPEND | LOCK_EX); @chmod($path, 0600); }
+    if (is_string($line)) { try { \\SentryIQ\\Security\\BoundedLog::append($path, $line . PHP_EOL); } catch (Throwable) {} }
 }
 
 function first_run_prepare_dir(string $dir): bool
