@@ -83,7 +83,17 @@ try {
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'list') {
-        gallery_storage_json(['status' => 'ok', 'photos' => $objectStore->all()]);
+        $photos = $objectStore->all();
+        foreach ($photos as &$photo) {
+            foreach (['original', 'thumbnail', 'preview', 'metadata'] as $role) {
+                $envelope = $photo['objects'][$role]['envelope'] ?? null;
+                if (is_array($envelope)) {
+                    $photo['objects'][$role]['envelope_hash'] = GalleryObjectStore::envelopeHash($envelope);
+                }
+            }
+        }
+        unset($photo);
+        gallery_storage_json(['status' => 'ok', 'photos' => $photos]);
     }
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
