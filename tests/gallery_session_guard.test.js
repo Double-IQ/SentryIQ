@@ -19,15 +19,18 @@ class EventTargetStub {
 
 const documentStub = new EventTargetStub();
 documentStub.visibilityState = 'visible';
-globalThis.window = globalThis;
-globalThis.document = documentStub;
+const windowStub = new EventTargetStub();
+windowStub.document = documentStub;
+windowStub.setTimeout = setTimeout;
+windowStub.clearTimeout = clearTimeout;
+globalThis.window = windowStub;
 require('../assets/js/gallery_session_guard.js');
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 test('Gallery session guard resets the idle deadline after user activity', async () => {
     let reason = null;
-    const guard = globalThis.SentryIQGallerySessionGuard.start(
+    const guard = windowStub.SentryIQGallerySessionGuard.start(
         (value) => { reason = value; },
         { idleTimeoutMs: 35, hiddenTimeoutMs: 35 }
     );
