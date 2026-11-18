@@ -23,7 +23,25 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Check browser Gallery scripts
+      - name: Check browser and application scripts
+        run: |
+          node --check assets/js/gallery_crypto.js
+          node --check assets/js/gallery_secure.js
+          node --check assets/js/gallery_storage.js
+          node --check assets/js/gallery_secure_ui.js
+          node --check assets/js/passkey_login.js
+          node --check assets/js/passkey_setup.js
+          node --check assets/js/welcome.js
+          node --check assets/js/documents.js
+          node --check assets/js/vault_page.js
+          node --check assets/js/vault_page_init.js
+          node --check assets/js/vault_dashboard.js
+          node --check assets/js/vault_dashboard_actions.js
+          node --check assets/js/sentryiq_navigation.js
+          node --check assets/js/gallery_b2_diagnostic.js
+          node --check assets/js/self_test.js
+          node --check tests/gallery_crypto.test.js
+
         run: |
           node --check assets/js/gallery_crypto.js
           node --check assets/js/gallery_secure.js
@@ -94,6 +112,9 @@ jobs:
 
       - name: Test bounded diagnostic log rotation
         run: php tests/bounded_log.test.php
+
+      - name: Test strict external-script CSP
+        run: php tests/csp_policy.test.php
 
       - name: Test write-capable diagnostics are CLI-only
         run: php tests/diagnostic_write_access.test.php
