@@ -66,6 +66,9 @@ jobs:
       - name: Test authentication throttle exception handling
         run: php tests/auth_throttle_exception.test.php
 
+      - name: Test atomic authentication throttle storage
+        run: php tests/auth_throttle_store.test.php
+
       - name: Test one-time copy-code token flow
         run: php tests/copy_code_token.test.php
 
