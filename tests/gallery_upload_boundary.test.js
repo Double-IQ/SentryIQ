@@ -33,12 +33,12 @@ globalThis.createImageBitmap = async () => ({
 
 globalThis.SentryIQSecureGallery = {
     isUnlocked: () => true,
-    async encryptObject(plaintext, photoId, role) {
+    async encryptObject(plaintext, photoId, role, keyId) {
         const input = plaintext instanceof ArrayBuffer ? new Uint8Array(plaintext) : new Uint8Array(plaintext.buffer, plaintext.byteOffset, plaintext.byteLength);
         const ciphertext = Uint8Array.from(input, (value) => value ^ 0xff);
         return {
             ciphertext,
-            envelope: { version: 1, role, photoId, keyId: 'gk_testkey01', wrappedDek: 'opaque-wrapped-key' }
+            envelope: { version: 1, role, photoId, keyId: keyId || 'missing-key-id', wrappedDek: 'opaque-wrapped-key' }
         };
     }
 };
@@ -53,6 +53,7 @@ globalThis.fetch = async (url, options) => {
             return { ok: true, json: async () => ({
                 status: 'ok',
                 photoId,
+                activeKeyId: 'gk_testkey01',
                 uploadUrls: Object.fromEntries(roles.map((role) => [role, 'https://b2.example.test/' + role]))
             }) };
         }
@@ -87,6 +88,7 @@ test('Gallery upload sends encrypted objects to B2 and metadata-only commits to 
 
     const commit = phpRequests.find((item) => item.body.action === 'commit');
     assert.ok(commit, 'PHP should receive the encrypted object envelopes');
+    assert.equal(commit.body.envelopes.original.keyId, 'gk_testkey01', 'Browser uploads must tag every encrypted object with the allocated active key identifier.');
     const phpPayload = JSON.stringify(phpRequests.map((item) => item.body));
     assert.doesNotMatch(phpPayload, /ORIGINAL-PLAINTEXT|DERIVATIVE-PLAINTEXT|private-photo-name|Private Album/);
 
