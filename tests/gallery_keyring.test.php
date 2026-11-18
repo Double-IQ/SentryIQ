@@ -48,11 +48,20 @@ keyringCheck($keyring['active_key_id'] === $firstId, 'Adding a key must not sile
 keyringMustFail(fn() => GalleryKeyring::addKey($keyring, $secondId, $newPublic, $newPrivate), 'Duplicate key IDs must be rejected.');
 $keyring = GalleryKeyring::activate($keyring, $secondId);
 keyringCheck($keyring['active_key_id'] === $secondId, 'Activation should explicitly switch the active key.');
-keyringMustFail(fn() => GalleryKeyring::retire($keyring, $secondId, [$firstId]), 'The active key must never be retired.');
-keyringMustFail(fn() => GalleryKeyring::retire($keyring, $firstId, []), 'Retirement must require an authoritative inventory.');
-keyringMustFail(fn() => GalleryKeyring::retire($keyring, $firstId, [$firstId]), 'A key still referenced by an object must not be retired.');
-$keyring = GalleryKeyring::retire($keyring, $firstId, [$secondId]);
-keyringCheck(!isset($keyring['keys'][$firstId]), 'An unreferenced inactive key may be retired.');
+keyringMustFail(
+    fn() => GalleryKeyring::retireWithInventory($keyring, $secondId, ['complete' => true, 'references' => []]),
+    'The active key must never be retired, even with an empty complete inventory.'
+);
+keyringMustFail(
+    fn() => GalleryKeyring::retireWithInventory($keyring, $firstId, ['complete' => false, 'references' => []]),
+    'Retirement must require an explicitly complete authoritative inventory.'
+);
+keyringMustFail(
+    fn() => GalleryKeyring::retireWithInventory($keyring, $firstId, ['complete' => true, 'references' => [$firstId => 1]]),
+    'A key still referenced by an object must not be retired.'
+);
+$keyring = GalleryKeyring::retireWithInventory($keyring, $firstId, ['complete' => true, 'references' => [$secondId => 1]]);
+keyringCheck(!isset($keyring['keys'][$firstId]), 'An unreferenced inactive key may be retired only with a complete inventory.');
 keyringCheck(isset($keyring['keys'][$secondId]), 'Retirement must preserve the active key.');
 keyringMustFail(fn() => GalleryKeyring::activate($keyring, $firstId), 'A retired key must not be reactivated.');
 
