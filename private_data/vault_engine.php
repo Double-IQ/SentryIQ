@@ -218,6 +218,8 @@ function read_security_log(): array
             if (!is_string($raw) || $raw === '') return [];
             $lines = explode("\n", $raw);
             if ($discardPartialLine) array_shift($lines);
+            // Drop the trailing delimiter row before applying the event cap.
+            $lines = array_values(array_filter($lines, static fn(string $line): bool => $line !== ''));
             $lines = array_slice($lines, -1000);
             $events = [];
             foreach (array_reverse($lines) as $line) {
