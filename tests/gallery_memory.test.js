@@ -124,9 +124,9 @@ test('asynchronous key operations cannot restore Gallery keys after a lock', () 
 });
 
 test('identity unlock root-key copies and private-key references are cleared when no longer needed', () => {
-    assert.match(secure, /async function completeIdentitySetup[\\s\\S]*?clearSecret\\(activeKeys\\.rootKey\\)/);
-    assert.match(secure, /async function addWrappingKey[\\s\\S]*?clearSecret\\(refreshed\\.rootKey\\)/);
-    assert.match(secure, /function assertSessionGeneration[\\s\\S]*?delete result\\.privateKeys\\[keyId\\]/);
+    assert.match(secure, /async function completeIdentitySetup[\s\S]*?clearSecret\(activeKeys\.rootKey\)/);
+    assert.match(secure, /async function addWrappingKey[\s\S]*?clearSecret\(refreshed\.rootKey\)/);
+    assert.match(secure, /function assertSessionGeneration[\s\S]*?delete result\.privateKeys\[keyId\]/);
 });
 test('pagehide protection is active even before the unlock-time session guard starts', () => {
     assert.match(ui, /window\.addEventListener\('pagehide', function \(\) \{[\s\S]*?lockWorkspace\('pagehide'\)/);
