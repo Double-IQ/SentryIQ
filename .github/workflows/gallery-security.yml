@@ -109,6 +109,9 @@ jobs:
       - name: Test strict external-script CSP
         run: php tests/csp_policy.test.php
 
+      - name: Test PHP and Apache deployment hardening
+        run: php tests/deployment_hardening.test.php
+
       - name: Test write-capable diagnostics are CLI-only
         run: php tests/diagnostic_write_access.test.php
 
