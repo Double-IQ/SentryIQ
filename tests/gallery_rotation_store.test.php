@@ -36,8 +36,16 @@ try {
     $aborted = $journal->abort($first['id']);
     if (($aborted['status'] ?? '') !== 'aborted') throw new RuntimeException('An active Gallery rotation should be abortable.');
     $second = $journal->begin('gk_source01', 'gk_target02');
-    $completed = $journal->complete($second['id']);
-    if (($completed['status'] ?? '') !== 'completed') throw new RuntimeException('A verified Gallery rotation should be markable complete.');
+    rotationJournalMustFail(
+        fn() => $journal->complete($second['id'], ['complete' => false, 'references' => []]),
+        'A rotation must reject an incomplete object inventory.'
+    );
+    rotationJournalMustFail(
+        fn() => $journal->complete($second['id'], ['complete' => true, 'references' => ['gk_source01' => 1]]),
+        'A rotation must not complete while any object or pending upload references its source key.'
+    );
+    $completed = $journal->complete($second['id'], ['complete' => true, 'references' => ['gk_target02' => 4]]);
+    if (($completed['status'] ?? '') !== 'completed') throw new RuntimeException('A rotation with no source-key references should be markable complete.');
     if (($journal->current()['id'] ?? '') !== $second['id']) throw new RuntimeException('The latest Gallery rotation should remain durable.');
 
     $permissions = fileperms($directory . '/gallery_rotation.json');
