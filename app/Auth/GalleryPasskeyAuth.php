@@ -368,6 +368,7 @@ try {
             'status' => 'ok',
             'activeKeyId' => $galleryKeys->activeKeyId(),
             'keyIds' => $galleryKeys->keyIds(),
+            'keyring' => gallery_passkey_keyring_payload($galleryKeys),
         ]);
     }
 
