@@ -191,6 +191,7 @@ try {
                 'references' => $references,
                 'keyIds' => $galleryKeys->keyIds(),
                 'activeKeyId' => $galleryKeys->activeKeyId(),
+                'legacyKeyId' => $galleryKeys->legacyKeyId(),
             ];
         });
         gallery_passkey_json(['status' => 'ok'] + $state);
