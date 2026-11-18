@@ -59,9 +59,11 @@ final class GalleryKeyring
         $active = $keyring['active_key_id'];
         self::validateKeyId($active);
         $legacy = $keyring['legacy_key_id'] ?? null;
-        if (!is_string($legacy)) throw new RuntimeException('Gallery legacy key identifier is missing.');
-        self::validateKeyId($legacy);
-        if (!isset($keyring['keys'][$legacy])) throw new RuntimeException('Gallery legacy encryption key is missing.');
+        if ($legacy !== null) {
+            if (!is_string($legacy)) throw new RuntimeException('Gallery legacy key identifier is invalid.');
+            self::validateKeyId($legacy);
+            if (!isset($keyring['keys'][$legacy])) throw new RuntimeException('Gallery legacy encryption key is missing.');
+        }
         if (!isset($keyring['keys'][$active])) {
             throw new RuntimeException('Gallery active encryption key is missing.');
         }
