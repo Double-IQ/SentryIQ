@@ -39,7 +39,8 @@ function cache_vault_icon(string $url, string $entryId): array
     if (!is_array($baseParts) || strtolower((string)($baseParts['scheme'] ?? '')) !== 'https' || empty($baseParts['host'])) {
         return $empty;
     }
-    $baseOrigin = 'https://' . strtolower((string)$baseParts['host']);
+    $baseHost = strtolower((string)$baseParts['host']);
+    $baseOrigin = 'https://' . (str_contains($baseHost, ':') ? '[' . $baseHost . ']' : $baseHost);
 
     $faviconUrl = null;
     $ogImageUrl = null;
