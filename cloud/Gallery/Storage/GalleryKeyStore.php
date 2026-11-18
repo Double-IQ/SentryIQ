@@ -101,6 +101,24 @@ final class GalleryKeyStore
      * Add an inactive wrapping key. Activation is intentionally unavailable
      * until object envelopes carry key IDs.
      */
+    public function activateWrappingKey(string $keyId): array
+    {
+        $this->mutate(function (array &$store) use ($keyId): void {
+            if (($store['version'] ?? null) !== 2) throw new RuntimeException('Gallery keyring migration is required before key activation.');
+            $store = GalleryKeyring::activate($store, $keyId);
+        });
+        return $this->keyring() ?? throw new RuntimeException('Gallery keyring is unavailable.');
+    }
+
+    public function retireWrappingKey(string $keyId, array $inventory): array
+    {
+        $this->mutate(function (array &$store) use ($keyId, $inventory): void {
+            if (($store['version'] ?? null) !== 2) throw new RuntimeException('Gallery keyring migration is required before key retirement.');
+            $store = GalleryKeyring::retireWithInventory($store, $keyId, $inventory);
+        });
+        return $this->keyring() ?? throw new RuntimeException('Gallery keyring is unavailable.');
+    }
+
     public function addWrappingKey(string $keyId, array $publicKey, array $privateKeyEnvelope): array
     {
         $this->mutate(function (array &$store) use ($keyId, $publicKey, $privateKeyEnvelope): void {
