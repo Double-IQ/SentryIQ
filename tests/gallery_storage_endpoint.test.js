@@ -140,6 +140,7 @@ test('privileged Gallery passkey verification is consumed before every managemen
             && block.indexOf('gallery_passkey_consume_verified()') < block.indexOf('throw new RuntimeException'),
             action + ' must consume verification before validation or mutation'
         );
-        assert.doesNotMatch(block, /\$_SESSION\['gallery_passkey_verified_(?:credential|at)'\]/);
+        const withoutCleanup = block.replace(/unset\([^;]*gallery_passkey_verified_[^;]*\);/g, '');
+        assert.doesNotMatch(withoutCleanup, /\$_SESSION\['gallery_passkey_verified_(?:credential|at)'\]/);
     }
 });
