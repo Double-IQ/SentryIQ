@@ -52,25 +52,6 @@ body{display:flex;align-items:center;justify-content:center;min-height:100vh;box
         <p class="sentryiq-welcome-subtitle">Welcome Back!</p>
     </div>
 </main>
-<script>
-(function(){
-    var welcome=document.getElementById('welcome');
-    var reduced=window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    var displayTime=reduced?700:1500;
-    var fadeTime=reduced?0:700;
-
-    window.setTimeout(function(){
-        if(!welcome)return;
-        if(reduced){
-            window.location.replace('index.php');
-            return;
-        }
-        welcome.classList.add('fade-out');
-        window.setTimeout(function(){
-            window.location.replace('index.php');
-        },fadeTime);
-    },displayTime);
-}());
-</script>
+<script src="assets/js/welcome.js" defer></script>
 </body>
 </html>
