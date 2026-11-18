@@ -6,6 +6,14 @@
         const target = button.getAttribute('data-sentryiq-nav');
         if (target) window.location.assign(target);
     });
+    document.addEventListener('DOMContentLoaded', function () {
+        const toggle = document.querySelector('.vault-mobile-menu-toggle');
+        const menu = document.getElementById('vault-mobile-menu');
+        if (toggle && menu) toggle.addEventListener('click', function () {
+            const open = menu.classList.toggle('mobile-open');
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+    });
     document.addEventListener('submit', function (event) {
         const form = event.target.closest('form[data-confirm-submit]');
         if (!form) return;
