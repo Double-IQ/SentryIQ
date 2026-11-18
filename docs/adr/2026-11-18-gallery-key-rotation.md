@@ -35,7 +35,7 @@ Root-key rotation is not the same operation. It requires an unlocked browser to 
 - Gallery identity schema must be versioned before rotation ships. Existing v1 single-key records need a read-only compatibility path and a deliberate v2 upgrade.
 - New object envelopes include `keyId`; the existing v1 envelope shape remains readable for legacy objects without IDs. Server-side object records carry envelope revision hashes for compare-and-swap. Unknown key IDs, malformed envelopes, and unsupported versions fail closed.
 - Add server operations to begin/resume/status/abort/finalize a rotation, plus conditional per-object envelope replacement.
-- Server-side code validates key IDs, envelope shape, migration state, object ownership and revision transitions. It never receives a DEK, RSA private key, root key, PRF output or plaintext image.
+- Server-side code validates key IDs, envelope shape, migration state, object ownership and revision transitions. Public RSA JWK validation explicitly rejects private components (`d`, `p`, `q`, `dp`, `dq`, `qi`, `oth`) on initialization, key enrollment, legacy migration and key-store reads. It never receives a DEK, RSA private key, root key, PRF output or plaintext image.
 - The server must not trust client-reported counts, object lists or completion state. It computes remaining references from its authoritative object index.
 - Rotation APIs require authenticated account access, CSRF protection and a recent verified Gallery passkey. Finalization requires a fresh server-side inventory check under the same storage lock used for object-envelope writes.
 - Keep object ciphertext bytes, opaque B2 object keys and AES-GCM nonces unchanged during RSA wrapping-key rotation.
