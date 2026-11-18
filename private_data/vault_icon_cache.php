@@ -214,8 +214,9 @@ function vault_icon_remote_url_parts(string $url): ?array
         return null;
     }
     $host = strtolower((string)$parts['host']);
-    if (!filter_var($host, FILTER_VALIDATE_IP)
-        && filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false) {
+    if (filter_var($host, FILTER_VALIDATE_IP)) {
+        if (!vault_icon_is_public_ip($host)) return null;
+    } elseif (filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false) {
         return null;
     }
     return ['host' => $host, 'port' => 443];
