@@ -98,6 +98,42 @@ function gallery_passkey_save(string $path, array $store): void
     @chmod($path, 0600);
 }
 
+/**
+ * Persist a WebAuthn signature counter without allowing concurrent assertions
+ * to overwrite a newer value. The counter lock is intentionally separate from
+ * the Gallery rotation lock: passkey authentication is independent of rotation.
+ */
+function gallery_passkey_save_counter(string $path, string $credentialId, int $counter): void
+{
+    if ($counter === 0) return;
+    $lockPath = $path . '.counter.lock';
+    if (is_link($lockPath)) throw new RuntimeException('Passkey counter lock is invalid.');
+    $lock = @fopen($lockPath, 'c');
+    if ($lock === false) throw new RuntimeException('Unable to lock passkey counter storage.');
+    @chmod($lockPath, 0600);
+    try {
+        if (!flock($lock, LOCK_EX)) throw new RuntimeException('Unable to lock passkey counter storage.');
+        $store = gallery_passkey_store($path);
+        $found = false;
+        foreach ($store['credentials'] as $index => $record) {
+            if (!is_array($record) || !is_string($record['credential_id'] ?? null)
+                || !hash_equals($record['credential_id'], $credentialId)) continue;
+            $previousCounter = (int)($record['sign_count'] ?? 0);
+            if ($previousCounter !== 0 && $counter <= $previousCounter) {
+                throw new RuntimeException('Passkey signature counter validation failed.');
+            }
+            $store['credentials'][$index]['sign_count'] = max($previousCounter, $counter);
+            $found = true;
+            break;
+        }
+        if (!$found) throw new RuntimeException('Unknown passkey.');
+        gallery_passkey_save($path, $store);
+    } finally {
+        @flock($lock, LOCK_UN);
+        fclose($lock);
+    }
+}
+
 function gallery_passkey_verify_client(string $clientDataJson, string $challenge, string $origin): void
 {
     try {
@@ -311,12 +347,9 @@ try {
             throw new RuntimeException('Passkey signature verification failed.');
         }
 
-        $previousCounter = (int)($record['sign_count'] ?? 0);
-        if ($counter !== 0 && $previousCounter !== 0 && $counter <= $previousCounter) {
-            throw new RuntimeException('Passkey signature counter validation failed.');
-        }
-        $store['credentials'][$foundIndex]['sign_count'] = max($previousCounter, $counter);
-        gallery_passkey_save($passkeyPath, $store);
+        // Re-read and compare under a dedicated lock so simultaneous assertions
+        // cannot both accept the same counter and overwrite each other's update.
+        gallery_passkey_save_counter($passkeyPath, $credentialId, $counter);
 
         unset($_SESSION['gallery_passkey_challenge'], $_SESSION['gallery_passkey_challenge_at']);
         $_SESSION['gallery_passkey_verified_credential'] = $credentialId;
