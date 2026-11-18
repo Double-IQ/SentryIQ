@@ -328,6 +328,53 @@
         return url;
     }
 
+    async function migrateEnvelopesToKey(targetKeyId, onProgress) {
+        const secure = secureApi();
+        if (typeof targetKeyId !== 'string' || !/^[A-Za-z0-9_-]{8,64}$/.test(targetKeyId)) {
+            throw new Error('Invalid target Gallery encryption key.');
+        }
+        const photos = await list();
+        const photoIds = Object.keys(photos);
+        const total = photoIds.length * roles.length;
+        let updated = 0;
+        let skipped = 0;
+
+        for (const photoId of photoIds) {
+            for (const role of roles) {
+                const object = photos[photoId] && photos[photoId].objects
+                    ? photos[photoId].objects[role] : null;
+                if (!object || !object.envelope) throw new Error('A Gallery object is missing its encrypted envelope.');
+                if (object.envelope.keyId === targetKeyId) {
+                    skipped++;
+                    continue;
+                }
+                let currentEnvelope = object.envelope;
+                let currentHash = object.envelope_hash;
+                if (typeof currentHash !== 'string' || !/^[a-f0-9]{64}$/.test(currentHash)) {
+                    throw new Error('A Gallery object is missing its envelope revision.');
+                }
+                let replacement = await secure.rewrapObjectEnvelope(currentEnvelope, photoId, role, targetKeyId);
+                try {
+                    await replaceEnvelope(photoId, role, currentHash, replacement);
+                } catch (firstError) {
+                    // A concurrent delete or another migration may have changed
+                    // this record. Refetch once and retry only if it still needs work.
+                    const latest = await getEnvelope(photoId, role);
+                    if (latest.envelope.keyId !== targetKeyId) {
+                        replacement = await secure.rewrapObjectEnvelope(latest.envelope, photoId, role, targetKeyId);
+                        await replaceEnvelope(photoId, role, latest.envelopeHash, replacement);
+                    } else {
+                        skipped++;
+                    }
+                }
+                if (replacement && currentEnvelope.keyId !== targetKeyId) updated++;
+                if (typeof onProgress === 'function') onProgress({ photoId, role, updated, skipped, total });
+            }
+        }
+
+        return { updated, skipped, total, references: await keyReferenceInventory() };
+    }
+
     async function deletePhoto(photoId) {
         secureApi();
         const result = await post('delete_urls', { photoId: photoId });
@@ -362,6 +409,7 @@
         getEnvelope: getEnvelope,
         replaceEnvelope: replaceEnvelope,
         keyReferenceInventory: keyReferenceInventory,
+        migrateEnvelopesToKey: migrateEnvelopesToKey,
         loadPhoto: loadPhoto,
         openPreview: openPreview,
         deletePhoto: deletePhoto,
