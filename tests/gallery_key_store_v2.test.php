@@ -97,7 +97,21 @@ try {
     keyStoreCheck(!in_array('gallery-key-0001', $store->keyIds(), true), 'A key with a complete empty reference inventory may be retired.');
     keyStoreCheck($store->activeKeyId() === 'gallery-key-0002', 'Retirement must preserve the active key.');
 
-    echo "Gallery key-store v2 persistence tests passed.\n";
+    $legacyWithPrivateMaterial = [
+        'version' => 1,
+        'public_key' => $publicAWithPrivateMaterial,
+        'private_key_envelope' => $privateA,
+        'credential_envelopes' => [$credentialA => $credentialEnvelopeA],
+        'recovery_envelope' => $recovery,
+    ];
+    file_put_contents($file, json_encode($legacyWithPrivateMaterial, JSON_THROW_ON_ERROR));
+    @chmod($file, 0600);
+    keyStoreMustFail(
+        fn() => $store->publicKey(),
+        'Reading a legacy key store containing private RSA JWK components must fail closed.'
+    );
+
+    echo "Gallery key-store v2 persistence tests passed.\\n";
 } finally {
     foreach (glob($directory . '/*') ?: [] as $entry) {
         if (is_file($entry) || is_link($entry)) @unlink($entry);
