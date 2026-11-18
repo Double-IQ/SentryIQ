@@ -136,8 +136,11 @@
         const select = byId('secure-gallery-rotation-target');
         if (!select) return;
         try {
-            const info = SentryIQSecureGallery.getKeyInfo();
             const status = await SentryIQSecureGallery.getRotationStatus();
+            if (status.activeKeyId) {
+                await SentryIQSecureGallery.syncKeyringState(status.activeKeyId, status.keyIds, status.legacyKeyId);
+            }
+            const info = SentryIQSecureGallery.getKeyInfo();
             const current = status.rotation;
             select.replaceChildren();
             const placeholder = document.createElement('option');
@@ -145,7 +148,7 @@
             placeholder.textContent = 'Select an inactive key';
             select.appendChild(placeholder);
             info.keyIds.filter(function (keyId) {
-                return keyId !== info.activeKeyId || (current && ['running', 'ready_to_retire'].includes(current.status) && keyId === current.to_key_id);
+                return keyId !== status.activeKeyId || (current && ['running', 'ready_to_retire'].includes(current.status) && keyId === current.to_key_id);
             }).forEach(function (keyId) {
                 const option = document.createElement('option');
                 option.value = keyId;
