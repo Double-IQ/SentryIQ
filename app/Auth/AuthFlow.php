@@ -76,6 +76,17 @@ function sentryiq_throttle_clear(string $scope, string $ip): void
     sentryiq_throttle_write($data);
 }
 
+function sentryiq_safe_vault_unlock(string $password): array|false
+{
+    if ($password === '') return false;
+    try {
+        $unlocked = vault_unlock($password);
+    } catch (Throwable) {
+        return false;
+    }
+    return is_array($unlocked) ? $unlocked : false;
+}
+
 function sentryiq_get_system_config(array $records): array
 {
     foreach ($records as $entry) {
@@ -134,7 +145,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login_step_1'])) {
         $decryption_failed = true;
     } else {
         $password = (string)($_POST['master_password'] ?? '');
-        $unlocked = $password !== '' ? vault_unlock($password) : false;
+        // vault_unlock() throws for an invalid password envelope; normalize that
+        // failure so every wrong-password attempt reaches the throttle counter.
+        $unlocked = sentryiq_safe_vault_unlock($password);
         if ($unlocked === false) {
             sentryiq_throttle_failure('master', $ip, 5, 900, 900);
             log_security_event('FAILED_MASTER_PASSWORD', $ip, 'unknown', ['stage'=>'master_password']);
