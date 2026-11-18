@@ -21,6 +21,7 @@
         const hiddenTimeout = timeoutValue(settings.hiddenTimeoutMs, DEFAULT_HIDDEN_TIMEOUT);
         let idleTimer = null;
         let hiddenTimer = null;
+        let hiddenAt = null;
         let stopped = false;
 
         function clearTimers() {
@@ -28,6 +29,7 @@
             if (hiddenTimer !== null) root.clearTimeout(hiddenTimer);
             idleTimer = null;
             hiddenTimer = null;
+            hiddenAt = null;
         }
 
         function handlePageHide() { lock('pagehide'); }
@@ -72,10 +74,20 @@
                 if (idleTimer !== null) root.clearTimeout(idleTimer);
                 idleTimer = null;
                 if (hiddenTimer !== null) root.clearTimeout(hiddenTimer);
+                hiddenAt = Date.now();
                 hiddenTimer = root.setTimeout(function () { lock('background'); }, hiddenTimeout);
             } else {
+                const backgroundDuration = hiddenAt === null ? 0 : Math.max(0, Date.now() - hiddenAt);
                 if (hiddenTimer !== null) root.clearTimeout(hiddenTimer);
                 hiddenTimer = null;
+                hiddenAt = null;
+                // Mobile browsers may suspend timers while backgrounded. Check
+                // elapsed wall time on return so a delayed timer cannot leave
+                // a long-backgrounded Gallery session unlocked.
+                if (backgroundDuration >= hiddenTimeout) {
+                    lock('background');
+                    return;
+                }
                 scheduleIdle();
             }
         }
