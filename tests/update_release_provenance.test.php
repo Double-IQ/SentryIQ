@@ -65,6 +65,7 @@ try {
         'runtime/email_template.php' => '<?php return "email";',
         'runtime/vault_engine.php' => '<?php return "vault";',
         'runtime/vault_icon_cache.php' => '<?php return "icons";',
+        'runtime/VaultKdfPolicy.php' => '<?php return "kdf";',
     ];
     $entries = [];
     $public = [];
