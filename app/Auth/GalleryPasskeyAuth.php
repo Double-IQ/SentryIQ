@@ -435,14 +435,17 @@ try {
                 throw new RuntimeException('The target Gallery key is not active.');
             }
             $fromKeyId = (string)$current['from_key_id'];
+            $references = $galleryObjects->keyReferenceInventory($galleryKeys->legacyKeyId());
+            if (($references[$fromKeyId] ?? 0) !== 0) {
+                throw new RuntimeException('Gallery key rotation is not complete. Some objects or pending uploads still reference the old key.');
+            }
             if (in_array($fromKeyId, $galleryKeys->keyIds(), true)) {
-                $references = $galleryObjects->keyReferenceInventory($galleryKeys->legacyKeyId());
-                if (($references[$fromKeyId] ?? 0) !== 0) {
-                    throw new RuntimeException('Gallery key rotation is not complete. Some objects or pending uploads still reference the old key.');
-                }
                 $galleryKeys->retireWrappingKey($fromKeyId, ['complete' => true, 'references' => $references]);
             }
-            return $rotationJournal->complete((string)$current['id']);
+            return $rotationJournal->complete((string)$current['id'], [
+                'complete' => true,
+                'references' => $references,
+            ]);
         });
         unset($_SESSION['gallery_passkey_verified_credential'], $_SESSION['gallery_passkey_verified_at']);
         gallery_passkey_json(['status' => 'ok', 'rotation' => $rotation]);
