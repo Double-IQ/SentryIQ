@@ -16,7 +16,9 @@ test('Gallery device inventory exposes only enrolled credential identifiers and 
     assert.match(endpoint, /\$galleryKeys->enrolledCredentialIds\(\)/);
     assert.match(endpoint, /'credentialId'\s*=>\s*\$credentialId/);
     assert.match(endpoint, /'createdAt'\s*=>\s*\(int\)/);
-    assert.doesNotMatch(endpoint, /'privateKeyEnvelope'\s*=>.*devices/s);
+    const devicesBlock = endpoint.slice(endpoint.indexOf("=== 'devices'"), endpoint.indexOf("=== 'options'"));
+    assert.ok(devicesBlock.length > 0, 'Device inventory route must be present.');
+    assert.doesNotMatch(devicesBlock, /privateKeyEnvelope/);
 });
 
 test('removing a Gallery device requires a fresh different enrolled passkey', () => {
