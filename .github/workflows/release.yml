@@ -42,6 +42,7 @@ jobs:
           cp private_data/vault_engine.php "$WORK/runtime/vault_engine.php"
           cp private_data/email_template.php "$WORK/runtime/email_template.php"
           cp private_data/vault_icon_cache.php "$WORK/runtime/vault_icon_cache.php"
+          cp private_data/VaultKdfPolicy.php "$WORK/runtime/VaultKdfPolicy.php"
 
           python3 scripts/build-release-manifest.py \
             --root "$WORK" \
