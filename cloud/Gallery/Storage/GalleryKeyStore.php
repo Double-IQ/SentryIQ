@@ -52,6 +52,19 @@ final class GalleryKeyStore
     /**
      * Return the persisted v2 keyring, or null while the identity remains v1.
      */
+    public function activeKeyId(): ?string
+    {
+        $store = $this->read();
+        return ($store['version'] ?? null) === 2 && is_string($store['active_key_id'] ?? null)
+            ? $store['active_key_id'] : null;
+    }
+
+    public function keyIds(): array
+    {
+        $store = $this->read();
+        return ($store['version'] ?? null) === 2 ? array_values(array_keys($store['keys'])) : [];
+    }
+
     public function keyring(): ?array
     {
         $store = $this->read();
