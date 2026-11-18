@@ -45,7 +45,10 @@ test('an in-flight decrypt is discarded and zeroed if Gallery locks before it co
     };
     globalThis.SentryIQSecureGallery = {
         isUnlocked: () => unlocked,
-        lock() { unlocked = false; },
+        lock() {
+            unlocked = false;
+            globalThis.SentryIQGalleryStorage.invalidatePendingDecrypts();
+        },
         decryptObject() {
             return new Promise((resolve) => {
                 finishDecrypt = resolve;
