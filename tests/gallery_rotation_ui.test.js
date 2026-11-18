@@ -34,3 +34,17 @@ test('server permits rollback while the key is staged for delayed retirement', (
     assert.match(abortBlock, /\['running', 'ready_to_retire'\]/);
     assert.match(abortBlock, /\$rotationJournal->abort/);
 });
+
+test('wrapping-key enrollment is blocked both in the UI and server during rotation', () => {
+    const endpoint = fs.readFileSync(
+        path.join(__dirname, '../app/Auth/GalleryPasskeyAuth.php'),
+        'utf8'
+    );
+    const addKeyBlock = endpoint.slice(
+        endpoint.indexOf("if ($action === 'add_wrapping_key')"),
+        endpoint.indexOf("if ($action === 'remove_credential')")
+    );
+    assert.match(source, /byId\('secure-gallery-add-key'\)\.disabled = !!rotationActive/);
+    assert.match(addKeyBlock, /\['running', 'ready_to_retire'\]/);
+    assert.match(addKeyBlock, /cannot be added while rotation is active/);
+});
