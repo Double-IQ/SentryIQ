@@ -212,6 +212,19 @@ final class GalleryObjectStore
         $active = [];
         foreach ($records as $photoId => $record) {
             if (is_string($photoId) && is_array($record) && ($record['status'] ?? '') === 'active') {
+                if (!is_array($record['objects'] ?? null)) {
+                    throw new RuntimeException('Gallery active object record is incomplete.');
+                }
+                foreach (self::ROLES as $role) {
+                    $envelope = $record['objects'][$role]['envelope'] ?? null;
+                    if (!is_array($envelope)) {
+                        throw new RuntimeException('Gallery active object is missing its encrypted key envelope.');
+                    }
+                    // The browser migration worker uses this deterministic revision
+                    // to conditionally replace the DEK envelope without fetching
+                    // or re-uploading the encrypted photo ciphertext.
+                    $record['objects'][$role]['envelope_hash'] = self::envelopeHash($envelope);
+                }
                 $active[$photoId] = $record;
             }
         }
