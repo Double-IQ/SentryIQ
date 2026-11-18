@@ -421,7 +421,8 @@ try {
             throw new RuntimeException('Verify an enrolled Gallery passkey before starting key rotation.');
         }
         $targetKeyId = (string)($request['targetKeyId'] ?? '');
-        $rotation = GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $rotationJournal, $targetKeyId): array {
+        $rotation = GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $rotationJournal, $targetKeyId, $verifiedId): array {
+            if ($galleryKeys->credentialEnvelope($verifiedId) === null) throw new RuntimeException('The verified passkey is no longer enrolled for Gallery management.');
             $existing = $rotationJournal->current();
             if (is_array($existing) && ($existing['status'] ?? '') === 'running') {
                 if (($existing['to_key_id'] ?? '') !== $targetKeyId) throw new RuntimeException('A different Gallery key rotation is already running.');
@@ -453,7 +454,8 @@ try {
         if ($verifiedId === '' || $verifiedAt < time() - 180 || $galleryKeys->credentialEnvelope($verifiedId) === null) {
             throw new RuntimeException('Verify an enrolled Gallery passkey before aborting key rotation.');
         }
-        $rotation = GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $rotationJournal): array {
+        $rotation = GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $rotationJournal, $verifiedId): array {
+            if ($galleryKeys->credentialEnvelope($verifiedId) === null) throw new RuntimeException('The verified passkey is no longer enrolled for Gallery management.');
             $current = $rotationJournal->current();
             if (!is_array($current) || !in_array(($current['status'] ?? ''), ['running', 'ready_to_retire'], true)) {
                 throw new RuntimeException('No active Gallery key rotation is available.');
@@ -473,7 +475,8 @@ try {
         if ($verifiedId === '' || $verifiedAt < time() - 180 || $galleryKeys->credentialEnvelope($verifiedId) === null) {
             throw new RuntimeException('Verify an enrolled Gallery passkey before finalizing key rotation.');
         }
-        $rotation = GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $galleryObjects, $rotationJournal): array {
+        $rotation = GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $galleryObjects, $rotationJournal, $verifiedId): array {
+            if ($galleryKeys->credentialEnvelope($verifiedId) === null) throw new RuntimeException('The verified passkey is no longer enrolled for Gallery management.');
             $current = $rotationJournal->current();
             if (!is_array($current) || !in_array(($current['status'] ?? ''), ['running', 'ready_to_retire'], true)) {
                 throw new RuntimeException('No active Gallery key rotation is available.');
@@ -515,7 +518,8 @@ try {
             throw new RuntimeException('Verify an enrolled Gallery passkey before adding an encryption key.');
         }
         $keyId = (string)($request['keyId'] ?? '');
-        $updated = GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $rotationJournal, $keyId, $request): array {
+        $updated = GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $rotationJournal, $keyId, $request, $verifiedId): array {
+            if ($galleryKeys->credentialEnvelope($verifiedId) === null) throw new RuntimeException('The verified passkey is no longer enrolled for Gallery management.');
             $rotation = $rotationJournal->current();
             if (is_array($rotation) && in_array(($rotation['status'] ?? ''), ['running', 'ready_to_retire'], true)) {
                 throw new RuntimeException('A Gallery wrapping key cannot be added while rotation is active or awaiting retirement.');
