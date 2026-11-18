@@ -142,19 +142,32 @@
         const ciphertext = fromBase64Url(envelope.ciphertext);
         if (iv.byteLength !== 12 || ciphertext.byteLength < 17) throw new Error('Invalid Gallery private-key envelope.');
         const key = await subtle.importKey('raw', bytes(rootKey), { name: 'AES-GCM' }, false, ['decrypt']);
-        let plaintext;
+        let plaintext = null;
+        let serializedJwk = '';
+        let jwk = null;
         try {
-            plaintext = await subtle.decrypt({ name: 'AES-GCM', iv, additionalData: encoder.encode(PRIVATE_KEY_INFO), tagLength: 128 }, key, ciphertext);
-        } catch (_) {
-            throw new Error('Unable to unlock the Gallery private key.');
+            try {
+                plaintext = await subtle.decrypt({ name: 'AES-GCM', iv, additionalData: encoder.encode(PRIVATE_KEY_INFO), tagLength: 128 }, key, ciphertext);
+            } catch (_) {
+                throw new Error('Unable to unlock the Gallery private key.');
+            }
+            try {
+                serializedJwk = new TextDecoder().decode(plaintext);
+                jwk = JSON.parse(serializedJwk);
+            } catch (_) {
+                throw new Error('The Gallery private-key envelope is invalid.');
+            }
+            return await subtle.importKey('jwk', jwk, { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['decrypt']);
+        } finally {
+            if (plaintext) new Uint8Array(plaintext).fill(0);
+            serializedJwk = '';
+            if (jwk && typeof jwk === 'object') {
+                for (const field of Object.keys(jwk)) {
+                    if (Array.isArray(jwk[field])) jwk[field].fill('');
+                    delete jwk[field];
+                }
+            }
         }
-        let jwk;
-        try {
-            jwk = JSON.parse(new TextDecoder().decode(plaintext));
-        } catch (_) {
-            throw new Error('The Gallery private-key envelope is invalid.');
-        }
-        return subtle.importKey('jwk', jwk, { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['decrypt']);
     }
 
     async function createIdentity(prfOutput, accountSalt, credentialId) {
