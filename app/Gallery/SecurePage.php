@@ -58,6 +58,10 @@ header('Content-Security-Policy: ' . $csp);
 .secure-gallery-viewer img{max-width:100%;max-height:calc(100vh - 90px);object-fit:contain}
 .secure-gallery-viewer button{position:absolute;top:14px;right:14px}
 .secure-gallery-actions{display:flex;gap:8px;flex-wrap:wrap}
+.secure-gallery-device-list{display:grid;gap:8px}
+.secure-gallery-device{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:1px solid #e9ecef;border-radius:8px}
+.secure-gallery-device small{display:block;color:#6c757d}
+.secure-gallery-device button{flex-shrink:0}
 @media(max-width:600px){.secure-gallery-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.secure-gallery-card{padding:3px;border:0}.secure-gallery-card small{font-size:10px}.secure-gallery-card strong{font-size:11px}.secure-gallery-card button{font-size:11px;padding:6px 4px}}
 </style>
 </head>
@@ -121,6 +125,11 @@ header('Content-Security-Policy: ' . $csp);
                 </div>
             </div>
             <p>Image resizing, thumbnails, previews and encryption happen locally in your browser. Only encrypted objects are uploaded to Backblaze.</p>
+            <section class="secure-gallery-device-panel" aria-labelledby="secure-gallery-devices-heading">
+                <h3 id="secure-gallery-devices-heading">Enrolled Gallery devices</h3>
+                <p>Remove a device's ability to unlock Gallery without deleting its SentryIQ sign-in passkey. Removal requires confirmation with a different enrolled passkey.</p>
+                <div id="secure-gallery-devices" class="secure-gallery-device-list" aria-live="polite">Loading enrolled devices…</div>
+            </section>
             <div id="secure-gallery-b2-warning" class="secure-gallery-status error" <?php if ($b2Configured) echo 'hidden'; ?>>Backblaze B2 is not configured. Follow docs/operations/backblaze-b2-gallery-setup.md to add the protected runtime credentials file before uploading photos.</div>
             <div class="secure-gallery-row">
                 <select id="secure-gallery-album-filter" aria-label="Filter by album">
