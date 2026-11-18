@@ -430,7 +430,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['diagnostic_log']) && 
     $log = $dataDir . '/diagnostic_self_test.log';
     $line = json_encode($record, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     if (is_string($line)) {
-        \\SentryIQ\\Security\\BoundedLog::append($log, $line . PHP_EOL);
+        \SentryIQ\Security\BoundedLog::append($log, $line . PHP_EOL);
         @chmod($log, 0600);
     }
     header('Content-Type: application/json; charset=utf-8');
