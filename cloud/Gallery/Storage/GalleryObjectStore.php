@@ -24,15 +24,17 @@ final class GalleryObjectStore
         }
     }
 
-    public function createPending(string $photoId, array $objectKeys): void
+    public function createPending(string $photoId, array $objectKeys, ?string $keyId = null): void
     {
         $this->validatePhotoId($photoId);
         $this->validateObjectKeys($objectKeys);
-        $this->mutate(function (array &$records) use ($photoId, $objectKeys): void {
+        if ($keyId !== null && !preg_match('/^[A-Za-z0-9_-]{8,64}$/', $keyId)) throw new RuntimeException('Invalid Gallery encryption key identifier.');
+        $this->mutate(function (array &$records) use ($photoId, $objectKeys, $keyId): void {
             if (isset($records[$photoId])) throw new RuntimeException('Gallery object identifier already exists.');
             $records[$photoId] = [
                 'status' => 'pending',
                 'created_at' => time(),
+                'key_id' => $keyId,
                 'objects' => array_map(static fn(string $key): array => ['key' => $key], $objectKeys),
             ];
         });
@@ -49,6 +51,9 @@ final class GalleryObjectStore
             if (array_diff(self::ROLES, array_keys($envelopes)) !== [] || array_diff(array_keys($envelopes), self::ROLES) !== []) {
                 throw new RuntimeException('Gallery upload is missing an encrypted object envelope.');
             }
+            if ($requireKeyId && (!is_string($record['key_id'] ?? null) || $record['key_id'] === '')) {
+                throw new RuntimeException('Gallery upload reservation has no encryption key binding.');
+            }
             foreach (self::ROLES as $role) {
                 $envelope = $envelopes[$role] ?? null;
                 $size = $sizes[$role] ?? null;
@@ -57,7 +62,8 @@ final class GalleryObjectStore
                     || ($envelope['keyWrap'] ?? '') !== 'RSA-OAEP-256'
                     || ($envelope['photoId'] ?? '') !== $photoId
                     || ($envelope['role'] ?? '') !== $role
-                    || ($requireKeyId && !is_string($envelope['keyId'] ?? null))
+                    || ($requireKeyId && (!is_string($envelope['keyId'] ?? null)
+                        || !hash_equals((string)$record['key_id'], (string)$envelope['keyId'])))
                     || (array_key_exists('keyId', $envelope)
                         && (!is_string($envelope['keyId']) || !preg_match('/^[A-Za-z0-9_-]{8,64}$/', $envelope['keyId'])
                             || !in_array($envelope['keyId'], $allowedKeyIds, true)))
@@ -73,6 +79,84 @@ final class GalleryObjectStore
             $record['uploaded_at'] = time();
             $records[$photoId] = $record;
         });
+    }
+
+    /**
+     * Count every key reference, including in-flight reservations. Legacy v1
+     * envelopes without keyId are attributed to the original migrated key.
+     */
+    public function keyReferenceInventory(?string $legacyKeyId = null): array
+    {
+        if ($legacyKeyId !== null && !preg_match('/^[A-Za-z0-9_-]{8,64}$/', $legacyKeyId)) {
+            throw new RuntimeException('Invalid legacy Gallery key identifier.');
+        }
+        $inventory = [];
+        foreach ($this->read() as $record) {
+            if (!is_array($record)) continue;
+            if (($record['status'] ?? '') === 'pending') {
+                $keyId = $record['key_id'] ?? $legacyKeyId;
+                if (is_string($keyId) && $keyId !== '') $inventory[$keyId] = ($inventory[$keyId] ?? 0) + 1;
+                continue;
+            }
+            if (($record['status'] ?? '') !== 'active') continue;
+            foreach ((array)($record['objects'] ?? []) as $object) {
+                $envelope = is_array($object) ? ($object['envelope'] ?? null) : null;
+                if (!is_array($envelope)) continue;
+                $keyId = $envelope['keyId'] ?? $legacyKeyId;
+                if (is_string($keyId) && $keyId !== '') $inventory[$keyId] = ($inventory[$keyId] ?? 0) + 1;
+            }
+        }
+        return $inventory;
+    }
+
+    /**
+     * Replace only an encrypted DEK envelope. The ciphertext object is never
+     * downloaded or rewritten by the server. Hash comparison prevents stale
+     * rotation workers from overwriting a newer envelope.
+     */
+    public function replaceEnvelope(
+        string $photoId,
+        string $role,
+        string $expectedEnvelopeHash,
+        array $newEnvelope,
+        array $allowedKeyIds
+    ): string {
+        $this->validatePhotoId($photoId);
+        if (!in_array($role, self::ROLES, true)) throw new RuntimeException('Invalid Gallery object role.');
+        if (!preg_match('/^[a-f0-9]{64}$/', $expectedEnvelopeHash)) throw new RuntimeException('Invalid Gallery envelope revision.');
+        $keyId = $newEnvelope['keyId'] ?? null;
+        if (!is_string($keyId) || !preg_match('/^[A-Za-z0-9_-]{8,64}$/', $keyId)
+            || !in_array($keyId, $allowedKeyIds, true)
+            || ($newEnvelope['version'] ?? null) !== 1
+            || ($newEnvelope['algorithm'] ?? '') !== 'A256GCM'
+            || ($newEnvelope['keyWrap'] ?? '') !== 'RSA-OAEP-256'
+            || ($newEnvelope['photoId'] ?? '') !== $photoId
+            || ($newEnvelope['role'] ?? '') !== $role
+            || !$this->isBase64Url($newEnvelope['nonce'] ?? null, 16)
+            || !$this->isBase64Url($newEnvelope['wrappedDek'] ?? null, 512)) {
+            throw new RuntimeException('Replacement Gallery object envelope is invalid.');
+        }
+
+        $updatedHash = '';
+        $this->mutate(function (array &$records) use ($photoId, $role, $expectedEnvelopeHash, $newEnvelope, &$updatedHash): void {
+            $record = $records[$photoId] ?? null;
+            $current = is_array($record) ? ($record['objects'][$role]['envelope'] ?? null) : null;
+            if (($record['status'] ?? '') !== 'active' || !is_array($current)) {
+                throw new RuntimeException('Gallery object envelope is unavailable.');
+            }
+            $currentHash = self::envelopeHash($current);
+            if (!hash_equals($currentHash, $expectedEnvelopeHash)) {
+                throw new RuntimeException('Gallery object envelope changed; reload it before retrying.');
+            }
+            $records[$photoId]['objects'][$role]['envelope'] = $newEnvelope;
+            $updatedHash = self::envelopeHash($newEnvelope);
+        });
+        return $updatedHash;
+    }
+
+    public static function envelopeHash(array $envelope): string
+    {
+        return hash('sha256', json_encode($envelope, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
     }
 
     public function find(string $photoId): ?array
