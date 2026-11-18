@@ -314,9 +314,9 @@
         lock: lock,
         isUnlocked: function () { return unlockedPrivateKey !== null && unlockedRootKey !== null; },
         getPublicKey: function () { if (!unlockedPublicKey) throw new Error('Secure Gallery is locked.'); return unlockedPublicKey; },
-        encryptObject: function (data, photoId, role) {
+        encryptObject: function (data, photoId, role, keyId) {
             if (!unlockedPublicKey) throw new Error('Secure Gallery is locked.');
-            return cryptoApi().encryptObject(data, unlockedPublicKey, photoId, role);
+            return cryptoApi().encryptObject(data, unlockedPublicKey, photoId, role, keyId);
         },
         decryptObject: function (data, envelope, photoId, role) {
             if (!unlockedPrivateKey) throw new Error('Secure Gallery is locked.');
