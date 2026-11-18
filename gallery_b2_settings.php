@@ -144,6 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta name="csrf-token" content="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
 <title>SentryIQ — Backblaze Storage</title>
 <link rel="stylesheet" href="assets/css/sentryiq.css">
+<script src="assets/js/sentryiq_navigation.js" defer></script>
 <style>
 .b2-settings{max-width:780px;margin:24px auto;padding:22px;border:1px solid #e3e6f0;border-radius:12px;background:#fff}
 .b2-settings .field{margin:16px 0}
@@ -172,10 +173,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
   </div>
   <div class="vault-tabs">
-    <button class="tab-btn" type="button" onclick="window.location.href='index.php?pane=view'">📋 Vault</button>
-    <button class="tab-btn" type="button" onclick="window.location.href='documents.php'">📄 Docs</button>
-    <button class="tab-btn active" type="button" onclick="window.location.href='gallery.php'">🖼️ Gallery</button>
-    <button class="tab-btn" type="button" onclick="window.location.href='index.php?pane=settings'">⚙️ System</button>
+    <button class="tab-btn" type="button" data-sentryiq-nav="index.php?pane=view">📋 Vault</button>
+    <button class="tab-btn" type="button" data-sentryiq-nav="documents.php">📄 Docs</button>
+    <button class="tab-btn active" type="button" data-sentryiq-nav="gallery.php">🖼️ Gallery</button>
+    <button class="tab-btn" type="button" data-sentryiq-nav="index.php?pane=settings">⚙️ System</button>
   </div>
   <main class="b2-settings">
     <h2>☁️ Backblaze B2 connection</h2>
@@ -199,7 +200,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <hr style="margin:24px 0;border:0;border-top:1px solid #e5e8ee">
     <h3>Disconnect Backblaze</h3>
     <p>Disconnecting removes the local credential file only. It does not delete encrypted objects from your bucket or erase Gallery metadata. Reconnect the same bucket and key to restore access.</p>
-    <form method="POST" onsubmit="return confirm('Disconnect Backblaze? Gallery uploads and downloads will stop until you reconnect.');">
+    <form method="POST" data-confirm-submit="Disconnect Backblaze? Gallery uploads and downloads will stop until you reconnect.">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
       <input type="hidden" name="action" value="disconnect">
       <label style="display:flex;gap:8px;align-items:center;font-weight:400"><input style="width:auto" type="checkbox" name="confirm_disconnect" value="yes" required> I understand Gallery storage will be unavailable until reconnected.</label>
