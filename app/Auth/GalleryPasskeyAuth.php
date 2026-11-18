@@ -430,7 +430,9 @@ try {
         }
         $rotation = GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $galleryObjects, $rotationJournal): array {
             $current = $rotationJournal->current();
-            if (!is_array($current) || ($current['status'] ?? '') !== 'running') throw new RuntimeException('No active Gallery key rotation is available.');
+            if (!is_array($current) || !in_array(($current['status'] ?? ''), ['running', 'ready_to_retire'], true)) {
+                throw new RuntimeException('No active Gallery key rotation is available.');
+            }
             if ($galleryKeys->activeKeyId() !== ($current['to_key_id'] ?? null)) {
                 throw new RuntimeException('The target Gallery key is not active.');
             }
@@ -439,14 +441,17 @@ try {
             if (($references[$fromKeyId] ?? 0) !== 0) {
                 throw new RuntimeException('Gallery key rotation is not complete. Some objects or pending uploads still reference the old key.');
             }
+            if (($current['status'] ?? '') === 'running') {
+                return $rotationJournal->markReadyToRetire((string)$current['id']);
+            }
+            if ((int)($current['retire_after'] ?? PHP_INT_MAX) > time()) {
+                throw new RuntimeException('The 24-hour Gallery key rollback window has not expired yet. You can still abort this rotation.');
+            }
             if (in_array($fromKeyId, $galleryKeys->keyIds(), true)) {
                 $galleryKeys->retireWrappingKey($fromKeyId, ['complete' => true, 'references' => $references]);
             }
-            return $rotationJournal->complete((string)$current['id'], [
-                'complete' => true,
-                'references' => $references,
-            ]);
-        });
+            return $rotationJournal->complete((string)$current['id']);
+        });;
         unset($_SESSION['gallery_passkey_verified_credential'], $_SESSION['gallery_passkey_verified_at']);
         gallery_passkey_json(['status' => 'ok', 'rotation' => $rotation]);
     }
