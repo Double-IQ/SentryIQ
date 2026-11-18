@@ -230,7 +230,7 @@
                 privateKeys[keyId] = await decryptPrivateKey(entry.private_key_envelope, rootKey);
                 publicKeys[keyId] = entry.public_key;
             }
-            return { privateKeys, publicKeys, activeKeyId: keyring.active_key_id, rootKey };
+            return { privateKeys, publicKeys, activeKeyId: keyring.active_key_id, legacyKeyId: keyring.legacy_key_id || null, rootKey };
         } catch (error) {
             rootKey.fill(0);
             throw error;
