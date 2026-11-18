@@ -89,6 +89,9 @@ jobs:
       - name: Test vault Argon2id resource policy
         run: php tests/vault_kdf_policy.test.php
 
+      - name: Test bounded security log rotation
+        run: php tests/security_log_rotation.test.php
+
       - name: Test write-capable diagnostics are CLI-only
         run: php tests/diagnostic_write_access.test.php
 
