@@ -60,12 +60,69 @@
         }
     }
 
+    async function refreshDevices() {
+        const container = byId('secure-gallery-devices');
+        if (!container) return;
+        container.textContent = 'Loading enrolled devices…';
+        try {
+            const response = await fetch('gallery_passkey.php?action=devices', {
+                method: 'GET',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: { Accept: 'application/json' }
+            });
+            const payload = await response.json();
+            if (!response.ok || !payload || payload.status !== 'ok' || !Array.isArray(payload.devices)) {
+                throw new Error(payload && payload.message ? payload.message : 'Unable to load enrolled devices.');
+            }
+            container.replaceChildren();
+            if (payload.devices.length === 0) {
+                container.textContent = 'No Gallery devices are enrolled.';
+                return;
+            }
+            payload.devices.forEach(function (device, index) {
+                const row = document.createElement('div');
+                row.className = 'secure-gallery-device';
+                const description = document.createElement('div');
+                const title = document.createElement('strong');
+                title.textContent = 'Gallery device ' + (index + 1);
+                const date = document.createElement('small');
+                date.textContent = device.createdAt > 0
+                    ? 'Enrolled ' + new Date(device.createdAt * 1000).toLocaleString()
+                    : 'Enrollment date unavailable';
+                description.append(title, date);
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.className = 'btn';
+                remove.textContent = 'Remove';
+                remove.addEventListener('click', async function () {
+                    if (!window.confirm('Remove this device from Secure Gallery? It will no longer be able to unlock Gallery. Its SentryIQ sign-in passkey will remain registered.')) return;
+                    remove.disabled = true;
+                    setStatus('secure-gallery-workspace-status', 'Confirm a different enrolled passkey to remove this device…');
+                    try {
+                        await SentryIQSecureGallery.removeEnrolledDevice(device.credentialId);
+                        setStatus('secure-gallery-workspace-status', 'Gallery device removed. Its SentryIQ sign-in passkey was not deleted.', 'success');
+                        await refreshDevices();
+                    } catch (error) {
+                        setStatus('secure-gallery-workspace-status', error.message || 'Unable to remove this Gallery device.', 'error');
+                        remove.disabled = false;
+                    }
+                });
+                row.append(description, remove);
+                container.appendChild(row);
+            });
+        } catch (error) {
+            container.textContent = error.message || 'Unable to load enrolled devices.';
+        }
+    }
+
     function showWorkspace() {
         startSessionGuard();
         unlockPanel.hidden = true;
         setupPanel.hidden = true;
         recoveryPanel.hidden = true;
         workspace.hidden = false;
+        refreshDevices();
         setStatus('secure-gallery-workspace-status', 'Gallery unlocked in this browser. It will lock after 15 minutes of inactivity or 60 seconds in the background.', 'success');
     }
 
