@@ -272,6 +272,33 @@
         }
     }
 
+    async function getEnvelope(photoId, role) {
+        secureApi();
+        if (!roles.includes(role)) throw new Error('Invalid Gallery object role.');
+        const result = await post('download', { photoId: photoId, role: role });
+        if (!result.envelope || !/^[a-f0-9]{64}$/.test(String(result.envelopeHash || ''))) {
+            throw new Error('The Gallery object envelope revision is unavailable.');
+        }
+        return { envelope: result.envelope, envelopeHash: result.envelopeHash };
+    }
+
+    async function replaceEnvelope(photoId, role, expectedEnvelopeHash, envelope) {
+        secureApi();
+        if (!roles.includes(role)) throw new Error('Invalid Gallery object role.');
+        return post('replace_envelope', {
+            photoId: photoId,
+            role: role,
+            expectedEnvelopeHash: expectedEnvelopeHash,
+            envelope: envelope
+        });
+    }
+
+    async function keyReferenceInventory() {
+        secureApi();
+        const result = await post('key_inventory');
+        return result.references || {};
+    }
+
     async function loadPhoto(photoId) {
         const metadataBytes = await download(photoId, 'metadata');
         const metadata = decodePrivateMetadata(metadataBytes);
@@ -332,6 +359,9 @@
         upload: upload,
         list: list,
         download: download,
+        getEnvelope: getEnvelope,
+        replaceEnvelope: replaceEnvelope,
+        keyReferenceInventory: keyReferenceInventory,
         loadPhoto: loadPhoto,
         openPreview: openPreview,
         deletePhoto: deletePhoto,
