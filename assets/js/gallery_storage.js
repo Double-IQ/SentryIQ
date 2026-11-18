@@ -79,6 +79,17 @@
         return ['image/webp', 'image/jpeg', 'image/png'].includes(value) ? value : 'image/webp';
     }
 
+    function decodePrivateMetadata(metadataBytes) {
+        try {
+            return JSON.parse(new TextDecoder().decode(metadataBytes));
+        } catch (_) {
+            throw new Error('The encrypted Gallery photo metadata is invalid.');
+        } finally {
+            if (metadataBytes instanceof ArrayBuffer) new Uint8Array(metadataBytes).fill(0);
+            else if (metadataBytes instanceof Uint8Array) metadataBytes.fill(0);
+        }
+    }
+
     async function prepareImage(file) {
         if (!(file instanceof File) || !/^image\/(jpeg|png|webp|gif|bmp|avif|heic|heif)$/i.test(file.type || '')) {
             throw new Error('Choose a supported image file.');
@@ -255,23 +266,29 @@
 
     async function loadPhoto(photoId) {
         const metadataBytes = await download(photoId, 'metadata');
-        let metadata;
-        try { metadata = JSON.parse(new TextDecoder().decode(metadataBytes)); }
-        catch (_) { throw new Error('The encrypted Gallery photo metadata is invalid.'); }
+        const metadata = decodePrivateMetadata(metadataBytes);
         const thumbnailBytes = await download(photoId, 'thumbnail');
-        const thumbnailBlob = new Blob([thumbnailBytes], { type: storedImageType(metadata.thumbnailType) });
-        const thumbnailUrl = URL.createObjectURL(thumbnailBlob);
+        let thumbnailUrl;
+        try {
+            const thumbnailBlob = new Blob([thumbnailBytes], { type: storedImageType(metadata.thumbnailType) });
+            thumbnailUrl = URL.createObjectURL(thumbnailBlob);
+        } finally {
+            new Uint8Array(thumbnailBytes).fill(0);
+        }
         objectUrls.add(thumbnailUrl);
         return { photoId: photoId, metadata: metadata, thumbnailUrl: thumbnailUrl };
     }
 
     async function openPreview(photoId) {
         const metadataBytes = await download(photoId, 'metadata');
-        let metadata;
-        try { metadata = JSON.parse(new TextDecoder().decode(metadataBytes)); }
-        catch (_) { throw new Error('The encrypted Gallery photo metadata is invalid.'); }
-        const bytes = await download(photoId, 'preview');
-        const url = URL.createObjectURL(new Blob([bytes], { type: storedImageType(metadata.previewType) }));
+        const metadata = decodePrivateMetadata(metadataBytes);
+        const previewBytes = await download(photoId, 'preview');
+        let url;
+        try {
+            url = URL.createObjectURL(new Blob([previewBytes], { type: storedImageType(metadata.previewType) }));
+        } finally {
+            new Uint8Array(previewBytes).fill(0);
+        }
         objectUrls.add(url);
         return url;
     }
