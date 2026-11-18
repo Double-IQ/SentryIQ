@@ -145,7 +145,7 @@
             placeholder.textContent = 'Select an inactive key';
             select.appendChild(placeholder);
             info.keyIds.filter(function (keyId) {
-                return keyId !== info.activeKeyId || (current && current.status === 'running' && keyId === current.to_key_id);
+                return keyId !== info.activeKeyId || (current && ['running', 'ready_to_retire'].includes(current.status) && keyId === current.to_key_id);
             }).forEach(function (keyId) {
                 const option = document.createElement('option');
                 option.value = keyId;
@@ -160,6 +160,14 @@
                 const remaining = Number(status.references && status.references[current.from_key_id] || 0);
                 setStatus('secure-gallery-rotation-status',
                     'Rotation in progress. ' + remaining + ' object or pending-upload reference(s) still use the previous key.',
+                    'success');
+            } else if (current && current.status === 'ready_to_retire') {
+                select.value = current.to_key_id;
+                byId('secure-gallery-rotate').textContent = 'Finalize key retirement';
+                abort.disabled = false;
+                const retireAfter = new Date(current.retire_after * 1000).toLocaleString();
+                setStatus('secure-gallery-rotation-status',
+                    'All objects have migrated. The old key is retained for rollback until ' + retireAfter + '. You can abort during this period or finalize after it expires.',
                     'success');
             } else {
                 byId('secure-gallery-rotate').textContent = 'Start rotation';
@@ -411,6 +419,17 @@
         this.disabled = true;
         byId('secure-gallery-abort-rotation').disabled = true;
         try {
+            const currentStatus = await SentryIQSecureGallery.getRotationStatus();
+            if (currentStatus.rotation && currentStatus.rotation.status === 'ready_to_retire') {
+                const finalized = await SentryIQSecureGallery.finalizeRotation();
+                setStatus('secure-gallery-rotation-status',
+                    finalized.status === 'completed'
+                        ? 'Key rotation completed. The old key was retired after its rollback period.'
+                        : 'Migration is complete. The old key remains available until the rollback period expires.',
+                    'success');
+                await refreshRotationControls();
+                return;
+            }
             const rotation = await SentryIQSecureGallery.startRotation(targetKeyId);
             setStatus('secure-gallery-rotation-status', 'Migrating encrypted photo-key envelopes…');
             const result = await SentryIQGalleryStorage.migrateEnvelopesToKey(targetKeyId, function (progress) {
@@ -424,9 +443,11 @@
                     ' reference(s) still use the old key, including any in-flight uploads. Press Resume after they finish or are cleaned up.',
                     'success');
             } else {
-                await SentryIQSecureGallery.finalizeRotation();
+                const finalized = await SentryIQSecureGallery.finalizeRotation();
                 setStatus('secure-gallery-rotation-status',
-                    'Key rotation completed. All photo envelopes now use the new key and the old key was retired.',
+                    finalized.status === 'completed'
+                        ? 'Key rotation completed. All photo envelopes use the new key and the old key was retired.'
+                        : 'All photo envelopes migrated. The old key is retained for a 24-hour rollback period.',
                     'success');
             }
             await refreshRotationControls();
