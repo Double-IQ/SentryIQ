@@ -13,11 +13,13 @@ require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/BackblazeB2Signer.php
 require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryObjectStore.php';
 require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryKeyStore.php';
 require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryRotationLock.php';
+require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryRotationStore.php';
 
 use SentryIQCloud\Gallery\Storage\BackblazeB2Signer;
 use SentryIQCloud\Gallery\Storage\GalleryObjectStore;
 use SentryIQCloud\Gallery\Storage\GalleryKeyStore;
 use SentryIQCloud\Gallery\Storage\GalleryRotationLock;
+use SentryIQCloud\Gallery\Storage\GalleryRotationStore;
 
 function gallery_storage_json(array $payload, int $status = 200): never
 {
@@ -172,7 +174,13 @@ try {
         $role = (string)($request['role'] ?? '');
         $expectedHash = (string)($request['expectedEnvelopeHash'] ?? '');
         $envelope = is_array($request['envelope'] ?? null) ? $request['envelope'] : [];
-        $updatedHash = GalleryRotationLock::synchronized($dataDirectory, function () use ($objectStore, $galleryKeys, $photoId, $role, $expectedHash, $envelope): string {
+        $updatedHash = GalleryRotationLock::synchronized($dataDirectory, function () use ($objectStore, $galleryKeys, $rotationJournal, $photoId, $role, $expectedHash, $envelope): string {
+            $rotation = $rotationJournal->current();
+            if (is_array($rotation) && in_array(($rotation['status'] ?? ''), ['running', 'ready_to_retire'], true)) {
+                if (($envelope['keyId'] ?? null) !== ($rotation['to_key_id'] ?? null)) {
+                    throw new RuntimeException('During Gallery key rotation, object envelopes may only move to the selected target key.');
+                }
+            }
             return $objectStore->replaceEnvelope(
                 $photoId,
                 $role,
