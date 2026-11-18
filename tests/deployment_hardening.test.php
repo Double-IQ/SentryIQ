@@ -16,8 +16,6 @@ foreach ([
     'display_startup_errors = Off',
     'html_errors = Off',
     'log_errors = On',
-    'expose_php = Off',
-    'allow_url_include = Off',
     'session.use_strict_mode = 1',
     'session.use_only_cookies = 1',
     'session.cookie_secure = 1',
