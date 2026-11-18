@@ -187,7 +187,7 @@
             const sizes = {};
             try {
                 for (const role of roles) {
-                    encrypted[role] = await secure.encryptObject(plainObjects[role], photoId, role);
+                    encrypted[role] = await secure.encryptObject(plainObjects[role], photoId, role, reservation.activeKeyId || undefined);
                     new Uint8Array(plainObjects[role]).fill(0);
                     plainObjects[role] = null;
                     sizes[role] = encrypted[role].ciphertext.byteLength;
