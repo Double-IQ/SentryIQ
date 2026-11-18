@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/security_bootstrap.php';
 sentryiq_security_bootstrap();
-sentryiq_require_auth();
+sentryiq_require_fresh_auth();
+sentryiq_require_csrf();
 
 header('Content-Type: application/json; charset=utf-8');
 
