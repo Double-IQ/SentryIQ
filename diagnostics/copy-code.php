@@ -115,7 +115,9 @@ $responseStatus = 404;
 try {
     if (!is_link($claimedFile) && is_file($claimedFile)) {
         $size = @filesize($claimedFile);
-        if (is_int($size) && $size >= 1 && $size <= 1024) {
+        $permissions = @fileperms($claimedFile);
+        if (is_int($size) && $size >= 1 && $size <= 1024
+            && is_int($permissions) && (($permissions & 0077) === 0)) {
             $raw = @file_get_contents($claimedFile);
             try {
                 $data = is_string($raw) ? json_decode($raw, true, 8, JSON_THROW_ON_ERROR) : null;
