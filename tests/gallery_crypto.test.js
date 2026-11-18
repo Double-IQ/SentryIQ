@@ -130,6 +130,7 @@ test('photo objects decrypt only with the correct key and authenticated context'
     const keyring = {
         version: 2,
         active_key_id: 'gk_second02',
+        legacy_key_id: 'gk_first01',
         keys: {
             gk_first01: { public_key: identity.publicKey, private_key_envelope: identity.privateKeyEnvelope },
             gk_second02: { public_key: secondWrappingKey.publicKey, private_key_envelope: secondWrappingKey.privateKeyEnvelope }
@@ -152,7 +153,7 @@ test('photo objects decrypt only with the correct key and authenticated context'
     );
     const rewrappedFromKeyring = await gallery.rewrapObjectEnvelope(
         encrypted.envelope, multiKeyUnlock.privateKeys, secondWrappingKey.publicKey,
-        'gk_second02', photoId, 'original', 'gk_first01'
+        'gk_second02', photoId, 'original', multiKeyUnlock.legacyKeyId
     );
     assert.equal(rewrappedFromKeyring.keyId, 'gk_second02');
     assert.equal(rewrappedLegacyEnvelope.keyId, 'gk_second02');
