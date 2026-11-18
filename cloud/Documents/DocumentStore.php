@@ -24,7 +24,11 @@ final class DocumentStore
             throw new RuntimeException('Document storage directory path is not canonical.');
         }
 
-        $documentRoot = isset($_SERVER['DOCUMENT_ROOT']) ? realpath((string)$_SERVER['DOCUMENT_ROOT']) : false;
+        $documentRootValue = trim((string)($_SERVER['DOCUMENT_ROOT'] ?? ''));
+        $documentRoot = $documentRootValue !== '' ? realpath($documentRootValue) : false;
+        if ($documentRootValue !== '' && ($documentRoot === false || !is_dir($documentRoot))) {
+            throw new RuntimeException('Document root could not be resolved safely.');
+        }
         if (is_string($documentRoot) && $documentRoot !== ''
             && ($realDirectory === $documentRoot
                 || str_starts_with($realDirectory . DIRECTORY_SEPARATOR, rtrim($documentRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR))) {
@@ -104,8 +108,11 @@ final class DocumentStore
 
     private function readUnlocked(): array
     {
+        if (is_link($this->path)) {
+            throw new RuntimeException('Document metadata file must not be a symbolic link.');
+        }
         if (!file_exists($this->path)) return [];
-        if (is_link($this->path) || !is_file($this->path) || !is_readable($this->path)) {
+        if (!is_file($this->path) || !is_readable($this->path)) {
             throw new RuntimeException('Document metadata file is unavailable.');
         }
 
