@@ -12,10 +12,12 @@ header('X-Content-Type-Options: nosniff');
 require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/BackblazeB2Signer.php';
 require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryObjectStore.php';
 require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryKeyStore.php';
+require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryRotationLock.php';
 
 use SentryIQCloud\Gallery\Storage\BackblazeB2Signer;
 use SentryIQCloud\Gallery\Storage\GalleryObjectStore;
 use SentryIQCloud\Gallery\Storage\GalleryKeyStore;
+use SentryIQCloud\Gallery\Storage\GalleryRotationLock;
 
 function gallery_storage_json(array $payload, int $status = 200): never
 {
@@ -85,40 +87,45 @@ try {
     $action = (string)($request['action'] ?? '');
 
     if ($action === 'allocate') {
-        if (!$galleryKeys->isInitialized()) gallery_storage_json(['status' => 'error', 'message' => 'Initialize secure Gallery before uploading photos.'], 409);
-        $activeKeyId = $galleryKeys->activeKeyId();
-        if ($activeKeyId === null) {
-            $activeKeyId = 'gk_' . bin2hex(random_bytes(16));
-            $galleryKeys->migrateToKeyring($activeKeyId);
-            // Another concurrent allocator may have completed migration first.
+        $allocation = GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $objectStore, $signer): array {
+            if (!$galleryKeys->isInitialized()) throw new RuntimeException('Initialize secure Gallery before uploading photos.');
             $activeKeyId = $galleryKeys->activeKeyId();
-            if ($activeKeyId === null) throw new RuntimeException('Gallery active encryption key is unavailable.');
-        }
-        $photoId = bin2hex(random_bytes(16));
-        $objectKeys = [];
-        $uploadUrls = [];
-        foreach (['original', 'thumbnail', 'preview', 'metadata'] as $role) {
-            $objectKeys[$role] = BackblazeB2Signer::newObjectKey($role);
-        }
-        $objectStore->createPending($photoId, $objectKeys, $activeKeyId);
-        try {
-            foreach ($objectKeys as $role => $objectKey) {
-                $uploadUrls[$role] = $signer->presign('PUT', $objectKey, 300);
+            if ($activeKeyId === null) {
+                $activeKeyId = 'gk_' . bin2hex(random_bytes(16));
+                $galleryKeys->migrateToKeyring($activeKeyId);
+                // Another concurrent allocator may have completed migration first.
+                $activeKeyId = $galleryKeys->activeKeyId();
+                if ($activeKeyId === null) throw new RuntimeException('Gallery active encryption key is unavailable.');
             }
-        } catch (Throwable $exception) {
-            $objectStore->remove($photoId);
-            throw $exception;
-        }
-        gallery_storage_json(['status' => 'ok', 'photoId' => $photoId, 'uploadUrls' => $uploadUrls, 'activeKeyId' => $activeKeyId, 'expiresIn' => 300]);
+            $photoId = bin2hex(random_bytes(16));
+            $objectKeys = [];
+            $uploadUrls = [];
+            foreach (['original', 'thumbnail', 'preview', 'metadata'] as $role) {
+                $objectKeys[$role] = BackblazeB2Signer::newObjectKey($role);
+            }
+            $objectStore->createPending($photoId, $objectKeys, $activeKeyId);
+            try {
+                foreach ($objectKeys as $role => $objectKey) {
+                    $uploadUrls[$role] = $signer->presign('PUT', $objectKey, 300);
+                }
+            } catch (Throwable $exception) {
+                $objectStore->remove($photoId);
+                throw $exception;
+            }
+            return ['photoId' => $photoId, 'uploadUrls' => $uploadUrls, 'activeKeyId' => $activeKeyId];
+        });
+        gallery_storage_json(['status' => 'ok'] + $allocation + ['expiresIn' => 300]);
     }
 
     if ($action === 'commit') {
-        if (!$galleryKeys->isInitialized()) gallery_storage_json(['status' => 'error', 'message' => 'Secure Gallery identity is unavailable.'], 409);
         $photoId = (string)($request['photoId'] ?? '');
         $envelopes = is_array($request['envelopes'] ?? null) ? $request['envelopes'] : [];
         $sizes = is_array($request['sizes'] ?? null) ? $request['sizes'] : [];
-        $activeKeyId = $galleryKeys->activeKeyId();
-        $objectStore->commit($photoId, $envelopes, $sizes, $galleryKeys->keyIds(), $activeKeyId !== null);
+        GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $objectStore, $photoId, $envelopes, $sizes): void {
+            if (!$galleryKeys->isInitialized()) throw new RuntimeException('Secure Gallery identity is unavailable.');
+            $activeKeyId = $galleryKeys->activeKeyId();
+            $objectStore->commit($photoId, $envelopes, $sizes, $galleryKeys->keyIds(), $activeKeyId !== null);
+        });
         gallery_storage_json(['status' => 'ok', 'photoId' => $photoId]);
     }
 
@@ -147,21 +154,23 @@ try {
         $role = (string)($request['role'] ?? '');
         $expectedHash = (string)($request['expectedEnvelopeHash'] ?? '');
         $envelope = is_array($request['envelope'] ?? null) ? $request['envelope'] : [];
-        $updatedHash = $objectStore->replaceEnvelope(
-            $photoId,
-            $role,
-            $expectedHash,
-            $envelope,
-            $galleryKeys->keyIds()
-        );
+        $updatedHash = GalleryRotationLock::synchronized($dataDirectory, function () use ($objectStore, $galleryKeys, $photoId, $role, $expectedHash, $envelope): string {
+            return $objectStore->replaceEnvelope(
+                $photoId,
+                $role,
+                $expectedHash,
+                $envelope,
+                $galleryKeys->keyIds()
+            );
+        });
         gallery_storage_json(['status' => 'ok', 'envelopeHash' => $updatedHash]);
     }
 
     if ($action === 'key_inventory') {
-        gallery_storage_json([
-            'status' => 'ok',
-            'references' => $objectStore->keyReferenceInventory($galleryKeys->legacyKeyId()),
-        ]);
+        $references = GalleryRotationLock::synchronized($dataDirectory, fn(): array =>
+            $objectStore->keyReferenceInventory($galleryKeys->legacyKeyId())
+        );
+        gallery_storage_json(['status' => 'ok', 'references' => $references, 'complete' => true]);
     }
 
     if ($action === 'delete_urls') {
@@ -180,7 +189,7 @@ try {
 
     if ($action === 'confirm_delete') {
         $photoId = (string)($request['photoId'] ?? '');
-        $record = $objectStore->remove($photoId);
+        $record = GalleryRotationLock::synchronized($dataDirectory, fn(): ?array => $objectStore->remove($photoId));
         if ($record === null) gallery_storage_json(['status' => 'error', 'message' => 'Gallery photo not found.'], 404);
         gallery_storage_json(['status' => 'ok', 'photoId' => $photoId]);
     }
@@ -202,7 +211,9 @@ try {
     if ($action === 'confirm_cancel') {
         $photoId = (string)($request['photoId'] ?? '');
         $record = $objectStore->find($photoId);
-        if (is_array($record) && ($record['status'] ?? '') === 'pending') $objectStore->remove($photoId);
+        if (is_array($record) && ($record['status'] ?? '') === 'pending') {
+            GalleryRotationLock::synchronized($dataDirectory, fn(): ?array => $objectStore->remove($photoId));
+        }
         gallery_storage_json(['status' => 'ok']);
     }
 
