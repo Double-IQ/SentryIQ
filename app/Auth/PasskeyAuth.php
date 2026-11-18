@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/security_bootstrap.php';
+require_once __DIR__ . '/WebAuthnCose.php';
 sentryiq_security_bootstrap();
 header('Content-Type: application/json; charset=utf-8');
 
@@ -101,8 +102,17 @@ function pk_auth_data(string $data, string $rpId, bool $registration): array
     }
     if (($flags & 0x40) === 0 || strlen($data) < 55) throw new RuntimeException('Passkey credential data is missing.');
     $length = unpack('n', substr($data, 53, 2))[1];
-    if ($length < 16 || strlen($data) < 55 + $length) throw new RuntimeException('Invalid passkey credential identifier.');
-    return ['flags'=>$flags,'counter'=>(int)$counter,'credential_id'=>substr($data,55,$length)];
+    if ($length < 16 || strlen($data) <= 55 + $length) throw new RuntimeException('Invalid passkey credential identifier or missing COSE public key.');
+    $coseOffset = 55 + $length;
+    $coseStart = $coseOffset;
+    $coseKey = \\SentryIQ\\Auth\\WebAuthnCose::decodeFirst($data, $coseOffset);
+    if (!is_array($coseKey)) throw new RuntimeException('Passkey COSE public key is invalid.');
+    return [
+        'flags' => $flags,
+        'counter' => (int)$counter,
+        'credential_id' => substr($data, 55, $length),
+        'cose_public_key' => substr($data, $coseStart, $coseOffset - $coseStart),
+    ];
 }
 function pk_wrap(string $masterKey, string $prf, string $salt, string $credentialId): array
 {
@@ -151,6 +161,16 @@ try {
         if ($rawId===false||$clientData===false||$authData===false||$publicKey===false||$prf===false||strlen($rawId)<16||strlen($prf)!==32) throw new RuntimeException('Incomplete passkey registration response.');
         pk_validate_client($clientData,'webauthn.create',pk_b64($challenge),$origin['origin']); $auth=pk_auth_data($authData,$origin['rp_id'],true); if (!hash_equals($rawId,$auth['credential_id'])) throw new RuntimeException('Passkey credential identifier mismatch.');
         $key=@openssl_pkey_get_public($publicKey); if ($key===false) throw new RuntimeException('Invalid passkey public key.'); $details=openssl_pkey_get_details($key); if (!is_array($details)||(int)($details['type']??-1)!==OPENSSL_KEYTYPE_EC||($details['ec']['curve_name']??'')!=='prime256v1') throw new RuntimeException('SentryIQ requires an ES256 passkey.');
+        $attestedCoseOffset = 0;
+        $attestedCose = \\SentryIQ\\Auth\\WebAuthnCose::decodeFirst($auth['cose_public_key'], $attestedCoseOffset);
+        if (!is_array($attestedCose) || $attestedCoseOffset !== strlen($auth['cose_public_key'])) {
+            throw new RuntimeException('Passkey attested public key is malformed.');
+        }
+        $attestedPublicKeyDer = \\SentryIQ\\Auth\\WebAuthnCose::ec2P256SpkiDer($attestedCose);
+        $submittedPublicKeyDer = \\SentryIQ\\Auth\\WebAuthnCose::pemToDer($publicKey);
+        if (!hash_equals($attestedPublicKeyDer, $submittedPublicKeyDer)) {
+            throw new RuntimeException('Submitted passkey public key does not match authenticator attested credential data.');
+        }
         $credentialId=pk_b64($rawId); $wrapped=pk_wrap((string)$_SESSION['master_key'],$prf,$salt,$credentialId); $credentials=is_array($store['credentials']??null)?$store['credentials']:[];
         foreach ($credentials as $record) if (is_array($record)&&hash_equals((string)($record['credential_id']??''),$credentialId)) throw new RuntimeException('This passkey is already registered.');
         $credentials[]=['credential_id'=>$credentialId,'public_key'=>pk_b64($publicKey),'username'=>(string)$_SESSION['app_username'],'wrap'=>$wrapped,'sign_count'=>$auth['counter'],'created_at'=>time()];
