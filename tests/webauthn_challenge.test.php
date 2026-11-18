@@ -71,4 +71,19 @@ challengeReject(
     'Challenges shorter than 32 bytes must be rejected.'
 );
 
+$fresh = ['authenticated_at' => 1000];
+WebAuthnChallenge::assertFreshAuthentication($fresh, 1300, 300);
+challengeReject(
+    fn() => WebAuthnChallenge::assertFreshAuthentication($fresh, 1301, 300),
+    'Passkey credential changes must reject authentication older than the fresh-auth window.'
+);
+challengeReject(
+    fn() => WebAuthnChallenge::assertFreshAuthentication([], 1000, 300),
+    'Passkey credential changes must reject sessions without an authentication timestamp.'
+);
+challengeReject(
+    fn() => WebAuthnChallenge::assertFreshAuthentication(['authenticated_at' => 1006], 1000, 300),
+    'Passkey credential changes must reject timestamps too far in the future.'
+);
+
 echo "WebAuthn challenge expiry and replay tests passed.\\n";
