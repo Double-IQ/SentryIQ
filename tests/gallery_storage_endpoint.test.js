@@ -45,55 +45,17 @@ test('WebAuthn counters are re-read and updated under a dedicated lock', () => {
     assert.match(passkeyEndpoint, /gallery_passkey_save_counter\(\$passkeyPath, \$credentialId, \$counter\)/);
 });
 
-test('Gallery counter updates share the passkey store lock used by account passkey mutations', () => {
-    const passkeyEndpoint = fs.readFileSync(
+test('Gallery and account passkey mutations share one locked store', () => {
+    const galleryPasskeyEndpoint = fs.readFileSync(
+        path.join(__dirname, '../app/Auth/GalleryPasskeyAuth.php'),
+        'utf8'
+    );
+    const accountPasskeyEndpoint = fs.readFileSync(
         path.join(__dirname, '../app/Auth/PasskeyAuth.php'),
         'utf8'
     );
-    assert.match(passkeyEndpoint, /function pk_lock_store\([\s\S]*?pk_path\(\) \. '\.lock'[\s\S]*?flock\(\$handle, LOCK_EX\)/);
-    assert.match(passkeyEndpoint, /in_array\(\$action, \['register', 'delete', 'login'\], true\)[\s\S]*?\$passkeyStoreLock = pk_lock_store\(\)[\s\S]*?\$store = pk_store\(\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\['version'=>1/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
-    assert.match(passkeyEndpoint, /pk_save\(\$store\)/);
+    assert.match(galleryPasskeyEndpoint, /\$lockPath\s*=\s*\$path\s*\.\s*'\.lock'/);
+    assert.match(galleryPasskeyEndpoint, /gallery_passkey_save_counter\(\$passkeyPath, \$credentialId, \$counter\)/);
+    assert.match(accountPasskeyEndpoint, /function pk_lock_store\([\s\S]*?pk_path\(\)\s*\.\s*'\.lock'[\s\S]*?flock\(\$handle, LOCK_EX\)/);
+    assert.match(accountPasskeyEndpoint, /in_array\(\$action, \['register', 'delete', 'login'\], true\)[\s\S]*?\$passkeyStoreLock\s*=\s*pk_lock_store\(\)[\s\S]*?\$store\s*=\s*pk_store\(\)/);
 });
