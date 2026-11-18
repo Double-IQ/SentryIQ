@@ -20,3 +20,8 @@ test('stale-upload cleanup is a CSRF-protected POST, never a state-changing GET'
     assert.match(client, /await post\('cleanup_pending'\)/);
     assert.doesNotMatch(client, /gallery_storage\.php\?action=cleanup_pending/);
 });
+
+test('storage endpoint initializes the rotation journal before envelope migration uses it', () => {
+    assert.match(endpoint, /\$rotationJournal\s*=\s*new\s+GalleryRotationStore\(\$dataDirectory\s*\.\s*'\/gallery_rotation\.json'\)/);
+    assert.match(endpoint, /use\s*\(\$objectStore,\s*\$galleryKeys,\s*\$rotationJournal,/);
+});
