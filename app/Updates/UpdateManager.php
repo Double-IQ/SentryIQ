@@ -9,6 +9,7 @@ use ZipArchive;
 
 require_once __DIR__ . '/ReleaseTrustPolicy.php';
 require_once __DIR__ . '/GitHubCliAttestationVerifier.php';
+require_once dirname(__DIR__) . '/Security/SecurityBootstrap.php';
 
 final class UpdateManager
 {
@@ -34,6 +35,9 @@ final class UpdateManager
         }
         if ($this->dataDir === '' || !str_starts_with($this->dataDir, '/') || !is_dir($this->dataDir) || is_link($this->dataDir)) {
             throw new RuntimeException('Invalid SentryIQ secure data directory.');
+        }
+        if (!sentryiq_path_is_outside_document_root($this->dataDir)) {
+            throw new RuntimeException('SentryIQ secure data directory must resolve outside the public web root.');
         }
         $ghBinary = getenv('SENTRYIQ_GH_BINARY');
         $this->attestationVerifier = $attestationVerifier ?? new GitHubCliAttestationVerifier(
