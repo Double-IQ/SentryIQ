@@ -121,7 +121,7 @@ function first_run_cleanup(): bool
     $dir = dirname(__DIR__, 2) . '/private_data';
     if (!is_dir($dir)) return true;
 
-    foreach (['vault_engine.php', 'email_template.php', 'vault_icon_cache.php'] as $name) {
+    foreach (['vault_engine.php', 'email_template.php', 'vault_icon_cache.php', 'VaultKdfPolicy.php'] as $name) {
         $path = $dir . '/' . $name;
         if (is_file($path) && !@unlink($path)) return false;
     }
@@ -149,19 +149,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_first_run'])
     elseif (!first_run_prepare_dir($directory)) $error = 'SentryIQ could not prepare secure storage.';
     elseif (strlen($password) < 12) $error = 'The master vault password must be at least 12 characters long.';
     elseif ($password !== $confirm) $error = 'The master vault passwords do not match.';
-    elseif (!is_file($sourcePrivateDir . '/vault_engine.php') || !is_file($sourcePrivateDir . '/email_template.php') || !is_file($sourcePrivateDir . '/vault_icon_cache.php')) $error = 'SentryIQ installation files are incomplete.';
+    elseif (!is_file($sourcePrivateDir . '/vault_engine.php') || !is_file($sourcePrivateDir . '/email_template.php') || !is_file($sourcePrivateDir . '/vault_icon_cache.php') || !is_file($sourcePrivateDir . '/VaultKdfPolicy.php')) $error = 'SentryIQ installation files are incomplete.';
     else {
         $engineTarget = $directory . '/vault_engine.php';
         $templateTarget = $directory . '/email_template.php';
         $iconCacheTarget = $directory . '/vault_icon_cache.php';
+        $kdfPolicyTarget = $directory . '/VaultKdfPolicy.php';
         $secureConfig = $directory . '/sentryiq_config.php';
         $pointerConfig = "<?php\nreturn [\n    'data_dir' => " . var_export($directory, true) . ",\n    'base_url' => " . var_export($baseUrl, true) . ",\n];\n";
         try {
-            @unlink($engineTarget); @unlink($templateTarget); @unlink($iconCacheTarget);
+            @unlink($engineTarget); @unlink($templateTarget); @unlink($iconCacheTarget); @unlink($kdfPolicyTarget);
             if (!@copy($sourcePrivateDir . '/vault_engine.php', $engineTarget)) throw new RuntimeException('runtime_copy_failed');
             if (!@copy($sourcePrivateDir . '/email_template.php', $templateTarget)) throw new RuntimeException('template_copy_failed');
             if (!@copy($sourcePrivateDir . '/vault_icon_cache.php', $iconCacheTarget)) throw new RuntimeException('icon_cache_copy_failed');
-            @chmod($engineTarget, 0600); @chmod($templateTarget, 0600); @chmod($iconCacheTarget, 0600);
+            if (!@copy($sourcePrivateDir . '/VaultKdfPolicy.php', $kdfPolicyTarget)) throw new RuntimeException('kdf_policy_copy_failed');
+            @chmod($engineTarget, 0600); @chmod($templateTarget, 0600); @chmod($iconCacheTarget, 0600); @chmod($kdfPolicyTarget, 0600);
             if (!first_run_write_config($secureConfig, $username, $email, $baseUrl, $directory)) throw new RuntimeException('secure_config_failed');
 
             clearstatcache(true, $engineTarget);
