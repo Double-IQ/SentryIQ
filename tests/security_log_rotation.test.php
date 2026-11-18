@@ -56,7 +56,7 @@ try {
     $events = read_security_log();
     securityLogCheck(count($events) === 1000, 'Security log reader must return no more than the latest 1000 events.');
 
-    $largeLog = str_repeat($line, 32000);
+    $largeLog = str_repeat($line, 50000);
     file_put_contents(LOG_FILE, $largeLog);
     chmod(LOG_FILE, 0600);
     log_security_event('ROTATION_EVENT', '127.0.0.1', 'test-user', ['oversized' => str_repeat('x', 20000)]);
