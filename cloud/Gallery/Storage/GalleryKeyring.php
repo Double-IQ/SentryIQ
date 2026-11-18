@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SentryIQCloud\\Gallery\\Storage;
+namespace SentryIQCloud\Gallery\Storage;
 
 use RuntimeException;
 
