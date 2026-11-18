@@ -35,3 +35,12 @@ test('Gallery device removal is serialized with key rotation and rechecks enroll
     assert.match(passkeyEndpoint, /Re-check both enrollments while holding the same transaction lock[\s\S]*?credentialEnvelope\(\$verifiedId\)[\s\S]*?credentialEnvelope\(\$targetId\)[\s\S]*?removeCredentialEnvelope\(\$targetId\)/);
     assert.match(passkeyEndpoint, /A Gallery device cannot be removed while key rotation is active or awaiting retirement/);
 });
+
+test('WebAuthn counters are re-read and updated under a dedicated lock', () => {
+    const passkeyEndpoint = fs.readFileSync(
+        path.join(__dirname, '../app/Auth/GalleryPasskeyAuth.php'),
+        'utf8'
+    );
+    assert.match(passkeyEndpoint, /function gallery_passkey_save_counter\([\s\S]*?\.counter\.lock[\s\S]*?flock\(\$lock, LOCK_EX\)[\s\S]*?gallery_passkey_store\(\$path\)[\s\S]*?counter validation failed[\s\S]*?gallery_passkey_save\(\$path, \$store\)/);
+    assert.match(passkeyEndpoint, /gallery_passkey_save_counter\(\$passkeyPath, \$credentialId, \$counter\)/);
+});
