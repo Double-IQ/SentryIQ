@@ -42,6 +42,7 @@ function first_run_prepare_dir(string $dir): bool
     if (preg_match('#/(public_html|htdocs|www)(/|$)#i', $dir)) return false;
     if (is_link($dir)) return false;
     if (!is_dir($dir) && !@mkdir($dir, 0700, true)) return false;
+    if (!sentryiq_path_is_outside_document_root($dir)) return false;
     @chmod($dir, 0700);
     clearstatcache(true, $dir);
     $perms = @fileperms($dir);
