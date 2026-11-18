@@ -1,0 +1,60 @@
+# ADR: Safe, resumable Secure Gallery key rotation
+
+- **Status:** Design accepted for implementation; no rotation code is enabled by this ADR
+- **Date:** 2026-11-18
+- **Branch:** `feature/gallery-zero-knowledge-e2e`
+
+## Context
+
+Gallery currently has one RSA-OAEP-256 identity key pair. The RSA private key is encrypted by the Gallery root key; passkey PRF envelopes and the recovery envelope independently wrap that same root key. Each stored object has a random AES-256-GCM DEK, and that DEK is wrapped by the single Gallery RSA public key.
+
+A naïve rotation that rewrites every object's wrapped DEK in one operation is unsafe. A browser crash, network interruption, object deletion, or concurrent upload midway through the rewrite could leave some photos dependent on the old private key while the server has already replaced it.
+
+## Decision
+
+Separate **RSA wrapping-key rotation** from **Gallery root-key rotation**. The first is the routine operation for retiring an RSA key pair. The second is a separate, higher-impact operation that changes the root key and therefore every passkey and recovery envelope.
+
+### RSA wrapping-key rotation
+
+1. Give every RSA public/private key pair an immutable random `keyId`. Every object envelope records the `keyId` that can unwrap its DEK.
+2. Store a keyring, not a single mutable key: each entry contains `keyId`, public JWK and a private-key envelope encrypted under the unchanged Gallery root key. Keep one explicit `activeKeyId`.
+3. Starting rotation creates a new RSA key pair in the unlocked browser. The browser encrypts its private JWK under the existing root key and submits the new public JWK and private-key envelope. The server validates and stores the new entry, then atomically switches `activeKeyId` for new uploads. The old key remains available.
+4. The browser migrates each active object independently: download its current encrypted envelope and ciphertext, unwrap the DEK with the old private key, wrap the same DEK with the new public key, then submit only the replacement envelope. The photo ciphertext is not downloaded or re-encrypted for this operation; no plaintext image reaches PHP.
+5. Every replacement is conditional on the object's current envelope version/hash still matching the version the browser read. A conflict means the object changed or was already migrated; refetch and retry rather than overwriting newer state.
+6. Persist a server-side migration journal with migration ID, source key ID, target key ID, start time, and state. Progress is derived from the active object index, not trusted from a browser-supplied completed counter. The client can resume after reload or another device unlocks.
+7. Uploads created after the active-key switch use the new key. Deletes may remove an object while migration is running; missing objects are treated as complete. A failed object remains readable through the old key and is retried.
+8. Retire the old key only after the server verifies that no active object envelope references it, all migration writes are committed, and a final inventory pass confirms the invariant. Keep a short, explicit rollback window before irreversible retirement. Never delete the old private-key envelope merely because a client reports 100%.
+9. If the migration is abandoned, both keys remain in the keyring and every object remains readable. A later session can resume or explicitly abort the migration; aborting keeps both keys and restores the prior key as active only after confirming no new-key-only object would be stranded.
+
+### Gallery root-key rotation
+
+Root-key rotation is not the same operation. It requires an unlocked browser to generate a new random root key, re-encrypt every retained RSA private-key JWK under it, and create new envelopes for **every remaining enrolled passkey** and the recovery secret. The server must stage all new envelopes and activate them atomically only after the browser proves it can reopen the new root key from both a passkey and the new recovery envelope. If an enrolled device is unavailable, its old envelope cannot unlock the new root key; that device must be re-enrolled after rotation. Root-key rotation must not be silently bundled into ordinary RSA rotation.
+
+### Data model and API requirements
+
+- Gallery identity schema must be versioned before rotation ships. Existing v1 single-key records need a read-only compatibility path and a deliberate v2 upgrade.
+- Object envelope schema must include `keyId` and an envelope revision. Unknown key IDs, missing IDs in a v2 record, or unsupported versions fail closed.
+- Add server operations to begin/resume/status/abort/finalize a rotation, plus conditional per-object envelope replacement.
+- Server-side code validates key IDs, envelope shape, migration state, object ownership and revision transitions. It never receives a DEK, RSA private key, root key, PRF output or plaintext image.
+- The server must not trust client-reported counts, object lists or completion state. It computes remaining references from its authoritative object index.
+- Rotation APIs require authenticated account access, CSRF protection and a recent verified Gallery passkey. Finalization requires a fresh server-side inventory check under the same storage lock used for object-envelope writes.
+- Keep object ciphertext bytes, opaque B2 object keys and AES-GCM nonces unchanged during RSA wrapping-key rotation.
+
+## Required tests before implementation is considered complete
+
+- New uploads use the active key ID after the activation commit.
+- Old and new key IDs both decrypt objects during an in-progress rotation.
+- A simulated interruption after any migrated object leaves all objects readable and rotation resumable.
+- Concurrent upload, delete, and envelope replacement cannot lose an object or overwrite a newer envelope.
+- Conditional updates reject stale envelope revisions.
+- Finalization is rejected while even one active object references the old key.
+- Unknown key IDs and malformed v2 envelopes fail closed.
+- Aborting a partially completed rotation retains both keys and all data remains readable.
+- A root-key rotation cannot activate unless every retained passkey envelope and the recovery envelope have been staged and independently verified.
+- No rotation request sends plaintext image data, a DEK, private-key JWK, root key, recovery secret or PRF output to PHP.
+
+## Consequences
+
+RSA rotation can be long-running and resumable, but it does not require re-uploading or re-encrypting photo ciphertext. The old private key must remain available until the server's authoritative inventory proves it is no longer referenced. Root-key rotation is a separate coordinated recovery event and may require unavailable devices to be re-enrolled.
+
+This ADR intentionally does not change the current v1 data format or expose a rotation button. Implementing rotation before keyring/version migration and conditional object-envelope updates exist would risk irreversible data loss.
