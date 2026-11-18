@@ -39,6 +39,11 @@ function sentryiq_throttle_clear(string $scope, string $ip): void
     sentryiq_throttle_store()->clear($scope, $ip);
 }
 
+function sentryiq_claim_2fa_email_cooldown(string $ip, ?int $now = null): bool
+{
+    return sentryiq_throttle_store()->claimCooldown('2fa_email', $ip, 60, $now);
+}
+
 function sentryiq_safe_vault_unlock(string $password): array|false
 {
     if ($password === '') return false;
@@ -126,6 +131,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login_step_1'])) {
             if (!$email || $baseUrl === '') {
                 $decryption_failed = true;
                 log_security_event('AUTH_CONFIGURATION_INVALID', $ip, $username);
+            } elseif (!sentryiq_claim_2fa_email_cooldown($ip)) {
+                log_security_event('2FA_EMAIL_COOLDOWN', $ip, $username, ['stage'=>'master_password']);
+                $decryption_failed = true;
             } else {
                 $twoFaCode = str_pad((string)random_int(100000, 999999), 6, '0', STR_PAD_LEFT);
                 cleanup_expired_tokens();
