@@ -60,5 +60,8 @@ jobs:
       - name: Test vault icon SSRF protections
         run: php tests/vault_icon_ssrf.test.php
 
+      - name: Test password unlock exception handling
+        run: php tests/auth_unlock_exception.test.php
+
       - name: Test GitHub CLI attestation adapter contract
         run: php tests/github_cli_attestation_verifier.test.php
