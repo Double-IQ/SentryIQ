@@ -405,13 +405,17 @@
         }
     }
 
-    function lock() {
-        // Invalidate decryptions already in flight so they cannot produce new
-        // plaintext buffers or object URLs after the Gallery has been locked.
+    function invalidatePendingDecrypts() {
         lockGeneration++;
+    }
+
+    function lock() {
+        // The Secure Gallery lock callback invalidates in-flight decryptions.
+        // Keep a fallback for a partially initialized page without that API.
+        if (root.SentryIQSecureGallery) root.SentryIQSecureGallery.lock();
+        else invalidatePendingDecrypts();
         objectUrls.forEach(function (url) { URL.revokeObjectURL(url); });
         objectUrls.clear();
-        if (root.SentryIQSecureGallery) root.SentryIQSecureGallery.lock();
     }
 
     root.SentryIQGalleryStorage = Object.freeze({
