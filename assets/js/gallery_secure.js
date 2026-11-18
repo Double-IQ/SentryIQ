@@ -281,6 +281,39 @@
         }
     }
 
+    async function addWrappingKey() {
+        if (!unlockedRootKey) throw new Error('Unlock secure Gallery before adding an encryption key.');
+        const verified = await verifyNewPasskey();
+        let keyIdBytes = null;
+        try {
+            if (!verified.identity || !verified.identity.credentialEnvelope) {
+                throw new Error('Confirm with a passkey already enrolled for Gallery.');
+            }
+            keyIdBytes = cryptoApi().createAccountSalt();
+            const keyId = 'gk_' + cryptoApi().toBase64Url(keyIdBytes.subarray(0, 16));
+            const wrappingKey = await cryptoApi().createAdditionalWrappingKey(unlockedRootKey);
+            const response = await fetch('gallery_passkey.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify({
+                    action: 'add_wrapping_key',
+                    csrf_token: csrfToken(),
+                    keyId: keyId,
+                    publicKey: wrappingKey.publicKey,
+                    privateKeyEnvelope: wrappingKey.privateKeyEnvelope
+                })
+            });
+            await readJson(response);
+            return { status: 'added', keyId: keyId };
+        } finally {
+            if (keyIdBytes) cryptoApi().clearSecret(keyIdBytes);
+            cryptoApi().clearSecret(verified.prfOutput);
+            cryptoApi().clearSecret(verified.accountSalt);
+        }
+    }
+
     async function removeEnrolledDevice(targetCredentialId) {
         if (!targetCredentialId) throw new Error('Select a Gallery device to remove.');
         const verified = await verifyNewPasskey();
@@ -335,6 +368,7 @@
         completeIdentitySetup: completeIdentitySetup,
         unlockWithRecovery: unlockWithRecovery,
         enrollCurrentPasskey: enrollCurrentPasskey,
+        addWrappingKey: addWrappingKey,
         removeEnrolledDevice: removeEnrolledDevice,
         lock: lock,
         isUnlocked: function () { return unlockedPrivateKey !== null && unlockedRootKey !== null; },
