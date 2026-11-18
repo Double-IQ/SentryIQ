@@ -3,6 +3,7 @@
 
     const roles = ['original', 'thumbnail', 'preview', 'metadata'];
     const objectUrls = new Set();
+    let lockGeneration = 0;
 
     function secureApi() {
         if (!root.SentryIQSecureGallery || !root.SentryIQSecureGallery.isUnlocked()) {
@@ -251,6 +252,7 @@
 
     async function download(photoId, role) {
         const secure = secureApi();
+        const generation = lockGeneration;
         if (!roles.includes(role)) throw new Error('Invalid Gallery object role.');
         const signed = await post('download', { photoId: photoId, role: role });
         const response = await fetch(signed.url, {
@@ -263,7 +265,13 @@
         if (!response.ok) throw new Error('Unable to download encrypted Gallery data (' + response.status + ').');
         const ciphertext = await response.arrayBuffer();
         try {
-            return await secure.decryptObject(ciphertext, signed.envelope, photoId, role);
+            const plaintext = await secure.decryptObject(ciphertext, signed.envelope, photoId, role);
+            if (generation !== lockGeneration) {
+                if (plaintext instanceof ArrayBuffer) new Uint8Array(plaintext).fill(0);
+                else if (plaintext instanceof Uint8Array) plaintext.fill(0);
+                throw new Error('Secure Gallery locked while decrypting this object.');
+            }
+            return plaintext;
         } finally {
             new Uint8Array(ciphertext).fill(0);
         }
@@ -398,6 +406,9 @@
     }
 
     function lock() {
+        // Invalidate decryptions already in flight so they cannot produce new
+        // plaintext buffers or object URLs after the Gallery has been locked.
+        lockGeneration++;
         objectUrls.forEach(function (url) { URL.revokeObjectURL(url); });
         objectUrls.clear();
         if (root.SentryIQSecureGallery) root.SentryIQSecureGallery.lock();
