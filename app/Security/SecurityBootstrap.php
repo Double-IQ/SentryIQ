@@ -5,9 +5,33 @@ declare(strict_types=1);
 const SENTRYIQ_IDLE_TIMEOUT = 900;
 const SENTRYIQ_FRESH_AUTH_WINDOW = 300;
 
+function sentryiq_path_is_outside_document_root(string $path): bool
+{
+    if ($path === '' || !str_starts_with($path, '/') || is_link($path)) return false;
+    $realPath = realpath($path);
+    if ($realPath === false || rtrim($realPath, DIRECTORY_SEPARATOR) !== rtrim($path, DIRECTORY_SEPARATOR)) return false;
+
+    $documentRoot = trim((string)($_SERVER['DOCUMENT_ROOT'] ?? ''));
+    if ($documentRoot === '') return PHP_SAPI === 'cli';
+    $realDocumentRoot = realpath($documentRoot);
+    if ($realDocumentRoot === false || !is_dir($realDocumentRoot)) return false;
+
+    $root = rtrim($realDocumentRoot, DIRECTORY_SEPARATOR);
+    $target = rtrim($realPath, DIRECTORY_SEPARATOR);
+    if ($root === '') $root = DIRECTORY_SEPARATOR;
+    if (DIRECTORY_SEPARATOR === '\\') {
+        $root = strtolower($root);
+        $target = strtolower($target);
+    }
+    $prefix = rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    return $target !== $root && !str_starts_with($target, $prefix);
+}
+
 function sentryiq_data_dir(): string
 {
-    if (defined('SENTRYIQ_DATA_DIR') && is_dir(SENTRYIQ_DATA_DIR) && !is_link(SENTRYIQ_DATA_DIR)) {
+    if (defined('SENTRYIQ_DATA_DIR')
+        && is_dir(SENTRYIQ_DATA_DIR)
+        && sentryiq_path_is_outside_document_root(SENTRYIQ_DATA_DIR)) {
         return SENTRYIQ_DATA_DIR;
     }
 
@@ -22,7 +46,10 @@ function sentryiq_data_dir(): string
     }
 
     $dataDir = rtrim((string)($config['data_dir'] ?? ''), '/');
-    if ($dataDir === '' || !str_starts_with($dataDir, '/') || is_link($dataDir) || !is_dir($dataDir)) {
+    if ($dataDir === ''
+        || !str_starts_with($dataDir, '/')
+        || !is_dir($dataDir)
+        || !sentryiq_path_is_outside_document_root($dataDir)) {
         return '';
     }
 
