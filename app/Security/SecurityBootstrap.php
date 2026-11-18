@@ -128,6 +128,19 @@ function sentryiq_authenticated_session_expired(array $session, int $now): bool
     return $lastActivity <= 0 || $lastActivity > $now + 5 || ($now - $lastActivity) > SENTRYIQ_IDLE_TIMEOUT;
 }
 
+function sentryiq_build_content_security_policy(bool $galleryRoute, string $b2Host = ''): string
+{
+    $imgSources = "'self' data:" . ($galleryRoute ? ' blob:' : '');
+    $connectSources = "'self'";
+    if ($galleryRoute && $b2Host !== '' && preg_match('/^[a-z0-9.-]+$/', $b2Host) === 1) {
+        $connectSources .= ' https://' . $b2Host;
+    }
+
+    return "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; img-src "
+        . $imgSources
+        . "; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src "
+        . $connectSources;
+}
 function sentryiq_security_bootstrap(): void
 {
     $dataDir = sentryiq_data_dir();
@@ -185,9 +198,18 @@ function sentryiq_security_bootstrap(): void
     header('X-Frame-Options: DENY');
     header('Referrer-Policy: no-referrer');
     header('Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()');
-    header("Content-Security-Policy: default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'");
-
     $script = basename((string)($_SERVER['SCRIPT_FILENAME'] ?? ''));
+    $galleryCspRoute = in_array($script, ['gallery.php', 'gallery_secure.php', 'gallery_b2_diagnostic.php'], true);
+    $b2Host = '';
+    if ($galleryCspRoute && $dataDir !== '') {
+        require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/BackblazeB2Signer.php';
+        try {
+            $b2Host = \SentryIQCloud\Gallery\Storage\BackblazeB2Signer::fromRuntimeDirectory($dataDir)->endpointHost();
+        } catch (Throwable) {
+            $b2Host = '';
+        }
+    }
+    header('Content-Security-Policy: ' . sentryiq_build_content_security_policy($galleryCspRoute, $b2Host));
     $passkeyPath = $script === 'passkey.php' || $script === 'passkey_login.php' || $script === 'passkey_setup.php' || $script === 'passkey_auth.php';
     $passwordFallback = isset($_GET['password']) && $_GET['password'] === '1';
 
