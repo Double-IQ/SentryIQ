@@ -338,6 +338,20 @@
         }
     });
 
+    byId('secure-gallery-add-key').addEventListener('click', async function () {
+        if (!window.confirm('Add another inactive Gallery encryption key? Existing photos will remain encrypted with their current keys.')) return;
+        this.disabled = true;
+        setStatus('secure-gallery-workspace-status', 'Confirm an enrolled Gallery passkey to add an encryption key…');
+        try {
+            const result = await SentryIQSecureGallery.addWrappingKey();
+            setStatus('secure-gallery-workspace-status', 'A new inactive encryption key was added (' + result.keyId + '). Existing uploads continue using the current active key.', 'success');
+        } catch (error) {
+            setStatus('secure-gallery-workspace-status', error.message || 'Unable to add an encryption key.', 'error');
+        } finally {
+            this.disabled = false;
+        }
+    });
+
     byId('secure-gallery-upload').addEventListener('click', async function () {
         const file = byId('secure-gallery-file').files[0];
         if (!file) {
