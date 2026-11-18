@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit('Not found.');
+}
+
 header('Content-Type: application/json; charset=utf-8');
 
 $webRoot = __DIR__;
