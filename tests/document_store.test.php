@@ -104,7 +104,7 @@ try {
     // Concurrent independent writers must not lose each other's updates.
     $concurrentPath = $private . '/concurrent.json';
     $childCode = 'require ' . var_export(dirname(__DIR__) . '/cloud/Documents/DocumentStore.php', true) . ';'
-        . '$s=new \\\\SentryIQCloud\\\\Documents\\\\DocumentStore($argv[1]);'
+        . '$s=new \\SentryIQCloud\\Documents\\DocumentStore($argv[1]);'
         . 'for($i=0;$i<20;$i++){ $id=sprintf("%032x", ((int)$argv[2])*100+$i+1); $s->put($id,["worker"=>(int)$argv[2],"index"=>$i]); }';
     $processes = [];
     foreach ([1, 2] as $worker) {
