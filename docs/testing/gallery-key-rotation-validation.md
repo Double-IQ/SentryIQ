@@ -50,6 +50,7 @@ Run this checklist only in a dedicated staging account and staging Backblaze buc
 - [ ] Test on a physical iPhone/iPad using the supported Safari version.
 - [ ] Confirm passkey PRF output is returned consistently during unlock and recent-passkey confirmation.
 - [ ] Confirm the keyring opens after app backgrounding, reload, and a fresh browser session.
+- [ ] Navigate away from Gallery and restore it with Safari's back navigation; confirm the restored page is locked, requires a fresh unlock, and shows no decrypted object URLs.
 - [ ] Confirm recovery unlock works on a second enrolled device.
 - [ ] Confirm a device without the required PRF capability fails safely without modifying the keyring.
 
