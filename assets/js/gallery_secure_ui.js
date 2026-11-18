@@ -228,12 +228,7 @@
                 results.forEach(function (result) {
                     if (result.status === 'fulfilled') {
                         SentryIQGalleryStorage.revokeObjectUrl(result.value.thumbnailUrl);
-                        if (result.value.metadata && typeof result.value.metadata === 'object') {
-                            Object.keys(result.value.metadata).forEach(function (key) {
-                                if (typeof result.value.metadata[key] === 'string') result.value.metadata[key] = '';
-                                else result.value.metadata[key] = null;
-                            });
-                        }
+                        SentryIQGalleryStorage.clearMetadata(result.value.metadata);
                     }
                 });
                 return;
@@ -276,45 +271,50 @@
     }
 
     function addPhotoCard(photo) {
-        const card = document.createElement('article');
-        card.className = 'secure-gallery-card';
-        const image = document.createElement('img');
-        image.src = photo.thumbnailUrl;
-        image.alt = photo.metadata.filename || 'Private photo';
-        image.loading = 'lazy';
-        image.addEventListener('click', function () { openViewer(photo.photoId); });
-        const title = document.createElement('strong');
-        title.textContent = photo.metadata.filename || 'Private photo';
-        const album = document.createElement('small');
-        album.textContent = photo.metadata.album || 'Unassigned';
-        const preview = document.createElement('button');
-        preview.type = 'button';
-        preview.className = 'btn';
-        preview.textContent = 'View';
-        preview.addEventListener('click', function () { openViewer(photo.photoId); });
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.className = 'btn';
-        remove.textContent = 'Delete';
-        remove.addEventListener('click', async function () {
-            if (!window.confirm('Permanently delete this encrypted photo and its B2 objects?')) return;
-            remove.disabled = true;
-            try {
-                await SentryIQGalleryStorage.deletePhoto(photo.photoId);
-                SentryIQGalleryStorage.revokeObjectUrl(photo.thumbnailUrl);
-                card.remove();
-                photoCards = photoCards.filter(function (item) { return item.card !== card; });
-                updateAlbumFilter();
-                setStatus('secure-gallery-workspace-status', 'Photo deleted.', 'success');
-            } catch (error) {
-                setStatus('secure-gallery-workspace-status', error.message || 'Unable to delete this photo.', 'error');
-                remove.disabled = false;
-            }
-        });
-        card.append(image, title, album, preview, remove);
-        grid.appendChild(card);
-        photoCards.push({ card: card, album: album.textContent, thumbnailUrl: photo.thumbnailUrl });
-        updateAlbumFilter();
+        const metadata = photo.metadata;
+        try {
+            const card = document.createElement('article');
+            card.className = 'secure-gallery-card';
+            const image = document.createElement('img');
+            image.src = photo.thumbnailUrl;
+            image.alt = metadata.filename || 'Private photo';
+            image.loading = 'lazy';
+            image.addEventListener('click', function () { openViewer(photo.photoId); });
+            const title = document.createElement('strong');
+            title.textContent = metadata.filename || 'Private photo';
+            const album = document.createElement('small');
+            album.textContent = metadata.album || 'Unassigned';
+            const preview = document.createElement('button');
+            preview.type = 'button';
+            preview.className = 'btn';
+            preview.textContent = 'View';
+            preview.addEventListener('click', function () { openViewer(photo.photoId); });
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'btn';
+            remove.textContent = 'Delete';
+            remove.addEventListener('click', async function () {
+                if (!window.confirm('Permanently delete this encrypted photo and its B2 objects?')) return;
+                remove.disabled = true;
+                try {
+                    await SentryIQGalleryStorage.deletePhoto(photo.photoId);
+                    SentryIQGalleryStorage.revokeObjectUrl(photo.thumbnailUrl);
+                    card.remove();
+                    photoCards = photoCards.filter(function (item) { return item.card !== card; });
+                    updateAlbumFilter();
+                    setStatus('secure-gallery-workspace-status', 'Photo deleted.', 'success');
+                } catch (error) {
+                    setStatus('secure-gallery-workspace-status', error.message || 'Unable to delete this photo.', 'error');
+                    remove.disabled = false;
+                }
+            });
+            card.append(image, title, album, preview, remove);
+            grid.appendChild(card);
+            photoCards.push({ card: card, album: album.textContent, thumbnailUrl: photo.thumbnailUrl });
+            updateAlbumFilter();
+        } finally {
+            SentryIQGalleryStorage.clearMetadata(metadata);
+        }
     }
 
     async function openViewer(photoId) {
