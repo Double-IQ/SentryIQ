@@ -44,8 +44,8 @@ if (!is_string($x) || !is_string($y) || strlen($x) > 32 || strlen($y) > 32) {
 }
 // OpenSSL may return big-endian coordinates without leading zero octets.
 // COSE EC2 encodes both coordinates as fixed-width 32-byte values.
-$x = str_pad($x, 32, "\\0", STR_PAD_LEFT);
-$y = str_pad($y, 32, "\\0", STR_PAD_LEFT);
+$x = str_pad($x, 32, "\0", STR_PAD_LEFT);
+$y = str_pad($y, 32, "\0", STR_PAD_LEFT);
 
 $coseBytes = coseFixture($x, $y);
 $offset = 0;
