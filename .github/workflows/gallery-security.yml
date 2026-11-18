@@ -32,9 +32,10 @@ jobs:
           node --check tests/gallery_upload_boundary.test.js
           node --check tests/gallery_device_management.test.js
           node --check tests/gallery_recovery_flow.test.js
+          node --check tests/gallery_rotation_flow.test.js
 
       - name: Test browser-side Gallery cryptography
-        run: node --test tests/gallery_crypto.test.js tests/gallery_session_guard.test.js tests/gallery_csp.test.js tests/gallery_memory.test.js tests/gallery_upload_boundary.test.js tests/gallery_device_management.test.js tests/gallery_recovery_flow.test.js
+        run: node --test tests/gallery_crypto.test.js tests/gallery_session_guard.test.js tests/gallery_csp.test.js tests/gallery_memory.test.js tests/gallery_upload_boundary.test.js tests/gallery_device_management.test.js tests/gallery_recovery_flow.test.js tests/gallery_rotation_flow.test.js
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
