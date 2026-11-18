@@ -6,6 +6,8 @@ namespace SentryIQCloud\Gallery\Storage;
 
 use RuntimeException;
 
+require_once __DIR__ . '/GalleryKeyring.php';
+
 final class GalleryKeyStore
 {
     public function __construct(private readonly string $file)
@@ -29,13 +31,67 @@ final class GalleryKeyStore
     public function publicKey(): ?array
     {
         $store = $this->read();
+        if (($store['version'] ?? null) === 2) {
+            $active = $store['keys'][$store['active_key_id']] ?? null;
+            return is_array($active['public_key'] ?? null) ? $active['public_key'] : null;
+        }
         return is_array($store['public_key'] ?? null) ? $store['public_key'] : null;
     }
 
     public function privateKeyEnvelope(): ?array
     {
         $store = $this->read();
+        if (($store['version'] ?? null) === 2) {
+            $active = $store['keys'][$store['active_key_id']] ?? null;
+            return is_array($active['private_key_envelope'] ?? null) ? $active['private_key_envelope'] : null;
+        }
         return is_array($store['private_key_envelope'] ?? null) ? $store['private_key_envelope'] : null;
+    }
+
+
+    /**
+     * Return the persisted v2 keyring, or null while the identity remains v1.
+     */
+    public function keyring(): ?array
+    {
+        $store = $this->read();
+        return ($store['version'] ?? null) === 2 ? $store : null;
+    }
+
+    /**
+     * Upgrade the on-disk identity container without changing key material.
+     * Existing object envelopes remain v1 and continue to use the same key.
+     */
+    public function migrateToKeyring(string $keyId): array
+    {
+        $this->mutate(function (array &$store) use ($keyId): void {
+            if ($store === []) throw new RuntimeException('The Gallery encryption identity has not been initialized.');
+            if (($store['version'] ?? null) === 2) {
+                GalleryKeyring::validate($store);
+                return;
+            }
+            $store = GalleryKeyring::fromLegacy($store, $keyId);
+        });
+        $keyring = $this->keyring();
+        if ($keyring === null) throw new RuntimeException('Gallery keyring migration did not complete.');
+        return $keyring;
+    }
+
+    /**
+     * Add an inactive wrapping key. Activation is intentionally unavailable
+     * until object envelopes carry key IDs.
+     */
+    public function addWrappingKey(string $keyId, array $publicKey, array $privateKeyEnvelope): array
+    {
+        $this->mutate(function (array &$store) use ($keyId, $publicKey, $privateKeyEnvelope): void {
+            if (($store['version'] ?? null) !== 2) {
+                throw new RuntimeException('Migrate the Gallery identity to a keyring before adding a wrapping key.');
+            }
+            $store = GalleryKeyring::addKey($store, $keyId, $publicKey, $privateKeyEnvelope);
+        });
+        $keyring = $this->keyring();
+        if ($keyring === null) throw new RuntimeException('Gallery keyring update did not complete.');
+        return $keyring;
     }
 
     public function recoveryEnvelope(): ?array
@@ -146,14 +202,19 @@ final class GalleryKeyStore
         }
         $raw = @file_get_contents($this->file);
         $decoded = is_string($raw) ? json_decode($raw, true) : null;
-        if (!is_array($decoded) || ($decoded['version'] ?? null) !== 1
-            || !is_array($decoded['public_key'] ?? null)
-            || !is_array($decoded['private_key_envelope'] ?? null)
-            || !is_array($decoded['credential_envelopes'] ?? null)
-            || !is_array($decoded['recovery_envelope'] ?? null)) {
-            throw new RuntimeException('Gallery key storage is invalid.');
+        if (!is_array($decoded)) throw new RuntimeException('Gallery key storage is invalid.');
+        if (($decoded['version'] ?? null) === 1
+            && is_array($decoded['public_key'] ?? null)
+            && is_array($decoded['private_key_envelope'] ?? null)
+            && is_array($decoded['credential_envelopes'] ?? null)
+            && is_array($decoded['recovery_envelope'] ?? null)) {
+            return $decoded;
         }
-        return $decoded;
+        if (($decoded['version'] ?? null) === 2) {
+            GalleryKeyring::validate($decoded);
+            return $decoded;
+        }
+        throw new RuntimeException('Gallery key storage is invalid.');
     }
 
     private function mutate(callable $callback): void
