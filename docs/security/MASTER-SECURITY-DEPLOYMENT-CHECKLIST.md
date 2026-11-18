@@ -20,11 +20,13 @@ This document is the single working checklist for the reset security review and 
 
 ## Current progress
 
-**Phase 1: 1/30 findings/tasks completed.**
+**Phase 1: 4/30 findings/tasks completed.**
 
 - Completed: 1.1 — identified the public installation diagnostic endpoint as an exposure requiring protection.
-- In progress, not counted complete: 1.2 — authentication protection is proposed in [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53); focused CI access-control tests now pass, but review/merge and production verification remain pending.
-- Current active item: **1.4**. Review the tested correction and decide whether to merge it.
+- Completed: 1.2 — authentication protection merged in [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53); production deployment/runtime verification remains outstanding and is not claimed.
+- Completed: 1.3 — all four focused access-control scenarios pass in CI.
+- Completed: 1.4 — PR #53 reviewed, marked ready, and squash-merged into `main` as `2ca8accf882e52f7bbeebcf9f49e81b1891a0910`.
+- Next item, pending user review: **2.1** — audit Content Security Policy, especially `unsafe-inline`.
 - No four-node deployment task is marked complete by this document.
 
 ---
@@ -36,13 +38,14 @@ All findings must be verified against `main`. The existing application is the ba
 ## 1. Installation diagnostics
 
 - [x] **1.1** Identify publicly accessible diagnostic endpoints.
-- [ ] **1.2** Protect post-install diagnostic with authentication.
-  - Proposed change: [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53), implementation commit `197b0901535459aa6a181b47fde3876c3ce3e1d6`.
-  - Status: authentication gate is implemented; merge and production verification pending.
+- [x] **1.2** Protect post-install diagnostic with authentication.
+  - Correction: [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53), implementation commit `197b0901535459aa6a181b47fde3876c3ce3e1d6`.
+  - Merged into `main` by squash commit `2ca8accf882e52f7bbeebcf9f49e81b1891a0910` on 2026-11-18. Production deployment/runtime verification is not yet performed.
 - [x] **1.3** Test authenticated, unauthenticated and CLI access.
   - Added `tests/post_install_diagnostic_access.test.php`, an isolated PHP built-in-server integration test covering unauthenticated installed web access (302, no diagnostic body), authenticated web access (200 JSON), uninstalled web access (404, no diagnostic body), and CLI access (successful JSON).
   - CI: [PHP Syntax Check run](https://github.com/Double-IQ/SentryIQ/actions/runs/44291043980) passed, including the focused access-control test; [Gallery Security Checks run](https://github.com/Double-IQ/SentryIQ/actions/runs/44291044080) also passed.
-- [ ] **1.4** Review and merge the correction after successful testing.
+- [x] **1.4** Review and merge the correction after successful testing.
+  - Reviewed PR #53, verified the latest head `3759d5e3e405c2d700dc0a4f38c95cc27e35fb77`, confirmed both CI checks passed, marked the PR ready for review, and squash-merged it. [Merge commit](https://github.com/Double-IQ/SentryIQ/commit/2ca8accf882e52f7bbeebcf9f49e81b1891a0910).
 
 ## 2. JavaScript and browser security
 
@@ -140,8 +143,9 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 | Date | Checklist item | Change / evidence | Result | Reviewed |
 |---|---|---|---|---|
 | 2026-11-18 | 1.1 | Identified `diagnostics/post_install_diagnostic.php` as a publicly accessible diagnostic requiring protection | Finding recorded | Yes |
-| 2026-11-18 | 1.2 | [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53), implementation commit `197b090` | Authentication gate implemented; review/merge pending | Pending |
-| 2026-11-18 | 1.3 | `tests/post_install_diagnostic_access.test.php`; CI runs [44291043980](https://github.com/Double-IQ/SentryIQ/actions/runs/44291043980) and [44291044080](https://github.com/Double-IQ/SentryIQ/actions/runs/44291044080) | Four access scenarios pass in CI | Yes |
+| 2026-11-18 | 1.2 | [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53), implementation commit `197b090`, merge commit `2ca8acc` | Authentication gate merged into `main`; not deployed to production | Yes |
+| 2026-11-18 | 1.3 | `tests/post_install_diagnostic_access.test.php`; CI runs [44291043980](https://github.com/Double-IQ/SentryIQ/actions/runs/44291043980) and [44291044080](https://github.com/Double-IQ/SentryIQ/actions/runs/44291044080) on PR head `3759d5e` | Four access scenarios pass in CI | Yes |
+| 2026-11-18 | 1.4 | [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53), [merge commit `2ca8acc`](https://github.com/Double-IQ/SentryIQ/commit/2ca8accf882e52f7bbeebcf9f49e81b1891a0910) | Reviewed and squash-merged into `main`; production deployment not performed | Yes |
 
 ## Working rules
 
