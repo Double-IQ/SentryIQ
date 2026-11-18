@@ -140,6 +140,10 @@ test('photo objects decrypt only with the correct key and authenticated context'
         keyring, identity.credentialEnvelope, prf, credentialId
     );
     assert.equal(multiKeyUnlock.activeKeyId, 'gk_second02');
+    const refreshedKeyring = await gallery.unlockKeyringWithRoot(keyring, unlocked.rootKey);
+    assert.equal(refreshedKeyring.activeKeyId, 'gk_second02');
+    assert.ok(refreshedKeyring.privateKeys.gk_second02);
+    assert.equal(refreshedKeyring.legacyKeyId, 'gk_first01');
     const legacyObjectAfterMigration = await gallery.decryptObject(
         encrypted.ciphertext, encrypted.envelope, multiKeyUnlock.privateKeys,
         photoId, 'original', multiKeyUnlock.legacyKeyId
