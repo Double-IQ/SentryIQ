@@ -146,6 +146,7 @@ final class GalleryKeyring
         }
         if (count($keyring['keys']) <= 1) throw new RuntimeException('The final Gallery encryption key cannot be retired.');
         unset($keyring['keys'][$keyId]);
+        if (($keyring['legacy_key_id'] ?? null) === $keyId) unset($keyring['legacy_key_id']);
         self::validate($keyring);
         return $keyring;
     }
