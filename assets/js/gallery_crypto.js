@@ -196,6 +196,7 @@
             || !keyring.active_key_id || !Object.prototype.hasOwnProperty.call(keyring.keys, keyring.active_key_id)) {
             throw new Error('The Gallery encryption keyring is invalid.');
         }
+        if (keyring.legacy_key_id !== undefined && keyring.legacy_key_id !== null) validateKeyId(keyring.legacy_key_id);
         const rootKey = await unwrapRootKeyFromPasskey(credentialEnvelope, prfOutput, credentialId);
         const privateKeys = Object.create(null);
         const publicKeys = Object.create(null);
@@ -219,6 +220,7 @@
             || !keyring.active_key_id || !Object.prototype.hasOwnProperty.call(keyring.keys, keyring.active_key_id)) {
             throw new Error('The Gallery encryption keyring is invalid.');
         }
+        if (keyring.legacy_key_id !== undefined && keyring.legacy_key_id !== null) validateKeyId(keyring.legacy_key_id);
         const rootKey = await unwrapRootKeyFromRecovery(recoveryEnvelope, recoveryKey);
         const privateKeys = Object.create(null);
         const publicKeys = Object.create(null);
