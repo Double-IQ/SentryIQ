@@ -259,6 +259,35 @@
         }
     }
 
+    async function removeEnrolledDevice(targetCredentialId) {
+        if (!targetCredentialId) throw new Error('Select a Gallery device to remove.');
+        const verified = await verifyNewPasskey();
+        try {
+            if (!verified.identity || !verified.identity.credentialEnvelope) {
+                throw new Error('The confirmed passkey is not enrolled for Gallery management.');
+            }
+            if (verified.credentialId === targetCredentialId) {
+                throw new Error('Confirm a different enrolled passkey to remove this device.');
+            }
+            const response = await fetch('gallery_passkey.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify({
+                    action: 'remove_credential',
+                    csrf_token: csrfToken(),
+                    credentialId: targetCredentialId
+                })
+            });
+            await readJson(response);
+            return { status: 'removed' };
+        } finally {
+            cryptoApi().clearSecret(verified.prfOutput);
+            cryptoApi().clearSecret(verified.accountSalt);
+        }
+    }
+
     function lock() {
         cryptoApi().clearSecret(unlockedRootKey);
         if (pendingSetup) {
@@ -281,6 +310,7 @@
         completeIdentitySetup: completeIdentitySetup,
         unlockWithRecovery: unlockWithRecovery,
         enrollCurrentPasskey: enrollCurrentPasskey,
+        removeEnrolledDevice: removeEnrolledDevice,
         lock: lock,
         isUnlocked: function () { return unlockedPrivateKey !== null && unlockedRootKey !== null; },
         getPublicKey: function () { if (!unlockedPublicKey) throw new Error('Secure Gallery is locked.'); return unlockedPublicKey; },
