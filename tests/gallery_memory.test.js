@@ -142,3 +142,11 @@ test('transient passkey and recovery secrets are tracked and cleared immediately
     assert.match(secure, /pendingSetup\.recoveryCode = ''/);
     assert.match(secure, /async function verifyPasskey[\s\S]*?assertSessionGeneration\(generation\)[\s\S]*?const verified = await readJson\(verifiedResponse\);\s*assertSessionGeneration\(generation\)/);
 });
+
+test('decrypted metadata objects are tracked and cleared on lock', () => {
+    assert.match(storage, /const privateMetadata = new Set\(\)/);
+    assert.match(storage, /privateMetadata\.add\(metadata\)/);
+    assert.match(storage, /privateMetadata\.delete\(metadata\)/);
+    assert.match(storage, /Array\.from\(privateMetadata\)\.forEach\(clearPrivateMetadata\)/);
+    assert.match(ui, /function addPhotoCard\(photo\)[\s\S]*?finally\s*\{\s*SentryIQGalleryStorage\.clearMetadata\(metadata\)/);
+});
