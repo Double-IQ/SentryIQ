@@ -106,7 +106,7 @@ function gallery_passkey_save(string $path, array $store): void
 function gallery_passkey_save_counter(string $path, string $credentialId, int $counter): void
 {
     if ($counter === 0) return;
-    $lockPath = $path . '.counter.lock';
+    $lockPath = $path . '.lock';
     if (is_link($lockPath)) throw new RuntimeException('Passkey counter lock is invalid.');
     $lock = @fopen($lockPath, 'c');
     if ($lock === false) throw new RuntimeException('Unable to lock passkey counter storage.');
