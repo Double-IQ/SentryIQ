@@ -123,11 +123,11 @@ test('asynchronous key operations cannot restore Gallery keys after a lock', () 
     });
 });
 
-test('refreshed root-key copies are cleared after keyring synchronization', () => {
-    assert.match(secure, /async function ensureKeyAvailable[\s\S]*?finally\s*\{\s*cryptoApi\(\)\.clearSecret\(refreshed\.rootKey\)/);
-    assert.match(secure, /async function syncKeyringState[\s\S]*?finally\s*\{\s*cryptoApi\(\)\.clearSecret\(refreshed\.rootKey\)/);
+test('identity unlock root-key copies and private-key references are cleared when no longer needed', () => {
+    assert.match(secure, /async function completeIdentitySetup[\\s\\S]*?cryptoApi\\(\\)\\.clearSecret\\(activeKeys\\.rootKey\\)/);
+    assert.match(secure, /async function addWrappingKey[\\s\\S]*?cryptoApi\\(\\)\\.clearSecret\\(refreshed\\.rootKey\\)/);
+    assert.match(secure, /function assertSessionGeneration[\\s\\S]*?delete result\\.privateKeys\\[keyId\\]/);
 });
-
 test('pagehide protection is active even before the unlock-time session guard starts', () => {
     assert.match(ui, /window\.addEventListener\('pagehide', function \(\) \{[\s\S]*?lockWorkspace\('pagehide'\)/);
     assert.match(ui, /secure-gallery-unlock'\)\.addEventListener\('click',[\s\S]*?startSessionGuard\(\);\s*const result = await SentryIQSecureGallery\.unlock\(\)/);
