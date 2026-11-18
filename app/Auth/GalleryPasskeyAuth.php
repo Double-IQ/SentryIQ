@@ -127,6 +127,24 @@ function gallery_passkey_csrf(array $request): void
     }
 }
 
+function gallery_passkey_keyring_payload(GalleryKeyStore $galleryKeys): ?array
+{
+    $keyring = $galleryKeys->keyring();
+    if ($keyring === null) return null;
+    $keys = [];
+    foreach ($keyring['keys'] as $keyId => $entry) {
+        $keys[$keyId] = [
+            'public_key' => $entry['public_key'],
+            'private_key_envelope' => $entry['private_key_envelope'],
+        ];
+    }
+    return [
+        'version' => 2,
+        'active_key_id' => $keyring['active_key_id'],
+        'keys' => $keys,
+    ];
+}
+
 try {
     $dataDirectory = gallery_passkey_data_directory();
     $passkeyPath = $dataDirectory . '/passkeys.json';
@@ -141,6 +159,7 @@ try {
                 'publicKey' => $galleryKeys->publicKey(),
                 'privateKeyEnvelope' => $galleryKeys->privateKeyEnvelope(),
                 'recoveryEnvelope' => $galleryKeys->recoveryEnvelope(),
+                'keyring' => gallery_passkey_keyring_payload($galleryKeys),
             ],
         ]);
     }
@@ -277,6 +296,7 @@ try {
                 'privateKeyEnvelope' => $galleryKeys->privateKeyEnvelope(),
                 'credentialEnvelope' => $galleryKeys->credentialEnvelope($credentialId),
                 'recoveryEnvelope' => $galleryKeys->recoveryEnvelope(),
+                'keyring' => gallery_passkey_keyring_payload($galleryKeys),
             ];
         }
         gallery_passkey_json(['status' => 'ok', 'credentialId' => $credentialId, 'identity' => $identity]);
