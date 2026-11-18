@@ -181,9 +181,11 @@ final class IntegrityEventReportVerifier
 
         $origin = $payload['target_origin'] ?? null;
         $parts = is_string($origin) ? parse_url($origin) : false;
-        if (!is_array($parts) || ($parts['scheme'] ?? null) !== 'https' || empty($parts['host'])
+        if (!is_array($parts) || ($parts['scheme'] ?? null) !== 'https'
+            || $origin !== 'https://sentryiq.bichet.co.za'
+            || empty($parts['host'])
             || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])
-            || isset($parts['path']) || rtrim($origin, '/') !== $origin) {
+            || isset($parts['port']) || isset($parts['path']) || rtrim($origin, '/') !== $origin) {
             throw new RuntimeException('Signed integrity event target origin is invalid.');
         }
 
