@@ -160,6 +160,26 @@ try {
     check(($objectStore->find($photoId)['status'] ?? '') === 'active', 'Committed ciphertext objects must be active.');
     check(count($objectStore->all()) === 1, 'Active Gallery objects must be listed.');
     check(isset($objectStore->find($photoId)['objects']['metadata']['envelope']), 'Encrypted metadata envelope must be stored.');
+
+    $keyedPhotoId = bin2hex(random_bytes(16));
+    $keyedObjectKeys = [];
+    $keyedEnvelopes = $envelopes;
+    foreach (['original', 'thumbnail', 'preview', 'metadata'] as $role) {
+        $keyedObjectKeys[$role] = BackblazeB2Signer::newObjectKey($role);
+        $keyedEnvelopes[$role]['photoId'] = $keyedPhotoId;
+        $keyedEnvelopes[$role]['keyId'] = 'gk_testkey01';
+    }
+    $objectStore->createPending($keyedPhotoId, $keyedObjectKeys);
+    expectFailure(
+        fn() => $objectStore->commit($keyedPhotoId, $keyedEnvelopes, $sizes, ['gk_otherkey01'], true),
+        'The object store must reject envelopes referencing a key outside the persisted keyring.'
+    );
+    check(($objectStore->find($keyedPhotoId)['status'] ?? '') === 'pending', 'Rejected key references must leave uploads pending.');
+    $objectStore->commit($keyedPhotoId, $keyedEnvelopes, $sizes, ['gk_testkey01'], true);
+    check(($objectStore->find($keyedPhotoId)['objects']['original']['envelope']['keyId'] ?? '') === 'gk_testkey01',
+        'The object store must persist an authorized key identifier with each encrypted object.');
+
+    check($objectStore->remove($keyedPhotoId) !== null, 'Keyed Gallery object record should be removable.');
     check($objectStore->remove($photoId) !== null, 'Gallery object record should be removable.');
     check($objectStore->all() === [], 'Removed Gallery object must no longer be listed.');
 } finally {
