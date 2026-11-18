@@ -49,6 +49,7 @@ Run this checklist only in a dedicated staging account and staging Backblaze buc
 
 - [ ] Test on a physical iPhone/iPad using the supported Safari version.
 - [ ] Confirm passkey PRF output is returned consistently during unlock and recent-passkey confirmation.
+- [ ] Start a passkey unlock, then background Safari for more than 60 seconds or navigate away while the prompt is pending; on return, confirm the pending operation cannot restore keys and a fresh unlock is required.
 - [ ] Confirm the keyring opens after app backgrounding, reload, and a fresh browser session.
 - [ ] Leave Safari/PWA backgrounded for more than 60 seconds, then return; confirm Gallery is locked even if iOS suspended its JavaScript timers.
 - [ ] Navigate away from Gallery and restore it with Safari's back navigation; confirm the restored page is locked, requires a fresh unlock, and shows no decrypted object URLs.
