@@ -73,7 +73,7 @@ function pk_require_fresh_auth(): void
         passkey_auth_json(['status'=>'error','message'=>'Authentication required.'], 403);
     }
     try {
-        \\SentryIQ\\Auth\\WebAuthnChallenge::assertFreshAuthentication(
+        \SentryIQ\Auth\WebAuthnChallenge::assertFreshAuthentication(
             $_SESSION,
             time(),
             SENTRYIQ_FRESH_AUTH_WINDOW
