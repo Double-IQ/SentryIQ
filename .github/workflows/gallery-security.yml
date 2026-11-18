@@ -54,5 +54,8 @@ jobs:
       - name: Test updater release provenance and manifest
         run: php tests/update_release_provenance.test.php
 
+      - name: Test private data directory boundary
+        run: php tests/private_data_path.test.php
+
       - name: Test GitHub CLI attestation adapter contract
         run: php tests/github_cli_attestation_verifier.test.php
