@@ -354,8 +354,10 @@
                     throw new Error('A Gallery object is missing its envelope revision.');
                 }
                 let replacement = await secure.rewrapObjectEnvelope(currentEnvelope, photoId, role, targetKeyId);
+                let didUpdate = false;
                 try {
                     await replaceEnvelope(photoId, role, currentHash, replacement);
+                    didUpdate = true;
                 } catch (firstError) {
                     // A concurrent delete or another migration may have changed
                     // this record. Refetch once and retry only if it still needs work.
@@ -363,11 +365,12 @@
                     if (latest.envelope.keyId !== targetKeyId) {
                         replacement = await secure.rewrapObjectEnvelope(latest.envelope, photoId, role, targetKeyId);
                         await replaceEnvelope(photoId, role, latest.envelopeHash, replacement);
+                        didUpdate = true;
                     } else {
                         skipped++;
                     }
                 }
-                if (replacement && currentEnvelope.keyId !== targetKeyId) updated++;
+                if (didUpdate) updated++;
                 if (typeof onProgress === 'function') onProgress({ photoId, role, updated, skipped, total });
             }
         }
