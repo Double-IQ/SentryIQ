@@ -8,7 +8,7 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__) . '/app/Security/VaultKdfPolicy.php';
+require_once __DIR__ . '/VaultKdfPolicy.php';
 
 $configFile = __DIR__ . '/sentryiq_config.php';
 $config = is_file($configFile) ? require $configFile : [];
