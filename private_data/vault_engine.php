@@ -89,65 +89,160 @@ function get_visitor_ip(): string
     return filter_var(trim($ip), FILTER_VALIDATE_IP) ?: '0.0.0.0';
 }
 
+function sentryiq_with_security_log_lock(int $operation, callable $callback): mixed
+{
+    $lockPath = LOG_FILE . '.lock';
+    if (is_link($lockPath)) throw new RuntimeException('Security log lock is a symbolic link.');
+    $lock = @fopen($lockPath, 'c');
+    if ($lock === false) throw new RuntimeException('Unable to open security log lock.');
+    try {
+        $opened = fstat($lock);
+        $linked = @lstat($lockPath);
+        if (!is_array($opened) || !is_array($linked)
+            || (($linked['mode'] & 0170000) !== 0100000)
+            || $opened['dev'] !== $linked['dev']
+            || $opened['ino'] !== $linked['ino']) {
+            throw new RuntimeException('Security log lock path changed unexpectedly.');
+        }
+        @chmod($lockPath, 0600);
+        if (!flock($lock, $operation)) throw new RuntimeException('Unable to lock security log.');
+        return $callback();
+    } finally {
+        @flock($lock, LOCK_UN);
+        fclose($lock);
+    }
+}
+
+function sentryiq_rotate_security_log_unlocked(): void
+{
+    if (is_link(LOG_FILE)) throw new RuntimeException('Security log must not be a symbolic link.');
+    if (!is_file(LOG_FILE) || (int)@filesize(LOG_FILE) <= 5 * 1024 * 1024) return;
+
+    for ($index = 3; $index >= 1; $index--) {
+        $source = $index === 1 ? LOG_FILE : LOG_FILE . '.' . ($index - 1);
+        $target = LOG_FILE . '.' . $index;
+        if (is_link($source) || is_link($target)) {
+            throw new RuntimeException('Security log rotation encountered a symbolic link.');
+        }
+        if (is_file($target) && !@unlink($target)) {
+            throw new RuntimeException('Unable to prune rotated security log.');
+        }
+        if (is_file($source)) {
+            if (!@rename($source, $target)) throw new RuntimeException('Unable to rotate security log.');
+            @chmod($target, 0600);
+        }
+    }
+}
+
 function log_security_event(string $eventType, string $ipAddress, ?string $username = null, array $context = []): void
 {
-    if (!ensure_sentryiq_data_directory()) return;
+    try {
+        if (!ensure_sentryiq_data_directory()) return;
+        $event = [
+            'timestamp' => date('c'),
+            'event' => substr($eventType, 0, 128),
+            'username' => substr($username ?? (string)($_SESSION['app_username'] ?? 'unknown'), 0, 128),
+            'ip' => substr($ipAddress, 0, 128),
+            'user_agent' => substr((string)($_SERVER['HTTP_USER_AGENT'] ?? 'unknown'), 0, 512),
+            'context' => $context,
+        ];
+        $line = json_encode($event, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
+        if (strlen($line) > 16384) {
+            $event['context'] = ['truncated' => true];
+            $line = json_encode($event, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
+        }
+        $line .= PHP_EOL;
 
-    $event = [
-        'timestamp' => date('c'),
-        'event' => $eventType,
-        'username' => $username ?? ($_SESSION['app_username'] ?? 'unknown'),
-        'ip' => $ipAddress,
-        'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
-        'context' => $context,
-    ];
-
-    @file_put_contents(
-        LOG_FILE,
-        json_encode($event, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL,
-        FILE_APPEND | LOCK_EX
-    );
-    @chmod(LOG_FILE, 0600);
+        sentryiq_with_security_log_lock(LOCK_EX, static function () use ($line): void {
+            sentryiq_rotate_security_log_unlocked();
+            if (is_link(LOG_FILE)) throw new RuntimeException('Security log must not be a symbolic link.');
+            $handle = @fopen(LOG_FILE, 'ab');
+            if ($handle === false) throw new RuntimeException('Unable to open security log.');
+            try {
+                $opened = fstat($handle);
+                $linked = @lstat(LOG_FILE);
+                if (!is_array($opened) || !is_array($linked)
+                    || (($linked['mode'] & 0170000) !== 0100000)
+                    || $opened['dev'] !== $linked['dev']
+                    || $opened['ino'] !== $linked['ino']) {
+                    throw new RuntimeException('Security log path changed unexpectedly.');
+                }
+                @chmod(LOG_FILE, 0600);
+                $written = fwrite($handle, $line);
+                if (!is_int($written) || $written !== strlen($line) || !fflush($handle)) {
+                    throw new RuntimeException('Unable to append security log event.');
+                }
+                if (function_exists('fsync')) @fsync($handle);
+            } finally {
+                fclose($handle);
+            }
+        });
+    } catch (Throwable) {
+        // Logging must not turn a failed or successful authentication attempt
+        // into an unhandled application error. Storage remains fail-closed.
+        return;
+    }
 }
 
 function read_security_log(): array
 {
-    if (!is_file(LOG_FILE) || is_link(LOG_FILE)) return [];
-
-    $lines = @file(LOG_FILE, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    if (!$lines) return [];
-
-    $events = [];
-
-    foreach (array_reverse($lines) as $line) {
-        $decoded = json_decode($line, true);
-
-        if (!is_array($decoded)) {
-            continue;
-        }
-
-        if (
-            !isset($decoded['timestamp']) ||
-            !is_string($decoded['timestamp']) ||
-            !isset($decoded['event']) ||
-            !is_string($decoded['event']) ||
-            trim($decoded['event']) === ''
-        ) {
-            continue;
-        }
-
-        if (
-            !array_key_exists('username', $decoded) ||
-            !array_key_exists('ip', $decoded) ||
-            !array_key_exists('user_agent', $decoded)
-        ) {
-            continue;
-        }
-
-        $events[] = $decoded;
+    try {
+        return sentryiq_with_security_log_lock(LOCK_SH, static function (): array {
+            if (is_link(LOG_FILE)) throw new RuntimeException('Security log must not be a symbolic link.');
+            if (!is_file(LOG_FILE)) return [];
+            $handle = @fopen(LOG_FILE, 'rb');
+            if ($handle === false) return [];
+            try {
+                $opened = fstat($handle);
+                $linked = @lstat(LOG_FILE);
+                if (!is_array($opened) || !is_array($linked)
+                    || (($linked['mode'] & 0170000) !== 0100000)
+                    || $opened['dev'] !== $linked['dev']
+                    || $opened['ino'] !== $linked['ino']
+                    || (((int)($opened['mode'] ?? 0) & 0077) !== 0)) {
+                    throw new RuntimeException('Security log failed filesystem validation.');
+                }
+                $size = (int)($opened['size'] ?? 0);
+                $maxRead = 5 * 1024 * 1024;
+                if ($size > $maxRead) {
+                    if (fseek($handle, -$maxRead, SEEK_END) !== 0) return [];
+                    $discardPartialLine = true;
+                } else {
+                    rewind($handle);
+                    $discardPartialLine = false;
+                }
+                $raw = stream_get_contents($handle, $maxRead + 1);
+            } finally {
+                fclose($handle);
+            }
+            if (!is_string($raw) || $raw === '') return [];
+            $lines = explode("\n", $raw);
+            if ($discardPartialLine) array_shift($lines);
+            $lines = array_slice($lines, -1000);
+            $events = [];
+            foreach (array_reverse($lines) as $line) {
+                if ($line === '') continue;
+                try {
+                    $decoded = json_decode($line, true, 16, JSON_THROW_ON_ERROR);
+                } catch (Throwable) {
+                    continue;
+                }
+                if (!is_array($decoded)
+                    || !is_string($decoded['timestamp'] ?? null)
+                    || !is_string($decoded['event'] ?? null)
+                    || trim($decoded['event']) === ''
+                    || !array_key_exists('username', $decoded)
+                    || !array_key_exists('ip', $decoded)
+                    || !array_key_exists('user_agent', $decoded)) {
+                    continue;
+                }
+                $events[] = $decoded;
+            }
+            return $events;
+        });
+    } catch (Throwable) {
+        return [];
     }
-
-    return $events;
 }
 
 function vault_validate_url(string $url): string|false
