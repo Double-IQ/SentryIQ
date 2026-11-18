@@ -10,7 +10,7 @@ const source = fs.readFileSync(path.join(__dirname, '../assets/js/gallery_secure
 
 function createHarness(options = {}) {
     const calls = [];
-    const recoveryKey = new Uint8Array(32).fill(7);
+    const recoveryKey = new Uint8Array(options.invalidLength ? 31 : 32).fill(7);
     const rootKey = new Uint8Array(32).fill(9);
     let clearedRecoveryKey = false;
     let clearedRootKey = false;
@@ -100,7 +100,7 @@ test('recovery retrieves only the encrypted envelope and decrypts locally', asyn
 });
 
 test('recovery code is rejected locally when it does not decode to 32 bytes', async () => {
-    const harness = createHarness();
+    const harness = createHarness({ invalidLength: true });
     await assert.rejects(
         harness.api.unlockWithRecovery('saved-recovery-code'),
         /invalid Gallery recovery material/
