@@ -34,10 +34,11 @@ globalThis.SentryIQSecureGallery = {
     }
 };
 globalThis.fetch = async (url, options = {}) => {
-    if (url === 'gallery_storage.php?action=cleanup_pending') {
+    const requestUrl = String(url);
+    if (requestUrl.includes('action=cleanup_pending')) {
         return { ok: true, json: async () => ({ status: 'ok', pending: {} }) };
     }
-    if (url === 'gallery_storage.php?action=list') {
+    if (requestUrl.includes('action=list')) {
         return {
             ok: true,
             json: async () => ({
@@ -46,14 +47,14 @@ globalThis.fetch = async (url, options = {}) => {
                     [photoId]: {
                         objects: Object.fromEntries(roles.map((role) => [role, {
                             envelope: envelopes[role],
-                            envelope_hash: envelopeHashes[role].at(-1) || revision
+                            envelope_hash: envelopeHashes[role][envelopeHashes[role].length - 1] || revision
                         }]))
                     }
                 }
             })
         };
     }
-    if (url === 'gallery_storage.php') {
+    if (requestUrl === 'gallery_storage.php') {
         const body = JSON.parse(options.body);
         if (body.action === 'replace_envelope') {
             if (body.role === 'preview' && simulateInterruption) {
