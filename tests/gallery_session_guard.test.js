@@ -46,7 +46,7 @@ test('Gallery session guard resets the idle deadline after user activity', async
 
 test('Gallery session guard locks after the page remains hidden', async () => {
     let reason = null;
-    const guard = globalThis.SentryIQGallerySessionGuard.start(
+    const guard = windowStub.SentryIQGallerySessionGuard.start(
         (value) => { reason = value; },
         { idleTimeoutMs: 100, hiddenTimeoutMs: 25 }
     );
@@ -61,7 +61,7 @@ test('Gallery session guard locks after the page remains hidden', async () => {
 
 test('stopping the Gallery session guard cancels pending locks', async () => {
     let called = false;
-    const guard = globalThis.SentryIQGallerySessionGuard.start(
+    const guard = windowStub.SentryIQGallerySessionGuard.start(
         () => { called = true; },
         { idleTimeoutMs: 20, hiddenTimeoutMs: 20 }
     );
