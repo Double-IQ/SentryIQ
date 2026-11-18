@@ -32,6 +32,18 @@
         const nav = event.target.closest('[data-sentryiq-nav]');
         if (nav) { const target = nav.getAttribute('data-sentryiq-nav'); if (target) window.location.assign(target); return; }
         const action = event.target.closest('[data-vault-action]');
+        if (action && action.getAttribute('data-vault-action') === 'copy-secret') {
+            if (typeof window.copyVaultString === 'function') window.copyVaultString(action, action.textContent);
+            return;
+        }
+        if (action && action.getAttribute('data-vault-action') === 'return-to-list') {
+            if (typeof window.returnToVaultList === 'function') window.returnToVaultList();
+            return;
+        }
+        if (action && action.getAttribute('data-vault-action') === 'prepare-edit') {
+            if (typeof window.prepareVaultEditNode === 'function') window.prepareVaultEditNode();
+            return;
+        }
         if (action) {
             const actions = {
                 'show-add-category': window.showAddCategoryForm,
@@ -47,6 +59,10 @@
         if (card && (!event.target.closest('button') || event.target.closest('.inspect-button'))) {
             try { window.viewRecordDetails.apply(null, JSON.parse(card.getAttribute('data-vault-record'))); } catch (error) { console.error('Unable to open vault record.'); }
         }
+    });
+    document.addEventListener('submit', function (event) {
+        const form = event.target.closest('form[data-confirm-submit]');
+        if (form && !window.confirm(form.getAttribute('data-confirm-submit') || 'Are you sure?')) event.preventDefault();
     });
     document.addEventListener('keydown', function (event) {
         const card = event.target.closest('.vault-record-card[data-vault-record]');
