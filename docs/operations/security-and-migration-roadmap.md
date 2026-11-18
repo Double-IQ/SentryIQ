@@ -189,7 +189,7 @@ Update this section whenever a phase changes. Link the PR, workflow run, test ev
 | Integrity Node A | Code prototype; host/provider not confirmed or deployed | Independent host inspection, private config/key/baseline, schedule, signed report and direct-alert test |
 | Integrity Node B | Code prototype; host/provider not confirmed or deployed | Different independent host/provider, private config/key/baseline, schedule, signed report and direct-alert test |
 | Integrity Node C (HelioHost) | Compatibility prototype; not deployed | HelioHost account/runtime, native verifier, key, private evidence store, schedule and direct-alert test |
-| Node 4 (BTM-SA) | Event pipeline prototype; same host as SentryIQ, not deployed | Separate logical service/runtime, A/B trust config, replay store, alert transport and host-isolation checks
+| Node 4 (BTM-SA) | Event pipeline prototype; same host as SentryIQ, not deployed | Separate logical service/runtime, A/B trust config, replay store, alert transport and host-isolation checks |
 | Origin hardening/incident exercise | Pending | Security test report and exercise record |
 | New-origin deployment/cutover | Pending | Acceptance checklist, restore/rollback evidence, approval |
 
