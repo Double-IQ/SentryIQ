@@ -37,16 +37,19 @@ try {
     if (($aborted['status'] ?? '') !== 'aborted') throw new RuntimeException('An active Gallery rotation should be abortable.');
     $second = $journal->begin('gk_source01', 'gk_target02');
     rotationJournalMustFail(
-        fn() => $journal->complete($second['id'], ['complete' => false, 'references' => []]),
-        'A rotation must reject an incomplete object inventory.'
+        fn() => $journal->complete($second['id']),
+        'A running rotation must not be finalized before its rollback window is staged.'
     );
-    rotationJournalMustFail(
-        fn() => $journal->complete($second['id'], ['complete' => true, 'references' => ['gk_source01' => 1]]),
-        'A rotation must not complete while any object or pending upload references its source key.'
-    );
-    $completed = $journal->complete($second['id'], ['complete' => true, 'references' => ['gk_target02' => 4]]);
-    if (($completed['status'] ?? '') !== 'completed') throw new RuntimeException('A rotation with no source-key references should be markable complete.');
+    $ready = $journal->markReadyToRetire($second['id'], 0);
+    if (($ready['status'] ?? '') !== 'ready_to_retire') throw new RuntimeException('A fully migrated rotation should enter its rollback window.');
+    $completed = $journal->complete($second['id']);
+    if (($completed['status'] ?? '') !== 'completed') throw new RuntimeException('An expired rollback window should allow key retirement.');
     if (($journal->current()['id'] ?? '') !== $second['id']) throw new RuntimeException('The latest Gallery rotation should remain durable.');
+
+    $third = $journal->begin('gk_source02', 'gk_target03');
+    $journal->markReadyToRetire($third['id'], 86400);
+    $abortedDuringGrace = $journal->abort($third['id']);
+    if (($abortedDuringGrace['status'] ?? '') !== 'aborted') throw new RuntimeException('A rotation must remain abortable during its rollback window.');
 
     $permissions = fileperms($directory . '/gallery_rotation.json');
     if (!is_int($permissions) || (($permissions & 0077) !== 0)) {
