@@ -20,7 +20,7 @@ if (is_string($dataDirectory) && $dataDirectory !== '') {
         $b2Host = '';
     }
 }
-$csp = "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'";
+$csp = "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'";
 if ($b2Host !== '' && preg_match('/^[a-z0-9.-]+$/', $b2Host)) {
     $csp .= ' https://' . $b2Host;
 }
