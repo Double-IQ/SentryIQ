@@ -2,6 +2,21 @@
 
 declare(strict_types=1);
 
+// Installation diagnostics disclose filesystem paths and configuration state.
+// Keep web access behind the normal SentryIQ authenticated session; when the
+// application is not installed, allow this diagnostic only from the CLI.
+require_once dirname(__DIR__) . '/app/Security/SecurityBootstrap.php';
+sentryiq_security_bootstrap();
+
+if (PHP_SAPI !== 'cli') {
+    $configPath = dirname(__DIR__) . '/sentryiq_config.php';
+    if (!is_file($configPath) || is_link($configPath)) {
+        http_response_code(404);
+        exit('Not found.');
+    }
+    sentryiq_require_auth();
+}
+
 header('Content-Type: application/json; charset=utf-8');
 
 $webRoot = __DIR__;
