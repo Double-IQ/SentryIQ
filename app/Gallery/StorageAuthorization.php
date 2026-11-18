@@ -109,6 +109,22 @@ try {
         $photoId = (string)($request['photoId'] ?? '');
         $envelopes = is_array($request['envelopes'] ?? null) ? $request['envelopes'] : [];
         $sizes = is_array($request['sizes'] ?? null) ? $request['sizes'] : [];
+        $pending = $objectStore->find($photoId);
+        if (!is_array($pending) || ($pending['status'] ?? '') !== 'pending' || !is_array($pending['objects'] ?? null)) {
+            gallery_storage_json(['status' => 'error', 'message' => 'Gallery upload reservation is unavailable.'], 409);
+        }
+        $roles = ['original', 'thumbnail', 'preview', 'metadata'];
+        if (array_diff($roles, array_keys($sizes)) !== [] || array_diff(array_keys($sizes), $roles) !== []) {
+            throw new RuntimeException('Gallery encrypted object sizes are invalid.');
+        }
+        foreach ($roles as $role) {
+            $objectKey = $pending['objects'][$role]['key'] ?? null;
+            $expectedSize = $sizes[$role] ?? null;
+            if (!is_string($objectKey) || !is_int($expectedSize)) {
+                throw new RuntimeException('Gallery encrypted object metadata is invalid.');
+            }
+            $signer->assertObjectSize($objectKey, $expectedSize);
+        }
         $objectStore->commit($photoId, $envelopes, $sizes);
         gallery_storage_json(['status' => 'ok', 'photoId' => $photoId]);
     }
