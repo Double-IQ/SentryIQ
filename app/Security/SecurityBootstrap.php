@@ -323,8 +323,9 @@ function cleanup_expired_tokens(): void
     $dataDir = sentryiq_data_dir();
     if (!isset($_SESSION) || $dataDir === '') return;
     $now = time();
-    $tokenFiles = array_slice(glob($dataDir . '/token_*.json') ?: [], 0, 200);
-    foreach ($tokenFiles as $file) {
+    $tokenFiles = glob($dataDir . '/token_*.json') ?: [];
+    usort($tokenFiles, static fn(string $left, string $right): int => (int)@filemtime($left) <=> (int)@filemtime($right));
+    foreach (array_slice($tokenFiles, 0, 200) as $file) {
         if (is_link($file) || !is_file($file)) continue;
         $raw = @file_get_contents($file);
         $token = is_string($raw) ? json_decode($raw, true) : null;
@@ -332,8 +333,9 @@ function cleanup_expired_tokens(): void
             @unlink($file);
         }
     }
-    $claimedFiles = array_slice(glob($dataDir . '/consumed_*.token') ?: [], 0, 200);
-    foreach ($claimedFiles as $file) {
+    $claimedFiles = glob($dataDir . '/consumed_*.token') ?: [];
+    usort($claimedFiles, static fn(string $left, string $right): int => (int)@filemtime($left) <=> (int)@filemtime($right));
+    foreach (array_slice($claimedFiles, 0, 200) as $file) {
         if (is_link($file) || !is_file($file)) continue;
         $modified = @filemtime($file);
         if (is_int($modified) && $modified <= $now - 600) {
