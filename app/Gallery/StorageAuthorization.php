@@ -177,10 +177,11 @@ try {
         $envelope = is_array($request['envelope'] ?? null) ? $request['envelope'] : [];
         $updatedHash = GalleryRotationLock::synchronized($dataDirectory, function () use ($objectStore, $galleryKeys, $rotationJournal, $photoId, $role, $expectedHash, $envelope): string {
             $rotation = $rotationJournal->current();
-            if (is_array($rotation) && in_array(($rotation['status'] ?? ''), ['running', 'ready_to_retire'], true)) {
-                if (($envelope['keyId'] ?? null) !== ($rotation['to_key_id'] ?? null)) {
-                    throw new RuntimeException('During Gallery key rotation, object envelopes may only move to the selected target key.');
-                }
+            if (!is_array($rotation)
+                || !in_array(($rotation['status'] ?? ''), ['running', 'ready_to_retire'], true)
+                || !is_string($rotation['to_key_id'] ?? null)
+                || ($envelope['keyId'] ?? null) !== $rotation['to_key_id']) {
+                throw new RuntimeException('Gallery object envelopes may only be replaced as part of the active key rotation.');
             }
             return $objectStore->replaceEnvelope(
                 $photoId,
