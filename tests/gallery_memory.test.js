@@ -108,7 +108,7 @@ test('asynchronous key operations cannot restore Gallery keys after a lock', () 
     const guardedOperations = [
         'unlock', 'prepareIdentity', 'completeIdentitySetup', 'unlockWithRecovery',
         'enrollCurrentPasskey', 'addWrappingKey', 'ensureKeyAvailable',
-        'syncKeyringState', 'startRotation', 'abortRotation', 'finalizeRotation'
+        'syncKeyringState', 'startRotation', 'abortRotation', 'finalizeRotation', 'removeEnrolledDevice'
     ];
     guardedOperations.forEach(function (name) {
         const start = secure.indexOf('async function ' + name + '(');
