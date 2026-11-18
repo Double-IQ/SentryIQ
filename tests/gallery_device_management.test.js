@@ -12,7 +12,7 @@ const ui = fs.readFileSync(path.join(root, 'assets/js/gallery_secure_ui.js'), 'u
 const secure = fs.readFileSync(path.join(root, 'assets/js/gallery_secure.js'), 'utf8');
 
 test('Gallery device inventory exposes only enrolled credential identifiers and enrollment timestamps', () => {
-    assert.match(endpoint, /\\$_GET\\['action'\\]\\s*\\?\\?\\s*''\\)\\s*===\\s*'devices'/);
+    assert.match(endpoint, /\$_GET\['action'\]\s*\?\?\s*''\)\s*===\s*'devices'/);
     assert.match(endpoint, /\$galleryKeys->enrolledCredentialIds\(\)/);
     assert.match(endpoint, /'credentialId'\s*=>\s*\$credentialId/);
     assert.match(endpoint, /'createdAt'\s*=>\s*\(int\)/);
