@@ -347,6 +347,27 @@ try {
         gallery_passkey_json(['status' => 'ok']);
     }
 
+    if ($action === 'add_wrapping_key') {
+        $verifiedId = (string)($_SESSION['gallery_passkey_verified_credential'] ?? '');
+        $verifiedAt = (int)($_SESSION['gallery_passkey_verified_at'] ?? 0);
+        if ($verifiedId === '' || $verifiedAt < time() - 180
+            || $galleryKeys->credentialEnvelope($verifiedId) === null) {
+            throw new RuntimeException('Verify an enrolled Gallery passkey before adding an encryption key.');
+        }
+        $keyId = (string)($request['keyId'] ?? '');
+        $galleryKeys->addWrappingKey(
+            $keyId,
+            (array)($request['publicKey'] ?? []),
+            (array)($request['privateKeyEnvelope'] ?? [])
+        );
+        unset($_SESSION['gallery_passkey_verified_credential'], $_SESSION['gallery_passkey_verified_at']);
+        gallery_passkey_json([
+            'status' => 'ok',
+            'activeKeyId' => $galleryKeys->activeKeyId(),
+            'keyIds' => $galleryKeys->keyIds(),
+        ]);
+    }
+
     if ($action === 'remove_credential') {
         $verifiedId = (string)($_SESSION['gallery_passkey_verified_credential'] ?? '');
         $verifiedAt = (int)($_SESSION['gallery_passkey_verified_at'] ?? 0);
