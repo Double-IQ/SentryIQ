@@ -22,6 +22,13 @@ $templates = [
     'gallery_b2_diagnostic.php',
     'diagnostics/self_test.php',
     'gallery_b2_settings.php',
+    'storage.php',
+    'update.php',
+    'first_run.php',
+    'gallery_storage.php',
+    'diagnostics/vault_runtime_diagnostic.php',
+    'sentryiq_diagnostic.php',
+    'credits.php',
 ];
 
 foreach ($templates as $relativePath) {
