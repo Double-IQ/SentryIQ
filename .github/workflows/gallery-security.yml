@@ -40,6 +40,8 @@ jobs:
           node --check assets/js/sentryiq_navigation.js
           node --check assets/js/gallery_b2_diagnostic.js
           node --check assets/js/self_test.js
+          node --check assets/js/passkeys.js
+          node --check assets/js/copy_code.js
           node --check tests/gallery_crypto.test.js
 
       - name: Test browser-side Gallery cryptography
