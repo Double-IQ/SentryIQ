@@ -20,13 +20,14 @@ This document is the single working checklist for the reset security review and 
 
 ## Current progress
 
-**Phase 1: 4/30 findings/tasks completed.**
+**Phase 1: 5/30 findings/tasks completed.**
 
 - Completed: 1.1 — identified the public installation diagnostic endpoint as an exposure requiring protection.
 - Completed: 1.2 — authentication protection merged in [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53); production deployment/runtime verification remains outstanding and is not claimed.
 - Completed: 1.3 — all four focused access-control scenarios pass in CI.
 - Completed: 1.4 — PR #53 reviewed, marked ready, and squash-merged into `main` as `2ca8accf882e52f7bbeebcf9f49e81b1891a0910`.
-- Next item, pending user review: **2.1** — audit Content Security Policy, especially `unsafe-inline`.
+- Completed: 2.1 — audited CSP emission points on `main`; both the central and Gallery policies permit inline scripts and inline styles. See findings below.
+- Next item, pending user review: **2.2** — inventory inline JavaScript dependencies and plan safe removal of inline execution.
 - No four-node deployment task is marked complete by this document.
 
 ---
@@ -49,7 +50,13 @@ All findings must be verified against `main`. The existing application is the ba
 
 ## 2. JavaScript and browser security
 
-- [ ] **2.1** Audit Content Security Policy, especially `unsafe-inline`.
+- [x] **2.1** Audit Content Security Policy, especially `unsafe-inline`.
+  - Audited `app/Security/SecurityBootstrap.php`, `app/Gallery/SecurePage.php`, `.htaccess`, and `.user.ini` on `main`.
+  - Central policy in `sentryiq_security_bootstrap()` includes `script-src 'self' 'unsafe-inline'` and `style-src 'self' 'unsafe-inline'`. It also sets `default-src 'self'`, `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`, `form-action 'self'`, and `img-src 'self' data:`.
+  - `app/Gallery/SecurePage.php` emits a second CSP after the central bootstrap. It repeats both `unsafe-inline` allowances and adds `img-src ... blob:` plus `connect-src 'self'` and the configured Backblaze B2 HTTPS host when B2 is configured. Multiple CSP headers are enforced cumulatively by browsers; the Gallery header does not relax/replace the central policy.
+  - `.htaccess` and `.user.ini` contain no additional CSP header configuration.
+  - Finding: inline JavaScript is currently permitted across normal bootstrap-protected pages; this weakens CSP as a mitigation for script injection. Inline CSS is also permitted. Removing `unsafe-inline` immediately would risk breaking existing pages; item 2.2 must first inventory inline script blocks and event-handler attributes and design the migration (external scripts/nonces and event-listener bindings). No policy change was made in this audit item.
+  - No production headers or files were changed. This is an audit result, not a remediation.
 - [ ] **2.2** Identify inline JavaScript dependencies and remove unsafe inline execution where feasible; use nonces or hashes where appropriate.
 - [ ] **2.3** Audit XSS sinks, DOM insertion, templates, and output escaping.
 - [ ] **2.4** Audit CSRF protections on every state-changing action.
@@ -146,6 +153,7 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 | 2026-11-18 | 1.2 | [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53), implementation commit `197b090`, merge commit `2ca8acc` | Authentication gate merged into `main`; not deployed to production | Yes |
 | 2026-11-18 | 1.3 | `tests/post_install_diagnostic_access.test.php`; CI runs [44291043980](https://github.com/Double-IQ/SentryIQ/actions/runs/44291043980) and [44291044080](https://github.com/Double-IQ/SentryIQ/actions/runs/44291044080) on PR head `3759d5e` | Four access scenarios pass in CI | Yes |
 | 2026-11-18 | 1.4 | [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53), [merge commit `2ca8acc`](https://github.com/Double-IQ/SentryIQ/commit/2ca8accf882e52f7bbeebcf9f49e81b1891a0910) | Reviewed and squash-merged into `main`; production deployment not performed | Yes |
+| 2026-11-18 | 2.1 | `app/Security/SecurityBootstrap.php`, `app/Gallery/SecurePage.php`, `.htaccess`, `.user.ini` on `main` | Found two CSP emission points; both permit `unsafe-inline` for scripts and styles. Recorded migration dependencies; no policy changed | Yes |
 
 ## Working rules
 
