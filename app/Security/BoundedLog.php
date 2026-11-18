@@ -27,7 +27,9 @@ final class BoundedLog
 
         self::withLock($path . '.lock', function () use ($path, $line, $maxBytes, $retained): void {
             if (is_link($path)) throw new RuntimeException('Log path must not be a symbolic link.');
-            if (is_file($path) && (int)@filesize($path) > $maxBytes) {
+            if (file_exists($path) && !is_file($path)) throw new RuntimeException('Log path is not a regular file.');
+            $currentSize = is_file($path) ? (int)@filesize($path) : 0;
+            if ($currentSize + strlen($line) > $maxBytes) {
                 for ($index = $retained; $index >= 1; $index--) {
                     $source = $index === 1 ? $path : $path . '.' . ($index - 1);
                     $target = $path . '.' . $index;
