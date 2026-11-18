@@ -160,6 +160,14 @@ try {
     check(($objectStore->find($photoId)['status'] ?? '') === 'active', 'Committed ciphertext objects must be active.');
     check(count($objectStore->all()) === 1, 'Active Gallery objects must be listed.');
     check(isset($objectStore->find($photoId)['objects']['metadata']['envelope']), 'Encrypted metadata envelope must be stored.');
+    $listedPhoto = $objectStore->all()[$photoId] ?? null;
+    check(is_array($listedPhoto), 'Active Gallery objects should be included in the browser migration listing.');
+    foreach (['original', 'thumbnail', 'preview', 'metadata'] as $role) {
+        $listedEnvelope = $listedPhoto['objects'][$role]['envelope'] ?? null;
+        $listedHash = $listedPhoto['objects'][$role]['envelope_hash'] ?? '';
+        check(is_array($listedEnvelope) && hash_equals(GalleryObjectStore::envelopeHash($listedEnvelope), $listedHash),
+            'Every listed Gallery envelope must include its deterministic compare-and-swap revision hash.');
+    }
 
     $legacyPendingPhotoId = bin2hex(random_bytes(16));
     $legacyPendingKeys = [];
