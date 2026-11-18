@@ -9,6 +9,7 @@ function cspCheck(bool $condition, string $message): void
 }
 
 $root = dirname(__DIR__);
+require_once $root . '/app/Security/SecurityBootstrap.php';
 $templates = [
     'index.php',
     'documents.php',
@@ -44,8 +45,6 @@ foreach ($templates as $relativePath) {
 
 $cspFiles = [
     'app/Security/SecurityBootstrap.php',
-    'app/Gallery/SecurePage.php',
-    'gallery_b2_diagnostic.php',
 ];
 foreach ($cspFiles as $relativePath) {
     $source = file_get_contents($root . '/' . $relativePath);
@@ -56,4 +55,14 @@ foreach ($cspFiles as $relativePath) {
     );
 }
 
+$galleryPolicy = sentryiq_build_content_security_policy(true, 's3.us-west-004.backblazeb2.com');
+$defaultPolicy = sentryiq_build_content_security_policy(false);
+cspCheck(str_contains($galleryPolicy, "img-src 'self' data: blob:"), 'Gallery CSP must permit decrypted blob images.');
+cspCheck(str_contains($galleryPolicy, "connect-src 'self' https://s3.us-west-004.backblazeb2.com"), 'Gallery CSP must permit only the configured B2 endpoint.');
+cspCheck(!str_contains($defaultPolicy, 'blob:'), 'Non-Gallery pages must not receive the Gallery blob image source.');
+cspCheck(!str_contains($defaultPolicy, 'backblazeb2.com'), 'Non-Gallery pages must not receive B2 connect access.');
+foreach (['app/Gallery/SecurePage.php', 'gallery_b2_diagnostic.php'] as $relativePath) {
+    $source = file_get_contents($root . '/' . $relativePath);
+    cspCheck(is_string($source) && !str_contains($source, "header('Content-Security-Policy:"), 'Page-specific CSP must not add a conflicting second policy: ' . $relativePath);
+}
 echo "CSP external-script and event-handler regression tests passed.\n";
