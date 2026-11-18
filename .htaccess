@@ -1,5 +1,10 @@
 RewriteEngine On
 
+# Prevent direct web access to private runtime templates and root configuration.
+# PHP include/require operations are unaffected by these request rewrite rules.
+RewriteRule ^private_data(?:/|$) - [F,L]
+RewriteRule ^(?:sentryiq_config\\.php|auth_flow\\.php|\\.user\\.ini)$ - [F,L]
+
 # Keep existing deployed endpoint URLs working while implementations live under app/.
 RewriteRule ^document_delete\.php$ app/Documents/Delete.php [L]
 RewriteRule ^document_download\.php$ app/Documents/Download.php [L]
