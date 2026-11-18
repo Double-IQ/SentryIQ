@@ -143,6 +143,7 @@ header('Content-Security-Policy: ' . $csp);
     <img id="secure-gallery-viewer-image" alt="Decrypted private photo">
 </div>
 
+<script src="assets/js/sentryiq_navigation.js" defer></script>
 <script src="assets/js/gallery_crypto.js"></script>
 <script src="assets/js/gallery_secure.js"></script>
 <script src="assets/js/gallery_storage.js"></script>
