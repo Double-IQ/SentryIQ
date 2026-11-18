@@ -430,6 +430,7 @@
         openPreview: openPreview,
         deletePhoto: deletePhoto,
         revokeObjectUrl: revokeObjectUrl,
+        invalidatePendingDecrypts: invalidatePendingDecrypts,
         lock: lock
     });
 }(typeof window !== 'undefined' ? window : self));
