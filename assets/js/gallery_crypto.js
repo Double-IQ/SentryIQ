@@ -207,7 +207,7 @@
                 privateKeys[keyId] = await decryptPrivateKey(entry.private_key_envelope, rootKey);
                 publicKeys[keyId] = entry.public_key;
             }
-            return { privateKeys, publicKeys, activeKeyId: keyring.active_key_id, rootKey };
+            return { privateKeys, publicKeys, activeKeyId: keyring.active_key_id, legacyKeyId: keyring.legacy_key_id || null, rootKey };
         } catch (error) {
             rootKey.fill(0);
             throw error;
@@ -333,7 +333,7 @@
         }
     }
 
-    async function rewrapObjectEnvelope(envelope, privateKeyOrMap, newPublicKeyJwk, newKeyId, expectedPhotoId, expectedRole) {
+    async function rewrapObjectEnvelope(envelope, privateKeyOrMap, newPublicKeyJwk, newKeyId, expectedPhotoId, expectedRole, legacyKeyId) {
         const subtle = requireCrypto().subtle;
         if (!envelope || envelope.version !== VERSION || envelope.algorithm !== 'A256GCM' || envelope.keyWrap !== 'RSA-OAEP-256') {
             throw new Error('Unsupported Gallery object envelope.');
@@ -343,8 +343,9 @@
         }
         if (envelope.keyId !== undefined) validateKeyId(envelope.keyId);
         validateKeyId(newKeyId);
-        const oldPrivateKey = envelope.keyId && privateKeyOrMap && Object.prototype.hasOwnProperty.call(privateKeyOrMap, envelope.keyId)
-            ? privateKeyOrMap[envelope.keyId]
+        const oldKeyId = envelope.keyId || legacyKeyId;
+        const oldPrivateKey = oldKeyId && privateKeyOrMap && Object.prototype.hasOwnProperty.call(privateKeyOrMap, oldKeyId)
+            ? privateKeyOrMap[oldKeyId]
             : (privateKeyOrMap && privateKeyOrMap.type === 'private' ? privateKeyOrMap : null);
         if (!oldPrivateKey) throw new Error('No Gallery private key is available to rewrap this object.');
         const nonce = fromBase64Url(envelope.nonce);
