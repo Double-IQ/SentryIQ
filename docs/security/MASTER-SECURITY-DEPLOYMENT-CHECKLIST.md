@@ -23,8 +23,8 @@ This document is the single working checklist for the reset security review and 
 **Phase 1: 1/30 findings/tasks completed.**
 
 - Completed: 1.1 — identified the public installation diagnostic endpoint as an exposure requiring protection.
-- In progress, not counted complete: 1.2 — an authentication-protection change is proposed in [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53). It is not merged and runtime tests have not yet been recorded.
-- Current active item: **1.2**. Review and test this change before proceeding to 1.3.
+- In progress, not counted complete: 1.2 — authentication protection is proposed in [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53); focused CI access-control tests now pass, but review/merge and production verification remain pending.
+- Current active item: **1.4**. Review the tested correction and decide whether to merge it.
 - No four-node deployment task is marked complete by this document.
 
 ---
@@ -37,9 +37,11 @@ All findings must be verified against `main`. The existing application is the ba
 
 - [x] **1.1** Identify publicly accessible diagnostic endpoints.
 - [ ] **1.2** Protect post-install diagnostic with authentication.
-  - Proposed change: [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53), commit `197b0901535459aa6a181b47fde3876c3ce3e1d6`.
-  - Status: code submitted for review; not merged; authenticated/unauthenticated/CLI runtime tests not yet evidenced.
-- [ ] **1.3** Test authenticated, unauthenticated and CLI access.
+  - Proposed change: [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53), implementation commit `197b0901535459aa6a181b47fde3876c3ce3e1d6`.
+  - Status: authentication gate is implemented; merge and production verification pending.
+- [x] **1.3** Test authenticated, unauthenticated and CLI access.
+  - Added `tests/post_install_diagnostic_access.test.php`, an isolated PHP built-in-server integration test covering unauthenticated installed web access (302, no diagnostic body), authenticated web access (200 JSON), uninstalled web access (404, no diagnostic body), and CLI access (successful JSON).
+  - CI: [PHP Syntax Check run](https://github.com/Double-IQ/SentryIQ/actions/runs/44291043980) passed, including the focused access-control test; [Gallery Security Checks run](https://github.com/Double-IQ/SentryIQ/actions/runs/44291044080) also passed.
 - [ ] **1.4** Review and merge the correction after successful testing.
 
 ## 2. JavaScript and browser security
@@ -138,7 +140,8 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 | Date | Checklist item | Change / evidence | Result | Reviewed |
 |---|---|---|---|---|
 | 2026-11-18 | 1.1 | Identified `diagnostics/post_install_diagnostic.php` as a publicly accessible diagnostic requiring protection | Finding recorded | Yes |
-| 2026-11-18 | 1.2 | [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53), commit `197b090` | Proposed code change; tests and merge pending | Pending |
+| 2026-11-18 | 1.2 | [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53), implementation commit `197b090` | Authentication gate implemented; review/merge pending | Pending |
+| 2026-11-18 | 1.3 | `tests/post_install_diagnostic_access.test.php`; CI runs [44291043980](https://github.com/Double-IQ/SentryIQ/actions/runs/44291043980) and [44291044080](https://github.com/Double-IQ/SentryIQ/actions/runs/44291044080) | Four access scenarios pass in CI | Yes |
 
 ## Working rules
 
