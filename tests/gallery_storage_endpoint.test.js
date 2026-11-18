@@ -115,3 +115,31 @@ test('WebAuthn registration, login and Gallery assertion challenges are one-time
     assert.ok(verify.indexOf("unset($_SESSION['gallery_passkey_challenge']") > verify.indexOf("$challenge = gallery_passkey_unb64"));
     assert.ok(verify.indexOf("unset($_SESSION['gallery_passkey_challenge']") < verify.indexOf("gallery_passkey_verify_client"));
 });
+
+test('privileged Gallery passkey verification is consumed before every management attempt', () => {
+    const source = fs.readFileSync(
+        path.join(__dirname, '../app/Auth/GalleryPasskeyAuth.php'),
+        'utf8'
+    );
+    assert.match(source, /function gallery_passkey_consume_verified\(\): array[\s\S]*?unset\(\$_SESSION\['gallery_passkey_verified_credential'\], \$_SESSION\['gallery_passkey_verified_at'\]\)/);
+    for (const action of [
+        'initialize',
+        'add_credential',
+        'begin_rotation',
+        'abort_rotation',
+        'finalize_rotation',
+        'add_wrapping_key',
+        'remove_credential'
+    ]) {
+        const start = source.indexOf(`if ($action === '${action}')`);
+        assert.ok(start >= 0, action + ' action should exist');
+        const next = source.indexOf("if ($action === '", start + 1);
+        const block = source.slice(start, next < 0 ? source.length : next);
+        assert.ok(
+            block.indexOf('gallery_passkey_consume_verified()') >= 0
+            && block.indexOf('gallery_passkey_consume_verified()') < block.indexOf('throw new RuntimeException'),
+            action + ' must consume verification before validation or mutation'
+        );
+        assert.doesNotMatch(block, /\$_SESSION\['gallery_passkey_verified_(?:credential|at)'\]/);
+    }
+});
