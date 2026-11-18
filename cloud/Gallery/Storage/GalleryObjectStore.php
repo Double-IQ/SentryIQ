@@ -96,7 +96,7 @@ final class GalleryObjectStore
                 throw new RuntimeException('Gallery object inventory contains an invalid record.');
             }
             $status = $record['status'] ?? '';
-            if ($status === 'pending') {
+            if ($status === 'pending' || $status === 'cancelling') {
                 $keyId = $record['key_id'] ?? $legacyKeyId;
                 if (!is_string($keyId) || !preg_match('/^[A-Za-z0-9_-]{8,64}$/', $keyId)) {
                     throw new RuntimeException('Gallery pending reservation has no verifiable key reference.');
