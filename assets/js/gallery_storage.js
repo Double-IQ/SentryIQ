@@ -3,6 +3,7 @@
 
     const roles = ['original', 'thumbnail', 'preview', 'metadata'];
     const objectUrls = new Set();
+    const privateMetadata = new Set();
     let lockGeneration = 0;
 
     function secureApi() {
@@ -82,7 +83,12 @@
 
     function decodePrivateMetadata(metadataBytes) {
         try {
-            return JSON.parse(new TextDecoder().decode(metadataBytes));
+            const metadata = JSON.parse(new TextDecoder().decode(metadataBytes));
+            if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+                throw new Error('Invalid private metadata shape.');
+            }
+            privateMetadata.add(metadata);
+            return metadata;
         } catch (_) {
             throw new Error('The encrypted Gallery photo metadata is invalid.');
         } finally {
@@ -310,6 +316,7 @@
             if (typeof metadata[key] === 'string') metadata[key] = '';
             else metadata[key] = null;
         });
+        privateMetadata.delete(metadata);
     }
 
     async function loadPhoto(photoId) {
@@ -432,6 +439,7 @@
         else invalidatePendingDecrypts();
         objectUrls.forEach(function (url) { URL.revokeObjectURL(url); });
         objectUrls.clear();
+        Array.from(privateMetadata).forEach(clearPrivateMetadata);
     }
 
     root.SentryIQGalleryStorage = Object.freeze({
@@ -446,6 +454,7 @@
         openPreview: openPreview,
         deletePhoto: deletePhoto,
         revokeObjectUrl: revokeObjectUrl,
+        clearMetadata: clearPrivateMetadata,
         invalidatePendingDecrypts: invalidatePendingDecrypts,
         lock: lock
     });
