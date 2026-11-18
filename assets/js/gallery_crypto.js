@@ -395,6 +395,8 @@
             privateKey = privateKeyOrMap;
         } else if (objectKeyId) {
             throw new Error('No Gallery private key is available for this encrypted object.');
+        } else if (privateKeyOrMap && typeof privateKeyOrMap.type === 'undefined') {
+            throw new Error('The legacy Gallery private key is unavailable for this object.');
         } else {
             privateKey = privateKeyOrMap;
         }
