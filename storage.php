@@ -393,10 +393,10 @@ $csrf = sentryiq_csrf_token();
     </div>
 
     <div id="vault-mobile-menu" class="vault-tabs">
-        <button class="tab-btn" type="button" onclick="window.location.href='index.php?pane=view'">📋 Vault</button>
-        <button class="tab-btn" type="button" onclick="window.location.href='documents.php'">📄 Docs</button>
-        <button class="tab-btn" type="button" onclick="window.location.href='gallery.php'">🖼️ Gallery</button>
-        <button class="tab-btn active" type="button" onclick="window.location.href='index.php?pane=settings'">⚙️ System</button>
+        <button class="tab-btn" type="button" data-sentryiq-nav="index.php?pane=view">📋 Vault</button>
+        <button class="tab-btn" type="button" data-sentryiq-nav="documents.php">📄 Docs</button>
+        <button class="tab-btn" type="button" data-sentryiq-nav="gallery.php">🖼️ Gallery</button>
+        <button class="tab-btn active" type="button" data-sentryiq-nav="index.php?pane=settings">⚙️ System</button>
         <form method="POST" class="vault-menu-lock-form">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
             <input type="hidden" name="lock_vault" value="1">
@@ -483,18 +483,7 @@ $csrf = sentryiq_csrf_token();
     </div>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    var toggle = document.querySelector('.vault-mobile-menu-toggle');
-    var menu = document.getElementById('vault-mobile-menu');
-
-    if (toggle && menu) {
-        toggle.addEventListener('click', function () {
-            var open = menu.classList.toggle('mobile-open');
-            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-        });
-    }
-});
-</script>
+<script src="assets/js/sentryiq_navigation.js" defer></script>
+<script src="assets/js/storage.js" defer></script>
 </body>
 </html>
