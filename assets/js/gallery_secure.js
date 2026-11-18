@@ -361,6 +361,43 @@
         return true;
     }
 
+    async function syncKeyringState(serverActiveKeyId, serverKeyIds, serverLegacyKeyId) {
+        if (!unlockedRootKey || !serverActiveKeyId) return false;
+        const ids = Array.isArray(serverKeyIds) ? serverKeyIds : [];
+        const needsRefresh = !unlockedPrivateKeys || !unlockedPublicKeys || ids.some(function (keyId) {
+            return !Object.prototype.hasOwnProperty.call(unlockedPrivateKeys, keyId)
+                || !Object.prototype.hasOwnProperty.call(unlockedPublicKeys, keyId);
+        });
+        if (needsRefresh) {
+            const response = await fetch('gallery_passkey.php?action=keyring', {
+                method: 'GET',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: { Accept: 'application/json' }
+            });
+            const payload = await readJson(response);
+            if (!payload.keyring) throw new Error('The current Gallery keyring could not be refreshed.');
+            const refreshed = await cryptoApi().unlockKeyringWithRoot(payload.keyring, unlockedRootKey);
+            unlockedPrivateKeys = refreshed.privateKeys;
+            unlockedPublicKeys = refreshed.publicKeys;
+        }
+        for (const keyId of Object.keys(unlockedPrivateKeys || {})) {
+            if (!ids.includes(keyId)) delete unlockedPrivateKeys[keyId];
+        }
+        for (const keyId of Object.keys(unlockedPublicKeys || {})) {
+            if (!ids.includes(keyId)) delete unlockedPublicKeys[keyId];
+        }
+        if (!Object.prototype.hasOwnProperty.call(unlockedPrivateKeys || {}, serverActiveKeyId)
+            || !Object.prototype.hasOwnProperty.call(unlockedPublicKeys || {}, serverActiveKeyId)) {
+            throw new Error('The active Gallery encryption key is unavailable in this browser.');
+        }
+        activeKeyId = serverActiveKeyId;
+        legacyKeyId = serverLegacyKeyId || null;
+        unlockedPrivateKey = unlockedPrivateKeys[activeKeyId];
+        unlockedPublicKey = unlockedPublicKeys[activeKeyId];
+        return true;
+    }
+
     function getKeyInfo() {
         if (!unlockedPrivateKey) throw new Error('Secure Gallery is locked.');
         return {
@@ -535,6 +572,7 @@
         addWrappingKey: addWrappingKey,
         rewrapObjectEnvelope: rewrapObjectEnvelope,
         getKeyInfo: getKeyInfo,
+        syncKeyringState: syncKeyringState,
         ensureKeyAvailable: ensureKeyAvailable,
         getRotationStatus: getRotationStatus,
         startRotation: startRotation,
@@ -555,8 +593,10 @@
             }
             return cryptoApi().encryptObject(data, publicKey, photoId, role, keyId);
         },
-        decryptObject: function (data, envelope, photoId, role) {
+        decryptObject: async function (data, envelope, photoId, role) {
             if (!unlockedPrivateKey) throw new Error('Secure Gallery is locked.');
+            const requiredKeyId = envelope && envelope.keyId ? envelope.keyId : legacyKeyId;
+            if (requiredKeyId) await ensureKeyAvailable(requiredKeyId);
             const privateKeys = unlockedPrivateKeys || unlockedPrivateKey;
             return cryptoApi().decryptObject(data, envelope, privateKeys, photoId, role, legacyKeyId);
         }
