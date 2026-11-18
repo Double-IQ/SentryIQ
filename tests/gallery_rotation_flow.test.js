@@ -56,6 +56,9 @@ globalThis.fetch = async (url, options = {}) => {
     }
     if (requestUrl === 'gallery_storage.php') {
         const body = JSON.parse(options.body);
+        if (body.action === 'cleanup_pending') {
+            return { ok: true, json: async () => ({ status: 'ok', pending: {} }) };
+        }
         if (body.action === 'replace_envelope') {
             if (body.role === 'preview' && simulateInterruption) {
                 throw new Error('simulated network interruption');
