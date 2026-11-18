@@ -61,6 +61,9 @@ jobs:
       - name: Test shared Gallery rotation lock
         run: php tests/gallery_rotation_lock.test.php
 
+      - name: Test Gallery rotation journal
+        run: php tests/gallery_rotation_store.test.php
+
       - name: Test release trust policy decisions
         run: php tests/release_trust_policy.test.php
 
