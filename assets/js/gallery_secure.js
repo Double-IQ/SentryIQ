@@ -12,6 +12,7 @@
     let unlockedPrivateKeys = null;
     let unlockedPublicKeys = null;
     let activeKeyId = null;
+    let legacyKeyId = null;
     let pendingSetup = null;
     let recoveryIdentity = null;
 
@@ -128,6 +129,7 @@
             unlockedPrivateKeys = unlocked.privateKeys || null;
             unlockedPublicKeys = unlocked.publicKeys || null;
             activeKeyId = unlocked.activeKeyId || null;
+            legacyKeyId = unlocked.legacyKeyId || null;
             unlockedPrivateKey = activeKeyId && unlockedPrivateKeys ? unlockedPrivateKeys[activeKeyId] : unlocked.privateKey;
             unlockedRootKey = unlocked.rootKey;
             unlockedPublicKey = activeKeyId && unlockedPublicKeys ? unlockedPublicKeys[activeKeyId] : verified.identity.publicKey;
@@ -318,6 +320,7 @@
             unlockedPrivateKeys = refreshed.privateKeys;
             unlockedPublicKeys = refreshed.publicKeys;
             activeKeyId = refreshed.activeKeyId;
+            legacyKeyId = refreshed.legacyKeyId || null;
             unlockedPrivateKey = unlockedPrivateKeys[activeKeyId];
             unlockedPublicKey = unlockedPublicKeys[activeKeyId];
             cryptoApi().clearSecret(refreshed.rootKey);
@@ -340,7 +343,8 @@
             unlockedPublicKeys[targetKeyId],
             targetKeyId,
             photoId,
-            role
+            role,
+            legacyKeyId
         );
     }
 
@@ -388,6 +392,7 @@
         unlockedPrivateKeys = null;
         unlockedPublicKeys = null;
         activeKeyId = null;
+        legacyKeyId = null;
         pendingSetup = null;
         recoveryIdentity = null;
     }
