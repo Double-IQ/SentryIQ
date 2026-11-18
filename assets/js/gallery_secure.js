@@ -9,6 +9,9 @@
     let unlockedPrivateKey = null;
     let unlockedRootKey = null;
     let unlockedPublicKey = null;
+    let unlockedPrivateKeys = null;
+    let unlockedPublicKeys = null;
+    let activeKeyId = null;
     let pendingSetup = null;
     let recoveryIdentity = null;
 
@@ -109,15 +112,25 @@
             if (!verified.identity.credentialEnvelope) {
                 throw new Error('This passkey is not enrolled for Gallery. Unlock with your recovery code or another enrolled passkey.');
             }
-            const unlocked = await cryptoApi().unlockIdentity(
-                verified.identity.privateKeyEnvelope,
-                verified.identity.credentialEnvelope,
-                verified.prfOutput,
-                verified.credentialId
-            );
-            unlockedPrivateKey = unlocked.privateKey;
+            const unlocked = verified.identity.keyring
+                ? await cryptoApi().unlockKeyringIdentity(
+                    verified.identity.keyring,
+                    verified.identity.credentialEnvelope,
+                    verified.prfOutput,
+                    verified.credentialId
+                )
+                : await cryptoApi().unlockIdentity(
+                    verified.identity.privateKeyEnvelope,
+                    verified.identity.credentialEnvelope,
+                    verified.prfOutput,
+                    verified.credentialId
+                );
+            unlockedPrivateKeys = unlocked.privateKeys || null;
+            unlockedPublicKeys = unlocked.publicKeys || null;
+            activeKeyId = unlocked.activeKeyId || null;
+            unlockedPrivateKey = activeKeyId && unlockedPrivateKeys ? unlockedPrivateKeys[activeKeyId] : unlocked.privateKey;
             unlockedRootKey = unlocked.rootKey;
-            unlockedPublicKey = verified.identity.publicKey;
+            unlockedPublicKey = activeKeyId && unlockedPublicKeys ? unlockedPublicKeys[activeKeyId] : verified.identity.publicKey;
             return { status: 'unlocked' };
         } finally {
             cryptoApi().clearSecret(verified.prfOutput);
@@ -211,14 +224,23 @@
             throw new Error('The Gallery recovery code is invalid.');
         }
         try {
-            const unlocked = await cryptoApi().unlockIdentityWithRecovery(
-                recoveryIdentity.privateKeyEnvelope,
-                recoveryIdentity.recoveryEnvelope,
-                recoveryKey
-            );
-            unlockedPrivateKey = unlocked.privateKey;
+            const unlocked = recoveryIdentity.keyring
+                ? await cryptoApi().unlockKeyringIdentityWithRecovery(
+                    recoveryIdentity.keyring,
+                    recoveryIdentity.recoveryEnvelope,
+                    recoveryKey
+                )
+                : await cryptoApi().unlockIdentityWithRecovery(
+                    recoveryIdentity.privateKeyEnvelope,
+                    recoveryIdentity.recoveryEnvelope,
+                    recoveryKey
+                );
+            unlockedPrivateKeys = unlocked.privateKeys || null;
+            unlockedPublicKeys = unlocked.publicKeys || null;
+            activeKeyId = unlocked.activeKeyId || null;
+            unlockedPrivateKey = activeKeyId && unlockedPrivateKeys ? unlockedPrivateKeys[activeKeyId] : unlocked.privateKey;
             unlockedRootKey = unlocked.rootKey;
-            unlockedPublicKey = recoveryIdentity.publicKey;
+            unlockedPublicKey = activeKeyId && unlockedPublicKeys ? unlockedPublicKeys[activeKeyId] : recoveryIdentity.publicKey;
             return { status: 'unlocked' };
         } finally {
             cryptoApi().clearSecret(recoveryKey);
@@ -300,6 +322,9 @@
         unlockedPrivateKey = null;
         unlockedRootKey = null;
         unlockedPublicKey = null;
+        unlockedPrivateKeys = null;
+        unlockedPublicKeys = null;
+        activeKeyId = null;
         pendingSetup = null;
         recoveryIdentity = null;
     }
@@ -316,11 +341,14 @@
         getPublicKey: function () { if (!unlockedPublicKey) throw new Error('Secure Gallery is locked.'); return unlockedPublicKey; },
         encryptObject: function (data, photoId, role, keyId) {
             if (!unlockedPublicKey) throw new Error('Secure Gallery is locked.');
-            return cryptoApi().encryptObject(data, unlockedPublicKey, photoId, role, keyId);
+            const publicKey = keyId && unlockedPublicKeys && unlockedPublicKeys[keyId]
+                ? unlockedPublicKeys[keyId] : unlockedPublicKey;
+            return cryptoApi().encryptObject(data, publicKey, photoId, role, keyId);
         },
         decryptObject: function (data, envelope, photoId, role) {
             if (!unlockedPrivateKey) throw new Error('Secure Gallery is locked.');
-            return cryptoApi().decryptObject(data, envelope, unlockedPrivateKey, photoId, role);
+            const privateKeys = unlockedPrivateKeys || unlockedPrivateKey;
+            return cryptoApi().decryptObject(data, envelope, privateKeys, photoId, role);
         }
     });
 }(typeof window !== 'undefined' ? window : self));
