@@ -145,6 +145,25 @@ try {
         ]);
     }
 
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'devices') {
+        if (!$galleryKeys->isInitialized()) {
+            gallery_passkey_json(['status' => 'ok', 'devices' => []]);
+        }
+        $store = gallery_passkey_store($passkeyPath);
+        $enrolled = array_fill_keys($galleryKeys->enrolledCredentialIds(), true);
+        $devices = [];
+        foreach ($store['credentials'] as $record) {
+            if (!is_array($record) || !is_string($record['credential_id'] ?? null)) continue;
+            $credentialId = $record['credential_id'];
+            if (!isset($enrolled[$credentialId])) continue;
+            $devices[] = [
+                'credentialId' => $credentialId,
+                'createdAt' => (int)($record['created_at'] ?? 0),
+            ];
+        }
+        gallery_passkey_json(['status' => 'ok', 'devices' => $devices]);
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'options') {
         $store = gallery_passkey_store($passkeyPath);
         if ($galleryKeys->isInitialized()) {
@@ -304,6 +323,27 @@ try {
         }
         if (!$knownCredential) throw new RuntimeException('Unknown passkey.');
         $galleryKeys->addCredentialEnvelope($credentialId, (array)($request['credentialEnvelope'] ?? []));
+        unset($_SESSION['gallery_passkey_verified_credential'], $_SESSION['gallery_passkey_verified_at']);
+        gallery_passkey_json(['status' => 'ok']);
+    }
+
+    if ($action === 'remove_credential') {
+        $verifiedId = (string)($_SESSION['gallery_passkey_verified_credential'] ?? '');
+        $verifiedAt = (int)($_SESSION['gallery_passkey_verified_at'] ?? 0);
+        $targetId = (string)($request['credentialId'] ?? '');
+        if ($verifiedId === '' || $verifiedAt < time() - 180
+            || $targetId === '' || $verifiedId === $targetId) {
+            throw new RuntimeException('Verify a different enrolled Gallery passkey before removing this device.');
+        }
+        if ($galleryKeys->credentialEnvelope($verifiedId) === null) {
+            throw new RuntimeException('The verified passkey is not enrolled for Gallery management.');
+        }
+        if ($galleryKeys->credentialEnvelope($targetId) === null) {
+            throw new RuntimeException('That device is not enrolled for Gallery.');
+        }
+        // This removes only the Gallery-wrapped root-key envelope. The account's
+        // WebAuthn login credential remains registered and is not deleted.
+        $galleryKeys->removeCredentialEnvelope($targetId);
         unset($_SESSION['gallery_passkey_verified_credential'], $_SESSION['gallery_passkey_verified_at']);
         gallery_passkey_json(['status' => 'ok']);
     }
