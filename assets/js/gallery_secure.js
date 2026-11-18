@@ -640,8 +640,10 @@
 
     async function removeEnrolledDevice(targetCredentialId) {
         if (!targetCredentialId) throw new Error('Select a Gallery device to remove.');
+        const generation = sessionGeneration;
         const verified = await verifyNewPasskey();
         try {
+            assertSessionGeneration(generation);
             if (!verified.identity || !verified.identity.credentialEnvelope) {
                 throw new Error('The confirmed passkey is not enrolled for Gallery management.');
             }
@@ -660,10 +662,11 @@
                 })
             });
             await readJson(response);
+            assertSessionGeneration(generation);
             return { status: 'removed' };
         } finally {
-            cryptoApi().clearSecret(verified.prfOutput);
-            cryptoApi().clearSecret(verified.accountSalt);
+            clearSecret(verified.prfOutput);
+            clearSecret(verified.accountSalt);
         }
     }
 
