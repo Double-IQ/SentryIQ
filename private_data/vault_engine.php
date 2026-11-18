@@ -8,6 +8,8 @@
 
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/app/Security/VaultKdfPolicy.php';
+
 $configFile = __DIR__ . '/sentryiq_config.php';
 $config = is_file($configFile) ? require $configFile : [];
 if (!is_array($config)) {
@@ -245,15 +247,10 @@ function vault_kdf_metadata(string $salt, int $opslimit = SENTRYIQ_KDF_OPSLIMIT,
 
 function vault_derive_key(string $password, string $salt, int $opslimit, int $memlimit): string
 {
-    if (!function_exists('sodium_crypto_pwhash')) {
-        throw new RuntimeException('Sodium is required for SentryIQ vault key derivation.');
-    }
     if (strlen($salt) !== SODIUM_CRYPTO_PWHASH_SALTBYTES) {
         throw new RuntimeException('Invalid vault KDF salt.');
     }
-    if ($opslimit < SODIUM_CRYPTO_PWHASH_OPSLIMIT_INTERACTIVE || $memlimit < 19 * 1024 * 1024) {
-        throw new RuntimeException('Vault KDF parameters are too weak.');
-    }
+    \\SentryIQ\\Security\\VaultKdfPolicy::assertValid($opslimit, $memlimit);
 
     $key = sodium_crypto_pwhash(
         32,
@@ -338,11 +335,19 @@ function vault_read_envelope(): array|false
     if ($aadStored === false) throw new RuntimeException('vault_read_envelope:aad_invalid');
 
     $kdfName = (string)($envelope['kdf']['name'] ?? '');
-    $opslimit = (int)($envelope['kdf']['opslimit'] ?? 0);
-    $memlimit = (int)($envelope['kdf']['memlimit'] ?? 0);
+    $rawOpslimit = $envelope['kdf']['opslimit'] ?? null;
+    $rawMemlimit = $envelope['kdf']['memlimit'] ?? null;
     if ($kdfName !== 'argon2id13') throw new RuntimeException('vault_read_envelope:kdf_name_invalid_after_decode');
-    if ($opslimit < SODIUM_CRYPTO_PWHASH_OPSLIMIT_INTERACTIVE) throw new RuntimeException('vault_read_envelope:opslimit_invalid');
-    if ($memlimit < 19 * 1024 * 1024) throw new RuntimeException('vault_read_envelope:memlimit_invalid');
+    if (!is_int($rawOpslimit) || !is_int($rawMemlimit)) {
+        throw new RuntimeException('vault_read_envelope:kdf_parameters_invalid');
+    }
+    $opslimit = $rawOpslimit;
+    $memlimit = $rawMemlimit;
+    try {
+        \\SentryIQ\\Security\\VaultKdfPolicy::assertValid($opslimit, $memlimit);
+    } catch (Throwable) {
+        throw new RuntimeException('vault_read_envelope:kdf_parameters_outside_policy');
+    }
 
     $kdf = [
         'name' => $kdfName,
