@@ -45,6 +45,24 @@ check(($putQuery['X-Amz-SignedHeaders'] ?? '') === 'content-type;host', 'B2 PUT 
 check(preg_match('/^[a-f0-9]{64}$/', (string)($putQuery['X-Amz-Signature'] ?? '')) === 1, 'B2 URL must contain a SigV4 signature.');
 check(!str_contains($putUrl, 'test-application-secret'), 'B2 URL must not disclose the application key.');
 check($putUrl !== $getUrl, 'PUT and GET authorizations must be method-scoped.');
+$headUrl = $signer->presign('HEAD', $objectKey, 60, $now);
+$deleteUrl = $signer->presign('DELETE', $objectKey, 60, $now);
+check($headUrl !== $getUrl && $deleteUrl !== $getUrl, 'HEAD and DELETE authorizations must be method-scoped.');
+foreach ([$headUrl, $deleteUrl] as $methodUrl) {
+    $parts = parse_url($methodUrl);
+    parse_str((string)($parts['query'] ?? ''), $query);
+    check(($query['X-Amz-Expires'] ?? '') === '60', 'Every signed operation must use the requested short expiry.');
+    check(($query['X-Amz-SignedHeaders'] ?? '') === 'host', 'Non-upload operations must not inherit upload content-type signing.');
+}
+expectFailure(fn() => $signer->presign('POST', $objectKey, 60, $now), 'Signer must reject unsupported HTTP methods.');
+expectFailure(fn() => $signer->presign('GET', 'gallery/v1/' . str_repeat('a', 64) . '/unknown', 60, $now), 'Signer must reject unknown object roles.');
+expectFailure(fn() => $signer->presign('GET', $objectKey, 0, $now), 'Signer must reject zero-length authorizations.');
+expectFailure(fn() => new BackblazeB2Signer([
+    'bucket' => 'sentryiq-test-bucket',
+    'region' => 'us-west-004',
+    'key_id' => '',
+    'application_key' => 'test-application-secret',
+]), 'Signer must reject incomplete credentials.');
 expectFailure(fn() => $signer->presign('PUT', '../private/photo.webp'), 'Signer must reject arbitrary object paths.');
 expectFailure(fn() => $signer->presign('PUT', $objectKey, 601, $now), 'Signer must reject long-lived URLs.');
 
