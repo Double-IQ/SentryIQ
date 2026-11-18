@@ -150,6 +150,11 @@ test('photo objects decrypt only with the correct key and authenticated context'
     const rewrappedLegacyEnvelope = await gallery.rewrapObjectEnvelope(
         encrypted.envelope, unlocked.privateKey, secondWrappingKey.publicKey, 'gk_second02', photoId, 'original'
     );
+    const rewrappedFromKeyring = await gallery.rewrapObjectEnvelope(
+        encrypted.envelope, multiKeyUnlock.privateKeys, secondWrappingKey.publicKey,
+        'gk_second02', photoId, 'original', 'gk_first01'
+    );
+    assert.equal(rewrappedFromKeyring.keyId, 'gk_second02');
     assert.equal(rewrappedLegacyEnvelope.keyId, 'gk_second02');
     assert.equal(rewrappedLegacyEnvelope.nonce, encrypted.envelope.nonce, 'Rewrapping must not alter the AES-GCM nonce or ciphertext.');
     const legacyCiphertextStillDecrypts = await gallery.decryptObject(
