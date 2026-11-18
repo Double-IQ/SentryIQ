@@ -111,6 +111,10 @@ final class GalleryObjectStore
             if ($status !== 'active' || !is_array($record['objects'] ?? null)) {
                 throw new RuntimeException('Gallery object inventory contains an unknown record state.');
             }
+            $objectRoles = array_keys($record['objects']);
+            if (array_diff(self::ROLES, $objectRoles) !== [] || array_diff($objectRoles, self::ROLES) !== []) {
+                throw new RuntimeException('Gallery active object contains an unknown or incomplete role set.');
+            }
             foreach (self::ROLES as $role) {
                 $object = $record['objects'][$role] ?? null;
                 $envelope = is_array($object) ? ($object['envelope'] ?? null) : null;
