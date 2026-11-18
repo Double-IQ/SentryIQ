@@ -2,62 +2,26 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/security_bootstrap.php';
+require_once dirname(__DIR__) . '/security_bootstrap.php';
 sentryiq_security_bootstrap();
 
-header('Content-Type: text/html; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 header('Referrer-Policy: no-referrer');
+header('X-Content-Type-Options: nosniff');
 
-$inboundToken = (string)($_GET['t'] ?? '');
-if (!preg_match('/^[a-f0-9]{64}$/i', $inboundToken)) {
-    http_response_code(404);
-    exit('Token unavailable.');
+function copy_code_json(array $payload, int $status = 200): never
+{
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    exit;
 }
 
-$configFile = __DIR__ . '/sentryiq_config.php';
-$config = is_file($configFile) ? require $configFile : [];
-$dataDir = is_array($config) ? rtrim((string)($config['data_dir'] ?? ''), '/') : '';
-if ($dataDir === '' || !is_dir($dataDir)) {
-    http_response_code(404);
-    exit('Token unavailable.');
-}
-
-$tokenFile = $dataDir . '/token_' . strtolower($inboundToken) . '.json';
-if (!is_file($tokenFile) || is_link($tokenFile)) {
-    http_response_code(404);
-    exit('Token unavailable.');
-}
-
-$claimedFile = $dataDir . '/consumed_' . bin2hex(random_bytes(8)) . '.token';
-if (!@rename($tokenFile, $claimedFile)) {
-    http_response_code(404);
-    exit('Token unavailable or already consumed.');
-}
-
-try {
-    $raw = @file_get_contents($claimedFile);
-    $data = is_string($raw) ? json_decode($raw, true) : null;
-    if (!is_array($data) || !isset($data['code'], $data['expires'])) {
-        http_response_code(404);
-        exit('Token unavailable.');
-    }
-
-    if (time() > (int)$data['expires']) {
-        http_response_code(410);
-        exit('Verification token expired.');
-    }
-
-    $verificationCode = (string)$data['code'];
-    if (!preg_match('/^\d{6}$/', $verificationCode)) {
-        http_response_code(404);
-        exit('Token unavailable.');
-    }
-} finally {
-    @unlink($claimedFile);
-}
-?>
+$method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+if ($method === 'GET') {
+    header('Content-Type: text/html; charset=UTF-8');
+    ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -71,14 +35,107 @@ try {
 </head>
 <body>
 <div class="card">
-    <h2 style="color:#0066cc;margin-top:0;font-size:22px;">🔒 SentryIQ Verification</h2>
-    <p style="font-size:15px;color:#495057;">Your one-time verification code is ready:</p>
-    <div id="auth-code" class="code-display"><?php echo htmlspecialchars($verificationCode, ENT_QUOTES, 'UTF-8'); ?></div>
-    <button type="button" id="copy-btn" class="btn-copy" onclick="copyVerificationCode()">📋 Copy Verification Code</button>
-    <p class="hint">The token has already been consumed and cannot be used again.</p>
+    <h2 style="color:#0066cc;margin-top:0;font-size:22px;">SentryIQ Verification</h2>
+    <p id="status" class="hint">Retrieving your one-time verification code…</p>
+    <div id="auth-code" class="code-display" hidden></div>
+    <button type="button" id="copy-btn" class="btn-copy" hidden>Copy Verification Code</button>
+    <p class="hint">The token is consumed once and cannot be reused.</p>
 </div>
 <script>
-function copyVerificationCode(){const code=document.getElementById('auth-code').textContent.trim(),btn=document.getElementById('copy-btn');if(!navigator.clipboard){alert('Clipboard access is unavailable in this browser.');return;}navigator.clipboard.writeText(code).then(()=>{btn.textContent='✅ Code Copied';setTimeout(()=>btn.textContent='📋 Copy Verification Code',1800);}).catch(()=>alert('Clipboard copy was rejected by the browser.'));}
+(() => {
+    const status = document.getElementById('status');
+    const codeElement = document.getElementById('auth-code');
+    const button = document.getElementById('copy-btn');
+    const token = new URLSearchParams(location.hash.slice(1)).get('t') || '';
+    history.replaceState(null, '', location.pathname);
+    if (!/^[a-f0-9]{64}$/i.test(token)) {
+        status.textContent = 'Verification token unavailable. Request a new sign-in code.';
+        return;
+    }
+    fetch(location.pathname, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({t: token}).toString()
+    }).then(async response => {
+        const payload = await response.json();
+        if (!response.ok || payload.status !== 'ok' || !/^\d{6}$/.test(payload.code || '')) {
+            throw new Error(payload.message || 'Verification token unavailable.');
+        }
+        codeElement.textContent = payload.code;
+        codeElement.hidden = false;
+        button.hidden = false;
+        status.textContent = 'Your one-time verification code is ready.';
+    }).catch(error => {
+        status.textContent = error instanceof Error ? error.message : 'Verification token unavailable.';
+    });
+    button.addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText(codeElement.textContent.trim());
+            button.textContent = 'Code Copied';
+        } catch (_) {
+            status.textContent = 'Clipboard access was rejected by the browser.';
+        }
+    });
+})();
 </script>
 </body>
 </html>
+    <?php
+    exit;
+}
+
+if ($method !== 'POST') {
+    header('Allow: GET, POST');
+    copy_code_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+}
+
+$inboundToken = (string)($_POST['t'] ?? '');
+if (!preg_match('/^[a-f0-9]{64}$/i', $inboundToken)) {
+    copy_code_json(['status' => 'error', 'message' => 'Token unavailable.'], 404);
+}
+
+$dataDir = sentryiq_data_dir();
+if ($dataDir === '' || !is_dir($dataDir) || is_link($dataDir)) {
+    copy_code_json(['status' => 'error', 'message' => 'Token unavailable.'], 404);
+}
+
+$tokenFile = $dataDir . '/token_' . strtolower($inboundToken) . '.json';
+if (!is_file($tokenFile) || is_link($tokenFile)) {
+    copy_code_json(['status' => 'error', 'message' => 'Token unavailable or already consumed.'], 404);
+}
+
+$claimedFile = $dataDir . '/consumed_' . bin2hex(random_bytes(16)) . '.token';
+if (!@rename($tokenFile, $claimedFile)) {
+    copy_code_json(['status' => 'error', 'message' => 'Token unavailable or already consumed.'], 404);
+}
+
+try {
+    if (is_link($claimedFile) || !is_file($claimedFile)) {
+        copy_code_json(['status' => 'error', 'message' => 'Token unavailable.'], 404);
+    }
+    $size = @filesize($claimedFile);
+    if (!is_int($size) || $size < 1 || $size > 1024) {
+        copy_code_json(['status' => 'error', 'message' => 'Token unavailable.'], 404);
+    }
+    $raw = @file_get_contents($claimedFile);
+    try {
+        $data = is_string($raw) ? json_decode($raw, true, 8, JSON_THROW_ON_ERROR) : null;
+    } catch (Throwable) {
+        $data = null;
+    }
+    if (!is_array($data) || !is_int($data['expires'] ?? null) || !is_string($data['code'] ?? null)) {
+        copy_code_json(['status' => 'error', 'message' => 'Token unavailable.'], 404);
+    }
+    if (time() >= $data['expires']) {
+        copy_code_json(['status' => 'error', 'message' => 'Verification token expired.'], 410);
+    }
+    if (!preg_match('/^\d{6}$/', $data['code'])) {
+        copy_code_json(['status' => 'error', 'message' => 'Token unavailable.'], 404);
+    }
+    copy_code_json(['status' => 'ok', 'code' => $data['code']]);
+} finally {
+    if (is_file($claimedFile) && !is_link($claimedFile)) {
+        @unlink($claimedFile);
+    }
+}
