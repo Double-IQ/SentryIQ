@@ -20,7 +20,7 @@ This document is the single working checklist for the reset security review and 
 
 ## Current progress
 
-**Phase 1: 6/30 findings/tasks completed.**
+**Phase 1: 7/30 findings/tasks completed.**
 
 - Completed: 1.1 — identified the public installation diagnostic endpoint as an exposure requiring protection.
 - Completed: 1.2 — authentication protection merged in [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53); production deployment/runtime verification remains outstanding and is not claimed.
@@ -28,7 +28,8 @@ This document is the single working checklist for the reset security review and 
 - Completed: 1.4 — PR #53 reviewed, marked ready, and squash-merged into `main` as `2ca8accf882e52f7bbeebcf9f49e81b1891a0910`.
 - Completed: 2.1 — audited CSP emission points on `main`; both the central and Gallery policies permit inline scripts and inline styles. See findings below.
 - Completed: 2.2 — inventoried inline script blocks, event-handler attributes, and JavaScript dependencies on `main`; migration plan recorded below.
-- Next item, pending user review: **2.3** — audit XSS exposure and output encoding.
+- Completed: 2.3 — reviewed server-rendered output, record-card serialization, diagnostic JSON embedding, and DOM insertion sinks; findings and hardening actions recorded below.
+- Next item, pending user review: **2.4** — audit CSRF protections on every state-changing action.
 - No four-node deployment task is marked complete by this document.
 
 ---
@@ -66,7 +67,15 @@ All findings must be verified against `main`. The existing application is the ba
   - Existing same-origin external assets cover Gallery workflows (`gallery_crypto.js`, `gallery_secure.js`, `gallery_storage.js`, `gallery_secure_ui.js`) and vault/folder features (`vault_folders.js`, `records_view.js`, `safari.js`). No `eval()` or `new Function()` dependency was identified in the inspected browser assets. Include `diagnostics/self_test.php` in CSP migration/testing despite it not being a normal user workflow.
   - Migration/test order: (1) move inline script blocks into dedicated same-origin external files; (2) replace inline event attributes with `addEventListener`; (3) replace attribute-string selectors with IDs/data attributes; (4) preserve server-generated values through safely encoded data attributes or non-executable JSON; (5) add regression coverage for password/2FA login, passkey login/setup, dashboard navigation and record actions, folder/category controls, document upload/delete confirmations, Gallery workflows, B2 diagnostics, and self-test; (6) only then remove `unsafe-inline` from `script-src` and verify effective response headers. Inline styles are a separate `style-src` migration and are outside this item.
   - Inventory and migration plan only: no application code, CSP, or production configuration was changed.
-- [ ] **2.3** Audit XSS sinks, DOM insertion, templates, and output escaping.
+- [x] **2.3** Audit XSS sinks, DOM insertion, templates, and output escaping.
+  - Reviewed on `main`: `index.php`, `app/Vault/DashboardList.php`, `app/Vault/DashboardActions.php`, `documents.php`, `welcome.php`, `app/Auth/PasskeyLogin.php`, `app/Auth/PasskeySetup.php`, `gallery_b2_diagnostic.php`, `diagnostics/self_test.php`, `app/Gallery/SecurePage.php`, and the related Vault/Gallery browser assets (`records_view.js`, `vault_folders.js`, `gallery_secure_ui.js`, `gallery_secure.js`, `gallery_storage.js`, `gallery_crypto.js`).
+  - Vault record-card output: record fields are serialized with `json_encode(..., JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)` and then HTML-attribute encoded before use in the inline handler. This is context-safe against HTML/script breakout in the inspected path. Visible labels, usernames, category/folder values, form values, and passkey labels/IDs are HTML-escaped; query-derived category/folder values are constrained against the stored category/folder lists before rendering. The record detail UI uses `textContent` and validates destination links as HTTPS before assigning `href`.
+  - Documents page: document names and IDs are HTML-escaped or constrained to the expected hexadecimal identifier format; the icon helper returns a fixed emoji allowlist; status messages are selected from fixed strings. No unescaped document metadata sink was identified in the inspected template.
+  - Passkey and Gallery UI: inspected message/metadata insertion uses `textContent`, DOM element creation, and property assignment rather than parsing untrusted strings as HTML. Gallery filenames/albums are displayed through `textContent`; thumbnail/preview URLs are generated as object URLs from decrypted image bytes.
+  - DOM HTML sinks found: `DashboardList.php` builds the System Tools panel with `innerHTML`, but the inserted markup is a fixed, developer-authored string with no user/config/request data; `vault_folders.js` assigns fixed option markup to `select.innerHTML`; `diagnostics/self_test.php` uses `innerHTML` for table rows and summary markup, with dynamic fields passed through its `esc()` HTML-escaping helper. No `eval`, `new Function`, or `document.write` sink was identified in the inspected browser assets.
+  - **Hardening finding (not confirmed exploitable XSS):** `diagnostics/self_test.php` embeds `$browserTests` and `$results` into executable `<script>` blocks using `json_encode()` without `JSON_HEX_TAG` (and embeds `$csrf`/build metadata without a uniform script-data encoding helper). `$results` can include environment/configuration-derived strings, including the request Host value and configuration exception details. JSON string encoding alone does not neutralize a literal `</script>` for the HTML parser. This is a context-encoding weakness; exploitability depends on an attacker being able to influence one of those diagnostic values and induce an authenticated diagnostic request. Correct it by using a single script-context encoder with `JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR` for every PHP-to-JavaScript value, or move data into non-executable JSON with equivalent safe encoding. Add a regression test using a `</script><script>` payload in a controlled diagnostic value.
+  - Context note: `htmlspecialchars()` defaults are used in a few older output expressions without explicit flags/charset, while newer adjacent expressions specify `ENT_QUOTES, 'UTF-8'`. PHP 8.3's defaults include quote escaping, so no concrete bypass was demonstrated, but standardize all HTML text/attribute output to explicit `ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'` during remediation.
+  - No application code or production configuration was changed during this audit. This item records the audit and the exact hardening target; the actual remediation is tracked as a follow-up implementation before CSP tightening. No confirmed exploitable XSS was established in the inspected paths.
 - [ ] **2.4** Audit CSRF protections on every state-changing action.
 - [ ] **2.5** Verify browser security headers, HTTPS behaviour, and cookie attributes.
 
@@ -163,6 +172,7 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 | 2026-11-18 | 1.4 | [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53), [merge commit `2ca8acc`](https://github.com/Double-IQ/SentryIQ/commit/2ca8accf882e52f7bbeebcf9f49e81b1891a0910) | Reviewed and squash-merged into `main`; production deployment not performed | Yes |
 | 2026-11-18 | 2.1 | `app/Security/SecurityBootstrap.php`, `app/Gallery/SecurePage.php`, `.htaccess`, `.user.ini` on `main` | Found two CSP emission points; both permit `unsafe-inline` for scripts and styles. Recorded migration dependencies; no policy changed | Yes |
 | 2026-11-18 | 2.2 | Inline script/handler inventory across PHP templates and JS assets on `main` | Recorded 10 inline script blocks in 9 PHP files, inline event attributes in 5 templates, JavaScript selector coupling, and staged migration/test plan; no code changed | Yes |
+| 2026-11-18 | 2.3 | Reviewed Vault, Documents, Passkey, Gallery, and diagnostic templates/assets on `main` | No confirmed exploitable XSS in inspected paths; recorded a script-context JSON-encoding hardening finding in `diagnostics/self_test.php`, verified safe fixed-markup/escaped DOM sinks, and documented remediation/test requirements; no code changed | Yes |
 
 ## Working rules
 
