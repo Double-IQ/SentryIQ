@@ -61,6 +61,19 @@ final class GalleryKeyStore
         return is_array($envelope) ? $envelope : null;
     }
 
+    /**
+     * Return only enrolled credential identifiers and envelopes.
+     * Callers must never expose envelope contents to the device-management UI.
+     */
+    public function enrolledCredentialIds(): array
+    {
+        $store = $this->read();
+        return array_values(array_filter(
+            array_keys((array)($store['credential_envelopes'] ?? [])),
+            static fn($id): bool => is_string($id)
+        ));
+    }
+
     public function initialize(
         array $publicKey,
         array $privateKeyEnvelope,
