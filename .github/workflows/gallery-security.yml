@@ -51,5 +51,8 @@ jobs:
       - name: Test updater rollback safety
         run: php tests/update_rollback.test.php
 
+      - name: Test updater release provenance and manifest
+        run: php tests/update_release_provenance.test.php
+
       - name: Test GitHub CLI attestation adapter contract
         run: php tests/github_cli_attestation_verifier.test.php
