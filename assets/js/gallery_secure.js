@@ -333,6 +333,104 @@
         }
     }
 
+    function getKeyInfo() {
+        if (!unlockedPrivateKey) throw new Error('Secure Gallery is locked.');
+        return {
+            activeKeyId: activeKeyId,
+            legacyKeyId: legacyKeyId,
+            keyIds: unlockedPublicKeys ? Object.keys(unlockedPublicKeys) : []
+        };
+    }
+
+    async function getRotationStatus() {
+        const response = await fetch('gallery_passkey.php?action=rotation-status', {
+            method: 'GET',
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: { Accept: 'application/json' }
+        });
+        return readJson(response);
+    }
+
+    async function startRotation(targetKeyId) {
+        if (!unlockedRootKey) throw new Error('Unlock secure Gallery before rotating encryption keys.');
+        if (!unlockedPublicKeys || !Object.prototype.hasOwnProperty.call(unlockedPublicKeys, targetKeyId)) {
+            throw new Error('The target Gallery encryption key is not unlocked in this browser.');
+        }
+        const verified = await verifyNewPasskey();
+        try {
+            if (!verified.identity || !verified.identity.credentialEnvelope) {
+                throw new Error('Confirm with a passkey already enrolled for Gallery.');
+            }
+            const response = await fetch('gallery_passkey.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify({ action: 'begin_rotation', csrf_token: csrfToken(), targetKeyId: targetKeyId })
+            });
+            const payload = await readJson(response);
+            activeKeyId = payload.rotation.to_key_id;
+            unlockedPrivateKey = unlockedPrivateKeys[activeKeyId];
+            unlockedPublicKey = unlockedPublicKeys[activeKeyId];
+            return payload.rotation;
+        } finally {
+            cryptoApi().clearSecret(verified.prfOutput);
+            cryptoApi().clearSecret(verified.accountSalt);
+        }
+    }
+
+    async function abortRotation() {
+        if (!unlockedRootKey) throw new Error('Unlock secure Gallery before aborting key rotation.');
+        const verified = await verifyNewPasskey();
+        try {
+            if (!verified.identity || !verified.identity.credentialEnvelope) {
+                throw new Error('Confirm with a passkey already enrolled for Gallery.');
+            }
+            const response = await fetch('gallery_passkey.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify({ action: 'abort_rotation', csrf_token: csrfToken() })
+            });
+            const payload = await readJson(response);
+            activeKeyId = payload.rotation.from_key_id;
+            unlockedPrivateKey = unlockedPrivateKeys && unlockedPrivateKeys[activeKeyId] ? unlockedPrivateKeys[activeKeyId] : unlockedPrivateKey;
+            unlockedPublicKey = unlockedPublicKeys && unlockedPublicKeys[activeKeyId] ? unlockedPublicKeys[activeKeyId] : unlockedPublicKey;
+            return payload.rotation;
+        } finally {
+            cryptoApi().clearSecret(verified.prfOutput);
+            cryptoApi().clearSecret(verified.accountSalt);
+        }
+    }
+
+    async function finalizeRotation() {
+        if (!unlockedRootKey) throw new Error('Unlock secure Gallery before finalizing key rotation.');
+        const verified = await verifyNewPasskey();
+        try {
+            if (!verified.identity || !verified.identity.credentialEnvelope) {
+                throw new Error('Confirm with a passkey already enrolled for Gallery.');
+            }
+            const response = await fetch('gallery_passkey.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify({ action: 'finalize_rotation', csrf_token: csrfToken() })
+            });
+            const payload = await readJson(response);
+            const retiredKeyId = payload.rotation.from_key_id;
+            if (unlockedPrivateKeys) delete unlockedPrivateKeys[retiredKeyId];
+            if (unlockedPublicKeys) delete unlockedPublicKeys[retiredKeyId];
+            if (legacyKeyId === retiredKeyId) legacyKeyId = null;
+            return payload.rotation;
+        } finally {
+            cryptoApi().clearSecret(verified.prfOutput);
+            cryptoApi().clearSecret(verified.accountSalt);
+        }
+    }
+
     function rewrapObjectEnvelope(envelope, photoId, role, targetKeyId) {
         if (!unlockedPrivateKey || !unlockedPublicKey) throw new Error('Secure Gallery is locked.');
         if (!unlockedPublicKeys || !Object.prototype.hasOwnProperty.call(unlockedPublicKeys, targetKeyId)) {
@@ -406,6 +504,11 @@
         enrollCurrentPasskey: enrollCurrentPasskey,
         addWrappingKey: addWrappingKey,
         rewrapObjectEnvelope: rewrapObjectEnvelope,
+        getKeyInfo: getKeyInfo,
+        getRotationStatus: getRotationStatus,
+        startRotation: startRotation,
+        abortRotation: abortRotation,
+        finalizeRotation: finalizeRotation,
         removeEnrolledDevice: removeEnrolledDevice,
         lock: lock,
         isUnlocked: function () { return unlockedPrivateKey !== null && unlockedRootKey !== null; },
