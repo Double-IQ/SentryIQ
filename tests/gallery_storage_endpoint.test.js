@@ -25,3 +25,13 @@ test('storage endpoint initializes the rotation journal before envelope migratio
     assert.match(endpoint, /\$rotationJournal\s*=\s*new\s+GalleryRotationStore\(\$dataDirectory\s*\.\s*'\/gallery_rotation\.json'\)/);
     assert.match(endpoint, /use\s*\(\$objectStore,\s*\$galleryKeys,\s*\$rotationJournal,/);
 });
+
+test('Gallery device removal is serialized with key rotation and rechecks enrollment under lock', () => {
+    const passkeyEndpoint = fs.readFileSync(
+        path.join(__dirname, '../app/Auth/GalleryPasskeyAuth.php'),
+        'utf8'
+    );
+    assert.match(passkeyEndpoint, /if\s*\(\$action\s*===\s*'remove_credential'\)[\s\S]*?GalleryRotationLock::synchronized\(\$dataDirectory,[\s\S]*?\$rotationJournal->current\(\)/);
+    assert.match(passkeyEndpoint, /Re-check both enrollments while holding the same transaction lock[\s\S]*?credentialEnvelope\(\$verifiedId\)[\s\S]*?credentialEnvelope\(\$targetId\)[\s\S]*?removeCredentialEnvelope\(\$targetId\)/);
+    assert.match(passkeyEndpoint, /A Gallery device cannot be removed while key rotation is active or awaiting retirement/);
+});
