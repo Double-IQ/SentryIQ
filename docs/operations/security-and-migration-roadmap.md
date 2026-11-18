@@ -128,7 +128,7 @@ The server cannot decrypt vault or document content using its database, runtime 
 
 - [x] Implement verifier/runtime prototypes for Integrity Nodes A and B (included in stacked PR #50); these are code prototypes, not deployed nodes.
 - [ ] Select and verify the actual independent hosting/provider and administrative boundary for Node A.
-- [ ] Select and verify a different independent hosting/provider and administrative boundary for Node B. Do not assume BTM-SA or Cloudflare Workers is a node host unless that deployment is explicitly confirmed.
+- [x] Hosting assignment confirmed: Integrity Node B is hosted on Val Town. [ ] Verify the deployed Val Town app/runtime, independent administrative boundary, private secrets/configuration, pinned trust roots, unique credentials, independent schedule, private state/baseline, and direct owner-alert transport.
 - [ ] Provision A and B separately with pinned public trust roots, unique signing keys, unique credentials, independent schedules, private state/baselines, and direct owner-alert transports. Neither node may trust the other's verdict.
 - [x] Implement a HelioHost-compatible Node C prototype; production provisioning and its native verification runtime remain pending.
 - [x] Implement the BTM-SA / Node 4 event receiver and incident pipeline in PR #50; BTM-SA shares the SentryIQ host and is not a third independent verifier or independent failure domain.
@@ -187,7 +187,7 @@ Update this section whenever a phase changes. Link the PR, workflow run, test ev
 | Zero-knowledge vault/documents | Pending | Migration and no-plaintext/no-key-leak test evidence |
 | Signed release pipeline | Prototype in stacked PRs #48/#50; not merged/deployed | Merge/review, approved key custody, signed production release and updater verification |
 | Integrity Node A | Code prototype; host/provider not confirmed or deployed | Independent host inspection, private config/key/baseline, schedule, signed report and direct-alert test |
-| Integrity Node B | Code prototype; host/provider not confirmed or deployed | Different independent host/provider, private config/key/baseline, schedule, signed report and direct-alert test |
+| Integrity Node B (Val Town) | Hosting assignment confirmed; deployment/runtime not verified | Val Town app/runtime, private secrets/configuration, pinned trust roots, independent schedule/state, signed report and direct-alert test |
 | Integrity Node C (HelioHost) | Compatibility prototype; not deployed | HelioHost account/runtime, native verifier, key, private evidence store, schedule and direct-alert test |
 | Node 4 (BTM-SA) | Event pipeline prototype; same host as SentryIQ, not deployed | Separate logical service/runtime, A/B trust config, replay store, alert transport and host-isolation checks |
 | Origin hardening/incident exercise | Pending | Security test report and exercise record |
