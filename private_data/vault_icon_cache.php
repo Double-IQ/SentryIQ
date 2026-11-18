@@ -136,10 +136,21 @@ function vault_icon_is_public_ip(string $ip): bool
 
     if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
         foreach ([
+            '0.0.0.0/8',
+            '10.0.0.0/8',
             '100.64.0.0/10',
+            '127.0.0.0/8',
+            '169.254.0.0/16',
+            '172.16.0.0/12',
             '192.0.0.0/24',
+            '192.0.2.0/24',
             '192.88.99.0/24',
+            '192.168.0.0/16',
             '198.18.0.0/15',
+            '198.51.100.0/24',
+            '203.0.113.0/24',
+            '224.0.0.0/4',
+            '240.0.0.0/4',
         ] as $range) {
             if (vault_icon_ipv4_in_cidr($ip, $range)) return false;
         }
@@ -152,11 +163,14 @@ function vault_icon_is_public_ip(string $ip): bool
         '::ffff:0:0/96',
         '64:ff9b::/96',
         '64:ff9b:1::/48',
-        '2001::/32',
+        '2001::/23',
+        '2001:db8::/32',
         '2002::/16',
     ];
     $packed = inet_pton($ip);
     if ($packed === false || strlen($packed) !== 16) return false;
+    // Only globally routable unicast space (2000::/3) is eligible.
+    if ((ord($packed[0]) & 0xE0) !== 0x20) return false;
     foreach ($blockedIpv6Prefixes as $range) {
         [$network, $prefix] = explode('/', $range, 2);
         $networkBytes = inet_pton($network);
