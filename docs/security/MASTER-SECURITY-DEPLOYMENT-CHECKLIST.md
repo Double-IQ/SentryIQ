@@ -20,7 +20,7 @@ This document is the single working checklist for the reset security review and 
 
 ## Current progress
 
-**Phase 1: 22/30 findings/tasks completed.**
+**Phase 1: 23/30 findings/tasks completed.**
 
 - Completed: 1.1 — identified the public installation diagnostic endpoint as an exposure requiring protection.
 - Completed: 1.2 — authentication protection merged in [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53); production deployment/runtime verification remains outstanding and is not claimed.
@@ -42,7 +42,8 @@ This document is the single working checklist for the reset security review and 
 - Completed: 4.3 — reviewed Vault VMK/password/recovery wrappers, Argon2id parameters, AES-256-GCM envelopes/nonces/AAD, object encryption, Gallery RSA-OAEP/HKDF/PRF/recovery design, and existing crypto tests. Cryptographic primitives and Gallery browser-side boundary are sound in the inspected paths; recorded unbounded KDF parameters and missing Vault crypto regression tests.
 - Completed: 4.4 — audited Gallery and document encryption, storage authorization, signed-URL generation/expiry, object lifecycle, and bucket configuration requirements. Confirmed encrypted-at-rest Documents and browser-side zero-knowledge Gallery; recorded missing provider-side size verification and deployment-side bucket/CORS verification requirements.
 - Completed: 4.5 — reviewed backups/restore, recovery material, secret/config handling, audit and diagnostic logs, and sensitive-data leakage. No backup/restore implementation was found; recorded incomplete ignore coverage, unbounded logs, stale 2FA token files, diagnostic CSRF/method gaps, and deployment-side backup/access-log verification requirements.
-- Next audit item: **5.1** — verify the updater's configured GitHub repository and intended release source.
+- Completed: 5.1 — verified the updater's hard-coded release source against the canonical repository identity, release workflow, trust policy, and live GitHub release metadata. The legacy `BTM-SA/SentryIQ` API path redirects to the same immutable repository ID as `Double-IQ/SentryIQ`; the alias is stale but currently resolves correctly.
+- Next audit item: **5.2** — review release authenticity, signatures, checksums, and trust-root handling.
 - No four-node deployment task is marked complete by this document.
 
 ---
@@ -225,7 +226,13 @@ All findings must be verified against `main`. The existing application is the ba
 
 ## 5. Updates and software integrity
 
-- [ ] **5.1** Verify the updater's configured GitHub repository and intended release source.
+- [x] **5.1** Verify the updater's configured GitHub repository and intended release source.
+  - Reviewed `app/Updates/UpdateManager.php`, `update.php`, `update_check.php`, `update_apply.php`, `VERSION`, `.github/workflows/release.yml`, `ReleaseTrustPolicy.php`, `GitHubCliAttestationVerifier.php`, and the release-manifest/provenance documentation on `main`.
+  - `UpdateManager::REPOSITORY` is hard-coded to `BTM-SA/SentryIQ`. GitHub's API returns a permanent-move response for that owner/name and redirects to immutable repository ID `1345956206`. The canonical current repository is `Double-IQ/SentryIQ`, also repository ID `1345956206`; its `main` branch and `release.yml` are the source used by the current release workflow. The API's latest release endpoint for the canonical repository returns stable release `v0.1.2`; `VERSION` in `main` is `0.1.2`, so no update is currently available. The old alias therefore resolves to the intended repository today, but should be replaced with the canonical `Double-IQ/SentryIQ` string to avoid reliance on an owner rename redirect.
+  - `ReleaseTrustPolicy` and `GitHubCliAttestationVerifier` independently pin canonical repository `Double-IQ/SentryIQ`, immutable repository ID `1345956206`, and `.github/workflows/release.yml`. `release.yml` uses the GitHub tag-push workflow in the current repository and writes the same immutable repository ID into the canonical manifest. The release source identity is therefore consistent by repository ID, despite the stale updater alias.
+  - The updater uses GitHub's `/releases/latest` endpoint, rejects draft/prerelease releases, normalizes stable version tags, selects assets by exact names `sentryiq-<version>.zip` and `.zip.sha256`, and does not accept a user-supplied repository or arbitrary tag. The update UI and check endpoint require an authenticated vault session; apply requires fresh authentication and CSRF. The current latest release metadata lists the expected ZIP/checksum and separate manifest/provenance-related assets.
+  - **Scope boundary:** this item verifies source identity only. It does not establish that the release assets are authentic or that the updater enforces the repository's attestation/trust policy; that is item 5.2. No update was applied and no production code was downloaded or changed.
+  - **Test status:** GitHub repository metadata and latest-release API were queried; no production updater execution or installation was performed. No code/config changes were made.
 - [ ] **5.2** Review release authenticity, signatures, checksums, and trust-root handling.
 - [ ] **5.3** Audit archive extraction, path traversal, symlinks, and overwrite protections.
 - [ ] **5.4** Review update rollback, partial failure handling, and recovery.
@@ -313,6 +320,7 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 | 2026-11-18 | 4.3 | Reviewed Vault VMK/password/recovery wrappers, Argon2id KDF bounds, AES-GCM envelopes/nonces/AAD, and Vault crypto test coverage on `main` | Recorded unbounded KDF upper limits and absence of dedicated Vault crypto tests; Gallery crypto reviewed as supporting context; source review only, tests not executed | Yes |
 | 2026-11-18 | 4.4 | Audited Documents encryption/metadata, Gallery browser-side encryption, B2 object authorization, signed URL lifecycle, and setup requirements | Confirmed encrypted document bodies and client-side Gallery ciphertext; recorded B2 actual-size/expiry verification gaps and unverified live bucket privacy/CORS/key scope; source review only, no live B2 test | Yes |
 | 2026-11-18 | 4.5 | Reviewed backup/restore capabilities, recovery materials, secret/config files, ignore rules, audit/diagnostic logs, and sensitive-data exposure | No backup/restore implementation found; recorded incomplete runtime secret ignore coverage, unbounded logs, stale 2FA token files, diagnostic method/CSRF gaps, and need for deployment-side backup/access-log verification | Yes |
+| 2026-11-18 | 5.1 | Verified updater repository constant, GitHub repository ID/redirect, release workflow identity, current VERSION, and latest stable release | Confirmed legacy `BTM-SA/SentryIQ` alias redirects to canonical `Double-IQ/SentryIQ` repository ID 1345956206; updater source is correct today but should use canonical name; no update applied | Yes |
 | 2026-11-18 | 4.4 | Audited Documents encryption/metadata, Gallery browser-side encryption, B2 object authorization, signed URL lifecycle, and setup requirements | Confirmed encrypted document bodies and client-side Gallery ciphertext; recorded B2 actual-size/expiry verification gaps and unverified live bucket privacy/CORS/key scope; source review only, no live B2 test | Yes |
 
 ## Working rules
