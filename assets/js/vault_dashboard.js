@@ -4,7 +4,7 @@
     window.toggleVaultMobileMenu=function(){var menu=getMenu(),toggle=getToggle();if(!menu||!toggle)return;var open=menu.classList.toggle('mobile-open');toggle.setAttribute('aria-expanded',open?'true':'false');};
     window.showAddCategoryForm=function(){var button=document.getElementById('show-add-category'),form=document.getElementById('add-category-form'),input=document.getElementById('new-category-name');if(!button||!form)return;button.style.display='none';form.style.display='flex';if(input)input.focus();};
     window.hideAddCategoryForm=function(){var button=document.getElementById('show-add-category'),form=document.getElementById('add-category-form'),input=document.getElementById('new-category-name');if(!button||!form)return;form.style.display='none';button.style.display='flex';if(input)input.value='';};
-    window.showCreateFolderForm=function(){var button=document.querySelector('[onclick="showCreateFolderForm()"]'),form=document.getElementById('create-folder-form'),input=document.getElementById('new-folder-name');if(!form)return;if(button)button.style.display='none';form.style.display='flex';if(input)input.focus();};
+    window.showCreateFolderForm=function(){var button=document.querySelector('[data-vault-action="show-create-folder"]'),form=document.getElementById('create-folder-form'),input=document.getElementById('new-folder-name');if(!form)return;if(button)button.style.display='none';form.style.display='flex';if(input)input.focus();};
     window.hideCreateFolderForm=function(){var button=document.querySelector('[onclick="showCreateFolderForm()"]'),form=document.getElementById('create-folder-form'),input=document.getElementById('new-folder-name');if(!form)return;form.style.display='none';if(button)button.style.display='inline-block';if(input)input.value='';};
     function setupSystemOptions(){
         var panel=document.getElementById('settings-panel');
@@ -28,5 +28,38 @@
             '<a href="security-features.php" class="system-option-link" style="display:block;padding:16px;margin-top:12px;border:1px solid #e9ecef;border-radius:10px;text-decoration:none;color:#212529;background:#fff;"><strong>🛡️ Security Details</strong><span style="display:block;margin-top:4px;color:#777;font-size:13px;">Explore the security controls built into SentryIQ, including encryption, passkeys, session protection, CSRF protection, secure storage, and audit logging.</span></a>';
         panel.appendChild(options);panel.dataset.optionsReady='1';
     }
+    document.addEventListener('click', function (event) {
+        const nav = event.target.closest('[data-sentryiq-nav]');
+        if (nav) { const target = nav.getAttribute('data-sentryiq-nav'); if (target) window.location.assign(target); return; }
+        const action = event.target.closest('[data-vault-action]');
+        if (action) {
+            const actions = {
+                'show-add-category': window.showAddCategoryForm,
+                'hide-add-category': window.hideAddCategoryForm,
+                'show-create-folder': window.showCreateFolderForm,
+                'hide-create-folder': window.hideCreateFolderForm
+            };
+            const handler = actions[action.getAttribute('data-vault-action')];
+            if (typeof handler === 'function') handler();
+            return;
+        }
+        const card = event.target.closest('.vault-record-card[data-vault-record]');
+        if (card && !event.target.closest('button')) {
+            try { window.viewRecordDetails.apply(null, JSON.parse(card.getAttribute('data-vault-record'))); } catch (error) { console.error('Unable to open vault record.'); }
+        }
+    });
+    document.addEventListener('keydown', function (event) {
+        const card = event.target.closest('.vault-record-card[data-vault-record]');
+        if (!card || (event.key !== 'Enter' && event.key !== ' ')) return;
+        event.preventDefault();
+        try { window.viewRecordDetails.apply(null, JSON.parse(card.getAttribute('data-vault-record'))); } catch (error) { console.error('Unable to open vault record.'); }
+    });
+    document.querySelectorAll('img[data-icon-fallback]').forEach(function (image) {
+        image.addEventListener('error', function () {
+            image.style.display = 'none';
+            const fallback = image.nextElementSibling;
+            if (fallback) fallback.style.display = 'inline-block';
+        }, { once: true });
+    });
     document.addEventListener('DOMContentLoaded',function(){var toggle=getToggle(),menu=getMenu();if(toggle&&menu){toggle.addEventListener('click',window.toggleVaultMobileMenu);menu.querySelectorAll('[data-vault-tab]').forEach(function(button){button.addEventListener('click',function(){var tab=button.getAttribute('data-vault-tab');if(typeof switchVaultTab==='function')switchVaultTab(tab);menu.classList.remove('mobile-open');toggle.setAttribute('aria-expanded','false');});});}setupSystemOptions();var badge=document.getElementById('system-update-badge');if(badge){fetch('update_check.php',{credentials:'same-origin',cache:'no-store',headers:{'Accept':'application/json'}}).then(function(response){return response.json();}).then(function(data){if(data&&data.status==='ok'&&data.update_available){badge.style.display='inline-block';}}).catch(function(){});}});
 }());
