@@ -69,3 +69,18 @@ test('stopping the Gallery session guard cancels pending locks', async () => {
     await wait(35);
     assert.equal(called, false);
 });
+
+test('Gallery session guard locks immediately on pagehide so a restored page cannot retain an unlocked session', () => {
+    let reason = null;
+    windowStub.SentryIQGallerySessionGuard.start(
+        (value) => { reason = value; },
+        { idleTimeoutMs: 100, hiddenTimeoutMs: 100 }
+    );
+
+    windowStub.dispatch('pagehide');
+    assert.equal(reason, 'pagehide');
+
+    // The guard has detached its listeners and cancelled its pending timers.
+    documentStub.dispatch('pointerdown');
+    assert.equal(reason, 'pagehide');
+});
