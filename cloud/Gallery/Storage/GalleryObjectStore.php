@@ -91,19 +91,33 @@ final class GalleryObjectStore
             throw new RuntimeException('Invalid legacy Gallery key identifier.');
         }
         $inventory = [];
-        foreach ($this->read() as $record) {
-            if (!is_array($record)) continue;
-            if (($record['status'] ?? '') === 'pending') {
+        foreach ($this->read() as $photoId => $record) {
+            if (!is_string($photoId) || !is_array($record)) {
+                throw new RuntimeException('Gallery object inventory contains an invalid record.');
+            }
+            $status = $record['status'] ?? '';
+            if ($status === 'pending') {
                 $keyId = $record['key_id'] ?? $legacyKeyId;
-                if (is_string($keyId) && $keyId !== '') $inventory[$keyId] = ($inventory[$keyId] ?? 0) + 1;
+                if (!is_string($keyId) || !preg_match('/^[A-Za-z0-9_-]{8,64}$/', $keyId)) {
+                    throw new RuntimeException('Gallery pending reservation has no verifiable key reference.');
+                }
+                $inventory[$keyId] = ($inventory[$keyId] ?? 0) + 1;
                 continue;
             }
-            if (($record['status'] ?? '') !== 'active') continue;
-            foreach ((array)($record['objects'] ?? []) as $object) {
+            if ($status !== 'active' || !is_array($record['objects'] ?? null)) {
+                throw new RuntimeException('Gallery object inventory contains an unknown record state.');
+            }
+            foreach (self::ROLES as $role) {
+                $object = $record['objects'][$role] ?? null;
                 $envelope = is_array($object) ? ($object['envelope'] ?? null) : null;
-                if (!is_array($envelope)) continue;
+                if (!is_array($envelope)) {
+                    throw new RuntimeException('Gallery active object is missing its encrypted key envelope.');
+                }
                 $keyId = $envelope['keyId'] ?? $legacyKeyId;
-                if (is_string($keyId) && $keyId !== '') $inventory[$keyId] = ($inventory[$keyId] ?? 0) + 1;
+                if (!is_string($keyId) || !preg_match('/^[A-Za-z0-9_-]{8,64}$/', $keyId)) {
+                    throw new RuntimeException('Gallery object has no verifiable encryption key reference.');
+                }
+                $inventory[$keyId] = ($inventory[$keyId] ?? 0) + 1;
             }
         }
         return $inventory;
