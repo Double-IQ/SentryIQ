@@ -21,3 +21,16 @@ test('a completed migration retains the old key through its rollback window', ()
     assert.match(source, /Finalize key retirement/);
     assert.match(source, /retained for rollback until/);
 });
+
+test('server permits rollback while the key is staged for delayed retirement', () => {
+    const endpoint = fs.readFileSync(
+        path.join(__dirname, '../app/Auth/GalleryPasskeyAuth.php'),
+        'utf8'
+    );
+    const abortBlock = endpoint.slice(
+        endpoint.indexOf("if ($action === 'abort_rotation')"),
+        endpoint.indexOf("if ($action === 'finalize_rotation')")
+    );
+    assert.match(abortBlock, /\['running', 'ready_to_retire'\]/);
+    assert.match(abortBlock, /\$rotationJournal->abort/);
+});
