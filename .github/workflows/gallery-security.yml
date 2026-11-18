@@ -27,9 +27,10 @@ jobs:
           node --check assets/js/gallery_session_guard.js
           node --check tests/gallery_crypto.test.js
           node --check tests/gallery_session_guard.test.js
+          node --check tests/gallery_csp.test.js
 
       - name: Test browser-side Gallery cryptography
-        run: node --test tests/gallery_crypto.test.js tests/gallery_session_guard.test.js
+        run: node --test tests/gallery_crypto.test.js tests/gallery_session_guard.test.js tests/gallery_csp.test.js
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
