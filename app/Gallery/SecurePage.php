@@ -77,10 +77,10 @@ header('Content-Security-Policy: ' . $csp);
         </div>
     </div>
     <div class="vault-tabs">
-        <button class="tab-btn" type="button" onclick="window.location.href='index.php?pane=view'">📋 Vault</button>
-        <button class="tab-btn" type="button" onclick="window.location.href='documents.php'">📄 Docs</button>
+        <button class="tab-btn" type="button" data-sentryiq-nav="index.php?pane=view">📋 Vault</button>
+        <button class="tab-btn" type="button" data-sentryiq-nav="documents.php">📄 Docs</button>
         <button class="tab-btn active" type="button">🖼️ Gallery</button>
-        <button class="tab-btn" type="button" onclick="window.location.href='index.php?pane=settings'">⚙️ System</button>
+        <button class="tab-btn" type="button" data-sentryiq-nav="index.php?pane=settings">⚙️ System</button>
     </div>
 
     <main class="secure-gallery" data-b2-configured="<?php echo $b2Configured ? 1 : 0; ?>">
