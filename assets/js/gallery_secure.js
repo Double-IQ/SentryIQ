@@ -305,13 +305,43 @@
                     privateKeyEnvelope: wrappingKey.privateKeyEnvelope
                 })
             });
-            await readJson(response);
+            const saved = await readJson(response);
+            if (!saved.keyring || !verified.identity.credentialEnvelope) {
+                throw new Error('The updated Gallery keyring could not be loaded.');
+            }
+            const refreshed = await cryptoApi().unlockKeyringIdentity(
+                saved.keyring,
+                verified.identity.credentialEnvelope,
+                verified.prfOutput,
+                verified.credentialId
+            );
+            unlockedPrivateKeys = refreshed.privateKeys;
+            unlockedPublicKeys = refreshed.publicKeys;
+            activeKeyId = refreshed.activeKeyId;
+            unlockedPrivateKey = unlockedPrivateKeys[activeKeyId];
+            unlockedPublicKey = unlockedPublicKeys[activeKeyId];
+            cryptoApi().clearSecret(refreshed.rootKey);
             return { status: 'added', keyId: keyId };
         } finally {
             if (keyIdBytes) cryptoApi().clearSecret(keyIdBytes);
             cryptoApi().clearSecret(verified.prfOutput);
             cryptoApi().clearSecret(verified.accountSalt);
         }
+    }
+
+    function rewrapObjectEnvelope(envelope, photoId, role, targetKeyId) {
+        if (!unlockedPrivateKey || !unlockedPublicKey) throw new Error('Secure Gallery is locked.');
+        if (!unlockedPublicKeys || !Object.prototype.hasOwnProperty.call(unlockedPublicKeys, targetKeyId)) {
+            throw new Error('The target Gallery encryption key is not unlocked in this browser.');
+        }
+        return cryptoApi().rewrapObjectEnvelope(
+            envelope,
+            unlockedPrivateKeys || unlockedPrivateKey,
+            unlockedPublicKeys[targetKeyId],
+            targetKeyId,
+            photoId,
+            role
+        );
     }
 
     async function removeEnrolledDevice(targetCredentialId) {
@@ -369,6 +399,7 @@
         unlockWithRecovery: unlockWithRecovery,
         enrollCurrentPasskey: enrollCurrentPasskey,
         addWrappingKey: addWrappingKey,
+        rewrapObjectEnvelope: rewrapObjectEnvelope,
         removeEnrolledDevice: removeEnrolledDevice,
         lock: lock,
         isUnlocked: function () { return unlockedPrivateKey !== null && unlockedRootKey !== null; },
