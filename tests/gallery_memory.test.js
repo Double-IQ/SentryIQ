@@ -15,3 +15,8 @@ test('decrypted image buffers are cleared after Blob creation', () => {
     assert.match(storage, /new Uint8Array\(thumbnailBytes\)\.fill\(0\)/);
     assert.match(storage, /new Uint8Array\(previewBytes\)\.fill\(0\)/);
 });
+
+test('transient ciphertext buffers are cleared after upload and download', () => {
+    assert.match(storage, /encrypted\[role\]\.ciphertext\.fill\(0\)/);
+    assert.match(storage, /new Uint8Array\(ciphertext\)\.fill\(0\)/);
+});
