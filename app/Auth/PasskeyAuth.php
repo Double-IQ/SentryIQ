@@ -194,7 +194,7 @@ try {
         pk_save(['version'=>1,'prf_salt'=>pk_b64($salt),'credentials'=>$credentials]); unset($_SESSION['pk_register_challenge'],$_SESSION['pk_register_salt']); pk_log_security_event('PASSKEY_REGISTERED',pk_visitor_ip(),(string)($_SESSION['app_username']??'unknown')); passkey_auth_json(['status'=>'ok']);
     }
     if ($action==='delete') {
-        sentryiq_require_auth(); $providedCsrf=(string)($request['csrf_token']??''); $expectedCsrf=(string)($_SESSION['csrf_token']??'');
+        pk_require_fresh_auth(); $providedCsrf=(string)($request['csrf_token']??''); $expectedCsrf=(string)($_SESSION['csrf_token']??'');
         if ($expectedCsrf===''||$providedCsrf===''||!hash_equals($expectedCsrf,$providedCsrf)) throw new RuntimeException('Security validation failed.');
         $credentialId=(string)($request['credential_id']??''); if (pk_unb64($credentialId)===false) throw new RuntimeException('Invalid passkey identifier.');
         $credentials=is_array($store['credentials']??null)?$store['credentials']:[]; if (count($credentials)<=1) throw new RuntimeException('The last passkey cannot be removed. Keep at least one passkey registered, or use password recovery.');
