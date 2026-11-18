@@ -354,6 +354,9 @@ try {
             || $galleryKeys->credentialEnvelope($verifiedId) === null) {
             throw new RuntimeException('Verify an enrolled Gallery passkey before adding an encryption key.');
         }
+        if ($galleryKeys->activeKeyId() === null) {
+            $galleryKeys->migrateToKeyring('gk_' . bin2hex(random_bytes(16)));
+        }
         $keyId = (string)($request['keyId'] ?? '');
         $galleryKeys->addWrappingKey(
             $keyId,
