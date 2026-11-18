@@ -438,7 +438,7 @@
             setStatus('secure-gallery-rotation-status', 'Migrating encrypted photo-key envelopes…');
             const result = await SentryIQGalleryStorage.migrateEnvelopesToKey(targetKeyId, function (progress) {
                 setStatus('secure-gallery-rotation-status',
-                    'Migrated ' + progress.updated + ' of ' + progress.total + ' photo-key envelope(s)…');
+                    'Processed ' + (progress.updated + progress.skipped) + ' of ' + progress.total + ' photo-key envelope(s)…');
             });
             const remaining = Number(result.references && result.references[rotation.from_key_id] || 0);
             if (remaining > 0) {
