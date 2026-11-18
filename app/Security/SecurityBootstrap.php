@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 const SENTRYIQ_IDLE_TIMEOUT = 900;
 const SENTRYIQ_FRESH_AUTH_WINDOW = 300;
+const SENTRYIQ_ABSOLUTE_SESSION_TIMEOUT = 43200;
 
 function sentryiq_path_is_outside_document_root(string $path): bool
 {
@@ -114,6 +115,19 @@ function sentryiq_brand_head_inject(string $buffer): string
     return str_ireplace('</head>', $tags . '</head>', $buffer);
 }
 
+function sentryiq_authenticated_session_expired(array $session, int $now): bool
+{
+    if (!isset($session['master_key']) || !is_string($session['master_key']) || strlen($session['master_key']) !== 32) {
+        return false;
+    }
+    $authenticatedAt = (int)($session['authenticated_at'] ?? 0);
+    $lastActivity = (int)($session['last_activity'] ?? 0);
+    if ($authenticatedAt <= 0 || $authenticatedAt > $now + 5 || ($now - $authenticatedAt) > SENTRYIQ_ABSOLUTE_SESSION_TIMEOUT) {
+        return true;
+    }
+    return $lastActivity <= 0 || $lastActivity > $now + 5 || ($now - $lastActivity) > SENTRYIQ_IDLE_TIMEOUT;
+}
+
 function sentryiq_security_bootstrap(): void
 {
     $dataDir = sentryiq_data_dir();
@@ -190,8 +204,7 @@ function sentryiq_security_bootstrap(): void
     }
 
     if (isset($_SESSION['master_key'])) {
-        $lastActivity = (int)($_SESSION['last_activity'] ?? 0);
-        if ($lastActivity > 0 && (time() - $lastActivity) > SENTRYIQ_IDLE_TIMEOUT) {
+        if (sentryiq_authenticated_session_expired($_SESSION, time())) {
             sentryiq_lock_vault();
             return;
         }
