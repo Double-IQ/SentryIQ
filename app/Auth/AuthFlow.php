@@ -15,13 +15,13 @@ function sentryiq_get_base_url(): string
     return rtrim($baseUrl, '/');
 }
 
-function sentryiq_throttle_store(): \\SentryIQ\\Auth\\ThrottleStore
+function sentryiq_throttle_store(): \SentryIQ\Auth\ThrottleStore
 {
     $dataDirectory = sentryiq_data_dir();
     if ($dataDirectory === '') {
         throw new RuntimeException('Authentication throttle storage is unavailable.');
     }
-    return new \\SentryIQ\\Auth\\ThrottleStore($dataDirectory . '/auth_throttle.json');
+    return new \SentryIQ\Auth\ThrottleStore($dataDirectory . '/auth_throttle.json');
 }
 
 function sentryiq_throttle_blocked(string $scope, string $ip, int $limit, int $window): bool
