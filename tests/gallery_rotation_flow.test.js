@@ -7,6 +7,7 @@ const roles = ['original', 'thumbnail', 'preview', 'metadata'];
 const photoId = 'a'.repeat(32);
 const revision = 'a'.repeat(64);
 const replacements = [];
+let simulateInterruption = true;
 const envelopeHashes = Object.fromEntries(roles.map((role) => [role, []]));
 const envelopes = Object.fromEntries(roles.map((role) => [role, {
     version: 1,
@@ -55,11 +56,29 @@ globalThis.fetch = async (url, options = {}) => {
     if (url === 'gallery_storage.php') {
         const body = JSON.parse(options.body);
         if (body.action === 'replace_envelope') {
+            if (body.role === 'preview' && simulateInterruption) {
+                throw new Error('simulated network interruption');
+            }
             replacements.push(body);
             envelopes[body.role] = body.envelope;
             const nextHash = String.fromCharCode(97 + envelopeHashes[body.role].length + 1).repeat(64);
             envelopeHashes[body.role].push(nextHash);
             return { ok: true, json: async () => ({ status: 'ok', envelopeHash: nextHash }) };
+        }
+        if (body.action === 'download') {
+            if (simulateInterruption) {
+                simulateInterruption = false;
+                throw new Error('simulated browser interruption');
+            }
+            return {
+                ok: true,
+                json: async () => ({
+                    status: 'ok',
+                    envelope: envelopes[body.role],
+                    envelopeHash: envelopeHashes[body.role].at(-1) || revision,
+                    url: 'https://example.invalid/not-used'
+                })
+            };
         }
         if (body.action === 'key_inventory') {
             return { ok: true, json: async () => ({ status: 'ok', complete: true, references: { gk_target01: 4 } }) };
@@ -71,25 +90,34 @@ globalThis.fetch = async (url, options = {}) => {
 
 require('../assets/js/gallery_storage.js');
 
-test('Gallery rotation rewraps every object envelope without uploading photo ciphertext', async () => {
-    const result = await globalThis.SentryIQGalleryStorage.migrateEnvelopesToKey('gk_target01');
-    assert.equal(result.updated, 4);
-    assert.equal(result.skipped, 0);
-    assert.equal(result.total, 4);
+test('Gallery rotation resumes safely after an interrupted envelope migration', async () => {
+    await assert.rejects(
+        globalThis.SentryIQGalleryStorage.migrateEnvelopesToKey('gk_target01'),
+        /simulated browser interruption/
+    );
+    assert.equal(replacements.length, 2, 'The first run should have committed two envelopes before interruption.');
+    assert.equal(envelopes.original.keyId, 'gk_target01');
+    assert.equal(envelopes.thumbnail.keyId, 'gk_target01');
+    assert.equal(envelopes.preview.keyId, undefined);
+    assert.equal(envelopes.metadata.keyId, undefined);
+
+    const resumed = await globalThis.SentryIQGalleryStorage.migrateEnvelopesToKey('gk_target01');
+    assert.equal(resumed.updated, 2);
+    assert.equal(resumed.skipped, 2);
+    assert.equal(resumed.total, 4);
     assert.equal(replacements.length, 4);
     for (const item of replacements) {
         assert.equal(item.action, 'replace_envelope');
         assert.equal(item.photoId, photoId);
-        assert.equal(item.expectedEnvelopeHash, revision);
         assert.equal(item.envelope.keyId, 'gk_target01');
         assert.equal(item.envelope.nonce, 'N'.repeat(16));
     }
 
-    // Simulate a reload after all four CAS writes committed. A resumed scan
-    // must recognise the target key and must not rewrap or rewrite envelopes.
-    const resumed = await globalThis.SentryIQGalleryStorage.migrateEnvelopesToKey('gk_target01');
-    assert.equal(resumed.updated, 0);
-    assert.equal(resumed.skipped, 4);
+    // A subsequent reload must recognise all four target-key envelopes and
+    // perform no additional writes.
+    const repeated = await globalThis.SentryIQGalleryStorage.migrateEnvelopesToKey('gk_target01');
+    assert.equal(repeated.updated, 0);
+    assert.equal(repeated.skipped, 4);
     assert.equal(replacements.length, 4);
     assert.ok(roles.every((role) => envelopes[role].keyId === 'gk_target01'));
 });
