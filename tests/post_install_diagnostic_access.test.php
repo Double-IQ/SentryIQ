@@ -79,7 +79,8 @@ $server = null;
 $serverPipes = [];
 try {
     if (!copy($repoRoot . '/diagnostics/post_install_diagnostic.php', $documentRoot . '/diagnostics/post_install_diagnostic.php')
-        || !copy($repoRoot . '/app/Security/SecurityBootstrap.php', $documentRoot . '/app/Security/SecurityBootstrap.php')) {
+        || !copy($repoRoot . '/app/Security/SecurityBootstrap.php', $documentRoot . '/app/Security/SecurityBootstrap.php')
+        || !copy($repoRoot . '/app/Security/BoundedLog.php', $documentRoot . '/app/Security/BoundedLog.php')) {
         throw new RuntimeException('Unable to stage diagnostic endpoint test fixture.');
     }
 
