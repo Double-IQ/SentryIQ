@@ -79,3 +79,14 @@ test('Gallery initialization and device enrollment serialize against passkey cha
     assert.match(addCredential, /A Gallery device cannot be enrolled while key rotation is active or awaiting retirement/);
     assert.match(addCredential, /credentialEnvelope\(\$credentialId\) !== null/);
 });
+
+test('object envelope replacement is rejected outside the active rotation target', () => {
+    const start = endpoint.indexOf("if ($action === 'replace_envelope')");
+    const end = endpoint.indexOf("if ($action === 'key_inventory')", start);
+    assert.ok(start >= 0 && end > start, 'Envelope replacement action should exist');
+    const action = endpoint.slice(start, end);
+    assert.match(action, /!is_array\(\$rotation\)/);
+    assert.match(action, /\['running', 'ready_to_retire'\]/);
+    assert.match(action, /\(\$envelope\['keyId'\]\s*\?\?\s*null\)\s*!==\s*\$rotation\['to_key_id'\]/);
+    assert.match(action, /may only be replaced as part of the active key rotation/);
+});
