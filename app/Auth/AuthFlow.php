@@ -2,6 +2,19 @@
 
 declare(strict_types=1);
 
+function sentryiq_try_vault_unlock(string $password): array|false
+{
+    if ($password === '') return false;
+    try {
+        $result = vault_unlock($password);
+        return is_array($result) ? $result : false;
+    } catch (Throwable) {
+        // Invalid credentials and malformed/unreadable vault state must follow
+        // the same generic failure path so throttling is always applied.
+        return false;
+    }
+}
+
 function sentryiq_get_base_url(): string
 {
     $configFile = dirname(__DIR__, 2) . '/sentryiq_config.php';
@@ -134,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login_step_1'])) {
         $decryption_failed = true;
     } else {
         $password = (string)($_POST['master_password'] ?? '');
-        $unlocked = $password !== '' ? vault_unlock($password) : false;
+        $unlocked = sentryiq_try_vault_unlock($password);
         if ($unlocked === false) {
             sentryiq_throttle_failure('master', $ip, 5, 900, 900);
             log_security_event('FAILED_MASTER_PASSWORD', $ip, 'unknown', ['stage'=>'master_password']);
