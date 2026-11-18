@@ -7,7 +7,7 @@ const roles = ['original', 'thumbnail', 'preview', 'metadata'];
 const photoId = 'a'.repeat(32);
 const revision = 'a'.repeat(64);
 const replacements = [];
-const envelopeHashes = Object.fromEntries(roles.map(() => []));
+const envelopeHashes = Object.fromEntries(roles.map((role) => [role, []]));
 const envelopes = Object.fromEntries(roles.map((role) => [role, {
     version: 1,
     algorithm: 'A256GCM',
