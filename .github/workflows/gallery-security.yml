@@ -66,5 +66,8 @@ jobs:
       - name: Test WebAuthn attested COSE key binding
         run: php tests/webauthn_cose.test.php
 
+      - name: Test WebAuthn challenge expiry and replay
+        run: php tests/webauthn_challenge.test.php
+
       - name: Test GitHub CLI attestation adapter contract
         run: php tests/github_cli_attestation_verifier.test.php
