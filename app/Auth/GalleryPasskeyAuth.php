@@ -466,7 +466,11 @@ try {
             throw new RuntimeException('Verify an enrolled Gallery passkey before adding an encryption key.');
         }
         $keyId = (string)($request['keyId'] ?? '');
-        $updated = GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $keyId, $request): array {
+        $updated = GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $rotationJournal, $keyId, $request): array {
+            $rotation = $rotationJournal->current();
+            if (is_array($rotation) && in_array(($rotation['status'] ?? ''), ['running', 'ready_to_retire'], true)) {
+                throw new RuntimeException('A Gallery wrapping key cannot be added while rotation is active or awaiting retirement.');
+            }
             if ($galleryKeys->activeKeyId() === null) {
                 $galleryKeys->migrateToKeyring('gk_' . bin2hex(random_bytes(16)));
             }
