@@ -69,5 +69,8 @@ jobs:
       - name: Test WebAuthn challenge expiry and replay
         run: php tests/webauthn_challenge.test.php
 
+      - name: Test authenticated session expiry
+        run: php tests/authenticated_session_expiry.test.php
+
       - name: Test GitHub CLI attestation adapter contract
         run: php tests/github_cli_attestation_verifier.test.php
