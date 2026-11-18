@@ -40,6 +40,10 @@
             if (typeof window.returnToVaultList === 'function') window.returnToVaultList();
             return;
         }
+        if (action && action.getAttribute('data-vault-action') === 'cancel-edit') {
+            if (typeof window.switchVaultTab === 'function') window.switchVaultTab('details');
+            return;
+        }
         if (action && action.getAttribute('data-vault-action') === 'prepare-edit') {
             if (typeof window.prepareVaultEditNode === 'function') window.prepareVaultEditNode();
             return;
