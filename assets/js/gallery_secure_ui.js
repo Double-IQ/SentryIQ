@@ -50,6 +50,13 @@
         setStatus('secure-gallery-unlock-status', message, 'success');
     }
 
+    window.addEventListener('pagehide', function () {
+        // This listener stays active even while Gallery is locked or a passkey
+        // prompt is still pending, when the idle/background guard may not yet
+        // have been started.
+        lockWorkspace('pagehide');
+    });
+
     function startSessionGuard() {
         stopSessionGuard();
         try {
@@ -341,10 +348,10 @@
         this.disabled = true;
         setStatus('secure-gallery-unlock-status', 'Waiting for passkey confirmation…');
         try {
+            startSessionGuard();
             const result = await SentryIQSecureGallery.unlock();
             if (result.status === 'uninitialized') {
                 const prepared = await SentryIQSecureGallery.prepareIdentity();
-                startSessionGuard();
                 byId('secure-gallery-recovery-code').value = prepared.recoveryCode;
                 setupPanel.hidden = false;
                 setStatus('secure-gallery-unlock-status', 'Secure Gallery needs its first-time setup. Save the recovery code below.', 'success');
@@ -382,6 +389,7 @@
         this.disabled = true;
         setStatus('secure-gallery-setup-status', 'Creating your encrypted Gallery identity…');
         try {
+            startSessionGuard();
             await SentryIQSecureGallery.completeIdentitySetup();
             byId('secure-gallery-recovery-code').value = '';
             byId('secure-gallery-recovery-saved').checked = false;
@@ -397,6 +405,7 @@
         this.disabled = true;
         setStatus('secure-gallery-recovery-status', 'Unlocking with your recovery code…');
         try {
+            startSessionGuard();
             await SentryIQSecureGallery.unlockWithRecovery(byId('secure-gallery-recovery-input').value);
             byId('secure-gallery-recovery-input').value = '';
             showWorkspace();
