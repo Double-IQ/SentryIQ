@@ -105,7 +105,6 @@ function gallery_passkey_save(string $path, array $store): void
  */
 function gallery_passkey_save_counter(string $path, string $credentialId, int $counter): void
 {
-    if ($counter === 0) return;
     $lockPath = $path . '.lock';
     if (is_link($lockPath)) throw new RuntimeException('Passkey counter lock is invalid.');
     $lock = @fopen($lockPath, 'c');
@@ -119,15 +118,17 @@ function gallery_passkey_save_counter(string $path, string $credentialId, int $c
             if (!is_array($record) || !is_string($record['credential_id'] ?? null)
                 || !hash_equals($record['credential_id'], $credentialId)) continue;
             $previousCounter = (int)($record['sign_count'] ?? 0);
-            if ($previousCounter !== 0 && $counter <= $previousCounter) {
-                throw new RuntimeException('Passkey signature counter validation failed.');
+            if ($counter !== 0) {
+                if ($previousCounter !== 0 && $counter <= $previousCounter) {
+                    throw new RuntimeException('Passkey signature counter validation failed.');
+                }
+                $store['credentials'][$index]['sign_count'] = max($previousCounter, $counter);
             }
-            $store['credentials'][$index]['sign_count'] = max($previousCounter, $counter);
             $found = true;
             break;
         }
         if (!$found) throw new RuntimeException('Unknown passkey.');
-        gallery_passkey_save($path, $store);
+        if ($counter !== 0) gallery_passkey_save($path, $store);
     } finally {
         @flock($lock, LOCK_UN);
         fclose($lock);
