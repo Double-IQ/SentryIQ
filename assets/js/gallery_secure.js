@@ -276,6 +276,8 @@
         clearSecret(setup.prfOutput);
         clearSecret(setup.accountSalt);
         clearSecret(setup.recoveryKey);
+        clearSecret(setup.recoverySalt);
+        setup.recoveryCode = '';
         pendingSetup = null;
         recoveryIdentity = null;
         return { status: 'initialized' };
