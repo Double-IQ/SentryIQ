@@ -173,6 +173,14 @@ try {
         ]);
     }
 
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'keyring') {
+        $keyring = $galleryKeys->keyring();
+        if ($keyring === null) {
+            gallery_passkey_json(['status' => 'error', 'message' => 'Gallery keyring migration is required.'], 409);
+        }
+        gallery_passkey_json(['status' => 'ok', 'keyring' => gallery_passkey_keyring_payload($galleryKeys)]);
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'rotation-status') {
         $state = GalleryRotationLock::synchronized($dataDirectory, function () use ($rotationJournal, $galleryObjects, $galleryKeys): array {
             $references = $galleryKeys->activeKeyId() === null
