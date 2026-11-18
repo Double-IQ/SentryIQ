@@ -153,6 +153,7 @@
                 select.appendChild(option);
             });
             const abort = byId('secure-gallery-abort-rotation');
+            byId('secure-gallery-rotate').disabled = false;
             const rotationActive = current && ['running', 'ready_to_retire'].includes(current.status);
             select.disabled = !!rotationActive;
             byId('secure-gallery-add-key').disabled = !!rotationActive;
