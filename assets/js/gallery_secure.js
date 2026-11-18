@@ -25,7 +25,7 @@
 
     function clearSecret(value) {
         if (!(value instanceof Uint8Array)) return;
-        cryptoApi().clearSecret(value);
+        try { cryptoApi().clearSecret(value); } catch (_) {}
         transientSecrets.delete(value);
     }
 
@@ -423,7 +423,7 @@
             return { status: 'added', keyId: keyId };
         } finally {
             if (refreshed) cryptoApi().clearSecret(refreshed.rootKey);
-            if (keyIdBytes) cryptoApi().clearSecret(keyIdBytes);
+            if (keyIdBytes) clearSecret(keyIdBytes);
             cryptoApi().clearSecret(verified.prfOutput);
             cryptoApi().clearSecret(verified.accountSalt);
         }
@@ -672,12 +672,12 @@
             && typeof root.SentryIQGalleryStorage.invalidatePendingDecrypts === 'function') {
             root.SentryIQGalleryStorage.invalidatePendingDecrypts();
         }
-        cryptoApi().clearSecret(unlockedRootKey);
+        clearSecret(unlockedRootKey);
         if (pendingSetup) {
-            cryptoApi().clearSecret(pendingSetup.prfOutput);
-            cryptoApi().clearSecret(pendingSetup.accountSalt);
-            cryptoApi().clearSecret(pendingSetup.recoveryKey);
-            cryptoApi().clearSecret(pendingSetup.recoverySalt);
+            clearSecret(pendingSetup.prfOutput);
+            clearSecret(pendingSetup.accountSalt);
+            clearSecret(pendingSetup.recoveryKey);
+            clearSecret(pendingSetup.recoverySalt);
             if (pendingSetup.identity) cryptoApi().clearSecret(pendingSetup.identity.rootKey);
         }
         unlockedPrivateKey = null;
