@@ -46,7 +46,7 @@
         setStatus('secure-gallery-unlock-status', message, 'success');
     }
 
-    function showWorkspace() {
+    function startSessionGuard() {
         stopSessionGuard();
         try {
             if (!window.SentryIQGallerySessionGuard) throw new Error('Gallery session protection is unavailable. Reload the page before unlocking.');
@@ -58,6 +58,10 @@
             SentryIQGalleryStorage.lock();
             throw error;
         }
+    }
+
+    function showWorkspace() {
+        startSessionGuard();
         unlockPanel.hidden = true;
         setupPanel.hidden = true;
         recoveryPanel.hidden = true;
@@ -200,6 +204,7 @@
             const result = await SentryIQSecureGallery.unlock();
             if (result.status === 'uninitialized') {
                 const prepared = await SentryIQSecureGallery.prepareIdentity();
+                startSessionGuard();
                 byId('secure-gallery-recovery-code').value = prepared.recoveryCode;
                 setupPanel.hidden = false;
                 setStatus('secure-gallery-unlock-status', 'Secure Gallery needs its first-time setup. Save the recovery code below.', 'success');
