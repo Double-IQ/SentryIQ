@@ -166,6 +166,11 @@ final class GalleryObjectStore
             if (!hash_equals($currentHash, $expectedEnvelopeHash)) {
                 throw new RuntimeException('Gallery object envelope changed; reload it before retrying.');
             }
+            foreach (['version', 'algorithm', 'keyWrap', 'nonce', 'photoId', 'role'] as $immutableField) {
+                if (($current[$immutableField] ?? null) !== ($newEnvelope[$immutableField] ?? null)) {
+                    throw new RuntimeException('Gallery envelope migration may only change the wrapped key and key identifier.');
+                }
+            }
             $records[$photoId]['objects'][$role]['envelope'] = $newEnvelope;
             $updatedHash = self::envelopeHash($newEnvelope);
         });
