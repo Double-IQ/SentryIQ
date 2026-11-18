@@ -145,6 +145,10 @@ test('photo objects decrypt only with the correct key and authenticated context'
         photoId, 'original', multiKeyUnlock.legacyKeyId
     );
     assert.deepEqual(new Uint8Array(legacyObjectAfterMigration), plaintext);
+    await assert.rejects(
+        gallery.decryptObject(encrypted.ciphertext, encrypted.envelope, multiKeyUnlock.privateKeys, photoId, 'original', null),
+        /legacy Gallery private key is unavailable/
+    );
     const secondKeyObject = await gallery.encryptObject(
         plaintext, multiKeyUnlock.publicKeys.gk_second02, photoId, 'preview', 'gk_second02'
     );
