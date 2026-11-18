@@ -16,7 +16,7 @@ final class UpdateManager
     private const REPOSITORY = 'Double-IQ/SentryIQ';
     private const REPOSITORY_ID = '1345956206';
     private const WORKFLOW_PATH = '.github/workflows/release.yml';
-    private const ALLOWED_RUNTIME_FILES = ['email_template.php', 'vault_engine.php', 'vault_icon_cache.php'];
+    private const ALLOWED_RUNTIME_FILES = ['email_template.php', 'vault_engine.php', 'vault_icon_cache.php', 'VaultKdfPolicy.php'];
     private const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
     private const CACHE_TTL = 21600;
 
