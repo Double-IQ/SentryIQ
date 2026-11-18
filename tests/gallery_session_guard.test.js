@@ -84,3 +84,35 @@ test('Gallery session guard locks immediately on pagehide so a restored page can
     documentStub.dispatch('pointerdown');
     assert.equal(reason, 'pagehide');
 });
+
+test('Gallery session guard locks on return when a mobile browser suspended the background timer', () => {
+    const originalSetTimeout = windowStub.setTimeout;
+    const originalClearTimeout = windowStub.clearTimeout;
+    const originalNow = Date.now;
+    let now = 1000;
+    let reason = null;
+
+    // Simulate iOS suspending JavaScript timers while the page is hidden.
+    windowStub.setTimeout = () => 1;
+    windowStub.clearTimeout = () => {};
+    Date.now = () => now;
+    try {
+        windowStub.SentryIQGallerySessionGuard.start(
+            (value) => { reason = value; },
+            { idleTimeoutMs: 1000, hiddenTimeoutMs: 60000 }
+        );
+
+        documentStub.visibilityState = 'hidden';
+        documentStub.dispatch('visibilitychange');
+        now += 60001; // The background timer never fires.
+        documentStub.visibilityState = 'visible';
+        documentStub.dispatch('visibilitychange');
+
+        assert.equal(reason, 'background');
+    } finally {
+        windowStub.setTimeout = originalSetTimeout;
+        windowStub.clearTimeout = originalClearTimeout;
+        Date.now = originalNow;
+        documentStub.visibilityState = 'visible';
+    }
+});
