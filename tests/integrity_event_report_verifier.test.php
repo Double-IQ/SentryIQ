@@ -86,6 +86,24 @@ $reject = static function (callable $operation, string $message): void {
 
 $reject(fn() => $verifier->accept($valid), 'Replayed report must be rejected by the atomic challenge store.');
 
+$offOriginPayload = array_replace($payload, [
+    'nonce' => str_repeat('9', 64),
+    'target_origin' => 'https://attacker.example',
+]);
+$reject(
+    fn() => $verifier->accept(eventEnvelope($secretA, $offOriginPayload)),
+    'A correctly signed report for a non-canonical origin must be rejected by Node 4.'
+);
+
+$portOriginPayload = array_replace($payload, [
+    'nonce' => str_repeat('8', 64),
+    'target_origin' => 'https://sentryiq.bichet.co.za:443',
+]);
+$reject(
+    fn() => $verifier->accept(eventEnvelope($secretA, $portOriginPayload)),
+    'A non-canonical explicit port must be rejected by Node 4.'
+);
+
 $outerDuplicate = '{"payload":"ambiguous",' . substr($valid, 1);
 $reject(
     fn() => $verifier->accept($outerDuplicate),
