@@ -177,6 +177,42 @@ function vault_icon_is_public_ip(string $ip): bool
  *
  * @return list<string>
  */
+function vault_icon_filter_public_addresses(array $addresses): array
+{
+    $addresses = array_values(array_unique(array_filter($addresses, 'is_string')));
+    if ($addresses === []) return [];
+    foreach ($addresses as $address) {
+        if (!vault_icon_is_public_ip($address)) return [];
+    }
+    return $addresses;
+}
+
+function vault_icon_remote_url_parts(string $url): ?array
+{
+    $parts = parse_url($url);
+    if (!is_array($parts)
+        || strtolower((string)($parts['scheme'] ?? '')) !== 'https'
+        || empty($parts['host'])
+        || isset($parts['user'])
+        || isset($parts['pass'])
+        || (isset($parts['port']) && (int)$parts['port'] !== 443)) {
+        return null;
+    }
+    $host = strtolower((string)$parts['host']);
+    if (!filter_var($host, FILTER_VALIDATE_IP)
+        && filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false) {
+        return null;
+    }
+    return ['host' => $host, 'port' => 443];
+}
+
+function vault_icon_append_bounded_body(string &$body, string $chunk, int $maxBytes): int
+{
+    if ($maxBytes < 0 || strlen($body) + strlen($chunk) > $maxBytes) return 0;
+    $body .= $chunk;
+    return strlen($chunk);
+}
+
 function vault_icon_resolve_public_addresses(string $host): array
 {
     if (filter_var($host, FILTER_VALIDATE_IP)) {
@@ -190,27 +226,14 @@ function vault_icon_resolve_public_addresses(string $host): array
         if (isset($record['ip']) && is_string($record['ip'])) $addresses[] = $record['ip'];
         if (isset($record['ipv6']) && is_string($record['ipv6'])) $addresses[] = $record['ipv6'];
     }
-    $addresses = array_values(array_unique($addresses));
-    if ($addresses === []) return [];
-    foreach ($addresses as $address) {
-        if (!vault_icon_is_public_ip($address)) return [];
-    }
-    return $addresses;
+    return vault_icon_filter_public_addresses($addresses);
 }
 
 function curl_vault_asset(string $url, bool $imageOnly): ?array
 {
-    $parts = parse_url($url);
-    if (!is_array($parts)
-        || strtolower((string)($parts['scheme'] ?? '')) !== 'https'
-        || empty($parts['host'])
-        || isset($parts['user'])
-        || isset($parts['pass'])
-        || (isset($parts['port']) && (int)$parts['port'] !== 443)) {
-        return null;
-    }
-
-    $host = strtolower((string)$parts['host']);
+    $urlParts = vault_icon_remote_url_parts($url);
+    if ($urlParts === null) return null;
+    $host = $urlParts['host'];
     $addresses = vault_icon_resolve_public_addresses($host);
     if ($addresses === []) return null;
 
@@ -244,12 +267,9 @@ function curl_vault_asset(string $url, bool $imageOnly): ?array
             ? ['Accept: image/avif,image/webp,image/png,image/jpeg,image/gif,image/x-icon,*/*;q=0.8']
             : ['Accept: text/html,application/xhtml+xml;q=0.9,*/*;q=0.8'],
         CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use (&$body, &$tooLarge, $maxBytes): int {
-            if (strlen($body) + strlen($chunk) > $maxBytes) {
-                $tooLarge = true;
-                return 0;
-            }
-            $body .= $chunk;
-            return strlen($chunk);
+            $written = vault_icon_append_bounded_body($body, $chunk, $maxBytes);
+            if ($written === 0 && $chunk !== '') $tooLarge = true;
+            return $written;
         },
     ]);
 
