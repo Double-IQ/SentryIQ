@@ -110,32 +110,33 @@ if (!@rename($tokenFile, $claimedFile)) {
     copy_code_json(['status' => 'error', 'message' => 'Token unavailable or already consumed.'], 404);
 }
 
+$response = ['status' => 'error', 'message' => 'Token unavailable.'];
+$responseStatus = 404;
 try {
-    if (is_link($claimedFile) || !is_file($claimedFile)) {
-        copy_code_json(['status' => 'error', 'message' => 'Token unavailable.'], 404);
+    if (!is_link($claimedFile) && is_file($claimedFile)) {
+        $size = @filesize($claimedFile);
+        if (is_int($size) && $size >= 1 && $size <= 1024) {
+            $raw = @file_get_contents($claimedFile);
+            try {
+                $data = is_string($raw) ? json_decode($raw, true, 8, JSON_THROW_ON_ERROR) : null;
+            } catch (Throwable) {
+                $data = null;
+            }
+            if (is_array($data) && is_int($data['expires'] ?? null) && is_string($data['code'] ?? null)) {
+                if (time() >= $data['expires']) {
+                    $response = ['status' => 'error', 'message' => 'Verification token expired.'];
+                    $responseStatus = 410;
+                } elseif (preg_match('/^\d{6}$/', $data['code'])) {
+                    $response = ['status' => 'ok', 'code' => $data['code']];
+                    $responseStatus = 200;
+                }
+            }
+        }
     }
-    $size = @filesize($claimedFile);
-    if (!is_int($size) || $size < 1 || $size > 1024) {
-        copy_code_json(['status' => 'error', 'message' => 'Token unavailable.'], 404);
-    }
-    $raw = @file_get_contents($claimedFile);
-    try {
-        $data = is_string($raw) ? json_decode($raw, true, 8, JSON_THROW_ON_ERROR) : null;
-    } catch (Throwable) {
-        $data = null;
-    }
-    if (!is_array($data) || !is_int($data['expires'] ?? null) || !is_string($data['code'] ?? null)) {
-        copy_code_json(['status' => 'error', 'message' => 'Token unavailable.'], 404);
-    }
-    if (time() >= $data['expires']) {
-        copy_code_json(['status' => 'error', 'message' => 'Verification token expired.'], 410);
-    }
-    if (!preg_match('/^\d{6}$/', $data['code'])) {
-        copy_code_json(['status' => 'error', 'message' => 'Token unavailable.'], 404);
-    }
-    copy_code_json(['status' => 'ok', 'code' => $data['code']]);
 } finally {
     if (is_file($claimedFile) && !is_link($claimedFile)) {
         @unlink($claimedFile);
     }
 }
+
+copy_code_json($response, $responseStatus);
