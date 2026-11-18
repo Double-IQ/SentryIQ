@@ -98,7 +98,7 @@ if ($record['config_exists'] === false && $record['first_run_exists'] === false)
 if ($writeDiagnosticLog && is_dir($inferredDataDir)) {
     $line = json_encode($record, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     if (is_string($line)) {
-        \\SentryIQ\\Security\\BoundedLog::append($logFile, $line . PHP_EOL);
+        \SentryIQ\Security\BoundedLog::append($logFile, $line . PHP_EOL);
         @chmod($logFile, 0600);
     }
 }
