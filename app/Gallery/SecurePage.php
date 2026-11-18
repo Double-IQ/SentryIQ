@@ -146,6 +146,7 @@ header('Content-Security-Policy: ' . $csp);
 <script src="assets/js/gallery_crypto.js"></script>
 <script src="assets/js/gallery_secure.js"></script>
 <script src="assets/js/gallery_storage.js"></script>
+<script src="assets/js/gallery_session_guard.js"></script>
 <script src="assets/js/gallery_secure_ui.js"></script>
 </body>
 </html>
