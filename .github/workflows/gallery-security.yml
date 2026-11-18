@@ -58,6 +58,9 @@ jobs:
       - name: Test persistent Gallery keyring storage
         run: php tests/gallery_key_store_v2.test.php
 
+      - name: Test shared Gallery rotation lock
+        run: php tests/gallery_rotation_lock.test.php
+
       - name: Test release trust policy decisions
         run: php tests/release_trust_policy.test.php
 
