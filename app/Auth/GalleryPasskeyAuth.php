@@ -512,15 +512,24 @@ try {
             || $targetId === '' || $verifiedId === $targetId) {
             throw new RuntimeException('Verify a different enrolled Gallery passkey before removing this device.');
         }
-        if ($galleryKeys->credentialEnvelope($verifiedId) === null) {
-            throw new RuntimeException('The verified passkey is not enrolled for Gallery management.');
-        }
-        if ($galleryKeys->credentialEnvelope($targetId) === null) {
-            throw new RuntimeException('That device is not enrolled for Gallery.');
-        }
-        // This removes only the Gallery-wrapped root-key envelope. The account's
-        // WebAuthn login credential remains registered and is not deleted.
-        $galleryKeys->removeCredentialEnvelope($targetId);
+        GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $rotationJournal, $verifiedId, $targetId): void {
+            $rotation = $rotationJournal->current();
+            if (is_array($rotation) && in_array(($rotation['status'] ?? ''), ['running', 'ready_to_retire'], true)) {
+                throw new RuntimeException('A Gallery device cannot be removed while key rotation is active or awaiting retirement.');
+            }
+            // Re-check both enrollments while holding the same transaction lock
+            // used by rotation and keyring mutations. The pre-lock checks above
+            // are only an early rejection, not an authorization boundary.
+            if ($galleryKeys->credentialEnvelope($verifiedId) === null) {
+                throw new RuntimeException('The verified passkey is not enrolled for Gallery management.');
+            }
+            if ($galleryKeys->credentialEnvelope($targetId) === null) {
+                throw new RuntimeException('That device is not enrolled for Gallery.');
+            }
+            // This removes only the Gallery-wrapped root-key envelope. The account's
+            // WebAuthn login credential remains registered and is not deleted.
+            $galleryKeys->removeCredentialEnvelope($targetId);
+        });
         unset($_SESSION['gallery_passkey_verified_credential'], $_SESSION['gallery_passkey_verified_at']);
         gallery_passkey_json(['status' => 'ok']);
     }
