@@ -172,7 +172,7 @@ body.sentryiq-login-ready > .box{opacity:1;transition:opacity .45s ease}
 <script src="assets/js/vault_folders.js?v=20260919-7"></script>
 <script src="assets/js/vault_page.js" defer></script>
 </head>
-<body<?php echo $show_login_splash ? ' class="sentryiq-login-splash-active"' : ''; ?>>
+<body data-active-pane="<?php echo htmlspecialchars($active_pane, ENT_QUOTES, 'UTF-8'); ?>"<?php echo $show_login_splash ? ' class="sentryiq-login-splash-active"' : ''; ?>>
 <?php if ($show_login_splash): ?>
 <div class="sentryiq-login-splash" aria-hidden="true">
     <img src="assets/images/sentryiq-logo-wide.webp" width="1952" height="588" alt="SentryIQ">
