@@ -62,8 +62,16 @@ try {
     $signer = BackblazeB2Signer::fromRuntimeDirectory($dataDirectory);
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'cleanup_pending') {
+        $stale = GalleryRotationLock::synchronized($dataDirectory, function () use ($objectStore): array {
+            $marked = [];
+            foreach ($objectStore->stalePending() as $photoId => $record) {
+                $cancelling = $objectStore->markCancelling((string)$photoId);
+                if (is_array($cancelling)) $marked[$photoId] = $cancelling;
+            }
+            return $marked;
+        });
         $cleanup = [];
-        foreach ($objectStore->stalePending() as $photoId => $record) {
+        foreach ($stale as $photoId => $record) {
             $deleteUrls = [];
             foreach ((array)($record['objects'] ?? []) as $role => $object) {
                 if (!is_array($object) || !is_string($object['key'] ?? null)) continue;
@@ -196,10 +204,8 @@ try {
 
     if ($action === 'cancel') {
         $photoId = (string)($request['photoId'] ?? '');
-        $record = $objectStore->find($photoId);
-        if (!is_array($record) || ($record['status'] ?? '') !== 'pending') {
-            gallery_storage_json(['status' => 'ok', 'deleteUrls' => []]);
-        }
+        $record = GalleryRotationLock::synchronized($dataDirectory, fn(): ?array => $objectStore->markCancelling($photoId));
+        if (!is_array($record)) gallery_storage_json(['status' => 'ok', 'deleteUrls' => []]);
         $deleteUrls = [];
         foreach ((array)($record['objects'] ?? []) as $role => $object) {
             if (!is_array($object) || !is_string($object['key'] ?? null)) continue;
@@ -210,10 +216,12 @@ try {
 
     if ($action === 'confirm_cancel') {
         $photoId = (string)($request['photoId'] ?? '');
-        $record = $objectStore->find($photoId);
-        if (is_array($record) && ($record['status'] ?? '') === 'pending') {
-            GalleryRotationLock::synchronized($dataDirectory, fn(): ?array => $objectStore->remove($photoId));
-        }
+        GalleryRotationLock::synchronized($dataDirectory, function () use ($objectStore, $photoId): void {
+            $record = $objectStore->find($photoId);
+            if (is_array($record) && ($record['status'] ?? '') === 'cancelling') {
+                $objectStore->remove($photoId);
+            }
+        });
         gallery_storage_json(['status' => 'ok']);
     }
 
