@@ -38,7 +38,7 @@ globalThis.SentryIQSecureGallery = {
         const ciphertext = Uint8Array.from(input, (value) => value ^ 0xff);
         return {
             ciphertext,
-            envelope: { version: 1, role, photoId, wrappedDek: 'opaque-wrapped-key' }
+            envelope: { version: 1, role, photoId, keyId: 'gk_testkey01', wrappedDek: 'opaque-wrapped-key' }
         };
     }
 };
