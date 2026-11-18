@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/app/Security/SecurityBootstrap.php';
+require_once dirname(__DIR__) . '/app/Security/BoundedLog.php';
 sentryiq_security_bootstrap();
 
 $root = dirname(__DIR__);
@@ -429,7 +430,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['diagnostic_log']) && 
     $log = $dataDir . '/diagnostic_self_test.log';
     $line = json_encode($record, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     if (is_string($line)) {
-        @file_put_contents($log, $line . PHP_EOL, FILE_APPEND | LOCK_EX);
+        \\SentryIQ\\Security\\BoundedLog::append($log, $line . PHP_EOL);
         @chmod($log, 0600);
     }
     header('Content-Type: application/json; charset=utf-8');
