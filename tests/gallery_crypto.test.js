@@ -147,6 +147,16 @@ test('photo objects decrypt only with the correct key and authenticated context'
     );
     assert.deepEqual(new Uint8Array(secondKeyPlaintext), plaintext);
 
+    const rewrappedLegacyEnvelope = await gallery.rewrapObjectEnvelope(
+        encrypted.envelope, unlocked.privateKey, secondWrappingKey.publicKey, 'gk_second02', photoId, 'original'
+    );
+    assert.equal(rewrappedLegacyEnvelope.keyId, 'gk_second02');
+    assert.equal(rewrappedLegacyEnvelope.nonce, encrypted.envelope.nonce, 'Rewrapping must not alter the AES-GCM nonce or ciphertext.');
+    const legacyCiphertextStillDecrypts = await gallery.decryptObject(
+        encrypted.ciphertext, rewrappedLegacyEnvelope, multiKeyUnlock.privateKeys, photoId, 'original'
+    );
+    assert.deepEqual(new Uint8Array(legacyCiphertextStillDecrypts), plaintext);
+
     const recoveryKey = await gallery.createRecoveryKey();
     const recoverySalt = gallery.createAccountSalt();
     const recoveryEnvelope = await gallery.wrapRootKeyForRecovery(unlocked.rootKey, recoveryKey, recoverySalt);
