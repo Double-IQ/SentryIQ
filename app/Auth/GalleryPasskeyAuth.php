@@ -440,6 +440,12 @@ try {
             }
             $fromKeyId = (string)$current['from_key_id'];
             $references = $galleryObjects->keyReferenceInventory($galleryKeys->legacyKeyId());
+            $knownKeyIds = $galleryKeys->keyIds();
+            foreach (array_keys($references) as $referencedKeyId) {
+                if (!in_array($referencedKeyId, $knownKeyIds, true)) {
+                    throw new RuntimeException('Gallery object inventory contains a reference to an unknown encryption key.');
+                }
+            }
             if (($references[$fromKeyId] ?? 0) !== 0) {
                 throw new RuntimeException('Gallery key rotation is not complete. Some objects or pending uploads still reference the old key.');
             }
