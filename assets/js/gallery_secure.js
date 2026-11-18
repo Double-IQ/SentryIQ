@@ -240,6 +240,7 @@
             unlockedPrivateKeys = unlocked.privateKeys || null;
             unlockedPublicKeys = unlocked.publicKeys || null;
             activeKeyId = unlocked.activeKeyId || null;
+            legacyKeyId = unlocked.legacyKeyId || null;
             unlockedPrivateKey = activeKeyId && unlockedPrivateKeys ? unlockedPrivateKeys[activeKeyId] : unlocked.privateKey;
             unlockedRootKey = unlocked.rootKey;
             unlockedPublicKey = activeKeyId && unlockedPublicKeys ? unlockedPublicKeys[activeKeyId] : recoveryIdentity.publicKey;
