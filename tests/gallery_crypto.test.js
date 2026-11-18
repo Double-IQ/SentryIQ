@@ -121,6 +121,19 @@ test('photo objects decrypt only with the correct key and authenticated context'
     const decrypted = await gallery.decryptObject(encrypted.ciphertext, encrypted.envelope, unlocked.privateKey, photoId, 'original');
     assert.deepEqual(new Uint8Array(decrypted), plaintext);
 
+    const keyed = await gallery.encryptObject(plaintext, identity.publicKey, photoId, 'original', 'gk_testkey01');
+    assert.equal(keyed.envelope.keyId, 'gk_testkey01');
+    const keyedDecrypted = await gallery.decryptObject(keyed.ciphertext, keyed.envelope, unlocked.privateKey, photoId, 'original');
+    assert.deepEqual(new Uint8Array(keyedDecrypted), plaintext);
+    await assert.rejects(
+        gallery.encryptObject(plaintext, identity.publicKey, photoId, 'original', 'bad'),
+        /Invalid Gallery encryption key identifier/
+    );
+    await assert.rejects(
+        gallery.decryptObject(keyed.ciphertext, { ...keyed.envelope, keyId: 'bad' }, unlocked.privateKey, photoId, 'original'),
+        /Invalid Gallery encryption key identifier/
+    );
+
     const tampered = encrypted.ciphertext.slice();
     tampered[0] ^= 1;
     await assert.rejects(
