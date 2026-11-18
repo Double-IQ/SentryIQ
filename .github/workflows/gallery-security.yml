@@ -2,7 +2,7 @@ name: Gallery Security Checks
 
 on:
   push:
-    branches: [main, feature/zero-knowledge-gallery-storage]
+    branches: [main, feature/zero-knowledge-gallery-storage, feature/gallery-zero-knowledge-e2e]
   pull_request:
     branches: [main]
 
@@ -24,10 +24,12 @@ jobs:
           node --check assets/js/gallery_secure.js
           node --check assets/js/gallery_storage.js
           node --check assets/js/gallery_secure_ui.js
+          node --check assets/js/gallery_session_guard.js
           node --check tests/gallery_crypto.test.js
+          node --check tests/gallery_session_guard.test.js
 
       - name: Test browser-side Gallery cryptography
-        run: node --test tests/gallery_crypto.test.js
+        run: node --test tests/gallery_crypto.test.js tests/gallery_session_guard.test.js
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
