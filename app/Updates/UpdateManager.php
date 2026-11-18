@@ -164,7 +164,54 @@ final class UpdateManager
 
             $backedPublic = [];
             $backedRuntime = [];
+            $originalPublic = [];
+            $originalRuntime = [];
+            $replacementStarted = false;
             try {
+                // Snapshot every target before preparing any backup. A missing backup
+                // must never be mistaken for a file that did not exist originally.
+                foreach ($publicFiles as $relative) {
+                    $target = $this->applicationRoot . '/' . $relative;
+                    if (is_link($target)) throw new RuntimeException('Refusing to update a symbolic link: ' . $relative);
+                    $originalPublic[$relative] = file_exists($target);
+                    if ($originalPublic[$relative] && !is_file($target)) {
+                        throw new RuntimeException('Refusing to replace a non-file target: ' . $relative);
+                    }
+                    if (!$this->ensureDirectory(dirname($target), 0755)) {
+                        throw new RuntimeException('Unable to prepare update target directory: ' . $relative);
+                    }
+                }
+                foreach ($runtimeFiles as $relative) {
+                    $target = $this->dataDir . '/' . $relative;
+                    if (is_link($target)) throw new RuntimeException('Refusing to update a symbolic runtime file: ' . $relative);
+                    $originalRuntime[$relative] = file_exists($target);
+                    if ($originalRuntime[$relative] && !is_file($target)) {
+                        throw new RuntimeException('Refusing to replace a non-file runtime target: ' . $relative);
+                    }
+                }
+
+                // Complete all backups before the first live file is changed.
+                foreach ($publicFiles as $relative) {
+                    if (!$originalPublic[$relative]) continue;
+                    $target = $this->applicationRoot . '/' . $relative;
+                    $backup = $backupRoot . '/public/' . $relative;
+                    if (!$this->ensureDirectory(dirname($backup), 0700) || !@copy($target, $backup)) {
+                        throw new RuntimeException('Unable to back up ' . $relative . '.');
+                    }
+                    $backedPublic[$relative] = true;
+                }
+                foreach ($runtimeFiles as $relative) {
+                    if (!$originalRuntime[$relative]) continue;
+                    $target = $this->dataDir . '/' . $relative;
+                    $backup = $backupRoot . '/runtime/' . $relative;
+                    if (!$this->ensureDirectory(dirname($backup), 0700) || !@copy($target, $backup)) {
+                        throw new RuntimeException('Unable to back up runtime file ' . $relative . '.');
+                    }
+                    $backedRuntime[$relative] = true;
+                }
+
+                // No live file is touched until every required backup succeeds.
+                $replacementStarted = true;
                 foreach ($publicFiles as $relative) {
                     $source = $stagingPath . '/' . $relative;
                     $target = $this->applicationRoot . '/' . $relative;
@@ -214,24 +261,28 @@ final class UpdateManager
                     'to' => $latest,
                     'backup' => basename($backupRoot),
                 ];
-            } catch (\Throwable $exception) {
-                foreach ($publicFiles as $relative) {
-                    $target = $this->applicationRoot . '/' . $relative;
-                    if (isset($backedPublic[$relative])) {
-                        $this->replaceFile($backupRoot . '/public/' . $relative, $target);
-                    } elseif (is_file($target) && !is_link($target)) {
-                        @unlink($target);
+            } catch (\\Throwable $exception) {
+                if ($replacementStarted) {
+                    $rollbackErrors = [];
+                    $rollbackErrors = array_merge(
+                        $rollbackErrors,
+                        $this->rollbackTargets($publicFiles, $originalPublic, $backedPublic, $this->applicationRoot, $backupRoot . '/public', 0644)
+                    );
+                    $rollbackErrors = array_merge(
+                        $rollbackErrors,
+                        $this->rollbackTargets($runtimeFiles, $originalRuntime, $backedRuntime, $this->dataDir, $backupRoot . '/runtime', 0600)
+                    );
+                    $this->invalidateOpcache($publicFiles, $runtimeFiles);
+                    if ($rollbackErrors !== []) {
+                        throw new RuntimeException(
+                            'The update failed and rollback was incomplete. Preserve backup ' . basename($backupRoot) . ' and restore it before reopening the application. Details: ' . implode('; ', $rollbackErrors),
+                            0,
+                            $exception
+                        );
                     }
                 }
-                foreach ($runtimeFiles as $relative) {
-                    $target = $this->dataDir . '/' . $relative;
-                    if (isset($backedRuntime[$relative])) {
-                        $this->replaceFile($backupRoot . '/runtime/' . $relative, $target, 0600);
-                    } elseif (is_file($target) && !is_link($target)) {
-                        @unlink($target);
-                    }
-                }
-                $this->invalidateOpcache($publicFiles, $runtimeFiles);
+                // Backup-preparation failures occur before any live replacement.
+                // Keep original files untouched and retain the partial backup.
                 throw $exception;
             }
         } finally {
@@ -352,6 +403,52 @@ final class UpdateManager
         }
         sort($result);
         return $result;
+    }
+
+    /**
+     * Restore targets after replacement has started.
+     *
+     * Existing targets are restored only from a successfully completed backup.
+     * A missing backup is an error, never evidence that the target was new.
+     * Targets absent in the pre-update snapshot may be removed.
+     *
+     * @return list<string> Rollback errors; all targets are attempted.
+     */
+    private function rollbackTargets(
+        array $files,
+        array $originallyExisted,
+        array $backedUp,
+        string $targetRoot,
+        string $backupRoot,
+        int $mode
+    ): array {
+        $errors = [];
+        foreach ($files as $relative) {
+            $target = $targetRoot . '/' . $relative;
+            if (($originallyExisted[$relative] ?? false) === true) {
+                if (!isset($backedUp[$relative])) {
+                    $errors[] = 'Missing completed backup for existing file ' . $relative;
+                    continue;
+                }
+                try {
+                    $this->replaceFile($backupRoot . '/' . $relative, $target, $mode);
+                } catch (\\Throwable $exception) {
+                    $errors[] = 'Unable to restore ' . $relative . ': ' . $exception->getMessage();
+                }
+                continue;
+            }
+
+            if (is_link($target)) {
+                $errors[] = 'Refusing to remove symbolic link created during update: ' . $relative;
+                continue;
+            }
+            if (is_file($target) && !@unlink($target)) {
+                $errors[] = 'Unable to remove newly created file ' . $relative;
+            } elseif (file_exists($target) && !is_file($target)) {
+                $errors[] = 'Refusing to remove non-file target created during update: ' . $relative;
+            }
+        }
+        return $errors;
     }
 
     private function replaceFile(string $source, string $target, int $mode = 0644): void
