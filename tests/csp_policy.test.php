@@ -29,6 +29,9 @@ $templates = [
     'diagnostics/vault_runtime_diagnostic.php',
     'sentryiq_diagnostic.php',
     'credits.php',
+    'app/Auth/Passkeys.php',
+    'app/Gallery/Settings.php',
+    'app/Security/SystemLog.php',
 ];
 
 foreach ($templates as $relativePath) {
