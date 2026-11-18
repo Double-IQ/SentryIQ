@@ -333,6 +333,34 @@
         }
     }
 
+    async function ensureKeyAvailable(keyId) {
+        if (!unlockedRootKey) throw new Error('Secure Gallery is locked.');
+        if (unlockedPublicKeys && unlockedPrivateKeys
+            && Object.prototype.hasOwnProperty.call(unlockedPublicKeys, keyId)
+            && Object.prototype.hasOwnProperty.call(unlockedPrivateKeys, keyId)) return true;
+
+        const response = await fetch('gallery_passkey.php?action=keyring', {
+            method: 'GET',
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: { Accept: 'application/json' }
+        });
+        const payload = await readJson(response);
+        if (!payload.keyring) throw new Error('The current Gallery keyring could not be refreshed.');
+        const refreshed = await cryptoApi().unlockKeyringWithRoot(payload.keyring, unlockedRootKey);
+        if (!Object.prototype.hasOwnProperty.call(refreshed.publicKeys, keyId)
+            || !Object.prototype.hasOwnProperty.call(refreshed.privateKeys, keyId)) {
+            throw new Error('The upload reservation key is no longer available in this Gallery keyring.');
+        }
+        unlockedPrivateKeys = refreshed.privateKeys;
+        unlockedPublicKeys = refreshed.publicKeys;
+        activeKeyId = refreshed.activeKeyId;
+        legacyKeyId = refreshed.legacyKeyId || null;
+        unlockedPrivateKey = unlockedPrivateKeys[activeKeyId];
+        unlockedPublicKey = unlockedPublicKeys[activeKeyId];
+        return true;
+    }
+
     function getKeyInfo() {
         if (!unlockedPrivateKey) throw new Error('Secure Gallery is locked.');
         return {
@@ -507,6 +535,7 @@
         addWrappingKey: addWrappingKey,
         rewrapObjectEnvelope: rewrapObjectEnvelope,
         getKeyInfo: getKeyInfo,
+        ensureKeyAvailable: ensureKeyAvailable,
         getRotationStatus: getRotationStatus,
         startRotation: startRotation,
         abortRotation: abortRotation,
@@ -518,9 +547,9 @@
         encryptObject: function (data, photoId, role, keyId) {
             if (!unlockedPublicKey) throw new Error('Secure Gallery is locked.');
             let publicKey = unlockedPublicKey;
-            if (keyId && unlockedPublicKeys) {
-                if (!Object.prototype.hasOwnProperty.call(unlockedPublicKeys, keyId)) {
-                    throw new Error('The active Gallery encryption key is not unlocked in this browser. Lock and unlock Gallery again.');
+            if (keyId) {
+                if (!unlockedPublicKeys || !Object.prototype.hasOwnProperty.call(unlockedPublicKeys, keyId)) {
+                    throw new Error('The reservation encryption key has not been loaded into this browser.');
                 }
                 publicKey = unlockedPublicKeys[keyId];
             }
