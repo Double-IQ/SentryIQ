@@ -67,7 +67,7 @@ test('Gallery initialization and device enrollment serialize against passkey cha
         path.join(__dirname, '../app/Auth/GalleryPasskeyAuth.php'),
         'utf8'
     );
-    assert.match(passkeyEndpoint, /function gallery_passkey_store_lock\(\$path\)[\s\S]*?\$lockPath\s*=\s*\$path\s*\.\s*'\.lock'[\s\S]*?flock\(\$lock, LOCK_EX\)/);
+    assert.match(passkeyEndpoint, /function gallery_passkey_store_lock\(string \$path\)[\s\S]*?\$lockPath\s*=\s*\$path\s*\.\s*'\.lock'[\s\S]*?flock\(\$lock, LOCK_EX\)/);
     const initializeStart = passkeyEndpoint.indexOf("if ($action === 'initialize')");
     const addCredentialStart = passkeyEndpoint.indexOf("if ($action === 'add_credential')");
     const rotationStart = passkeyEndpoint.indexOf("if ($action === 'begin_rotation')");
