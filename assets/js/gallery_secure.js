@@ -375,8 +375,13 @@
         getPublicKey: function () { if (!unlockedPublicKey) throw new Error('Secure Gallery is locked.'); return unlockedPublicKey; },
         encryptObject: function (data, photoId, role, keyId) {
             if (!unlockedPublicKey) throw new Error('Secure Gallery is locked.');
-            const publicKey = keyId && unlockedPublicKeys && unlockedPublicKeys[keyId]
-                ? unlockedPublicKeys[keyId] : unlockedPublicKey;
+            let publicKey = unlockedPublicKey;
+            if (keyId && unlockedPublicKeys) {
+                if (!Object.prototype.hasOwnProperty.call(unlockedPublicKeys, keyId)) {
+                    throw new Error('The active Gallery encryption key is not unlocked in this browser. Lock and unlock Gallery again.');
+                }
+                publicKey = unlockedPublicKeys[keyId];
+            }
             return cryptoApi().encryptObject(data, publicKey, photoId, role, keyId);
         },
         decryptObject: function (data, envelope, photoId, role) {
