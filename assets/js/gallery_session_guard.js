@@ -30,7 +30,7 @@
             hiddenTimer = null;
         }
 
-        function handlePageHide() { stop(); }
+        function handlePageHide() { lock('pagehide'); }
 
         function detach() {
             documentRef.removeEventListener('visibilitychange', handleVisibility);
