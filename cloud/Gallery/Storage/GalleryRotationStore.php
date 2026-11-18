@@ -65,8 +65,30 @@ final class GalleryRotationStore
         return $this->transition($rotationId, 'aborted');
     }
 
-    public function complete(string $rotationId): array
+    /**
+     * Completion is allowed only after the caller has obtained a complete,
+     * authoritative object inventory while holding GalleryRotationLock.
+     * Pending reservations are included by GalleryObjectStore's inventory.
+     */
+    public function complete(string $rotationId, array $inventory): array
     {
+        if (($inventory['complete'] ?? false) !== true || !is_array($inventory['references'] ?? null)) {
+            throw new RuntimeException('A complete authoritative Gallery object inventory is required to finish rotation.');
+        }
+        $rotation = $this->current();
+        if (!is_array($rotation) || ($rotation['id'] ?? '') !== $rotationId) {
+            throw new RuntimeException('Gallery rotation is unavailable.');
+        }
+        $sourceKeyId = (string)($rotation['from_key_id'] ?? '');
+        foreach ($inventory['references'] as $keyId => $count) {
+            if (!is_string($keyId) || !preg_match('/^[A-Za-z0-9_-]{8,64}$/', $keyId)
+                || !is_int($count) || $count < 1) {
+                throw new RuntimeException('Gallery object key inventory is invalid.');
+            }
+        }
+        if (($inventory['references'][$sourceKeyId] ?? 0) !== 0) {
+            throw new RuntimeException('Gallery rotation cannot finish while objects or pending uploads reference the source key.');
+        }
         return $this->transition($rotationId, 'completed');
     }
 
