@@ -63,27 +63,6 @@ try {
     $galleryKeys = new GalleryKeyStore($dataDirectory . '/gallery_keys.json');
     $signer = BackblazeB2Signer::fromRuntimeDirectory($dataDirectory);
 
-    if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'cleanup_pending') {
-        $stale = GalleryRotationLock::synchronized($dataDirectory, function () use ($objectStore): array {
-            $marked = [];
-            foreach ($objectStore->stalePending() as $photoId => $record) {
-                $cancelling = $objectStore->markCancelling((string)$photoId);
-                if (is_array($cancelling)) $marked[$photoId] = $cancelling;
-            }
-            return $marked;
-        });
-        $cleanup = [];
-        foreach ($stale as $photoId => $record) {
-            $deleteUrls = [];
-            foreach ((array)($record['objects'] ?? []) as $role => $object) {
-                if (!is_array($object) || !is_string($object['key'] ?? null)) continue;
-                $deleteUrls[$role] = $signer->presign('DELETE', $object['key'], 300);
-            }
-            $cleanup[$photoId] = $deleteUrls;
-        }
-        gallery_storage_json(['status' => 'ok', 'pending' => $cleanup]);
-    }
-
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'list') {
         $photos = $objectStore->all();
         foreach ($photos as &$photo) {
@@ -105,6 +84,27 @@ try {
 
     $request = gallery_storage_request();
     $action = (string)($request['action'] ?? '');
+
+    if ($action === 'cleanup_pending') {
+        $stale = GalleryRotationLock::synchronized($dataDirectory, function () use ($objectStore): array {
+            $marked = [];
+            foreach ($objectStore->stalePending() as $photoId => $record) {
+                $cancelling = $objectStore->markCancelling((string)$photoId);
+                if (is_array($cancelling)) $marked[$photoId] = $cancelling;
+            }
+            return $marked;
+        });
+        $cleanup = [];
+        foreach ($stale as $photoId => $record) {
+            $deleteUrls = [];
+            foreach ((array)($record['objects'] ?? []) as $role => $object) {
+                if (!is_array($object) || !is_string($object['key'] ?? null)) continue;
+                $deleteUrls[$role] = $signer->presign('DELETE', $object['key'], 300);
+            }
+            $cleanup[$photoId] = $deleteUrls;
+        }
+        gallery_storage_json(['status' => 'ok', 'pending' => $cleanup]);
+    }
 
     if ($action === 'allocate') {
         $allocation = GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $objectStore, $signer): array {
