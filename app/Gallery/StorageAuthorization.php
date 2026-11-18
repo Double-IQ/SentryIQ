@@ -86,6 +86,11 @@ try {
 
     if ($action === 'allocate') {
         if (!$galleryKeys->isInitialized()) gallery_storage_json(['status' => 'error', 'message' => 'Initialize secure Gallery before uploading photos.'], 409);
+        $activeKeyId = $galleryKeys->activeKeyId();
+        if ($activeKeyId === null) {
+            $activeKeyId = 'gk_' . bin2hex(random_bytes(16));
+            $galleryKeys->migrateToKeyring($activeKeyId);
+        }
         $photoId = bin2hex(random_bytes(16));
         $objectKeys = [];
         $uploadUrls = [];
@@ -101,7 +106,7 @@ try {
             $objectStore->remove($photoId);
             throw $exception;
         }
-        gallery_storage_json(['status' => 'ok', 'photoId' => $photoId, 'uploadUrls' => $uploadUrls, 'expiresIn' => 300]);
+        gallery_storage_json(['status' => 'ok', 'photoId' => $photoId, 'uploadUrls' => $uploadUrls, 'activeKeyId' => $activeKeyId, 'expiresIn' => 300]);
     }
 
     if ($action === 'commit') {
@@ -109,7 +114,8 @@ try {
         $photoId = (string)($request['photoId'] ?? '');
         $envelopes = is_array($request['envelopes'] ?? null) ? $request['envelopes'] : [];
         $sizes = is_array($request['sizes'] ?? null) ? $request['sizes'] : [];
-        $objectStore->commit($photoId, $envelopes, $sizes);
+        $activeKeyId = $galleryKeys->activeKeyId();
+        $objectStore->commit($photoId, $envelopes, $sizes, $galleryKeys->keyIds(), $activeKeyId !== null);
         gallery_storage_json(['status' => 'ok', 'photoId' => $photoId]);
     }
 
