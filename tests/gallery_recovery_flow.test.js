@@ -39,6 +39,7 @@ function createHarness(options = {}) {
             assert.equal(privateEnvelope, identity.privateKeyEnvelope);
             assert.equal(recoveryEnvelope, identity.recoveryEnvelope);
             assert.equal(suppliedKey, recoveryKey);
+            if (suppliedKey.byteLength !== 32) throw new Error('invalid Gallery recovery material');
             decryptedIdentity = true;
             return { privateKey: { algorithm: { name: 'RSA-OAEP' } }, rootKey };
         }
