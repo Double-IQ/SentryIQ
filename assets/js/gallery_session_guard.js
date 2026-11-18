@@ -30,8 +30,11 @@
             hiddenTimer = null;
         }
 
+        function handlePageHide() { stop(); }
+
         function detach() {
             documentRef.removeEventListener('visibilitychange', handleVisibility);
+            root.removeEventListener('pagehide', handlePageHide);
             ['pointerdown', 'keydown', 'touchstart', 'click'].forEach(function (eventName) {
                 documentRef.removeEventListener(eventName, handleActivity);
             });
@@ -81,9 +84,7 @@
         ['pointerdown', 'keydown', 'touchstart', 'click'].forEach(function (eventName) {
             documentRef.addEventListener(eventName, handleActivity, { passive: true });
         });
-        root.addEventListener('pagehide', function handlePageHide() {
-            stop();
-        }, { once: true });
+        root.addEventListener('pagehide', handlePageHide, { once: true });
 
         if (documentRef.visibilityState === 'hidden') handleVisibility();
         else scheduleIdle();
