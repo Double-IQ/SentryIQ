@@ -148,7 +148,7 @@ try {
             return ['ref' => 'refs/tags/v1.2.3', 'object' => ['type' => 'tag', 'sha' => $tagObject]];
         }
         if (str_ends_with($url, '/git/tags/' . $tagObject)) {
-            return ['object' => ['type' => 'commit', 'sha' => $commit]];
+            return ['tag' => 'v1.2.3', 'object' => ['type' => 'commit', 'sha' => $commit]];
         }
         throw new RuntimeException('Unexpected GitHub API URL in annotated-tag test.');
     };
