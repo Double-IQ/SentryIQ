@@ -61,6 +61,7 @@ try {
     $dataDirectory = gallery_storage_data_directory();
     $objectStore = new GalleryObjectStore($dataDirectory . '/gallery_objects.json');
     $galleryKeys = new GalleryKeyStore($dataDirectory . '/gallery_keys.json');
+    $rotationJournal = new GalleryRotationStore($dataDirectory . '/gallery_rotation.json');
     $signer = BackblazeB2Signer::fromRuntimeDirectory($dataDirectory);
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'list') {
