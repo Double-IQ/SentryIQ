@@ -20,14 +20,15 @@ This document is the single working checklist for the reset security review and 
 
 ## Current progress
 
-**Phase 1: 5/30 findings/tasks completed.**
+**Phase 1: 6/30 findings/tasks completed.**
 
 - Completed: 1.1 — identified the public installation diagnostic endpoint as an exposure requiring protection.
 - Completed: 1.2 — authentication protection merged in [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53); production deployment/runtime verification remains outstanding and is not claimed.
 - Completed: 1.3 — all four focused access-control scenarios pass in CI.
 - Completed: 1.4 — PR #53 reviewed, marked ready, and squash-merged into `main` as `2ca8accf882e52f7bbeebcf9f49e81b1891a0910`.
 - Completed: 2.1 — audited CSP emission points on `main`; both the central and Gallery policies permit inline scripts and inline styles. See findings below.
-- Next item, pending user review: **2.2** — inventory inline JavaScript dependencies and plan safe removal of inline execution.
+- Completed: 2.2 — inventoried inline script blocks, event-handler attributes, and JavaScript dependencies on `main`; migration plan recorded below.
+- Next item, pending user review: **2.3** — audit XSS exposure and output encoding.
 - No four-node deployment task is marked complete by this document.
 
 ---
@@ -154,6 +155,7 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 | 2026-11-18 | 1.3 | `tests/post_install_diagnostic_access.test.php`; CI runs [44291043980](https://github.com/Double-IQ/SentryIQ/actions/runs/44291043980) and [44291044080](https://github.com/Double-IQ/SentryIQ/actions/runs/44291044080) on PR head `3759d5e` | Four access scenarios pass in CI | Yes |
 | 2026-11-18 | 1.4 | [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53), [merge commit `2ca8acc`](https://github.com/Double-IQ/SentryIQ/commit/2ca8accf882e52f7bbeebcf9f49e81b1891a0910) | Reviewed and squash-merged into `main`; production deployment not performed | Yes |
 | 2026-11-18 | 2.1 | `app/Security/SecurityBootstrap.php`, `app/Gallery/SecurePage.php`, `.htaccess`, `.user.ini` on `main` | Found two CSP emission points; both permit `unsafe-inline` for scripts and styles. Recorded migration dependencies; no policy changed | Yes |
+| 2026-11-18 | 2.2 | Inline script/handler inventory across PHP templates and JS assets on `main` | Recorded 10 inline script blocks in 9 PHP files, inline event attributes in 5 templates, JavaScript selector coupling, and staged migration/test plan; no code changed | Yes |
 
 ## Working rules
 
