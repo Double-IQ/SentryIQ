@@ -59,6 +59,13 @@
         if (!['original', 'thumbnail', 'preview', 'metadata'].includes(role)) throw new Error('Invalid Gallery object role.');
     }
 
+    function validateKeyId(keyId) {
+        if (typeof keyId !== 'string' || !/^[A-Za-z0-9_-]{8,64}$/.test(keyId)) {
+            throw new Error('Invalid Gallery encryption key identifier.');
+        }
+        return keyId;
+    }
+
     async function derivePrfWrappingKey(prfOutput, salt, credentialId) {
         const subtle = requireCrypto().subtle;
         const prf = bytes(prfOutput);
@@ -243,7 +250,7 @@
         return encoder.encode(OBJECT_INFO + '|' + photoId + '|' + role);
     }
 
-    async function encryptObject(plaintext, publicKeyJwk, photoId, role) {
+    async function encryptObject(plaintext, publicKeyJwk, photoId, role, keyId) {
         const subtle = requireCrypto().subtle;
         const publicKey = await importGalleryPublicKey(publicKeyJwk);
         const aad = objectAad(photoId, role);
@@ -262,7 +269,8 @@
                     nonce: toBase64Url(nonce),
                     wrappedDek: toBase64Url(wrappedDek),
                     photoId: photoId,
-                    role: role
+                    role: role,
+                    ...(keyId === undefined || keyId === null ? {} : { keyId: validateKeyId(keyId) })
                 }
             };
         } finally {
@@ -276,6 +284,7 @@
             throw new Error('Unsupported Gallery object envelope.');
         }
         if (envelope.photoId !== expectedPhotoId || envelope.role !== expectedRole) throw new Error('Gallery object metadata does not match the requested object.');
+        if (envelope.keyId !== undefined) validateKeyId(envelope.keyId);
         const aad = objectAad(expectedPhotoId, expectedRole);
         const nonce = fromBase64Url(envelope.nonce);
         const wrappedDek = fromBase64Url(envelope.wrappedDek);
