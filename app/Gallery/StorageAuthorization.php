@@ -100,7 +100,7 @@ try {
         foreach (['original', 'thumbnail', 'preview', 'metadata'] as $role) {
             $objectKeys[$role] = BackblazeB2Signer::newObjectKey($role);
         }
-        $objectStore->createPending($photoId, $objectKeys);
+        $objectStore->createPending($photoId, $objectKeys, $activeKeyId);
         try {
             foreach ($objectKeys as $role => $objectKey) {
                 $uploadUrls[$role] = $signer->presign('PUT', $objectKey, 300);
@@ -137,7 +137,30 @@ try {
             'status' => 'ok',
             'url' => $url,
             'envelope' => $record['objects'][$role]['envelope'],
+            'envelopeHash' => GalleryObjectStore::envelopeHash($record['objects'][$role]['envelope']),
             'expiresIn' => 300,
+        ]);
+    }
+
+    if ($action === 'replace_envelope') {
+        $photoId = (string)($request['photoId'] ?? '');
+        $role = (string)($request['role'] ?? '');
+        $expectedHash = (string)($request['expectedEnvelopeHash'] ?? '');
+        $envelope = is_array($request['envelope'] ?? null) ? $request['envelope'] : [];
+        $updatedHash = $objectStore->replaceEnvelope(
+            $photoId,
+            $role,
+            $expectedHash,
+            $envelope,
+            $galleryKeys->keyIds()
+        );
+        gallery_storage_json(['status' => 'ok', 'envelopeHash' => $updatedHash]);
+    }
+
+    if ($action === 'key_inventory') {
+        gallery_storage_json([
+            'status' => 'ok',
+            'references' => $objectStore->keyReferenceInventory($galleryKeys->legacyKeyId()),
         ]);
     }
 
