@@ -344,9 +344,16 @@
         const nonce = fromBase64Url(envelope.nonce);
         const wrappedDek = fromBase64Url(envelope.wrappedDek);
         if (nonce.byteLength !== 12 || wrappedDek.byteLength !== 384) throw new Error('Invalid Gallery object envelope.');
-        const privateKey = envelope.keyId && privateKeyOrMap && privateKeyOrMap[envelope.keyId]
-            ? privateKeyOrMap[envelope.keyId]
-            : privateKeyOrMap;
+        let privateKey;
+        if (envelope.keyId && privateKeyOrMap && Object.prototype.hasOwnProperty.call(privateKeyOrMap, envelope.keyId)) {
+            privateKey = privateKeyOrMap[envelope.keyId];
+        } else if (privateKeyOrMap && privateKeyOrMap.type === 'private') {
+            privateKey = privateKeyOrMap;
+        } else if (envelope.keyId) {
+            throw new Error('No Gallery private key is available for this encrypted object.');
+        } else {
+            privateKey = privateKeyOrMap;
+        }
         let dekRaw;
         try {
             dekRaw = await subtle.decrypt({ name: 'RSA-OAEP' }, privateKey, wrappedDek);
