@@ -544,6 +544,10 @@
     }
 
     function lock() {
+        if (root.SentryIQGalleryStorage
+            && typeof root.SentryIQGalleryStorage.invalidatePendingDecrypts === 'function') {
+            root.SentryIQGalleryStorage.invalidatePendingDecrypts();
+        }
         cryptoApi().clearSecret(unlockedRootKey);
         if (pendingSetup) {
             cryptoApi().clearSecret(pendingSetup.prfOutput);
