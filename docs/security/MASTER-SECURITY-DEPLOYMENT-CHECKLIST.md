@@ -20,7 +20,7 @@ This document is the single working checklist for the reset security review and 
 
 ## Current progress
 
-**Phase 1: 25/30 findings/tasks completed.**
+**Phase 1: 26/30 findings/tasks completed.**
 
 - Completed: 1.1 — identified the public installation diagnostic endpoint as an exposure requiring protection.
 - Completed: 1.2 — authentication protection merged in [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53); production deployment/runtime verification remains outstanding and is not claimed.
@@ -45,7 +45,8 @@ This document is the single working checklist for the reset security review and 
 - Completed: 5.1 — verified the updater's hard-coded release source against the canonical repository identity, release workflow, trust policy, and live GitHub release metadata. The legacy `BTM-SA/SentryIQ` API path redirects to the same immutable repository ID as `Double-IQ/SentryIQ`; the alias is stale but currently resolves correctly.
 - Completed: 5.2 — reviewed checksum trust, GitHub build provenance, the experimental CLI attestation adapter, policy gates, manifest design, release immutability, and repository trust controls. The updater currently trusts a checksum distributed alongside the ZIP and does not verify attestations or the canonical manifest; this is a high-risk supply-chain gap.
 - Completed: 5.3 — audited ZIP entry validation/extraction, staging traversal, symlink handling, file selection, target path containment, and update overwrite scope. Found incomplete ZIP path/symlink/resource validation, no strict runtime-file allowlist, and insufficient parent-directory symlink checks.
-- Next audit item: **5.4** — review update backup, rollback, partial-failure, and recovery behaviour.
+- Completed: 5.4 — reviewed update backup preparation, replacement, rollback, retention, cleanup, concurrent-request behaviour, and failure handling. Found a critical rollback defect: if backup preparation fails partway through, rollback can delete existing files that were never backed up.
+- Next audit item: **5.5** — review updater authentication, authorization, CSRF, and operational safeguards.
 - No four-node deployment task is marked complete by this document.
 
 ---
@@ -343,6 +344,7 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 | 2026-11-18 | 5.1 | Verified updater repository constant, GitHub repository ID/redirect, release workflow identity, current VERSION, and latest stable release | Confirmed legacy `BTM-SA/SentryIQ` alias redirects to canonical `Double-IQ/SentryIQ` repository ID 1345956206; updater source is correct today but should use canonical name; no update applied | Yes |
 | 2026-11-18 | 5.2 | Reviewed checksum verification, GitHub Actions provenance, manifest, CLI verifier/policy integration, trust roots, and release immutability | Found updater accepts ZIP + same-channel checksum without attestation/manifest verification; experimental verifier is unintegrated and synthetic tests are not cryptographic; branch protection disabled; high-risk supply-chain gap | Yes |
 | 2026-11-18 | 5.3 | Audited ZIP entry validation, extraction, symlink handling, staging/target paths, and overwrite scope | Found incomplete path normalization and pre-extraction symlink validation, no uncompressed ZIP limits, broad file-copy scope, generic runtime PHP allowlist, and parent-symlink containment gaps; no malicious archive tests run | Yes |
+| 2026-11-18 | 5.4 | Reviewed updater backup preparation, replacement, rollback, retention, crash/concurrency handling, and cleanup | Found critical rollback bug that can delete unbacked existing files if backup preparation fails partway; also no crash-recovery/maintenance mode and failure workspace cleanup gaps; no update executed | Yes |
 | 2026-11-18 | 4.4 | Audited Documents encryption/metadata, Gallery browser-side encryption, B2 object authorization, signed URL lifecycle, and setup requirements | Confirmed encrypted document bodies and client-side Gallery ciphertext; recorded B2 actual-size/expiry verification gaps and unverified live bucket privacy/CORS/key scope; source review only, no live B2 test | Yes |
 
 ## Working rules
