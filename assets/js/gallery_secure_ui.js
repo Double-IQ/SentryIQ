@@ -10,6 +10,7 @@
     let viewerUrl = null;
     let photoCards = [];
     let sessionGuard = null;
+    let workspaceGeneration = 0;
 
     function setStatus(id, message, type) {
         const node = byId(id);
@@ -24,16 +25,19 @@
     }
 
     function lockWorkspace(reason) {
+        workspaceGeneration++;
         stopSessionGuard();
         closeViewer();
         SentryIQGalleryStorage.lock();
         byId('secure-gallery-file').value = '';
+        byId('secure-gallery-album').value = '';
         byId('secure-gallery-recovery-code').value = '';
         byId('secure-gallery-recovery-input').value = '';
         byId('secure-gallery-recovery-saved').checked = false;
         byId('secure-gallery-finish-setup').disabled = true;
         grid.replaceChildren();
         photoCards = [];
+        updateAlbumFilter();
         workspace.hidden = true;
         setupPanel.hidden = true;
         recoveryPanel.hidden = true;
@@ -195,6 +199,7 @@
     }
 
     async function refreshPhotos() {
+        const generation = workspaceGeneration;
         photoCards.forEach(function (item) { SentryIQGalleryStorage.revokeObjectUrl(item.thumbnailUrl); });
         grid.replaceChildren();
         photoCards = [];
@@ -207,10 +212,25 @@
         setStatus('secure-gallery-workspace-status', 'Loading encrypted photos…');
         try {
             const records = await SentryIQGalleryStorage.list();
+            if (generation !== workspaceGeneration || !SentryIQSecureGallery.isUnlocked()) return;
             const ids = Object.keys(records);
             const results = await Promise.allSettled(ids.map(function (id) {
                 return SentryIQGalleryStorage.loadPhoto(id);
             }));
+            if (generation !== workspaceGeneration || !SentryIQSecureGallery.isUnlocked()) {
+                results.forEach(function (result) {
+                    if (result.status === 'fulfilled') {
+                        SentryIQGalleryStorage.revokeObjectUrl(result.value.thumbnailUrl);
+                        if (result.value.metadata && typeof result.value.metadata === 'object') {
+                            Object.keys(result.value.metadata).forEach(function (key) {
+                                if (typeof result.value.metadata[key] === 'string') result.value.metadata[key] = '';
+                                else result.value.metadata[key] = null;
+                            });
+                        }
+                    }
+                });
+                return;
+            }
             results.forEach(function (result) {
                 if (result.status === 'fulfilled') addPhotoCard(result.value);
             });
