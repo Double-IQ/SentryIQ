@@ -247,6 +247,7 @@ final class GalleryKeyStore
             && is_array($decoded['private_key_envelope'] ?? null)
             && is_array($decoded['credential_envelopes'] ?? null)
             && is_array($decoded['recovery_envelope'] ?? null)) {
+            $this->validatePublicKey($decoded['public_key']);
             return $decoded;
         }
         if (($decoded['version'] ?? null) === 2) {
@@ -299,6 +300,11 @@ final class GalleryKeyStore
 
     private function validatePublicKey(array $key): void
     {
+        foreach (['d', 'p', 'q', 'dp', 'dq', 'qi', 'oth'] as $privateComponent) {
+            if (array_key_exists($privateComponent, $key)) {
+                throw new RuntimeException('Gallery public key must not contain private RSA key material.');
+            }
+        }
         if (($key['kty'] ?? '') !== 'RSA' || ($key['alg'] ?? '') !== 'RSA-OAEP-256'
             || !is_string($key['n'] ?? null) || !is_string($key['e'] ?? null)
             || !preg_match('/^[A-Za-z0-9_-]{512}$/', $key['n'])
