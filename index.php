@@ -137,7 +137,7 @@ body.sentryiq-login-ready > .box{opacity:1;transition:opacity .45s ease}
     #records-panel > div:first-child > .vault-category-header-options {
         margin-left: auto !important;
     }
-    #records-panel > div:first-child > button[onclick="showCreateFolderForm()"],
+    #records-panel > div:first-child > button[data-vault-action="show-create-folder"],
     #records-panel > div:first-child > .vault-add-record-button {
         display: none !important;
     }
