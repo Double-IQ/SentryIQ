@@ -90,6 +90,9 @@ try {
         if ($activeKeyId === null) {
             $activeKeyId = 'gk_' . bin2hex(random_bytes(16));
             $galleryKeys->migrateToKeyring($activeKeyId);
+            // Another concurrent allocator may have completed migration first.
+            $activeKeyId = $galleryKeys->activeKeyId();
+            if ($activeKeyId === null) throw new RuntimeException('Gallery active encryption key is unavailable.');
         }
         $photoId = bin2hex(random_bytes(16));
         $objectKeys = [];
