@@ -345,6 +345,9 @@ final class UpdateManager
             $tagObject = $this->httpJson(
                 'https://api.github.com/repos/' . self::REPOSITORY . '/git/tags/' . $sha
             );
+            if ((string)($tagObject['tag'] ?? '') !== 'v' . $version) {
+                throw new RuntimeException('GitHub annotated tag name does not match the requested release.');
+            }
             $object = $tagObject['object'] ?? null;
             if (!is_array($object)) {
                 throw new RuntimeException('GitHub annotated release tag is malformed.');
