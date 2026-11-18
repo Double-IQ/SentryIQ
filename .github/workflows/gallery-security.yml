@@ -29,9 +29,10 @@ jobs:
           node --check tests/gallery_session_guard.test.js
           node --check tests/gallery_csp.test.js
           node --check tests/gallery_memory.test.js
+          node --check tests/gallery_upload_boundary.test.js
 
       - name: Test browser-side Gallery cryptography
-        run: node --test tests/gallery_crypto.test.js tests/gallery_session_guard.test.js tests/gallery_csp.test.js tests/gallery_memory.test.js
+        run: node --test tests/gallery_crypto.test.js tests/gallery_session_guard.test.js tests/gallery_csp.test.js tests/gallery_memory.test.js tests/gallery_upload_boundary.test.js
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
