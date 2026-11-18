@@ -55,6 +55,9 @@ jobs:
       - name: Test Gallery keyring transition model
         run: php tests/gallery_keyring.test.php
 
+      - name: Test persistent Gallery keyring storage
+        run: php tests/gallery_key_store_v2.test.php
+
       - name: Test release trust policy decisions
         run: php tests/release_trust_policy.test.php
 
