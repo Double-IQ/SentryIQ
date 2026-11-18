@@ -20,7 +20,7 @@ This document is the single working checklist for the reset security review and 
 
 ## Current progress
 
-**Phase 1: 20/30 findings/tasks completed.**
+**Phase 1: 21/30 findings/tasks completed.**
 
 - Completed: 1.1 — identified the public installation diagnostic endpoint as an exposure requiring protection.
 - Completed: 1.2 — authentication protection merged in [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53); production deployment/runtime verification remains outstanding and is not claimed.
@@ -42,7 +42,8 @@ This document is the single working checklist for the reset security review and 
 - Completed: 4.3 — reviewed Vault VMK/password/recovery wrappers, Argon2id parameters, AES-256-GCM envelopes/nonces/AAD, object encryption, Gallery RSA-OAEP/HKDF/PRF/recovery design, and existing crypto tests. Cryptographic primitives and Gallery browser-side boundary are sound in the inspected paths; recorded unbounded KDF parameters and missing Vault crypto regression tests.
 - Completed: 4.4 — reviewed first-run/runtime config generation, B2 credential storage, email/2FA handling, `.gitignore`, release/CI workflows, and tracked configuration paths. No live provider credentials were found in the inspected source/workflows; recorded incomplete ignore coverage for runtime secret files and the existing web-root config-pointer exposure.
 - Completed: 4.5 — reviewed security/audit logs, diagnostic logs and endpoints, 2FA copy-code lifecycle, recovery material, and repository backup/restore tooling. Recorded unbounded log growth, stale 2FA token-file cleanup failure, and diagnostic GET/POST write operations lacking method/CSRF enforcement; corrected the earlier CSRF audit record.
-- Next audit item: **4.6** — review runtime error handling, exception disclosure, and production/debug configuration.
+- Completed: 4.6 — reviewed the central exception handler, PHP runtime configuration, first-run error responses, passkey/Gallery JSON errors, and diagnostic failure output. The central uncaught-exception response is generic, but PHP display/logging settings are not explicitly hardened in `.user.ini`, and first-run/selected API/diagnostic handlers expose exception details.
+- Next audit item: **5.1** — audit GitHub Actions workflows, permissions, third-party actions, and build/release supply-chain controls.
 - No four-node deployment task is marked complete by this document.
 
 ---
@@ -287,6 +288,7 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 | 2026-11-18 | 4.3 | Reviewed Vault and Gallery key hierarchy, KDFs, AES-GCM/RSA-OAEP/HKDF envelopes, recovery and crypto test coverage | Confirmed strong primitives/defaults and Gallery browser-side key boundary; recorded missing KDF upper bounds and absent Vault crypto tests; source review only, tests not executed | Yes |
 | 2026-11-18 | 4.4 | Reviewed private config generation, B2 credential file handling, email/2FA values, ignore rules, and CI/release workflow permissions | No provider credentials found in inspected source/workflows; recorded incomplete .gitignore coverage for generated Gallery/runtime secrets and root config pointer exposure from 4.1; no code changed | Yes |
 | 2026-11-18 | 4.5 | Reviewed audit/diagnostic logging, 2FA token lifecycle, recovery material, and backup/restore tooling | Found unbounded audit/diagnostic logs, unused expired-token cleanup helper leaving 2FA codes on disk, diagnostic GET/POST writes without method/CSRF controls, and no repository backup/restore tooling; corrected 2.4 note; no code changed | Yes |
+| 2026-11-18 | 4.6 | Reviewed central exception handling, PHP display/log directives, first-run errors, and API/diagnostic exception responses | Central uncaught exception response is generic; found no explicit display_errors/log_errors hardening in `.user.ini` and raw exception detail in first-run and selected API/diagnostic handlers; no live PHP config test | Yes |
 
 ## Working rules
 
