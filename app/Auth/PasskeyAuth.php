@@ -49,6 +49,19 @@ function pk_store(): array
     $data = is_string($raw) ? json_decode($raw, true) : null;
     return is_array($data) ? $data : [];
 }
+function pk_lock_store()
+{
+    $lockPath = pk_path() . '.lock';
+    if (is_link($lockPath)) throw new RuntimeException('Secure passkey storage lock is invalid.');
+    $handle = @fopen($lockPath, 'c');
+    if ($handle === false) throw new RuntimeException('Unable to lock secure passkey storage.');
+    @chmod($lockPath, 0600);
+    if (!flock($handle, LOCK_EX)) {
+        fclose($handle);
+        throw new RuntimeException('Unable to lock secure passkey storage.');
+    }
+    return $handle;
+}
 function pk_save(array $data): void
 {
     $path = pk_path();
@@ -143,6 +156,13 @@ try {
     if ($_SERVER['REQUEST_METHOD']!=='POST') throw new RuntimeException('POST required.');
     $raw=file_get_contents('php://input'); $request=is_string($raw)?json_decode($raw,true,32,JSON_THROW_ON_ERROR):null; if (!is_array($request)) throw new RuntimeException('Invalid passkey request.');
     $action=(string)($request['action']??'');
+    // Serialize every passkey-store read/modify/write operation with Gallery's
+    // signature-counter updates. Reload only after acquiring the shared lock.
+    $passkeyStoreLock = null;
+    if (in_array($action, ['register', 'delete', 'login'], true)) {
+        $passkeyStoreLock = pk_lock_store();
+        $store = pk_store();
+    }
     if ($action==='register') {
         sentryiq_require_auth(); $providedCsrf=(string)($request['csrf_token']??''); $expectedCsrf=(string)($_SESSION['csrf_token']??'');
         if ($expectedCsrf===''||$providedCsrf===''||!hash_equals($expectedCsrf,$providedCsrf)) throw new RuntimeException('Security validation failed.');
