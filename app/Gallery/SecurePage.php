@@ -14,18 +14,14 @@ if (is_string($dataDirectory) && $dataDirectory !== '') {
     require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/BackblazeB2Signer.php';
     try {
         $b2Signer = \SentryIQCloud\Gallery\Storage\BackblazeB2Signer::fromRuntimeDirectory($dataDirectory);
-        $b2Host = $b2Signer->endpointHost();
         $b2Configured = true;
     } catch (Throwable) {
         $b2Configured = false;
-        $b2Host = '';
     }
 }
-$csp = "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'";
 if ($b2Configured && preg_match('/^[a-z0-9.-]+$/', $b2Host)) {
     $csp .= ' https://' . $b2Host;
 }
-header('Content-Security-Policy: ' . $csp);
 ?>
 <!DOCTYPE html>
 <html lang="en">
