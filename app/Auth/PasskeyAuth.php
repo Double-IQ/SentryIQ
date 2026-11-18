@@ -105,7 +105,7 @@ function pk_auth_data(string $data, string $rpId, bool $registration): array
     if ($length < 16 || strlen($data) <= 55 + $length) throw new RuntimeException('Invalid passkey credential identifier or missing COSE public key.');
     $coseOffset = 55 + $length;
     $coseStart = $coseOffset;
-    $coseKey = \\SentryIQ\\Auth\\WebAuthnCose::decodeFirst($data, $coseOffset);
+    $coseKey = \SentryIQ\Auth\WebAuthnCose::decodeFirst($data, $coseOffset);
     if (!is_array($coseKey)) throw new RuntimeException('Passkey COSE public key is invalid.');
     return [
         'flags' => $flags,
@@ -162,12 +162,12 @@ try {
         pk_validate_client($clientData,'webauthn.create',pk_b64($challenge),$origin['origin']); $auth=pk_auth_data($authData,$origin['rp_id'],true); if (!hash_equals($rawId,$auth['credential_id'])) throw new RuntimeException('Passkey credential identifier mismatch.');
         $key=@openssl_pkey_get_public($publicKey); if ($key===false) throw new RuntimeException('Invalid passkey public key.'); $details=openssl_pkey_get_details($key); if (!is_array($details)||(int)($details['type']??-1)!==OPENSSL_KEYTYPE_EC||($details['ec']['curve_name']??'')!=='prime256v1') throw new RuntimeException('SentryIQ requires an ES256 passkey.');
         $attestedCoseOffset = 0;
-        $attestedCose = \\SentryIQ\\Auth\\WebAuthnCose::decodeFirst($auth['cose_public_key'], $attestedCoseOffset);
+        $attestedCose = \SentryIQ\Auth\WebAuthnCose::decodeFirst($auth['cose_public_key'], $attestedCoseOffset);
         if (!is_array($attestedCose) || $attestedCoseOffset !== strlen($auth['cose_public_key'])) {
             throw new RuntimeException('Passkey attested public key is malformed.');
         }
-        $attestedPublicKeyDer = \\SentryIQ\\Auth\\WebAuthnCose::ec2P256SpkiDer($attestedCose);
-        $submittedPublicKeyDer = \\SentryIQ\\Auth\\WebAuthnCose::pemToDer($publicKey);
+        $attestedPublicKeyDer = \SentryIQ\Auth\WebAuthnCose::ec2P256SpkiDer($attestedCose);
+        $submittedPublicKeyDer = \SentryIQ\Auth\WebAuthnCose::pemToDer($publicKey);
         if (!hash_equals($attestedPublicKeyDer, $submittedPublicKeyDer)) {
             throw new RuntimeException('Submitted passkey public key does not match authenticator attested credential data.');
         }
