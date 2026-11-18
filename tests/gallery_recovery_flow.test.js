@@ -104,7 +104,7 @@ test('recovery code is rejected locally when it does not decode to 32 bytes', as
     const harness = createHarness({ invalidLength: true });
     await assert.rejects(
         harness.api.unlockWithRecovery('saved-recovery-code'),
-        /invalid Gallery recovery material/
+        /recovery code is invalid/
     );
 });
 
