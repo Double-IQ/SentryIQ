@@ -44,6 +44,12 @@ try {
         'salt' => str_repeat('L', 43), 'iv' => str_repeat('M', 16), 'ciphertext' => str_repeat('N', 64),
     ];
 
+    $publicAWithPrivateMaterial = $publicA;
+    $publicAWithPrivateMaterial['d'] = str_repeat('P', 512);
+    keyStoreMustFail(
+        fn() => $store->initialize($publicAWithPrivateMaterial, $privateA, $credentialA, $credentialEnvelopeA, $recovery),
+        'Gallery initialization must reject private RSA components in the public JWK.'
+    );
     $store->initialize($publicA, $privateA, $credentialA, $credentialEnvelopeA, $recovery);
     keyStoreCheck($store->keyring() === null, 'Fresh identity should remain in the legacy v1 format.');
     keyStoreCheck($store->publicKey() === $publicA, 'Legacy public-key accessor should remain unchanged.');
@@ -65,6 +71,13 @@ try {
     keyStoreMustFail(
         fn() => $store->addWrappingKey('gallery-key-0002', $publicB, $privateB),
         'Duplicate wrapping key identifiers must be rejected.'
+    );
+
+    $publicBWithPrivateMaterial = $publicB;
+    $publicBWithPrivateMaterial['d'] = str_repeat('Q', 512);
+    keyStoreMustFail(
+        fn() => $store->addWrappingKey('gallery-key-0003', $publicBWithPrivateMaterial, $privateB),
+        'Adding a wrapping key must reject private RSA components in the public JWK.'
     );
 
     $store->addCredentialEnvelope($credentialB, $credentialEnvelopeB);
