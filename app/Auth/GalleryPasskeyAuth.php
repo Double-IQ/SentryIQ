@@ -326,6 +326,8 @@ try {
         $store = gallery_passkey_store($passkeyPath);
         $challenge = gallery_passkey_unb64((string)($_SESSION['gallery_passkey_challenge'] ?? ''));
         $challengeAt = (int)($_SESSION['gallery_passkey_challenge_at'] ?? 0);
+        // Consume the assertion challenge on first POST, including failed attempts.
+        unset($_SESSION['gallery_passkey_challenge'], $_SESSION['gallery_passkey_challenge_at']);
         if ($challenge === false || strlen($challenge) !== 32 || $challengeAt < time() - 120) {
             throw new RuntimeException('Gallery passkey challenge expired.');
         }
