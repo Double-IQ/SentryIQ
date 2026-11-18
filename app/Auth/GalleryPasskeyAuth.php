@@ -184,6 +184,20 @@ function gallery_passkey_csrf(array $request): void
     }
 }
 
+
+/**
+ * Consume recent passkey verification before attempting a privileged Gallery
+ * mutation. Failed attempts must not leave the same assertion authorization
+ * reusable for another sensitive request.
+ */
+function gallery_passkey_consume_verified(): array
+{
+    $credentialId = (string)($_SESSION['gallery_passkey_verified_credential'] ?? '');
+    $verifiedAt = (int)($_SESSION['gallery_passkey_verified_at'] ?? 0);
+    unset($_SESSION['gallery_passkey_verified_credential'], $_SESSION['gallery_passkey_verified_at']);
+    return ['credential_id' => $credentialId, 'verified_at' => $verifiedAt];
+}
+
 function gallery_passkey_keyring_payload(GalleryKeyStore $galleryKeys): ?array
 {
     $keyring = $galleryKeys->keyring();
@@ -387,8 +401,9 @@ try {
 
     if ($action === 'initialize') {
         $credentialId = (string)($request['credentialId'] ?? '');
-        $verifiedId = (string)($_SESSION['gallery_passkey_verified_credential'] ?? '');
-        $verifiedAt = (int)($_SESSION['gallery_passkey_verified_at'] ?? 0);
+        $verification = gallery_passkey_consume_verified();
+        $verifiedId = $verification['credential_id'];
+        $verifiedAt = $verification['verified_at'];
         if ($credentialId === '' || $verifiedId === '' || !hash_equals($verifiedId, $credentialId)
             || $verifiedAt < time() - 300) throw new RuntimeException('Verify a passkey before initializing Gallery encryption.');
         // Lock order is always passkey store first, then Gallery rotation lock.
@@ -429,8 +444,9 @@ try {
 
     if ($action === 'add_credential') {
         $credentialId = (string)($request['credentialId'] ?? '');
-        $verifiedId = (string)($_SESSION['gallery_passkey_verified_credential'] ?? '');
-        $verifiedAt = (int)($_SESSION['gallery_passkey_verified_at'] ?? 0);
+        $verification = gallery_passkey_consume_verified();
+        $verifiedId = $verification['credential_id'];
+        $verifiedAt = $verification['verified_at'];
         if ($credentialId === '' || $verifiedId === '' || !hash_equals($verifiedId, $credentialId)
             || $verifiedAt < time() - 300) throw new RuntimeException('Verify a passkey before adding its Gallery envelope.');
         $passkeyLock = gallery_passkey_store_lock($passkeyPath);
@@ -459,8 +475,9 @@ try {
     }
 
     if ($action === 'begin_rotation') {
-        $verifiedId = (string)($_SESSION['gallery_passkey_verified_credential'] ?? '');
-        $verifiedAt = (int)($_SESSION['gallery_passkey_verified_at'] ?? 0);
+        $verification = gallery_passkey_consume_verified();
+        $verifiedId = $verification['credential_id'];
+        $verifiedAt = $verification['verified_at'];
         if ($verifiedId === '' || $verifiedAt < time() - 180 || $galleryKeys->credentialEnvelope($verifiedId) === null) {
             throw new RuntimeException('Verify an enrolled Gallery passkey before starting key rotation.');
         }
@@ -493,8 +510,9 @@ try {
     }
 
     if ($action === 'abort_rotation') {
-        $verifiedId = (string)($_SESSION['gallery_passkey_verified_credential'] ?? '');
-        $verifiedAt = (int)($_SESSION['gallery_passkey_verified_at'] ?? 0);
+        $verification = gallery_passkey_consume_verified();
+        $verifiedId = $verification['credential_id'];
+        $verifiedAt = $verification['verified_at'];
         if ($verifiedId === '' || $verifiedAt < time() - 180 || $galleryKeys->credentialEnvelope($verifiedId) === null) {
             throw new RuntimeException('Verify an enrolled Gallery passkey before aborting key rotation.');
         }
@@ -514,8 +532,9 @@ try {
     }
 
     if ($action === 'finalize_rotation') {
-        $verifiedId = (string)($_SESSION['gallery_passkey_verified_credential'] ?? '');
-        $verifiedAt = (int)($_SESSION['gallery_passkey_verified_at'] ?? 0);
+        $verification = gallery_passkey_consume_verified();
+        $verifiedId = $verification['credential_id'];
+        $verifiedAt = $verification['verified_at'];
         if ($verifiedId === '' || $verifiedAt < time() - 180 || $galleryKeys->credentialEnvelope($verifiedId) === null) {
             throw new RuntimeException('Verify an enrolled Gallery passkey before finalizing key rotation.');
         }
@@ -555,8 +574,9 @@ try {
     }
 
     if ($action === 'add_wrapping_key') {
-        $verifiedId = (string)($_SESSION['gallery_passkey_verified_credential'] ?? '');
-        $verifiedAt = (int)($_SESSION['gallery_passkey_verified_at'] ?? 0);
+        $verification = gallery_passkey_consume_verified();
+        $verifiedId = $verification['credential_id'];
+        $verifiedAt = $verification['verified_at'];
         if ($verifiedId === '' || $verifiedAt < time() - 180
             || $galleryKeys->credentialEnvelope($verifiedId) === null) {
             throw new RuntimeException('Verify an enrolled Gallery passkey before adding an encryption key.');
@@ -587,8 +607,9 @@ try {
     }
 
     if ($action === 'remove_credential') {
-        $verifiedId = (string)($_SESSION['gallery_passkey_verified_credential'] ?? '');
-        $verifiedAt = (int)($_SESSION['gallery_passkey_verified_at'] ?? 0);
+        $verification = gallery_passkey_consume_verified();
+        $verifiedId = $verification['credential_id'];
+        $verifiedAt = $verification['verified_at'];
         $targetId = (string)($request['credentialId'] ?? '');
         if ($verifiedId === '' || $verifiedAt < time() - 180
             || $targetId === '' || $verifiedId === $targetId) {
