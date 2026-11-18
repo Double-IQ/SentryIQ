@@ -34,7 +34,7 @@ function first_run_log(string $stage, array $details = []): void
     foreach ($details as $key => $value) if (is_scalar($value) || $value === null) $record[$key] = $value;
     $path = $dir . '/install_debug.log';
     $line = json_encode($record, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    if (is_string($line)) { try { \\SentryIQ\\Security\\BoundedLog::append($path, $line . PHP_EOL); } catch (Throwable) {} }
+    if (is_string($line)) { try { \SentryIQ\Security\BoundedLog::append($path, $line . PHP_EOL); } catch (Throwable) {} }
 }
 
 function first_run_prepare_dir(string $dir): bool
