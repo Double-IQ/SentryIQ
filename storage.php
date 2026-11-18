@@ -484,6 +484,5 @@ $csrf = sentryiq_csrf_token();
 </div>
 
 <script src="assets/js/sentryiq_navigation.js" defer></script>
-<script src="assets/js/storage.js" defer></script>
 </body>
 </html>
