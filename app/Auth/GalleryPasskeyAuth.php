@@ -412,7 +412,9 @@ try {
         }
         $rotation = GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $rotationJournal): array {
             $current = $rotationJournal->current();
-            if (!is_array($current) || ($current['status'] ?? '') !== 'running') throw new RuntimeException('No active Gallery key rotation is available.');
+            if (!is_array($current) || !in_array(($current['status'] ?? ''), ['running', 'ready_to_retire'], true)) {
+                throw new RuntimeException('No active Gallery key rotation is available.');
+            }
             $active = $galleryKeys->activeKeyId();
             if ($active === ($current['to_key_id'] ?? null)) $galleryKeys->activateWrappingKey((string)$current['from_key_id']);
             elseif ($active !== ($current['from_key_id'] ?? null)) throw new RuntimeException('Gallery active key does not match the rotation journal.');
