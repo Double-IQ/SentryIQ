@@ -51,9 +51,11 @@ final class GalleryObjectStore
             if (array_diff(self::ROLES, array_keys($envelopes)) !== [] || array_diff(array_keys($envelopes), self::ROLES) !== []) {
                 throw new RuntimeException('Gallery upload is missing an encrypted object envelope.');
             }
-            if ($requireKeyId && (!is_string($record['key_id'] ?? null) || $record['key_id'] === '')) {
-                throw new RuntimeException('Gallery upload reservation has no encryption key binding.');
-            }
+            // Reservations created before v2 migration have no key_id. They
+            // remain bound to the original legacy key and may finish with v1
+            // envelopes; all reservations created after migration are strict.
+            $reservationKeyId = is_string($record['key_id'] ?? null) && $record['key_id'] !== ''
+                ? $record['key_id'] : null;
             foreach (self::ROLES as $role) {
                 $envelope = $envelopes[$role] ?? null;
                 $size = $sizes[$role] ?? null;
@@ -62,8 +64,10 @@ final class GalleryObjectStore
                     || ($envelope['keyWrap'] ?? '') !== 'RSA-OAEP-256'
                     || ($envelope['photoId'] ?? '') !== $photoId
                     || ($envelope['role'] ?? '') !== $role
-                    || ($requireKeyId && (!is_string($envelope['keyId'] ?? null)
-                        || !hash_equals((string)$record['key_id'], (string)$envelope['keyId'])))
+                    || ($requireKeyId && $reservationKeyId !== null
+                        && (!is_string($envelope['keyId'] ?? null)
+                            || !hash_equals($reservationKeyId, (string)$envelope['keyId'])))
+                    || ($requireKeyId && $reservationKeyId === null && array_key_exists('keyId', $envelope))
                     || (array_key_exists('keyId', $envelope)
                         && (!is_string($envelope['keyId']) || !preg_match('/^[A-Za-z0-9_-]{8,64}$/', $envelope['keyId'])
                             || !in_array($envelope['keyId'], $allowedKeyIds, true)))
