@@ -183,6 +183,9 @@
             prepared.saved.blob = null;
             prepared.thumbnail.blob = null;
             prepared.preview.blob = null;
+            if (reservation.activeKeyId && typeof secure.ensureKeyAvailable === 'function') {
+                await secure.ensureKeyAvailable(reservation.activeKeyId);
+            }
             const encrypted = {};
             const sizes = {};
             try {
