@@ -56,4 +56,17 @@ keyringCheck(!isset($keyring['keys'][$firstId]), 'An unreferenced inactive key m
 keyringCheck(isset($keyring['keys'][$secondId]), 'Retirement must preserve the active key.');
 keyringMustFail(fn() => GalleryKeyring::activate($keyring, $firstId), 'A retired key must not be reactivated.');
 
+$thirdId = 'gallery-key-0003';
+$keyring = GalleryKeyring::addKey($keyring, $thirdId, $newPublic, $newPrivate);
+keyringMustFail(
+    fn() => GalleryKeyring::retireWithInventory($keyring, $thirdId, ['complete' => false, 'references' => []]),
+    'Retirement must reject an inventory that is not explicitly complete.'
+);
+keyringMustFail(
+    fn() => GalleryKeyring::retireWithInventory($keyring, $thirdId, ['complete' => true, 'references' => [$thirdId => 1]]),
+    'Retirement must reject a key with remaining object references.'
+);
+$keyring = GalleryKeyring::retireWithInventory($keyring, $thirdId, ['complete' => true, 'references' => []]);
+keyringCheck(!isset($keyring['keys'][$thirdId]), 'A complete empty inventory may authorize inactive-key retirement.');
+
 echo "Gallery keyring tests passed.\n";
