@@ -20,6 +20,10 @@
     function assertSessionGeneration(generation, result) {
         if (generation !== sessionGeneration) {
             if (result && result.rootKey) cryptoApi().clearSecret(result.rootKey);
+            if (result && result.privateKeys) {
+                Object.keys(result.privateKeys).forEach(function (keyId) { delete result.privateKeys[keyId]; });
+            }
+            if (result && Object.prototype.hasOwnProperty.call(result, 'privateKey')) result.privateKey = null;
             throw new Error('Secure Gallery was locked while this operation was in progress.');
         }
     }
