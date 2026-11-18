@@ -674,11 +674,12 @@
         }
         clearSecret(unlockedRootKey);
         if (pendingSetup) {
+            pendingSetup.recoveryCode = '';
             clearSecret(pendingSetup.prfOutput);
             clearSecret(pendingSetup.accountSalt);
             clearSecret(pendingSetup.recoveryKey);
             clearSecret(pendingSetup.recoverySalt);
-            if (pendingSetup.identity) cryptoApi().clearSecret(pendingSetup.identity.rootKey);
+            if (pendingSetup.identity) clearSecret(pendingSetup.identity.rootKey);
         }
         unlockedPrivateKey = null;
         unlockedRootKey = null;
