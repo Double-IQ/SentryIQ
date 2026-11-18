@@ -9,6 +9,7 @@
     const grid = byId('secure-gallery-grid');
     let viewerUrl = null;
     let photoCards = [];
+    let sessionGuard = null;
 
     function setStatus(id, message, type) {
         const node = byId(id);
@@ -17,12 +18,51 @@
         node.className = 'secure-gallery-status' + (type ? ' ' + type : '');
     }
 
+    function stopSessionGuard() {
+        if (sessionGuard) sessionGuard.stop();
+        sessionGuard = null;
+    }
+
+    function lockWorkspace(reason) {
+        stopSessionGuard();
+        closeViewer();
+        SentryIQGalleryStorage.lock();
+        byId('secure-gallery-file').value = '';
+        byId('secure-gallery-recovery-code').value = '';
+        byId('secure-gallery-recovery-input').value = '';
+        byId('secure-gallery-recovery-saved').checked = false;
+        byId('secure-gallery-finish-setup').disabled = true;
+        grid.replaceChildren();
+        photoCards = [];
+        workspace.hidden = true;
+        setupPanel.hidden = true;
+        recoveryPanel.hidden = true;
+        unlockPanel.hidden = false;
+        const message = reason === 'idle'
+            ? 'Gallery locked after 15 minutes of inactivity.'
+            : reason === 'background'
+                ? 'Gallery locked after remaining in the background for 60 seconds.'
+                : 'Gallery locked. Decrypted browser object URLs were revoked.';
+        setStatus('secure-gallery-unlock-status', message, 'success');
+    }
+
     function showWorkspace() {
+        stopSessionGuard();
+        try {
+            if (!window.SentryIQGallerySessionGuard) throw new Error('Gallery session protection is unavailable. Reload the page before unlocking.');
+            sessionGuard = window.SentryIQGallerySessionGuard.start(function (reason) {
+                sessionGuard = null;
+                lockWorkspace(reason);
+            });
+        } catch (error) {
+            SentryIQGalleryStorage.lock();
+            throw error;
+        }
         unlockPanel.hidden = true;
         setupPanel.hidden = true;
         recoveryPanel.hidden = true;
         workspace.hidden = false;
-        setStatus('secure-gallery-workspace-status', 'Gallery unlocked in this browser.', 'success');
+        setStatus('secure-gallery-workspace-status', 'Gallery unlocked in this browser. It will lock after 15 minutes of inactivity or 60 seconds in the background.', 'success');
     }
 
     function showRecovery(message) {
@@ -252,18 +292,7 @@
     });
 
     byId('secure-gallery-lock').addEventListener('click', function () {
-        closeViewer();
-        SentryIQGalleryStorage.lock();
-        byId('secure-gallery-file').value = '';
-        byId('secure-gallery-recovery-code').value = '';
-        byId('secure-gallery-recovery-input').value = '';
-        grid.replaceChildren();
-        photoCards = [];
-        workspace.hidden = true;
-        setupPanel.hidden = true;
-        recoveryPanel.hidden = true;
-        unlockPanel.hidden = false;
-        setStatus('secure-gallery-unlock-status', 'Gallery locked. Decrypted browser object URLs were revoked.', 'success');
+        lockWorkspace('manual');
     });
 
     byId('secure-gallery-viewer-close').addEventListener('click', closeViewer);
@@ -274,6 +303,7 @@
         if (event.key === 'Escape') closeViewer();
     });
     window.addEventListener('pagehide', function () {
+        stopSessionGuard();
         if (viewerUrl) SentryIQGalleryStorage.revokeObjectUrl(viewerUrl);
         byId('secure-gallery-file').value = '';
         byId('secure-gallery-recovery-code').value = '';
