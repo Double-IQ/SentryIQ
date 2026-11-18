@@ -35,6 +35,12 @@ $legacy = [
 ];
 $firstId = 'gallery-key-0001';
 $secondId = 'gallery-key-0002';
+$legacyWithPrivateMaterial = $legacy;
+$legacyWithPrivateMaterial['public_key']['d'] = str_repeat('P', 512);
+keyringMustFail(
+    fn() => GalleryKeyring::fromLegacy($legacyWithPrivateMaterial, $firstId),
+    'Legacy migration must reject a public JWK containing private RSA components.'
+);
 $keyring = GalleryKeyring::fromLegacy($legacy, $firstId);
 keyringCheck($keyring['version'] === 2, 'Legacy identity should convert to the v2 in-memory keyring model.');
 keyringCheck($keyring['active_key_id'] === $firstId, 'Legacy identity key should remain active after conversion.');
@@ -42,6 +48,12 @@ keyringCheck(count($keyring['keys']) === 1, 'Legacy conversion must preserve one
 
 $newPublic = ['kty' => 'RSA', 'alg' => 'RSA-OAEP-256', 'n' => str_repeat('J', 512), 'e' => 'AQAB'];
 $newPrivate = ['version' => 1, 'algorithm' => 'A256GCM', 'iv' => str_repeat('K', 16), 'ciphertext' => str_repeat('L', 160)];
+$publicWithPrivateMaterial = $newPublic;
+$publicWithPrivateMaterial['d'] = str_repeat('M', 512);
+keyringMustFail(
+    fn() => GalleryKeyring::addKey($keyring, 'gallery-key-0003', $publicWithPrivateMaterial, $newPrivate),
+    'Adding a wrapping key must reject private RSA components in the public JWK.'
+);
 $keyring = GalleryKeyring::addKey($keyring, $secondId, $newPublic, $newPrivate);
 keyringCheck(count($keyring['keys']) === 2, 'Adding a key should preserve the previous key.');
 keyringCheck($keyring['active_key_id'] === $firstId, 'Adding a key must not silently switch active uploads.');
