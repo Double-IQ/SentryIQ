@@ -87,8 +87,10 @@ try {
         'Additional passkeys must use the same dedicated Gallery PRF input salt.'
     );
     check($store->credentialEnvelope($credentialTwo) !== null, 'Additional passkey envelope should be stored.');
+    check($store->enrolledCredentialIds() === [$credentialOne, $credentialTwo], 'Device inventory must list only Gallery-enrolled credentials.');
     $store->removeCredentialEnvelope($credentialOne);
     check($store->credentialEnvelope($credentialOne) === null, 'Removed passkey envelope should no longer be available.');
+    check($store->enrolledCredentialIds() === [$credentialTwo], 'Removing a device must remove only its Gallery enrollment.');
     expectFailure(
         fn() => $store->removeCredentialEnvelope($credentialTwo),
         'The final Gallery passkey envelope must not be removable.'
