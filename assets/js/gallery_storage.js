@@ -346,6 +346,7 @@
                 if (!object || !object.envelope) throw new Error('A Gallery object is missing its encrypted envelope.');
                 if (object.envelope.keyId === targetKeyId) {
                     skipped++;
+                    if (typeof onProgress === 'function') onProgress({ photoId, role, updated, skipped, total });
                     continue;
                 }
                 let currentEnvelope = object.envelope;
