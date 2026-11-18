@@ -144,7 +144,9 @@
             placeholder.value = '';
             placeholder.textContent = 'Select an inactive key';
             select.appendChild(placeholder);
-            info.keyIds.filter(function (keyId) { return keyId !== info.activeKeyId; }).forEach(function (keyId) {
+            info.keyIds.filter(function (keyId) {
+                return keyId !== info.activeKeyId || (current && current.status === 'running' && keyId === current.to_key_id);
+            }).forEach(function (keyId) {
                 const option = document.createElement('option');
                 option.value = keyId;
                 option.textContent = 'Key ' + keyId.slice(-8);
@@ -447,8 +449,7 @@
         } catch (error) {
             setStatus('secure-gallery-rotation-status', error.message || 'Unable to abort key rotation.', 'error');
         } finally {
-            this.disabled = true;
-            byId('secure-gallery-rotate').disabled = false;
+            await refreshRotationControls();
         }
     });
 
