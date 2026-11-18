@@ -126,6 +126,18 @@ header('Content-Security-Policy: ' . $csp);
                 </div>
             </div>
             <p>Image resizing, thumbnails, previews and encryption happen locally in your browser. Only encrypted objects are uploaded to Backblaze.</p>
+            <section class="secure-gallery-device-panel" aria-labelledby="secure-gallery-rotation-heading">
+                <h3 id="secure-gallery-rotation-heading">Encryption key rotation</h3>
+                <p>Add a new inactive key, then rotate existing photo envelopes. Photo ciphertext stays in Backblaze and is not re-uploaded. Keep this page open until migration finishes; an interrupted migration can be resumed after unlocking again.</p>
+                <div class="secure-gallery-row">
+                    <select id="secure-gallery-rotation-target" aria-label="Target encryption key">
+                        <option value="">Select an inactive key</option>
+                    </select>
+                    <button id="secure-gallery-rotate" class="btn" type="button">Start / resume rotation</button>
+                    <button id="secure-gallery-abort-rotation" class="btn" type="button" disabled>Abort rotation</button>
+                </div>
+                <div id="secure-gallery-rotation-status" class="secure-gallery-status" role="status" aria-live="polite"></div>
+            </section>
             <section class="secure-gallery-device-panel" aria-labelledby="secure-gallery-devices-heading">
                 <h3 id="secure-gallery-devices-heading">Enrolled Gallery devices</h3>
                 <p>Remove a device's ability to unlock Gallery without deleting its SentryIQ sign-in passkey. Removal requires confirmation with a different enrolled passkey.</p>
