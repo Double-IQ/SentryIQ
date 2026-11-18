@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/ThrottleStore.php';
+
 function sentryiq_get_base_url(): string
 {
     $configFile = dirname(__DIR__, 2) . '/sentryiq_config.php';
@@ -13,67 +15,28 @@ function sentryiq_get_base_url(): string
     return rtrim($baseUrl, '/');
 }
 
-function sentryiq_throttle_path(): string
+function sentryiq_throttle_store(): \\SentryIQ\\Auth\\ThrottleStore
 {
-    return SENTRYIQ_DATA_DIR . '/auth_throttle.json';
-}
-
-function sentryiq_throttle_read(): array
-{
-    if (!ensure_sentryiq_data_directory() || !is_file(sentryiq_throttle_path())) return [];
-    $raw = @file_get_contents(sentryiq_throttle_path());
-    $data = is_string($raw) ? json_decode($raw, true) : null;
-    return is_array($data) ? $data : [];
-}
-
-function sentryiq_throttle_write(array $data): void
-{
-    if (!ensure_sentryiq_data_directory()) return;
-    $path = sentryiq_throttle_path();
-    $tmp = $path . '.tmp-' . bin2hex(random_bytes(8));
-    $json = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    if (@file_put_contents($tmp, $json, LOCK_EX) !== false) {
-        @chmod($tmp, 0600);
-        @rename($tmp, $path);
-        @chmod($path, 0600);
+    $dataDirectory = sentryiq_data_dir();
+    if ($dataDirectory === '') {
+        throw new RuntimeException('Authentication throttle storage is unavailable.');
     }
-}
-
-function sentryiq_throttle_key(string $scope, string $ip): string
-{
-    return hash('sha256', $scope . '|' . $ip);
+    return new \\SentryIQ\\Auth\\ThrottleStore($dataDirectory . '/auth_throttle.json');
 }
 
 function sentryiq_throttle_blocked(string $scope, string $ip, int $limit, int $window): bool
 {
-    $now = time();
-    $data = sentryiq_throttle_read();
-    $key = sentryiq_throttle_key($scope, $ip);
-    $entry = $data[$key] ?? ['count'=>0,'first'=>0,'locked_until'=>0];
-
-    if ((int)($entry['locked_until'] ?? 0) > $now) return true;
-    if ((int)($entry['first'] ?? 0) === 0 || ($now - (int)$entry['first']) > $window) return false;
-    return (int)($entry['count'] ?? 0) >= $limit;
+    return sentryiq_throttle_store()->blocked($scope, $ip, $limit, $window);
 }
 
 function sentryiq_throttle_failure(string $scope, string $ip, int $limit, int $window, int $lockout): void
 {
-    $now = time();
-    $data = sentryiq_throttle_read();
-    $key = sentryiq_throttle_key($scope, $ip);
-    $entry = $data[$key] ?? ['count'=>0,'first'=>$now,'locked_until'=>0];
-    if (($now - (int)($entry['first'] ?? 0)) > $window) $entry = ['count'=>0,'first'=>$now,'locked_until'=>0];
-    $entry['count'] = (int)$entry['count'] + 1;
-    if ($entry['count'] >= $limit) $entry['locked_until'] = $now + $lockout;
-    $data[$key] = $entry;
-    sentryiq_throttle_write($data);
+    sentryiq_throttle_store()->failure($scope, $ip, $limit, $window, $lockout);
 }
 
 function sentryiq_throttle_clear(string $scope, string $ip): void
 {
-    $data = sentryiq_throttle_read();
-    unset($data[sentryiq_throttle_key($scope, $ip)]);
-    sentryiq_throttle_write($data);
+    sentryiq_throttle_store()->clear($scope, $ip);
 }
 
 function sentryiq_safe_vault_unlock(string $password): array|false
