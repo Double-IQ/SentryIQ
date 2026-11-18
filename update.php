@@ -40,13 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_updates'])) {
 <title>SentryIQ — System Updates</title>
 <link rel="stylesheet" href="assets/css/sentryiq.css">
 <script src="assets/js/sentryiq_navigation.js" defer></script>
-<style>
-.update-card{max-width:760px;margin:20px auto;padding:20px;border:1px solid #e9ecef;border-radius:12px;background:#fff}
-.update-meta{font-size:13px;color:#666;line-height:1.6}
-.update-notes{margin-top:18px;padding:14px;border-radius:10px;background:#f8f9fa;white-space:pre-wrap;word-break:break-word}
-.update-success{padding:12px;border-radius:9px;background:#eef8f0;color:#23632c}
-.update-warning{padding:12px;border-radius:9px;background:#fff8e8;color:#765500}
-</style>
+<link rel="stylesheet" href="assets/css/update.css">
 </head>
 <body>
 <div class="box">
