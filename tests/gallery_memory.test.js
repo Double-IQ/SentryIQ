@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const storage = fs.readFileSync(path.join(__dirname, '../assets/js/gallery_storage.js'), 'utf8');
+const ui = fs.readFileSync(path.join(__dirname, '../assets/js/gallery_secure_ui.js'), 'utf8');
 
 
 const originalWindow = globalThis.window;
@@ -85,4 +86,17 @@ test('an in-flight decrypt is discarded and zeroed if Gallery locks before it co
         globalThis.document = originalDocument;
         globalThis.SentryIQSecureGallery = originalSecureGallery;
     }
+});
+
+test('locking invalidates photo refreshes and clears album metadata from the UI', () => {
+    assert.match(ui, /function lockWorkspace\(reason\)\s*\{\s*workspaceGeneration\+\+/);
+    assert.match(ui, /if \(generation !== workspaceGeneration \|\| !SentryIQSecureGallery\.isUnlocked\(\)\)/);
+    assert.match(ui, /photoCards = \[\];\s*updateAlbumFilter\(\);\s*workspace\.hidden = true/);
+    assert.match(ui, /byId\('secure-gallery-album'\)\.value = ''/);
+});
+
+test('photo metadata is cleared when loading fails or preview creation completes', () => {
+    assert.match(storage, /function clearPrivateMetadata\([\s\S]*?metadata\[key\] = ''/);
+    assert.match(storage, /async function loadPhoto\([\s\S]*?catch \(error\) \{\s*clearPrivateMetadata\(metadata\)/);
+    assert.match(storage, /async function openPreview\([\s\S]*?finally \{\s*clearPrivateMetadata\(metadata\)/);
 });
