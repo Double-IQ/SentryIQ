@@ -78,6 +78,12 @@ try {
     keyStoreCheck($afterRepeatMigration === $beforeRepeatMigration, 'Repeated migration must be idempotent and preserve the existing keyring.');
     keyStoreCheck($store->keyring()['active_key_id'] === 'gallery-key-0001', 'Repeated migration must preserve the active key.');
 
+    $store->activateWrappingKey('gallery-key-0002');
+    keyStoreCheck($store->activeKeyId() === 'gallery-key-0002', 'Key activation must persist the explicitly selected active key.');
+    $store->retireWrappingKey('gallery-key-0001', ['complete' => true, 'references' => []]);
+    keyStoreCheck(!in_array('gallery-key-0001', $store->keyIds(), true), 'A key with a complete empty reference inventory may be retired.');
+    keyStoreCheck($store->activeKeyId() === 'gallery-key-0002', 'Retirement must preserve the active key.');
+
     echo "Gallery key-store v2 persistence tests passed.\n";
 } finally {
     foreach (glob($directory . '/*') ?: [] as $entry) {
