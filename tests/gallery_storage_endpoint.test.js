@@ -41,7 +41,7 @@ test('WebAuthn counters are re-read and updated under a dedicated lock', () => {
         path.join(__dirname, '../app/Auth/GalleryPasskeyAuth.php'),
         'utf8'
     );
-    assert.match(passkeyEndpoint, /function gallery_passkey_save_counter\([\s\S]*?\.counter\.lock[\s\S]*?flock\(\$lock, LOCK_EX\)[\s\S]*?gallery_passkey_store\(\$path\)[\s\S]*?counter validation failed[\s\S]*?gallery_passkey_save\(\$path, \$store\)/);
+    assert.match(passkeyEndpoint, /function gallery_passkey_save_counter\([\s\S]*?\.lock[\s\S]*?flock\(\$lock, LOCK_EX\)[\s\S]*?gallery_passkey_store\(\$path\)[\s\S]*?counter validation failed[\s\S]*?gallery_passkey_save\(\$path, \$store\)/);
     assert.match(passkeyEndpoint, /gallery_passkey_save_counter\(\$passkeyPath, \$credentialId, \$counter\)/);
 });
 
