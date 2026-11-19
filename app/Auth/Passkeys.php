@@ -64,7 +64,7 @@ $csrf = sentryiq_csrf_token();
     <div class="passkeys-back"><a href="index.php?pane=settings" class="btn">← System Settings</a></div>
     <div class="passkeys-content">
         <div class="passkeys-heading"><div><h2>🔑 Passkeys</h2><p>Manage the devices that can unlock your SentryIQ vault with Face ID, Touch ID, or passkey authentication.</p></div></div>
-        <div id="passkey-message" style="display:none;"></div>
+        <div id="passkey-message" class="passkey-message"></div>
         <div class="passkey-list">
             <?php if (empty($credentials)): ?><div class="passkey-empty">No passkeys are registered yet.</div>
             <?php else: ?><?php foreach ($credentials as $index => $credential): $created=(int)($credential['created_at']??0);$label='Passkey '.($index+1);$id=(string)($credential['credential_id']??''); ?><div class="passkey-row"><div class="passkey-identity"><strong><?php echo htmlspecialchars($label,ENT_QUOTES,'UTF-8'); ?></strong><div class="passkey-added">Added <?php echo $created>0?htmlspecialchars(date('j M Y, H:i',$created),ENT_QUOTES,'UTF-8'):'date unavailable'; ?></div><div class="passkey-credential">Credential: <?php echo htmlspecialchars(substr($id,0,18).(strlen($id)>18?'…':''),ENT_QUOTES,'UTF-8'); ?></div></div><button type="button" class="btn btn-primary remove-passkey" data-credential="<?php echo htmlspecialchars($id,ENT_QUOTES,'UTF-8'); ?>" <?php echo count($credentials)<=1?'disabled title="Keep at least one passkey registered"':''; ?>>Remove</button></div><?php endforeach; ?><?php endif; ?>
