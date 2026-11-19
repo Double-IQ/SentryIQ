@@ -1,0 +1,147 @@
+name: Native PHP Release Attestation
+
+on:
+  pull_request:
+    paths:
+      - 'app/Updates/NativeSigstoreReleaseVerifier.php'
+      - 'app/Updates/FulcioCertificateClaims.php'
+      - 'app/Updates/SnappyBlockDecoder.php'
+      - 'app/Updates/SigstoreProvenance.php'
+      - 'app/Updates/ReleaseDownloadPolicy.php'
+      - 'app/Updates/UpdateManager.php'
+      - 'app/Updates/TufRootStore.php'
+      - 'app/Security/FirstRun.php'
+      - 'update_apply.php'
+      - 'patches/k2gl-tuf-1.2.1-root-404.patch'
+      - 'tests/fulcio_certificate_claims.test.php'
+      - 'tests/sigstore_provenance.test.php'
+      - 'tests/release_download_policy.test.php'
+      - 'tests/native_release_attestation.integration.php'
+      - 'tests/update_apply_integration.test.php'
+      - 'tests/update_release_provenance.test.php'
+      - 'tests/update_rollback.test.php'
+      - '.github/workflows/native-release-attestation.yml'
+  push:
+    branches: [main, security/native-php-release-attestation-current-main]
+    paths:
+      - 'app/Updates/NativeSigstoreReleaseVerifier.php'
+      - 'app/Updates/FulcioCertificateClaims.php'
+      - 'app/Updates/SnappyBlockDecoder.php'
+      - 'app/Updates/SigstoreProvenance.php'
+      - 'app/Updates/ReleaseDownloadPolicy.php'
+      - 'app/Updates/UpdateManager.php'
+      - 'app/Updates/TufRootStore.php'
+      - 'app/Security/FirstRun.php'
+      - 'update_apply.php'
+      - 'patches/k2gl-tuf-1.2.1-root-404.patch'
+      - 'tests/fulcio_certificate_claims.test.php'
+      - 'tests/sigstore_provenance.test.php'
+      - 'tests/release_download_policy.test.php'
+      - 'tests/native_release_attestation.integration.php'
+      - 'tests/update_apply_integration.test.php'
+      - 'tests/update_release_provenance.test.php'
+      - 'tests/update_rollback.test.php'
+      - '.github/workflows/native-release-attestation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.2', '8.3', '8.4', '8.5']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: curl, openssl, sodium, zip
+      - name: Lint native verifier and updater
+        run: |
+          php -l app/Updates/NativeSigstoreReleaseVerifier.php
+          php -l app/Updates/FulcioCertificateClaims.php
+          php -l app/Updates/SnappyBlockDecoder.php
+          php -l app/Updates/SigstoreProvenance.php
+          php -l app/Updates/ReleaseDownloadPolicy.php
+          php -l app/Updates/UpdateManager.php
+          php -l app/Updates/TufRootStore.php
+          php -l app/Security/FirstRun.php
+          php -l update_apply.php
+          php -l tests/fulcio_certificate_claims.test.php
+          php -l tests/sigstore_provenance.test.php
+          php -l tests/release_download_policy.test.php
+          php -l tests/native_release_attestation.integration.php
+      - name: Run native verifier policy tests
+        run: |
+          php tests/fulcio_certificate_claims.test.php
+          php tests/sigstore_provenance.test.php
+          php tests/release_download_policy.test.php
+          php tests/release_trust_policy.test.php
+      - name: Run updater safety regressions
+        run: |
+          php tests/update_apply_integration.test.php
+          php tests/update_release_provenance.test.php
+          php tests/update_rollback.test.php
+
+  native-v0-1-2-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.5'
+          extensions: curl, openssl, sodium, zip
+          tools: composer
+      - name: Install pinned native verifier dependencies
+        run: |
+          mkdir -p "$RUNNER_TEMP/sentryiq-verifier"
+          printf '%s\n' '{"name":"sentryiq/native-verifier","type":"project","require":{}}' > "$RUNNER_TEMP/sentryiq-verifier/composer.json"
+          composer require --working-dir="$RUNNER_TEMP/sentryiq-verifier" --no-interaction --no-progress --no-scripts k2gl/sigstore-verify:1.6.1 k2gl/tuf:1.2.1
+      - name: Apply the pinned SentryIQ TUF root-rotation patch
+        run: |
+          git clone https://github.com/k2gl/tuf.git "$RUNNER_TEMP/upstream-tuf"
+          git -C "$RUNNER_TEMP/upstream-tuf" checkout 0c324cd765e04c9d47d01fe0e9887d6ab8153bfd
+          git -C "$RUNNER_TEMP/upstream-tuf" apply "$GITHUB_WORKSPACE/patches/k2gl-tuf-1.2.1-root-404.patch"
+          cp "$RUNNER_TEMP/upstream-tuf/src/HttpFetcher.php" "$RUNNER_TEMP/sentryiq-verifier/vendor/k2gl/tuf/src/HttpFetcher.php"
+          cmp "$RUNNER_TEMP/upstream-tuf/src/HttpFetcher.php" "$RUNNER_TEMP/sentryiq-verifier/vendor/k2gl/tuf/src/HttpFetcher.php"
+          php -l "$RUNNER_TEMP/sentryiq-verifier/vendor/k2gl/tuf/src/HttpFetcher.php"
+      - name: Download the published v0.1.2 release ZIP
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/Double-IQ/SentryIQ/releases/download/v0.1.2/sentryiq-0.1.2.zip \
+            --output "$RUNNER_TEMP/sentryiq-0.1.2.zip"
+          echo "41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e  $RUNNER_TEMP/sentryiq-0.1.2.zip" | sha256sum --check
+      - name: Place dependencies in the private runtime layout
+        run: |
+          mkdir -p "$RUNNER_TEMP/sentryiq-private-data/sigstore-vendor"
+          chmod 700 "$RUNNER_TEMP/sentryiq-private-data" "$RUNNER_TEMP/sentryiq-private-data/sigstore-vendor"
+          cp -a "$RUNNER_TEMP/sentryiq-verifier/vendor" "$RUNNER_TEMP/sentryiq-private-data/sigstore-vendor/vendor"
+          cat > "$RUNNER_TEMP/sentryiq-private-data/sigstore-vendor/INSTALL.txt" <<'EOF'
+          Extract this sigstore-vendor directory directly inside SENTRYIQ_DATA_DIR.
+          The required autoloader path is SENTRYIQ_DATA_DIR/sigstore-vendor/vendor/autoload.php.
+          Keep SENTRYIQ_DATA_DIR outside the public document root.
+          EOF
+      - name: Verify the actual GitHub attestation end to end
+        run: |
+          php tests/native_release_attestation.integration.php \
+            "$RUNNER_TEMP/sentryiq-private-data/sigstore-vendor/vendor/autoload.php" \
+            "$RUNNER_TEMP/sentryiq-0.1.2.zip" \
+            "$RUNNER_TEMP/sentryiq-private-data"
+      - name: Package private Sigstore dependencies for cPanel installation
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          cd "$RUNNER_TEMP/sentryiq-private-data"
+          zip -qr "$RUNNER_TEMP/sentryiq-sigstore-vendor.zip" sigstore-vendor
+          sha256sum "$RUNNER_TEMP/sentryiq-sigstore-vendor.zip" > "$RUNNER_TEMP/sentryiq-sigstore-vendor.zip.sha256"
+      - name: Publish private dependency package artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sentryiq-sigstore-vendor-php
+          path: |
+            ${{ runner.temp }}/sentryiq-sigstore-vendor.zip
+            ${{ runner.temp }}/sentryiq-sigstore-vendor.zip.sha256
+          retention-days: 30
