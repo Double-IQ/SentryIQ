@@ -75,18 +75,63 @@ final class PrivateHostAttestationNonceStore
         }
 
         try {
+            // Re-check the lock pathname after acquiring the descriptor lock.
+            // If the path was replaced between lstat/open/flock, fail closed
+            // rather than splitting callers across different lock inodes.
+            clearstatcache(true, $this->lockPath);
+            $lockedPathStat = @lstat($this->lockPath);
+            if (!is_array($lockedPathStat)
+                || ($lockedPathStat['dev'] ?? null) !== ($openedStat['dev'] ?? null)
+                || ($lockedPathStat['ino'] ?? null) !== ($openedStat['ino'] ?? null)
+                || (($lockedPathStat['mode'] ?? 0) & 0170000) !== 0100000
+                || (($lockedPathStat['mode'] ?? 0) & 0777) !== 0600) {
+                throw new RuntimeException('Attestation nonce lock path changed after acquiring its inode lock.');
+            }
+
             $state = ['format' => 1, 'nonces' => []];
-            if (file_exists($this->statePath)) {
-                if (!is_file($this->statePath) || (((fileperms($this->statePath) ?: 0) & 0777) !== 0600)) {
-                    throw new RuntimeException('Attestation nonce state has unsafe type or permissions.');
+            clearstatcache(true, $this->statePath);
+            $stateStat = @lstat($this->statePath);
+            if ($stateStat !== false) {
+                if (!is_array($stateStat) || (($stateStat['mode'] ?? 0) & 0170000) !== 0100000
+                    || (($stateStat['mode'] ?? 0) & 0777) !== 0600
+                    || ($stateStat['size'] ?? 0) < 2 || ($stateStat['size'] ?? 0) > 1_048_576) {
+                    throw new RuntimeException('Attestation nonce state has unsafe type, permissions, or size.');
                 }
-                $bytes = @file_get_contents($this->statePath);
-                if (!is_string($bytes) || $bytes === '' || strlen($bytes) > 1_048_576) {
-                    throw new RuntimeException('Attestation nonce state is unreadable or exceeds its size limit.');
+                $stateHandle = @fopen($this->statePath, 'rb');
+                $stateOpened = is_resource($stateHandle) ? fstat($stateHandle) : false;
+                if ($stateHandle === false || !is_array($stateOpened)
+                    || ($stateOpened['dev'] ?? null) !== ($stateStat['dev'] ?? null)
+                    || ($stateOpened['ino'] ?? null) !== ($stateStat['ino'] ?? null)
+                    || (($stateOpened['mode'] ?? 0) & 0170000) !== 0100000
+                    || (($stateOpened['mode'] ?? 0) & 0777) !== 0600
+                    || ($stateOpened['size'] ?? 0) !== ($stateStat['size'] ?? -1)) {
+                    if (is_resource($stateHandle)) fclose($stateHandle);
+                    throw new RuntimeException('Attestation nonce state inode changed during open.');
+                }
+                try {
+                    $bytes = stream_get_contents($stateHandle, 1_048_577);
+                    $stateAfter = fstat($stateHandle);
+                    clearstatcache(true, $this->statePath);
+                    $statePathAfter = @lstat($this->statePath);
+                    if (!is_string($bytes) || strlen($bytes) < 2 || strlen($bytes) > 1_048_576
+                        || !is_array($stateAfter) || !is_array($statePathAfter)
+                        || ($stateAfter['dev'] ?? null) !== ($stateOpened['dev'] ?? null)
+                        || ($stateAfter['ino'] ?? null) !== ($stateOpened['ino'] ?? null)
+                        || ($stateAfter['size'] ?? null) !== ($stateOpened['size'] ?? null)
+                        || ($stateAfter['mtime'] ?? null) !== ($stateOpened['mtime'] ?? null)
+                        || ($stateAfter['ctime'] ?? null) !== ($stateOpened['ctime'] ?? null)
+                        || ($statePathAfter['dev'] ?? null) !== ($stateOpened['dev'] ?? null)
+                        || ($statePathAfter['ino'] ?? null) !== ($stateOpened['ino'] ?? null)
+                        || (($statePathAfter['mode'] ?? 0) & 0170000) !== 0100000
+                        || (($statePathAfter['mode'] ?? 0) & 0777) !== 0600) {
+                        throw new RuntimeException('Attestation nonce state changed while being read.');
+                    }
+                } finally {
+                    fclose($stateHandle);
                 }
                 try {
                     $decoded = json_decode($bytes, true, 8, JSON_THROW_ON_ERROR);
-                } catch (\JsonException $exception) {
+                } catch (\\JsonException $exception) {
                     throw new RuntimeException('Attestation nonce state is invalid JSON.', 0, $exception);
                 }
                 if (!is_array($decoded) || ($decoded['format'] ?? null) !== 1
