@@ -23,10 +23,10 @@ final class NativeSigstoreIntegrityAttestationVerifier
     ) {
     }
 
-    public static function fromPrivatePaths(string $vendorAutoloadPath, string $privateDataDirectory): self
+    public static function fromPrivatePaths(string $vendorAutoloadPath, string $privateDataDirectory, ?string $githubApiToken = null): self
     {
         return new self(
-            new NativeSigstoreReleaseVerifier($vendorAutoloadPath, $privateDataDirectory),
+            new NativeSigstoreReleaseVerifier($vendorAutoloadPath, $privateDataDirectory, $githubApiToken),
             new ReleaseTrustPolicy()
         );
     }
