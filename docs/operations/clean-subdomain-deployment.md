@@ -28,7 +28,7 @@ These facts must be rechecked in cPanel immediately before deployment. Do not as
 
 ## First-run protected storage configuration
 
-PR #72 is merged into `main`. It replaces the source-relative private-path guess with an explicit `SENTRYIQ_DATA_DIR` setting and rejects missing or unsafe paths. The expected value for this cPanel account is `/home/bicheveb/sentryiq-private`, subject to rechecking the actual document root.
+PR #72 and PR #76 are merged into `main`. PR #72 replaces the source-relative private-path guess with an explicit `SENTRYIQ_DATA_DIR` setting and rejects missing or unsafe paths. PR #76 aligns the first-run installer with the release archive: the four runtime templates are loaded from the packaged `runtime/` directory, removed after successful installation, and blocked from direct HTTP access by the root Apache rules. The expected value for this cPanel account is `/home/bicheveb/sentryiq-private`, subject to rechecking the actual document root.
 
 The owner confirms that the hosting environment can expose `SENTRYIQ_DATA_DIR` to PHP and that `open_basedir` permits the intended protected directory. This is an owner-reported provider/configuration confirmation, not a runtime test. A possible Apache `SetEnv` directive is documented in `cpanel-first-run-storage.md`, but must not be assumed to work with the provider's PHP handler. Do not expose first-run setup until a controlled PHP-side check confirms the value and storage access. Do not weaken `open_basedir` or use a guessed fallback.
 
@@ -59,7 +59,7 @@ Fresh configuration only:
 
 ## Release and cPanel deployment sequence
 
-1. Confirm the merged first-run installer fix (PR #72) and required CI checks on `main`.
+1. Confirm the merged explicit storage-path fix (PR #72), release package builder/validation (PR #75), and runtime-template installer compatibility fix (PR #76), with all required CI checks passing on `main`.
 2. Confirm the release/commit intended for deployment and verify all required CI checks pass.
 3. In cPanel, re-confirm the subdomain document root and the protected directory path, ownership, permissions, available storage, and PHP `open_basedir` constraints.
 4. Confirm the selected PHP version and required extensions against the release's documented runtime requirements.
@@ -112,4 +112,4 @@ The initial deployment does not modify the old application. Keep it untouched wh
 
 ## Next deployment gate
 
-No further hosting-support confirmation is currently requested. The remaining gate is a controlled, temporary PHP web-SAPI preflight on the new subdomain that verifies the exact environment value, canonical document-root/private-directory relationship, `open_basedir` access, and private-directory write/read/delete capability without displaying secrets or exposing a reusable diagnostic endpoint. Only after that check passes should the reviewed release be uploaded and first-run setup exposed.
+No further hosting-support confirmation is currently requested. The remaining gate is a controlled, temporary PHP web-SAPI preflight on the new subdomain that verifies the exact environment value, canonical document-root/private-directory relationship, `open_basedir` access, and private-directory write/read/delete capability without displaying secrets or exposing a reusable diagnostic endpoint. A one-time preflight file has been prepared for this purpose; it must be uploaded only for the check and removed immediately afterwards. Only after that check passes should the reviewed release be uploaded and first-run setup exposed.
