@@ -34,7 +34,7 @@ try {
             return $send;
         }
     );
-    $correlator = new IntegrityIncidentCorrelator(900);
+    $correlator = new IntegrityIncidentCorrelator(1800);
     $monitor = new IntegrityNode4Monitor($store, $correlator, $dispatcher);
 
     $first = $monitor->run('https://sentryiq.bichet.co.za');
