@@ -109,8 +109,16 @@ jobs:
           git -C "$RUNNER_TEMP/upstream-tuf" checkout 0c324cd765e04c9d47d01fe0e9887d6ab8153bfd
           git -C "$RUNNER_TEMP/upstream-tuf" apply "$GITHUB_WORKSPACE/patches/k2gl-tuf-1.2.1-root-404.patch"
           cp "$RUNNER_TEMP/upstream-tuf/src/HttpFetcher.php" "$RUNNER_TEMP/sentryiq-verifier/vendor/k2gl/tuf/src/HttpFetcher.php"
+          cp "$RUNNER_TEMP/upstream-tuf/src/Updater.php" "$RUNNER_TEMP/sentryiq-verifier/vendor/k2gl/tuf/src/Updater.php"
+          mkdir -p "$RUNNER_TEMP/sentryiq-verifier/vendor/k2gl/tuf/src/Exception"
+          cp "$RUNNER_TEMP/upstream-tuf/src/Exception/NotFoundException.php" "$RUNNER_TEMP/sentryiq-verifier/vendor/k2gl/tuf/src/Exception/NotFoundException.php"
           cmp "$RUNNER_TEMP/upstream-tuf/src/HttpFetcher.php" "$RUNNER_TEMP/sentryiq-verifier/vendor/k2gl/tuf/src/HttpFetcher.php"
+          cmp "$RUNNER_TEMP/upstream-tuf/src/Updater.php" "$RUNNER_TEMP/sentryiq-verifier/vendor/k2gl/tuf/src/Updater.php"
+          cmp "$RUNNER_TEMP/upstream-tuf/src/Exception/NotFoundException.php" "$RUNNER_TEMP/sentryiq-verifier/vendor/k2gl/tuf/src/Exception/NotFoundException.php"
           php -l "$RUNNER_TEMP/sentryiq-verifier/vendor/k2gl/tuf/src/HttpFetcher.php"
+          php -l "$RUNNER_TEMP/sentryiq-verifier/vendor/k2gl/tuf/src/Updater.php"
+          php -l "$RUNNER_TEMP/sentryiq-verifier/vendor/k2gl/tuf/src/Exception/NotFoundException.php"
+          php -r 'require "$RUNNER_TEMP/sentryiq-verifier/vendor/autoload.php"; if (!class_exists("K2gl\\Tuf\\Exception\\NotFoundException")) { exit(1); }'
       - name: Download the published v0.1.2 release ZIP
         run: |
           curl --fail --silent --show-error --location \
