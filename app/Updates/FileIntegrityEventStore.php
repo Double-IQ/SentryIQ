@@ -20,8 +20,11 @@ use RuntimeException;
 final class FileIntegrityEventStore
 {
     private const STATE_VERSION = 1;
-    private const MAX_STATE_BYTES = 16777216;
+    private const MAX_STATE_BYTES = 33554432;
     private const MAX_REPORTS = 5000;
+    private const REPORT_RETENTION_SECONDS = 604800;
+    private const ALERT_RETENTION_SECONDS = 2592000;
+    private const MAX_ALERTS = 2000;
 
     private string $directory;
     private string $statePath;
@@ -62,6 +65,49 @@ final class FileIntegrityEventStore
         if ($stateStat === false && is_link($this->statePath)) {
             throw new RuntimeException('Node 4 state path must not be a symlink.');
         }
+    }
+
+    /**
+     * Prune expired challenges, reports older than seven days, and delivered
+     * alerts older than thirty days. Pending alerts are never discarded.
+     *
+     * @return array{challenges:int,reports:int,alerts:int}
+     */
+    public function pruneRetention(?int $now = null): array
+    {
+        $timestamp = $now ?? time();
+        if ($timestamp < 1) throw new RuntimeException('Node 4 retention clock is invalid.');
+        return $this->transact(function (array &$state) use ($timestamp): array {
+            return $this->pruneState($state, $timestamp);
+        });
+    }
+
+    /** @param array<string,mixed> $state @return array{challenges:int,reports:int,alerts:int} */
+    private function pruneState(array &$state, int $now): array
+    {
+        $removed = ['challenges' => 0, 'reports' => 0, 'alerts' => 0];
+        foreach ($state['challenges'] as $id => $challenge) {
+            if (!is_array($challenge) || (int)($challenge['expires_at'] ?? 0) <= $now) {
+                unset($state['challenges'][$id]);
+                $removed['challenges']++;
+            }
+        }
+        $reportCutoff = $now - self::REPORT_RETENTION_SECONDS;
+        foreach ($state['reports'] as $id => $report) {
+            if (!is_array($report) || (int)($report['accepted_at'] ?? 0) < $reportCutoff) {
+                unset($state['reports'][$id]);
+                $removed['reports']++;
+            }
+        }
+        $alertCutoff = $now - self::ALERT_RETENTION_SECONDS;
+        foreach ($state['alerts'] as $id => $alert) {
+            if (is_array($alert) && ($alert['status'] ?? null) === 'delivered'
+                && (int)($alert['delivered_at'] ?? 0) < $alertCutoff) {
+                unset($state['alerts'][$id]);
+                $removed['alerts']++;
+            }
+        }
+        return $removed;
     }
 
     /**
@@ -111,6 +157,7 @@ final class FileIntegrityEventStore
         ];
 
         $this->transact(function (array &$state) use ($nonce, $challenge, $issuedAt): void {
+            $this->pruneState($state, $issuedAt);
             foreach ($state['challenges'] as $existingKey => $existingChallenge) {
                 if (!is_array($existingChallenge) || ($existingChallenge['expires_at'] ?? 0) <= $issuedAt) {
                     unset($state['challenges'][$existingKey]);
@@ -139,6 +186,7 @@ final class FileIntegrityEventStore
         string $rawPayload
     ): string {
         return $this->transact(function (array &$state) use ($nodeId, $payload, $envelope, $rawPayload): string {
+            $this->pruneState($state, time());
             $nonceKey = hash('sha256', (string)($payload['nonce'] ?? ''));
             $challenge = $state['challenges'][$nonceKey] ?? null;
             if (!is_array($challenge)) {
@@ -185,6 +233,7 @@ final class FileIntegrityEventStore
         }
         $fingerprint = hash('sha256', json_encode($incident, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
         return $this->transact(function (array &$state) use ($incident, $fingerprint): array {
+            $this->pruneState($state, time());
             $matchingId = null;
             $matching = null;
             foreach ($state['alerts'] as $id => $existing) {
@@ -205,7 +254,7 @@ final class FileIntegrityEventStore
                     return ['id' => $matchingId, 'created' => false];
                 }
             }
-            if (count($state['alerts']) >= 1000) {
+            if (count($state['alerts']) >= self::MAX_ALERTS) {
                 throw new RuntimeException('Node 4 alert outbox is full; delivery maintenance is required.');
             }
             $id = bin2hex(random_bytes(16));
