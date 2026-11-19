@@ -5,16 +5,23 @@ on:
     branches: [main]
     paths:
       - 'scripts/build-release-manifest.py'
+      - 'scripts/build-release-package.sh'
       - 'tests/build_release_manifest.test.py'
+      - 'tests/release_package.test.py'
       - '.github/workflows/release-manifest-tests.yml'
       - '.github/workflows/release.yml'
       - 'VERSION'
+      - 'private_data/**'
   push:
     branches: [main]
     paths:
       - 'scripts/build-release-manifest.py'
+      - 'scripts/build-release-package.sh'
       - 'tests/build_release_manifest.test.py'
+      - 'tests/release_package.test.py'
       - '.github/workflows/release-manifest-tests.yml'
+      - 'VERSION'
+      - 'private_data/**'
 
 permissions:
   contents: read
@@ -30,3 +37,15 @@ jobs:
 
       - name: Run canonical release manifest tests
         run: python3 tests/build_release_manifest.test.py
+
+      - name: Build the exact release package from this commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(tr -d '\r\n' < VERSION)"
+          bash scripts/build-release-package.sh \
+            "$VERSION" "$GITHUB_SHA" "$GITHUB_REPOSITORY" "1345956206" \
+            ".github/workflows/release.yml" "$GITHUB_SHA" "release-output"
+
+      - name: Validate package contents, inventory, and checksums
+        run: python3 tests/release_package.test.py --dist release-output --version "$(tr -d '\r\n' < VERSION)"

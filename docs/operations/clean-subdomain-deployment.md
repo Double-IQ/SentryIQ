@@ -3,7 +3,7 @@
 **Target:** `https://sentryiq.bichet.co.za`  
 **Hosting:** cPanel; no shell/SSH access confirmed.  
 **Deployment model:** clean installation from the reviewed GitHub release. The owner has explicitly declined to preserve or migrate the existing installation.  
-**Current status:** subdomain and TLS are owner-confirmed; deployment is not started. No application files, runtime configuration, DNS, or production data have been changed by this plan.
+**Current status:** subdomain/TLS and the hosting capability to expose `SENTRYIQ_DATA_DIR` with the protected path permitted by `open_basedir` are owner-confirmed; actual PHP web-SAPI runtime verification remains outstanding. Deployment is not started. No application files, runtime configuration, DNS, or production data have been changed by this plan.
 
 ## Scope and non-goals
 
@@ -30,7 +30,7 @@ These facts must be rechecked in cPanel immediately before deployment. Do not as
 
 PR #72 is merged into `main`. It replaces the source-relative private-path guess with an explicit `SENTRYIQ_DATA_DIR` setting and rejects missing or unsafe paths. The expected value for this cPanel account is `/home/bicheveb/sentryiq-private`, subject to rechecking the actual document root.
 
-The hosting provider must confirm that `SENTRYIQ_DATA_DIR` reaches the PHP web SAPI for this subdomain and that `open_basedir` permits the protected directory. A possible Apache `SetEnv` directive is documented in `cpanel-first-run-storage.md`, but must not be assumed to work with the provider's PHP handler. Do not expose first-run setup until a controlled PHP-side check confirms the value and storage access. Do not weaken `open_basedir` or use a guessed fallback.
+The owner confirms that the hosting environment can expose `SENTRYIQ_DATA_DIR` to PHP and that `open_basedir` permits the intended protected directory. This is an owner-reported provider/configuration confirmation, not a runtime test. A possible Apache `SetEnv` directive is documented in `cpanel-first-run-storage.md`, but must not be assumed to work with the provider's PHP handler. Do not expose first-run setup until a controlled PHP-side check confirms the value and storage access. Do not weaken `open_basedir` or use a guessed fallback.
 
 ## Deployment layout
 
@@ -110,6 +110,6 @@ Fresh configuration only:
 
 The initial deployment does not modify the old application. Keep it untouched while the new origin is tested. Do not redirect the old URL, delete the old files, revoke old credentials, or change shared DNS until the new deployment passes acceptance and the owner explicitly approves the cutover/retirement step.
 
-## Current outstanding owner action
+## Next deployment gate
 
-The next owner action is to confirm with hosting support how to expose `SENTRYIQ_DATA_DIR` to the PHP web SAPI and whether `/home/bicheveb/sentryiq-private` is allowed by `open_basedir`. The previous installation working is encouraging but does not verify this new explicit setting.
+No further hosting-support confirmation is currently requested. The remaining gate is a controlled, temporary PHP web-SAPI preflight on the new subdomain that verifies the exact environment value, canonical document-root/private-directory relationship, `open_basedir` access, and private-directory write/read/delete capability without displaying secrets or exposing a reusable diagnostic endpoint. Only after that check passes should the reviewed release be uploaded and first-run setup exposed.
