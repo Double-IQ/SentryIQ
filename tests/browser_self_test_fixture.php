@@ -54,6 +54,17 @@ foreach (['documents', 'documents/files'] as $directory) {
 file_put_contents($dataDir . '/documents/metadata.json', "{}\n", LOCK_EX);
 chmod($dataDir . '/documents/metadata.json', 0600);
 
+$passkeyStore = [
+    'credentials' => [[
+        'credential_id' => 'ci-fixture-credential',
+        'public_key' => '',
+        'created_at' => time(),
+        'sign_count' => 0,
+    ]],
+];
+file_put_contents($dataDir . '/passkeys.json', json_encode($passkeyStore, JSON_THROW_ON_ERROR), LOCK_EX);
+chmod($dataDir . '/passkeys.json', 0600);
+
 require_once $dataDir . '/vault_engine.php';
 $password = 'SentryIQ-CI-only-browser-fixture-password-2026';
 $records = [[
