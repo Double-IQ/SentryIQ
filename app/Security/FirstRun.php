@@ -64,6 +64,7 @@ function first_run_write_config(string $path, string $username, string $email, s
         "    'two_fa_email' => " . var_export($email, true) . ",\n" .
         "    'base_url' => " . var_export($baseUrl, true) . ",\n" .
         "    'data_dir' => " . var_export($dir, true) . ",\n" .
+        "    'sigstore_vendor_autoload' => " . var_export($dir . '/sigstore-vendor/vendor/autoload.php', true) . ",\n" .
         "    'two_fa_token_expiry' => 300,\n];\n";
     return @file_put_contents($path, $config, LOCK_EX) !== false && @chmod($path, 0600);
 }
