@@ -24,6 +24,11 @@ Before Node C can approve anything in production, implement and independently te
 - Configure a direct owner alert path independent of Node 4.
 - Restrict any HTTP trigger endpoint with authentication, replay protection, rate limiting, and no secrets in URLs or logs.
 
+## Regression coverage
+
+
+The current synthetic regression suite also verifies that a manifest-attestation failure and an artifact-attestation failure each abort before any origin fetch, and that an origin network failure produces a signed rejection (`fetch_failed`) rather than approval. These tests exercise the injected verifier boundary; they do not replace the still-required native cryptographic adapter or HelioHost validation.
+
 ## Status
 
 Prototype implementation and synthetic contract tests only. No HelioHost account provisioning, key generation, schedule, endpoint, native attestation adapter, or production deployment is included.
