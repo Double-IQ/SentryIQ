@@ -57,7 +57,7 @@ async function checkOne(test){
                         if (!(contract.property==='height' && contract.value==='auto')) {
                             const tag=contract.selector==='.btn'?'button':(contract.selector==='.sentryiq-vault-banner'?'img':'div');
                             const probe=document.createElement(tag);
-                            probe.className=contract.selector.replace(/^\\./,'');
+                            probe.className=contract.selector.replace(/^\./,'');
                             document.body.appendChild(probe);
                             computedActual=getComputedStyle(probe).getPropertyValue(declarationProperty).trim();
                             probe.remove();
