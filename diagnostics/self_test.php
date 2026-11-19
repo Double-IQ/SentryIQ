@@ -445,9 +445,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['diagnostic_log']) && 
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="csrf-token" content="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
 <title>SentryIQ Self-Test</title>
-<style>
-body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f4f6f8;color:#20252b;margin:0;padding:24px}.wrap{max-width:1150px;margin:auto}.card{background:#fff;border:1px solid #dfe4ea;border-radius:10px;padding:20px;margin-bottom:18px;box-shadow:0 2px 8px rgba(0,0,0,.04)}h1{margin:0 0 6px;font-size:24px}h2{font-size:17px;margin:22px 0 10px}.summary{font-size:15px;margin:12px 0}.ok{color:#137333;font-weight:600}.bad{color:#b3261e;font-weight:600}.warn{color:#8a5a00;font-weight:600}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:9px 8px;border-bottom:1px solid #edf0f3;text-align:left;vertical-align:top}th{font-weight:650}pre{white-space:pre-wrap;word-break:break-word;background:#f7f8fa;border:1px solid #e5e8ec;padding:12px;border-radius:7px;max-height:420px;overflow:auto}.muted{color:#6b7280}button{border:0;border-radius:7px;padding:10px 14px;font-weight:600;cursor:pointer}#run{background:#1f6feb;color:#fff}#copy{background:#e9eef5;margin-left:8px}.danger{background:#fff4f2;border-color:#f1c7c1}.note{font-size:12px;color:#6b7280;margin-top:12px}
-</style>
+<link rel="stylesheet" href="../assets/css/self_test.css">
 </head>
 <body>
 <div class="wrap">
