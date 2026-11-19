@@ -643,3 +643,10 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - Added cleanup in the updater's `finally` path for only that attempt's ZIP, checksum, and staging directory. The separately-created rollback backup directory is intentionally retained, including when rollback is incomplete, so recovery evidence is not destroyed.
 - Added regression coverage verifying partial downloads and nested staging artifacts are removed while the retained backup directory remains.
 - Commits: `c189e3ebe1aaf524d7552b76190e1535f7dfc3b0`, `e23964a6734917492620e75644c0a68a2057c7ba`. Latest-head CI pending.
+
+
+### Latest exact-head CI verification: updater failure cleanup
+
+- PR #56 head `e23964a6734917492620e75644c0a68a2057c7ba` passed all four workflows: Gallery Security Checks, PHP Syntax Check, Release Manifest Tests, and Validate v0.1.2 release attestation.
+- Gallery Security Checks passed the updater rollback suite, including backup digest/size/mode-0600 verification and the new failure-workspace cleanup regression. The real Apache integration suite also passed all plain and percent-encoded path-denial checks while preserving legacy CSS delivery.
+- On update failure, only the attempt's ZIP, checksum, and staging directory are cleaned; rollback backups are deliberately retained.
