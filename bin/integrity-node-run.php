@@ -55,7 +55,7 @@ if (!is_string($configPath) || $configPath === '' || !str_starts_with($configPat
     || (($configStat['mode'] ?? 0) & 0777) !== 0600
     || !str_starts_with($configReal, rtrim($private, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)
     || str_starts_with($configReal, rtrim($web, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
-    fwrite(STDERR, "A mode-0600 node configuration inside the exact-0700 private data directory is required.\\n");
+    fwrite(STDERR, "A mode-0600 node configuration inside the exact-0700 private data directory is required.\n");
     exit(2);
 }
 
