@@ -61,6 +61,23 @@ try {
         base64_decode(json_decode($report, true, 8, JSON_THROW_ON_ERROR)['payload'], true),
         $public
     ), 'Stored report signature must verify with the node public key.');
+
+    $oldEvidencePath = $private . '/integrity-node-c-evidence/report-' . (time() - 31 * 86400) . '-' . str_repeat('f', 64) . '.json';
+    file_put_contents($oldEvidencePath, '{}');
+    chmod($oldEvidencePath, 0600);
+    touch($oldEvidencePath, time() - 31 * 86400);
+    $retentionNonce = str_repeat('8', 64);
+    $retentionReport = $signer->createReport(
+        '1.2.3', $commit, $artifactDigest, $retentionNonce, 'approve',
+        [
+            'target_origin' => 'https://sentryiq.bichet.co.za',
+            'manifest_sha256' => $manifestDigest,
+            'checked_paths' => ['VERSION', '@origin-headers'],
+            'mismatches' => [],
+        ]
+    );
+    $store->append($retentionReport, '1.2.3', $commit, $manifestDigest, $artifactDigest, true, $retentionNonce);
+    evidenceStoreAssert(!file_exists($oldEvidencePath), 'Node C must prune evidence older than its 30-day retention window.');
     evidenceStoreReject(fn() => $store->append($report, '1.2.3', $commit, $manifestDigest, $artifactDigest, true), 'A repeated nonce/report must not overwrite an existing evidence record.');
     evidenceStoreReject(fn() => $store->append($report, '1.2.3', $commit, $manifestDigest, $artifactDigest, false, $nonce), 'The signed decision must match the scheduler approval result.');
     evidenceStoreReject(fn() => $store->append($report, '1.2.3', $commit, $manifestDigest, $artifactDigest, true, str_repeat('f', 64)), 'A valid old report must not satisfy a different scheduler challenge nonce.');
