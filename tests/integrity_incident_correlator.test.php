@@ -28,7 +28,7 @@ $state = [
         'b' => ['node_id' => 'integrity-b', 'accepted_at' => $now - 20, 'payload' => $basePayload],
     ],
 ];
-$correlator = new IntegrityIncidentCorrelator(900, static fn(): int => $now);
+$correlator = new IntegrityIncidentCorrelator(1800, static fn(): int => $now);
 $healthy = $correlator->evaluate($state, 'https://sentryiq.bichet.co.za');
 correlationAssert($healthy['status'] === 'healthy', 'Matching fresh approvals should be healthy.');
 
@@ -47,7 +47,7 @@ $missing = $correlator->evaluate(['reports' => ['a' => $state['reports']['a']]],
 correlationAssert(($missing['nodes']['integrity-b']['state'] ?? null) === 'missing', 'Missing Node B must be detected.');
 
 $staleState = $state;
-$staleState['reports']['a']['accepted_at'] = $now - 901;
+$staleState['reports']['a']['accepted_at'] = $now - 1801;
 $stale = $correlator->evaluate($staleState, 'https://sentryiq.bichet.co.za');
 correlationAssert(($stale['nodes']['integrity-a']['state'] ?? null) === 'stale', 'Stale Node A must be detected.');
 
