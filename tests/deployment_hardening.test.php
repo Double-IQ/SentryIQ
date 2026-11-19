@@ -31,7 +31,7 @@ deploymentCheck(
 );
 
 deploymentCheck(
-    str_contains($apache, 'RewriteCond %{THE_REQUEST} "\s/+((app|cloud|docs|tests|scripts|\.github|\.git))(/|\s)" [NC]'),
+    str_contains($apache, 'RewriteCond %{THE_REQUEST} "\s/+((app|cloud|docs|tests|scripts|\.github|\.git))(/|\s|\?)" [NC]'),
     'Apache rules must deny direct requests to source, test, documentation, and VCS directories without blocking internal rewrites.'
 );
 
