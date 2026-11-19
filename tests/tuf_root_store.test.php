@@ -80,7 +80,7 @@ try {
     try { new TufRootStore($public); } catch (RuntimeException) { $insidePublicRejected = true; }
     rootStoreAssert($insidePublicRejected, 'A directory inside the document root must be rejected.');
 
-    chmod($private, 0755);
+    chmod($private, 0775);
     $writableDirectoryRejected = false;
     try { new TufRootStore($private); } catch (RuntimeException) { $writableDirectoryRejected = true; }
     rootStoreAssert($writableDirectoryRejected, 'A group/world-writable private directory must be rejected.');
