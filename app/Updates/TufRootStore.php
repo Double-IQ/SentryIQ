@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SentryIQ\\Updates;
+namespace SentryIQ\Updates;
 
 use RuntimeException;
 
@@ -195,7 +195,7 @@ final class TufRootStore
         }
         try {
             $metadata = json_decode($bytes, true, 64, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException $exception) {
+        } catch (\JsonException $exception) {
             throw new RuntimeException('TUF root metadata is not valid JSON.', 0, $exception);
         }
 
