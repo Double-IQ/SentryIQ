@@ -167,12 +167,21 @@ final class IntegrityNodeC
             }
         }
 
-        $headerResult = ($this->verifyOriginHeaders)($origin);
-        if (!is_array($headerResult) || !is_bool($headerResult['approved'] ?? null)
-            || !is_array($headerResult['mismatches'] ?? null) || !array_is_list($headerResult['mismatches'])
-            || count($headerResult['mismatches']) > 32
-            || ($headerResult['approved'] !== ($headerResult['mismatches'] === []))) {
-            throw new RuntimeException('Origin security-header verifier returned an invalid result.');
+        try {
+            $headerResult = ($this->verifyOriginHeaders)($origin);
+            if (!is_array($headerResult) || !is_bool($headerResult['approved'] ?? null)
+                || !is_array($headerResult['mismatches'] ?? null) || !array_is_list($headerResult['mismatches'])
+                || count($headerResult['mismatches']) > 32
+                || ($headerResult['approved'] !== ($headerResult['mismatches'] === []))) {
+                throw new RuntimeException('Origin security-header verifier returned an invalid result.');
+            }
+        } catch (\\Throwable $exception) {
+            $this->alertFailure('origin_security_header_check_failed', ['release_version' => $version]);
+            throw new IntegrityNodeAlertedException(
+                'Origin security-header verification failed after direct owner alert delivery.',
+                0,
+                $exception
+            );
         }
         foreach ($headerResult['mismatches'] as $headerMismatch) {
             if (!is_string($headerMismatch) || $headerMismatch === '' || strlen($headerMismatch) > 128
