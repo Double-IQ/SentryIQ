@@ -126,6 +126,18 @@ delivery require separate verification on the existing SentryIQ host. No
 production configuration or host files are changed by this pull request.
 
 
+## Evidence and alert retention
+
+The event store retains report evidence for seven days, prunes expired
+challenges, and retains delivered alert records for thirty days. Pending alerts
+are never removed by retention. The hard report cap is 5,000 records and the
+alert outbox cap is 2,000 records; exceeding either cap fails closed rather
+than silently dropping live evidence or pending alerts. At a five-minute
+schedule for both A and B, seven days produces about 4,032 reports, within the
+current report cap. Do not schedule the two nodes more frequently than every
+five minutes without increasing and revalidating the capacity limits. The Node
+4 monitor prunes retention before each evaluation.
+
 ## Scheduled processing
 
 After a real `alert_sender` callable is configured, schedule the CLI monitor
