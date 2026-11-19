@@ -63,6 +63,9 @@ cp "$RELEASE_ROOT/update-manifest.json" "$OUTPUT_DIR/release-manifest.json"
   cd "$RELEASE_ROOT"
   zip -qr "$OUTPUT_DIR/$PACKAGE" .
 )
-sha256sum "$OUTPUT_DIR/$PACKAGE" > "$OUTPUT_DIR/$PACKAGE.sha256"
-sha256sum "$OUTPUT_DIR/release-manifest.json" > "$OUTPUT_DIR/release-manifest.json.sha256"
+(
+  cd "$OUTPUT_DIR"
+  sha256sum "$PACKAGE" > "$PACKAGE.sha256"
+  sha256sum "release-manifest.json" > "release-manifest.json.sha256"
+)
 echo "Built $OUTPUT_DIR/$PACKAGE"
