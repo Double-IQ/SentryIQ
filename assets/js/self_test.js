@@ -36,6 +36,8 @@ async function checkOne(test){
                     stylesheetDetail.ruleCount=rules.length;
                     stylesheetDetail.parseOk=rules.length>0;
                     stylesheetOk=stylesheetOk&&rules.length>0;
+                    const priorAdoptedSheets=document.adoptedStyleSheets;
+                    document.adoptedStyleSheets=[...priorAdoptedSheets,parsedSheet];
 
                     for(const contract of (test.expectedCssContracts||[])){
                         const declarationProperty=contract.property.replace(/[A-Z]/g,m=>'-'+m.toLowerCase());
@@ -47,10 +49,25 @@ async function checkOne(test){
                             const value=rule.style.getPropertyValue(declarationProperty).trim();
                             if(value){actual=value;found=true;}
                         }
-                        const ok=contract.value!==undefined?actual===contract.value:(contract.not!==undefined?actual!==contract.not:actual!=='');
-                        stylesheetDetail.contracts.push({...contract,actual,ok});
+                        const declarationOk=contract.value!==undefined?actual===contract.value:(contract.not!==undefined?actual!==contract.not:actual!=='');
+                        let computedActual=null;
+                        let computedOk=null;
+                        // "height:auto" is a declaration-level contract; computed height
+                        // depends on the probe's content/intrinsic sizing and is not meaningful.
+                        if (!(contract.property==='height' && contract.value==='auto')) {
+                            const tag=contract.selector==='.btn'?'button':(contract.selector==='.sentryiq-vault-banner'?'img':'div');
+                            const probe=document.createElement(tag);
+                            probe.className=contract.selector.replace(/^\\./,'');
+                            document.body.appendChild(probe);
+                            computedActual=getComputedStyle(probe).getPropertyValue(declarationProperty).trim();
+                            probe.remove();
+                            computedOk=contract.value!==undefined?computedActual===contract.value:(contract.not!==undefined?computedActual!==contract.not:computedActual!=='');
+                        }
+                        const ok=declarationOk&&(computedOk===null||computedOk);
+                        stylesheetDetail.contracts.push({...contract,actual,declarationOk,computedActual,computedOk,ok});
                         if(!ok)stylesheetOk=false;
                     }
+                    document.adoptedStyleSheets=priorAdoptedSheets;
                     
                 }
             }catch(error){
