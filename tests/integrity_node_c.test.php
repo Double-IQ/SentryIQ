@@ -19,7 +19,7 @@ $signer = new IntegrityReportSigner(
     static fn(): int => 1794200000
 );
 
-$publicBody = "<?php echo 'SentryIQ';\n";
+$publicBody = "console.log('SentryIQ');\n";
 $manifest = [
     'format' => 2,
     'repository' => 'Double-IQ/SentryIQ',
@@ -27,8 +27,10 @@ $manifest = [
     'version' => '0.1.3',
     'commit' => str_repeat('a', 40),
     'workflow_path' => '.github/workflows/release.yml',
+    'public_files' => ['assets/app.js'],
+    'public_http_files' => ['assets/app.js'],
     'files' => [[
-        'path' => 'index.php',
+        'path' => 'assets/app.js',
         'size' => strlen($publicBody),
         'sha256' => hash('sha256', $publicBody),
     ]],
@@ -44,6 +46,8 @@ $verifier = static function (string $path, string $version, string $commit, stri
     $verifyCalls[] = [$path, $version, $commit, $installed];
 };
 $fetch = static fn(string $url): string => $publicBody;
+$alertNoop = static function (string $nodeId, string $reason, array $context): void {};
+$headerNoop = static fn(string $origin): array => ['approved' => true, 'mismatches' => [], 'headers' => []];
 
 try {
     $wrongSigner = new IntegrityReportSigner(
@@ -58,8 +62,11 @@ try {
         $wrongIdentityRejected = true;
     }
     nodeCAssert($wrongIdentityRejected, 'Node C must reject a signer configured with another node identity.');
+$missingAlertRejected = false;
+try { new IntegrityNodeC($signer, $verifier, $fetch); } catch (RuntimeException) { $missingAlertRejected = true; }
+nodeCAssert($missingAlertRejected, 'Node C must refuse startup without a direct owner-alert transport.');
 
-    $node = new IntegrityNodeC($signer, $verifier, $fetch);
+    $node = new IntegrityNodeC($signer, $verifier, $fetch, $alertNoop, $headerNoop);
     $approved = $node->verify(
         $manifestPath,
         $artifactPath,
@@ -67,14 +74,29 @@ try {
         str_repeat('a', 40),
         '0.1.2',
         'https://example.invalid/SentryIQ',
-        ['index.php'],
+        ['assets/app.js'],
         str_repeat('c', 64)
     );
     nodeCAssert($approved['approved'] === true, 'Matching public file should approve.');
     nodeCAssert(count($verifyCalls) === 2, 'Both manifest and ZIP provenance must be verified.');
-    nodeCAssert($approved['checked_paths'] === ['index.php'], 'Configured path should be checked.');
+    nodeCAssert($approved['checked_paths'] === ['assets/app.js', '@origin-headers'], 'Configured path should be checked.');
+    $approvedEnvelope = json_decode($approved['report'], true, 8, JSON_THROW_ON_ERROR);
+    $approvedPayload = json_decode(base64_decode($approvedEnvelope['payload'], true), true, 16, JSON_THROW_ON_ERROR);
+    nodeCAssert(($approvedPayload['schema_version'] ?? null) === 2
+        && ($approvedPayload['target_origin'] ?? null) === 'https://example.invalid/SentryIQ'
+        && ($approvedPayload['manifest_sha256'] ?? null) === hash_file('sha256', $manifestPath),
+        'Node C report must sign origin and manifest evidence.');
 
-    $tamperedNode = new IntegrityNodeC($signer, $verifier, static fn(string $url): string => 'tampered');
+    $alerts = [];
+    $tamperedNode = new IntegrityNodeC(
+        $signer,
+        $verifier,
+        static fn(string $url): string => 'tampered',
+        static function (string $nodeId, string $reason, array $context) use (&$alerts): void {
+            $alerts[] = [$nodeId, $reason, $context];
+        },
+        $headerNoop
+    );
     $rejected = $tamperedNode->verify(
         $manifestPath,
         $artifactPath,
@@ -82,11 +104,13 @@ try {
         str_repeat('a', 40),
         '0.1.2',
         'https://example.invalid/SentryIQ',
-        ['index.php'],
+        ['assets/app.js'],
         str_repeat('d', 64)
     );
     nodeCAssert($rejected['approved'] === false, 'Changed public file must reject.');
     nodeCAssert($rejected['mismatches'][0]['reason'] === 'content_mismatch', 'Mismatch evidence should be retained.');
+    nodeCAssert(count($alerts) === 1 && $alerts[0][0] === 'integrity-c'
+        && $alerts[0][1] === 'origin_integrity_mismatch', 'Node C must directly alert its owner on an origin mismatch.');
 
     $unsafeRejected = false;
     try {
@@ -99,74 +123,131 @@ try {
     }
     nodeCAssert($unsafeRejected, 'Path traversal must be rejected.');
 
-    // Fail closed if attestation verification of the manifest fails.
-    $fetchCalls = 0;
+    // Manifest attestation failure must abort before any public-origin request.
+    $manifestFetchCalls = 0;
     $manifestFailureNode = new IntegrityNodeC(
         $signer,
         static function (string $path, string $version, string $commit, string $installed): void {
-            throw new RuntimeException('simulated trust-root refresh failure');
+            throw new RuntimeException('simulated manifest trust-root failure');
         },
-        static function (string $url) use (&$fetchCalls): string {
-            $fetchCalls++;
+        static function (string $url) use (&$manifestFetchCalls, $publicBody): string {
+            $manifestFetchCalls++;
             return $publicBody;
-        }
+        },
+        $alertNoop,
+        $headerNoop
     );
     $manifestFailureRejected = false;
     try {
         $manifestFailureNode->verify(
             $manifestPath, $artifactPath, '0.1.3', str_repeat('a', 40), '0.1.2',
-            'https://example.invalid/SentryIQ', ['index.php'], str_repeat('f', 64)
+            'https://example.invalid/SentryIQ', ['assets/app.js'], str_repeat('1', 64)
         );
     } catch (RuntimeException) {
         $manifestFailureRejected = true;
     }
-    nodeCAssert($manifestFailureRejected, 'Manifest attestation failure must abort verification.');
-    nodeCAssert($fetchCalls === 0, 'No origin fetch may occur after manifest attestation failure.');
+    nodeCAssert($manifestFailureRejected && $manifestFetchCalls === 0,
+        'Manifest attestation failure must abort before public-origin access.');
 
-    // Fail closed independently if the artifact attestation fails after the manifest passes.
-    $attestationCall = 0;
+    // Artifact attestation failure must also abort before public-origin access.
+    $attestationCalls = 0;
+    $artifactFetchCalls = 0;
     $artifactFailureNode = new IntegrityNodeC(
         $signer,
-        static function (string $path, string $version, string $commit, string $installed) use (&$attestationCall): void {
-            $attestationCall++;
-            if ($attestationCall === 2) {
-                throw new RuntimeException('simulated artifact attestation failure');
+        static function (string $path, string $version, string $commit, string $installed) use (&$attestationCalls): void {
+            $attestationCalls++;
+            if ($attestationCalls === 2) {
+                throw new RuntimeException('simulated ZIP attestation failure');
             }
         },
-        static function (string $url) use (&$fetchCalls): string {
-            $fetchCalls++;
+        static function (string $url) use (&$artifactFetchCalls, $publicBody): string {
+            $artifactFetchCalls++;
             return $publicBody;
-        }
+        },
+        $alertNoop,
+        $headerNoop
     );
     $artifactFailureRejected = false;
     try {
         $artifactFailureNode->verify(
             $manifestPath, $artifactPath, '0.1.3', str_repeat('a', 40), '0.1.2',
-            'https://example.invalid/SentryIQ', ['index.php'], str_repeat('1', 64)
+            'https://example.invalid/SentryIQ', ['assets/app.js'], str_repeat('2', 64)
         );
     } catch (RuntimeException) {
         $artifactFailureRejected = true;
     }
-    nodeCAssert($artifactFailureRejected, 'Artifact attestation failure must abort verification.');
-    nodeCAssert($fetchCalls === 0, 'No origin fetch may occur after artifact attestation failure.');
+    nodeCAssert($artifactFailureRejected && $artifactFetchCalls === 0,
+        'ZIP attestation failure must abort before public-origin access.');
 
-    // An origin outage is represented as a signed rejection, never approval.
+    // An origin outage is a signed rejection, never an approval.
+    $offlineAlerts = [];
     $offlineNode = new IntegrityNodeC(
         $signer,
         $verifier,
         static function (string $url): string {
-            throw new RuntimeException('simulated network outage');
-        }
+            throw new RuntimeException('simulated origin outage');
+        },
+        static function (string $nodeId, string $reason, array $context) use (&$offlineAlerts): void {
+            $offlineAlerts[] = [$nodeId, $reason];
+        },
+        $headerNoop
     );
     $offline = $offlineNode->verify(
         $manifestPath, $artifactPath, '0.1.3', str_repeat('a', 40), '0.1.2',
-        'https://example.invalid/SentryIQ', ['index.php'], str_repeat('2', 64)
+        'https://example.invalid/SentryIQ', ['assets/app.js'], str_repeat('3', 64)
     );
-    nodeCAssert($offline['approved'] === false, 'Origin network failure must never approve.');
-    nodeCAssert(
-        ($offline['mismatches'][0]['reason'] ?? null) === 'fetch_failed',
-        'Origin network failure must be recorded as fetch_failed.'
+    nodeCAssert($offline['approved'] === false
+        && ($offline['mismatches'][0]['reason'] ?? null) === 'fetch_failed',
+        'Origin outage must be represented as signed fetch_failed evidence.');
+    nodeCAssert(in_array('assets/app.js', $offline['checked_paths'], true),
+        'A path that could not be fetched must still be recorded as attempted evidence.');
+    nodeCAssert($offlineAlerts === [['integrity-c', 'origin_integrity_mismatch']],
+        'Origin outage must trigger Node C direct owner alerting.');
+
+
+    $attestationAlerts = [];
+    $attestationRejected = false;
+    $rejectAttestation = static function (): void {
+        throw new RuntimeException('synthetic attestation rejection');
+    };
+    $alertingNode = new IntegrityNodeC(
+        $signer,
+        $rejectAttestation,
+        $fetch,
+        static function (string $nodeId, string $reason, array $context) use (&$attestationAlerts): void {
+            $attestationAlerts[] = [$nodeId, $reason];
+        },
+        $headerNoop
     );
+    try {
+        $alertingNode->verify(
+            $manifestPath, $artifactPath, '0.1.3', str_repeat('a', 40), '0.1.2',
+            'https://example.invalid/SentryIQ', ['assets/app.js'], str_repeat('f', 64)
+        );
+    } catch (RuntimeException) {
+        $attestationRejected = true;
+    }
+    nodeCAssert($attestationRejected && $attestationAlerts === [['integrity-c', 'release_attestation_rejected']],
+        'Node C must directly alert its owner when release attestation is rejected.');
+
+    $headerMismatchNode = new IntegrityNodeC(
+        $signer,
+        $verifier,
+        $fetch,
+        $alertNoop,
+        static fn(string $origin): array => [
+            'approved' => false,
+            'mismatches' => ['x-frame-options'],
+            'headers' => [],
+        ]
+    );
+    $headerRejected = $headerMismatchNode->verify(
+        $manifestPath, $artifactPath, '0.1.3', str_repeat('a', 40), '0.1.2',
+        'https://example.invalid/SentryIQ', ['assets/app.js'], str_repeat('9', 64)
+    );
+    nodeCAssert($headerRejected['approved'] === false
+        && in_array(['path' => '@origin-headers', 'reason' => 'security_header_mismatch'], $headerRejected['mismatches'], true),
+        'Origin security-header mismatch must become signed rejection evidence.');
 
     echo "Integrity Node C tests passed.\n";
 } finally {
