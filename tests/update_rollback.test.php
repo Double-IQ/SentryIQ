@@ -70,6 +70,21 @@ try {
         $backupCopy->invoke($manager, $app . '/backup-source.bin', $backup . '/verified-copy.bin') === false,
         'Backup creation must refuse to overwrite an existing destination.'
     );
+    $cleanup = new ReflectionMethod(UpdateManager::class, 'cleanupWorkspaceArtifacts');
+    $cleanup->setAccessible(true);
+    $downloadZip = $data . '/updates/downloads/package.zip';
+    $downloadChecksum = $downloadZip . '.sha256';
+    $staging = $data . '/updates/staging/release-attempt';
+    rollbackWrite($downloadZip, 'partial-package');
+    rollbackWrite($downloadChecksum, 'partial-checksum');
+    rollbackWrite($staging . '/nested/file.php', '<?php // partial extraction');
+    $cleanup->invoke($manager, $downloadZip, $downloadChecksum, $staging);
+    rollbackCheck(
+        !file_exists($downloadZip) && !file_exists($downloadChecksum) && !file_exists($staging),
+        'Failed update download and staging artifacts were not cleaned.'
+    );
+    rollbackCheck(is_dir($backup), 'Workspace cleanup must not remove retained rollback backups.');
+
     $method = new ReflectionMethod(UpdateManager::class, 'rollbackTargets');
     $method->setAccessible(true);
 
