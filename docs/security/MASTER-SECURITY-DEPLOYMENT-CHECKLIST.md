@@ -524,3 +524,12 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
   - [Release Manifest Tests](https://github.com/Double-IQ/SentryIQ/actions/runs/44457154579) — passed.
   - [Release Attestation Verification](https://github.com/Double-IQ/SentryIQ/actions/runs/44457154732) — passed.
 - This supersedes the immediately preceding note that CI was still pending for this head. It does not supersede the explicit limitation: Apache behavior still needs a real disposable Apache integration test before production deployment.
+
+
+### Follow-up: updater backup integrity verification
+
+- Extended updater backup preparation so every existing public and runtime target is copied into the private update backup workspace and then checked for matching byte length and SHA-256 digest before any live replacement begins.
+- Backup destinations must not already exist and source/destination symlinks are rejected; failed verification removes the incomplete destination and aborts before replacement. Backup files are set to mode 0600.
+- Added regression coverage for successful digest verification and refusal to overwrite an existing backup destination in `tests/update_rollback.test.php`.
+- Latest PR #56 head: `d3164287cf83e671a8d0fc667ceff8f7bfbaa126`. CI had not yet published runs at the time of this entry; do not count this updater change as verified until the focused updater rollback test and all four workflows pass on this exact head.
+- This improves per-update rollback backup integrity only. It is not a substitute for the separate off-host disaster-recovery backup system and restore exercise, which remain outstanding.
