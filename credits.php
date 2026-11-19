@@ -13,18 +13,7 @@ sentryiq_security_bootstrap();
 <meta name="robots" content="noindex,follow">
 <title>Credits &amp; Acknowledgements — SentryIQ</title>
 <link rel="stylesheet" href="assets/css/sentryiq.css">
-<style>
-.credits-page{max-width:820px;margin:36px auto;padding:28px}
-.credits-page h1{margin-top:0}
-.credits-intro{color:var(--text-muted,#667085);line-height:1.65}
-.credits-list{display:grid;gap:14px;margin:26px 0}
-.credit-item{padding:16px 18px;border:1px solid var(--border-color,#d9dee7);border-radius:12px;background:var(--card-bg,rgba(127,127,127,.035))}
-.credit-item h2{font-size:1.05rem;margin:0 0 6px}
-.credit-item p{margin:0;line-height:1.55}
-.credit-item a{overflow-wrap:anywhere}
-.credits-note{font-size:.9rem;line-height:1.6;color:var(--text-muted,#667085)}
-.credits-back{display:inline-block;margin-top:10px}
-</style>
+<link rel="stylesheet" href="assets/css/credits.css">
 </head>
 <body>
 <main class="box credits-page">
