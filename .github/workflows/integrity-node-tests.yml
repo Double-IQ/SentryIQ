@@ -7,6 +7,15 @@ on:
       - 'docs/security/private-host-attestation-contract.md'
       - 'app/Updates/PrivateHostAttestationVerifier.php'
       - 'tests/private_host_attestation_verifier.test.php'
+      - 'app/Updates/PrivateHostAttestationCollector.php'
+      - 'app/Updates/PrivateHostAttestationNonceStore.php'
+      - 'app/Updates/PrivateHostAttestationRequestHandler.php'
+      - 'app/Updates/PrivateHostAttestationClient.php'
+      - 'tests/private_host_attestation_collector.test.php'
+      - 'tests/private_host_attestation_nonce_store.test.php'
+      - 'tests/private_host_attestation_request_handler.test.php'
+      - 'tests/private_host_attestation_client.test.php'
+      - 'tests/private_host_attestation_gate.test.php'
       - 'app/Updates/PrivateHostAttestationNonceStore.php'
       - 'tests/private_host_attestation_nonce_store.test.php'
       - 'docs/security/integrity-node-c-heliohost.md'
@@ -103,6 +112,11 @@ jobs:
           php tests/integrity_node_evidence_store.test.php
           php -l app/Updates/PrivateHostAttestationVerifier.php
           php tests/private_host_attestation_verifier.test.php
+          php tests/private_host_attestation_collector.test.php
+          php tests/private_host_attestation_nonce_store.test.php
+          php tests/private_host_attestation_request_handler.test.php
+          php tests/private_host_attestation_client.test.php
+          php tests/private_host_attestation_gate.test.php
           php -l app/Updates/PrivateHostAttestationNonceStore.php
           php tests/private_host_attestation_nonce_store.test.php
           php tests/integrity_release_artifact_fetcher.test.php
