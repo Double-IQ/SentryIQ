@@ -111,7 +111,7 @@ try {
         [
             'target_origin' => 'https://sentryiq.bichet.co.za',
             'manifest_sha256' => $manifestDigest,
-            'checked_paths' => ['VERSION'],
+            'checked_paths' => ['VERSION', '@origin-headers', '@private-host-attestation'],
             'mismatches' => [],
         ]
     );
