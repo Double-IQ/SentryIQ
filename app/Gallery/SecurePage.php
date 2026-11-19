@@ -53,7 +53,7 @@ if (is_string($dataDirectory) && $dataDirectory !== '') {
     </div>
 
     <main class="secure-gallery" data-b2-configured="<?php echo $b2Configured ? 1 : 0; ?>">
-        <p style="text-align:right;margin:0 0 12px;"><a class="btn" href="gallery_b2_settings.php">☁️ Backblaze Storage Settings</a></p>
+        <p class="secure-gallery-inline-1"><a class="btn" href="gallery_b2_settings.php">☁️ Backblaze Storage Settings</a></p>
         <section id="secure-gallery-unlock-panel" class="secure-gallery-panel">
             <h2>🔐 Unlock your private photos</h2>
             <p>Photos are encrypted in this browser before they are sent directly to your private Backblaze B2 bucket. The server stores encrypted key envelopes and photo metadata, not readable images.</p>
@@ -65,7 +65,7 @@ if (is_string($dataDirectory) && $dataDirectory !== '') {
             <h2>Save your Gallery recovery code</h2>
             <p>This recovery code is generated in your browser and is never sent to SentryIQ. Save it somewhere secure before continuing. If you lose every passkey and this code, your photos cannot be recovered.</p>
             <textarea id="secure-gallery-recovery-code" class="secure-gallery-recovery" readonly spellcheck="false"></textarea>
-            <div class="secure-gallery-actions" style="margin-top:10px;">
+            <div class="secure-gallery-actions" class="secure-gallery-inline-2">
                 <button id="secure-gallery-copy-recovery" class="btn" type="button">Copy recovery code</button>
                 <label><input id="secure-gallery-recovery-saved" type="checkbox"> I have saved this recovery code securely</label>
             </div>
@@ -82,8 +82,8 @@ if (is_string($dataDirectory) && $dataDirectory !== '') {
         </section>
 
         <section id="secure-gallery-workspace" class="secure-gallery-panel" hidden>
-            <div class="secure-gallery-row" style="justify-content:space-between;">
-                <h2 style="margin-bottom:0;">Your private photos</h2>
+            <div class="secure-gallery-row" class="secure-gallery-inline-3">
+                <h2 class="secure-gallery-inline-4">Your private photos</h2>
                 <div class="secure-gallery-actions">
                     <button id="secure-gallery-add-passkey" class="btn" type="button">Add this passkey</button>
                     <button id="secure-gallery-lock" class="btn" type="button">Lock Gallery</button>
