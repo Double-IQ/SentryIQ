@@ -747,7 +747,7 @@ final class UpdateManager
                     throw new RuntimeException('The update package contains an invalid entry.');
                 }
 
-                $normalized = str_replace('\\\\', '/', $entry);
+                $normalized = str_replace('\\', '/', $entry);
                 $isDirectoryByName = str_ends_with($normalized, '/');
                 $trimmed = $isDirectoryByName ? rtrim($normalized, '/') : $normalized;
                 $segments = explode('/', $trimmed);
