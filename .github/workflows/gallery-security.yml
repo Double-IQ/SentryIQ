@@ -150,6 +150,9 @@ jobs:
             exit 1
           fi
 
+      - name: Test server-side SentryIQ self-diagnostics
+        run: php tests/self_test_cli.test.php
+
       - name: Test write-capable diagnostics are CLI-only
         run: php tests/diagnostic_write_access.test.php
 
