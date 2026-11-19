@@ -30,11 +30,23 @@ These checks do **not** establish that the new document root is ready for applic
 
 ## Important findings from the repository audit
 
-## Critical first-run path behavior for this deployment
+## First-run protected storage configuration
 
-The new document root is `/home/bicheveb/sentryiq.bichet.co.za`. In `app/Security/FirstRun.php`, `first_run_data_dir()` currently uses `dirname(__DIR__, 4) . '/private_data'`. With the application deployed directly at this document root, that resolves to `/home/private_data`, **not** the existing `/home/bicheveb/private_data` and not the reserved `/home/bicheveb/sentryiq-private`. The first-run code also expects bootstrap source files in a `private_data` directory under the application root. Do not run first-run setup on this subdomain.
+The original first-run path calculation was unsafe for this cPanel layout: deriving a directory by walking up from the PHP source tree could select `/home/private_data` rather than the intended account-private sibling. PR #72 replaces that guess with an explicit `SENTRYIQ_DATA_DIR` setting and fails closed when it is absent or unsafe.
 
-For the new deployment, provision the root pointer config before the first public request, with `data_dir` explicitly set to `/home/bicheveb/sentryiq-private` and `base_url` set to `https://sentryiq.bichet.co.za`. Provision the protected runtime config and required runtime files there from a verified backup/release process. Confirm file ownership, restrictive permissions, PHP readability/writability, and `open_basedir` compatibility. If the pointer config is absent, the current `index.php` can invoke `first_run.php`; therefore the deployment must fail closed rather than expose first-run setup. Never initialize a fresh vault as a migration shortcut.
+Expected deployment layout:
+
+```text
+/home/bicheveb/
+├── sentryiq.bichet.co.za/     # public document root
+└── sentryiq-private/          # protected runtime directory
+```
+
+The expected PHP environment value is `SENTRYIQ_DATA_DIR=/home/bicheveb/sentryiq-private`. The hosting provider must confirm that this value reaches the subdomain's PHP web SAPI, and that PHP `open_basedir` permits access. The installer validates the target before creating it, requires it to be a direct sibling under the account root, rejects symlinked/non-canonical parents, and applies owner-only directory permissions.
+
+For this clean deployment, run first-run setup only after the reviewed release is uploaded and the environment variable has been verified through PHP. A missing or invalid value must stop installation; do not fall back to a source-relative path. The installer creates the fresh protected runtime configuration and root pointer configuration itself. Do not manually invent either configuration file or reuse old runtime data. Confirm ownership, PHP readability/writability, and restrictive permissions after setup.
+
+Implementation and test evidence: [PR #72](https://github.com/Double-IQ/SentryIQ/pull/72). The code and CI changes are reviewed/merged separately from production deployment; this runbook does not authorize changing cPanel or exposing the installer.
 
 
 1. **The installed origin is stored in protected runtime configuration.** First-run setup derives `base_url` from `SERVER_NAME` and the deployed script path, then writes it into both the root `sentryiq_config.php` pointer and the protected runtime configuration. The passkey handlers read the root pointer configuration. These files are not tracked in Git and must be handled as protected production configuration, not overwritten by a code deployment.

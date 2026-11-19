@@ -96,6 +96,9 @@ jobs:
       - name: Test private data directory boundary
         run: php tests/private_data_path.test.php
 
+      - name: Test explicit first-run storage path configuration
+        run: php tests/first_run_path.test.php
+
       - name: Test vault icon SSRF protections
         run: php tests/vault_icon_ssrf.test.php
 

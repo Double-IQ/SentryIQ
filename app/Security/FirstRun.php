@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/security_bootstrap.php';
+require_once __DIR__ . '/FirstRunPath.php';
 require_once __DIR__ . '/BoundedLog.php';
 sentryiq_security_bootstrap();
 
@@ -14,7 +15,7 @@ if (is_file($pointerConfigFile)) {
 
 function first_run_data_dir(): string
 {
-    return rtrim(dirname(__DIR__, 4), '/') . '/private_data';
+    return sentryiq_first_run_configured_data_dir();
 }
 
 function first_run_base_url(): string
@@ -39,10 +40,11 @@ function first_run_log(string $stage, array $details = []): void
 
 function first_run_prepare_dir(string $dir): bool
 {
-    if ($dir === '' || !str_starts_with($dir, '/')) return false;
+    if ($dir === '' || !str_starts_with($dir, '/') || str_contains($dir, "..")) return false;
     if (preg_match('#/(public_html|htdocs|www)(/|$)#i', $dir)) return false;
+    if (!sentryiq_first_run_path_is_safe_candidate($dir)) return false;
     if (is_link($dir)) return false;
-    if (!is_dir($dir) && !@mkdir($dir, 0700, true)) return false;
+    if (!is_dir($dir) && !@mkdir($dir, 0700, false)) return false;
     if (!sentryiq_path_is_outside_document_root($dir)) return false;
     @chmod($dir, 0700);
     clearstatcache(true, $dir);
@@ -134,7 +136,7 @@ function first_run_cleanup(): bool
 $directory = first_run_data_dir();
 $baseUrl = first_run_base_url();
 $error = '';
-first_run_log('FIRST_RUN_PAGE_LOADED', ['data_dir' => $directory, 'base_url_detected' => $baseUrl !== '']);
+first_run_log('FIRST_RUN_PAGE_LOADED', ['data_dir_configured' => $directory !== '', 'base_url_detected' => $baseUrl !== '']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_first_run'])) {
     sentryiq_require_csrf();
@@ -144,7 +146,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_first_run'])
     $confirm = (string)($_POST['setup_password_confirm'] ?? '');
 
     $sourcePrivateDir = dirname(__DIR__, 2) . '/private_data';
-    if (!preg_match('/^[A-Za-z0-9._-]{2,64}$/', $username)) $error = 'Please enter a valid administrator username.';
+    if ($directory === '') $error = 'SentryIQ secure storage is not configured by the hosting environment.';
+    elseif (!preg_match('/^[A-Za-z0-9._-]{2,64}$/', $username)) $error = 'Please enter a valid administrator username.';
     elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) $error = 'Please enter a valid 2FA email address.';
     elseif ($baseUrl === '') $error = 'SentryIQ could not determine its HTTPS application URL.';
     elseif (!first_run_prepare_dir($directory)) $error = 'SentryIQ could not prepare secure storage.';

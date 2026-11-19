@@ -21,7 +21,7 @@ This document is the project-level execution plan for security hardening, zero-k
 |---|---|
 | Subdomain DNS and HTTPS | Confirmed resolving with a valid certificate |
 | New public document root | Created; directory listing disabled |
-| New protected data directory | Created but empty; runtime provisioning not complete |
+| New protected data directory | Intended sibling path documented; PHP environment exposure and runtime provisioning not yet verified |
 | Migration preparation | PR #15 merged |
 | Backblaze B2 CORS | Exact old and new origins configured; browser-level verification still required |
 | Gallery encryption design | PR #11 merged; end-to-end acceptance testing pending |
@@ -55,7 +55,7 @@ This document is the project-level execution plan for security hardening, zero-k
 - [x] Merge migration preparation and document the first-run path hazard (PR #15).
 - [ ] Review the complete application/runtime file inventory and deployment packaging.
 - [ ] Provision the new protected runtime directory from a verified, recoverable source; verify ownership, PHP access, `open_basedir`, and restrictive permissions.
-- [ ] Create and review the new root pointer configuration before the first public request. Do not run first-run setup on the new host: its default path calculation can resolve to the wrong directory.
+- [x] Replace the unsafe source-relative first-run path with an explicit, validated `SENTRYIQ_DATA_DIR` setting and add cPanel path-boundary tests (PR #72; CI passed). The hosting provider must still confirm the variable reaches the PHP web SAPI before first-run setup.
 - [ ] Verify all required runtime files and configuration references without copying or modifying the old installation.
 - [ ] Confirm the intended WebAuthn RP ID and document the passkey re-enrolment plan. Passkeys registered for `bichet.co.za` do not automatically become credentials for `sentryiq.bichet.co.za`.
 - [ ] Test login, 2FA, passkey enrolment/login, recovery, vault lock/logout, CSRF, and Gallery flows on the new origin.
