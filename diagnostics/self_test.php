@@ -348,7 +348,7 @@ $browserTests = [
         ['tag'=>'script','prefix'=>'assets/js/vault_page.js'],
         ['tag'=>'script','prefix'=>'assets/js/vault_page_init.js'],
         ['tag'=>'img','value'=>'assets/images/sentryiq-logo-wide.webp'],
-        ['tag'=>'link','value'=>'sentryiq-icon.php'],
+        ['tag'=>'link','value'=>'sentryiq-icon.php','expectedContentType'=>'image/png'],
     ]],
     ['type' => 'page', 'label' => 'documents.php', 'url' => '../documents.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
         ['tag'=>'link','value'=>'assets/css/sentryiq.css'],
