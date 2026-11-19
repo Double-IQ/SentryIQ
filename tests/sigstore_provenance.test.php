@@ -65,6 +65,57 @@ $claims = SigstoreProvenance::claimsFromArray($statement, $commit, '0.1.2', str_
 provenanceAssert($claims['source_commit'] === $commit, 'Source commit must be extracted from the SLSA resolved dependency.');
 provenanceAssert($claims['workflow_commit'] === $commit, 'Workflow commit must be supplied from the authenticated Fulcio Build Config Digest.');
 provenanceAssert($claims['repository_id'] === '1345956206', 'Repository ID must be pinned.');
+$manifestStatement = $statement;
+$manifestStatement['subject'][] = [
+    'name' => 'release-manifest.json',
+    'digest' => ['sha256' => str_repeat('b', 64)],
+];
+$manifestClaims = SigstoreProvenance::claimsFromArray(
+    $manifestStatement,
+    $commit,
+    '0.1.2',
+    str_repeat('b', 64),
+    'release-manifest.json'
+);
+provenanceAssert($manifestClaims['subject_sha256'] === str_repeat('b', 64), 'The separately attested canonical release manifest must be accepted.');
+$zipClaims = SigstoreProvenance::claimsFromArray(
+    $manifestStatement,
+    $commit,
+    '0.1.2',
+    str_repeat('a', 64),
+    'sentryiq-0.1.2.zip'
+);
+provenanceAssert($zipClaims['subject_sha256'] === str_repeat('a', 64), 'The ZIP subject must be accepted from the same multi-subject provenance.');
+$standaloneManifest = $statement;
+$standaloneManifest['subject'][0]['name'] = 'release-manifest.json';
+provenanceReject(
+    $standaloneManifest,
+    $commit,
+    'A standalone manifest subject must be rejected because the current release workflow attests it with the ZIP.'
+);
+$unknownSubject = $manifestStatement;
+$unknownSubject['subject'][] = [
+    'name' => 'unexpected.txt',
+    'digest' => ['sha256' => str_repeat('c', 64)],
+];
+try {
+    SigstoreProvenance::claimsFromArray($unknownSubject, $commit, '0.1.2', str_repeat('a', 64));
+    throw new RuntimeException('An unexpected third subject must be rejected.');
+} catch (RuntimeException $exception) {
+    if ($exception->getMessage() === 'An unexpected third subject must be rejected.') throw $exception;
+}
+try {
+    SigstoreProvenance::claimsFromArray(
+        $manifestStatement,
+        $commit,
+        '0.1.2',
+        str_repeat('c', 64),
+        'release-manifest.json'
+    );
+    throw new RuntimeException('A manifest subject with the wrong digest must be rejected.');
+} catch (RuntimeException $exception) {
+    if ($exception->getMessage() === 'A manifest subject with the wrong digest must be rejected.') throw $exception;
+}
 provenanceAssert(!array_key_exists('cryptographically_verified', $claims), 'Unverified parsed JSON must never be marked cryptographically verified.');
 
 $mutations = [

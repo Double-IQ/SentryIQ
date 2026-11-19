@@ -8,6 +8,7 @@ require_once __DIR__ . '/TufRootStore.php';
 require_once __DIR__ . '/FulcioCertificateClaims.php';
 require_once __DIR__ . '/SnappyBlockDecoder.php';
 require_once __DIR__ . '/SigstoreProvenance.php';
+require_once __DIR__ . '/ReleaseArtifactVerifier.php';
 
 use K2gl\Sigstore\Bundle;
 use K2gl\Sigstore\IdentityPolicy;
@@ -23,7 +24,7 @@ use Throwable;
  * Verifies a release ZIP using the native PHP Sigstore verifier and Sigstore
  * TUF trust metadata. No shell, exec, proc_open, or GitHub CLI is used.
  */
-final class NativeSigstoreReleaseVerifier
+final class NativeSigstoreReleaseVerifier implements ReleaseArtifactVerifier
 {
     private const API_BASE = 'https://api.github.com';
     private const TUF_METADATA_URL = 'https://tuf-repo-cdn.sigstore.dev';
@@ -69,7 +70,7 @@ final class NativeSigstoreReleaseVerifier
         }
 
         require_once $vendorAutoloadPath;
-        foreach ([Bundle::class, SigstoreVerifier::class, TrustedRoot::class, Updater::class] as $class) {
+        foreach ([Bundle::class, SigstoreVerifier::class, TrustedRoot::class, Updater::class, HttpFetcher::class, NotFoundException::class] as $class) {
             if (!class_exists($class)) {
                 throw new RuntimeException('The configured private vendor directory is missing a required Sigstore/TUF class.');
             }
@@ -102,12 +103,34 @@ final class NativeSigstoreReleaseVerifier
      */
     public function verifyRelease(string $zipPath, string $version): array
     {
-        if (!is_file($zipPath) || is_link($zipPath) || !is_readable($zipPath)) {
-            throw new RuntimeException('The downloaded release ZIP is unavailable.');
+        $normalizedVersion = trim($version);
+        if (str_starts_with($normalizedVersion, 'v')) $normalizedVersion = substr($normalizedVersion, 1);
+        return $this->verifyArtifact($zipPath, $normalizedVersion, 'sentryiq-' . $normalizedVersion . '.zip');
+    }
+
+    /**
+     * Verify one canonical release artifact (manifest or ZIP) independently.
+     *
+     * @return array<string,mixed> authenticated and policy-ready claims
+     */
+    public function verifyArtifact(string $artifactPath, string $version, string $expectedSubjectName): array
+    {
+        if (!is_file($artifactPath) || is_link($artifactPath) || !is_readable($artifactPath)) {
+            throw new RuntimeException('The downloaded release artifact is unavailable.');
         }
-        $digest = hash_file('sha256', $zipPath);
+        $version = trim($version);
+        if (str_starts_with($version, 'v')) $version = substr($version, 1);
+        if (!preg_match('/^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$/', $version)) {
+            throw new RuntimeException('Release artifact version must use MAJOR.MINOR.PATCH format.');
+        }
+        if ($expectedSubjectName !== 'release-manifest.json'
+            && $expectedSubjectName !== 'sentryiq-' . $version . '.zip') {
+            throw new RuntimeException('Expected release subject is outside the canonical manifest/ZIP set.');
+        }
+
+        $digest = hash_file('sha256', $artifactPath);
         if (!is_string($digest) || preg_match('/^[a-f0-9]{64}$/', $digest) !== 1) {
-            throw new RuntimeException('Unable to calculate the release ZIP SHA-256 digest.');
+            throw new RuntimeException('Unable to calculate the release artifact SHA-256 digest.');
         }
 
         $tagCommit = $this->resolveTagCommit($version);
@@ -137,10 +160,16 @@ final class NativeSigstoreReleaseVerifier
                 $bundle = Bundle::fromJson($bundleJson);
                 $envelope = $verifier->verify($bundle, $trustedRoot, $identity);
 
-                // Use the exact leaf certificate authenticated by verify() above.
+                // Use the exact leaf certificate authenticated by verify().
                 // Fulcio OID .1.19 is Build Config Digest (GitHub workflow_sha).
                 $workflowCommit = FulcioCertificateClaims::workflowCommit($bundle->leafCertificate);
-                $claims = SigstoreProvenance::claims($envelope, $workflowCommit, $version, $digest);
+                $claims = SigstoreProvenance::claims(
+                    $envelope,
+                    $workflowCommit,
+                    $version,
+                    $digest,
+                    $expectedSubjectName
+                );
                 if (!hash_equals($tagCommit, $claims['source_commit'])) {
                     throw new RuntimeException("Attested source commit does not match GitHub's current resolution of the release tag.");
                 }

@@ -22,29 +22,61 @@ final class SigstoreProvenance
     public const WORKFLOW_PATH = '.github/workflows/release.yml';
 
     /** @return array<string, mixed> */
-    public static function claims(Envelope $envelope, string $workflowCommit, string $expectedVersion, string $expectedDigest): array
+    public static function claims(Envelope $envelope, string $workflowCommit, string $expectedVersion, string $expectedDigest, ?string $expectedSubjectName = null): array
     {
         $statement = Statement::fromEnvelope($envelope);
-        $claims = self::claimsFromArray($statement->toArray(), $workflowCommit, $expectedVersion, $expectedDigest);
+        $claims = self::claimsFromArray($statement->toArray(), $workflowCommit, $expectedVersion, $expectedDigest, $expectedSubjectName);
         $claims['cryptographically_verified'] = true;
         return $claims;
     }
 
     /** @param array<string, mixed> $statement */
-    public static function claimsFromArray(array $statement, string $workflowCommit, string $expectedVersion, string $expectedDigest): array
+    public static function claimsFromArray(array $statement, string $workflowCommit, string $expectedVersion, string $expectedDigest, ?string $expectedSubjectName = null): array
     {
         if (($statement['predicateType'] ?? null) !== self::PREDICATE_TYPE) {
             throw new RuntimeException('Release attestation does not contain SLSA Provenance v1.');
         }
 
         $subjects = $statement['subject'] ?? null;
-        if (!is_array($subjects) || count($subjects) !== 1 || !is_array($subjects[0] ?? null)) {
-            throw new RuntimeException('Release attestation must identify exactly one artifact subject.');
+        $expectedZipName = 'sentryiq-' . $expectedVersion . '.zip';
+        $expectedSubjectName ??= $expectedZipName;
+        if (!is_array($subjects) || !array_is_list($subjects) || count($subjects) < 1 || count($subjects) > 2
+            || !in_array($expectedSubjectName, ['release-manifest.json', $expectedZipName], true)) {
+            throw new RuntimeException('Release attestation subject set is missing, oversized, or outside the canonical release assets.');
         }
-        $subject = $subjects[0];
-        if (($subject['name'] ?? null) !== 'sentryiq-' . $expectedVersion . '.zip'
-            || strtolower((string)(($subject['digest']['sha256'] ?? ''))) !== strtolower($expectedDigest)) {
-            throw new RuntimeException('Attestation subject name or digest does not match the downloaded release ZIP.');
+
+        $seenSubjects = [];
+        $matchedSubject = false;
+        foreach ($subjects as $subject) {
+            if (!is_array($subject) || !is_string($subject['name'] ?? null)
+                || !is_array($subject['digest'] ?? null)
+                || !is_string($subject['digest']['sha256'] ?? null)
+                || !preg_match('/^[a-f0-9]{64}$/i', $subject['digest']['sha256'])) {
+                throw new RuntimeException('Release attestation contains a malformed artifact subject.');
+            }
+            $name = $subject['name'];
+            if (!in_array($name, ['release-manifest.json', $expectedZipName], true)
+                || isset($seenSubjects[$name])) {
+                throw new RuntimeException('Release attestation contains an unknown or duplicate artifact subject.');
+            }
+            $seenSubjects[$name] = strtolower($subject['digest']['sha256']);
+            if ($name === $expectedSubjectName) {
+                $matchedSubject = hash_equals(strtolower($expectedDigest), $seenSubjects[$name]);
+            }
+        }
+
+        // The current release workflow attests the manifest and ZIP together.
+        // Accept a single ZIP subject only for historical releases predating
+        // the separately published manifest; never accept a standalone manifest.
+        if (count($subjects) === 2
+            && (!isset($seenSubjects['release-manifest.json']) || !isset($seenSubjects[$expectedZipName]))) {
+            throw new RuntimeException('Multi-subject release provenance must bind both the canonical manifest and ZIP.');
+        }
+        if (count($subjects) === 1 && $expectedSubjectName === 'release-manifest.json') {
+            throw new RuntimeException('A release manifest must be attested together with its corresponding ZIP.');
+        }
+        if (!$matchedSubject) {
+            throw new RuntimeException('Attestation subject name or digest does not match the expected release artifact.');
         }
 
         $predicate = $statement['predicate'] ?? null;

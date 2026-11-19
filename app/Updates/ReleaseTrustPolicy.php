@@ -28,7 +28,8 @@ final class ReleaseTrustPolicy
         string $version,
         string $expectedCommit,
         string $artifactSha256,
-        string $installedVersion
+        string $installedVersion,
+        bool $allowInstalledVersion = false
     ): void {
         $version = $this->normalizeVersion($version);
         $installedVersion = $this->normalizeVersion($installedVersion);
@@ -77,7 +78,8 @@ final class ReleaseTrustPolicy
             throw new RuntimeException('Release attestation subject digest does not match the downloaded package.');
         }
 
-        if (version_compare($version, $installedVersion, '<=')) {
+        $comparison = version_compare($version, $installedVersion);
+        if ($comparison < 0 || ($comparison === 0 && !$allowInstalledVersion)) {
             throw new RuntimeException('Release version is not newer than the installed version; rollback and replay are rejected.');
         }
     }

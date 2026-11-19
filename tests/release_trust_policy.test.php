@@ -68,7 +68,13 @@ foreach ($mutations as $label => $changes) {
 
 trustReject(
     fn() => $policy->assertTrustedRelease($claims, '1.2.3', $commit, $digest, '1.2.3'),
-    'Policy must reject replay of the installed version.'
+    'Updater policy must reject replay of the installed version by default.'
+);
+$policy->assertTrustedRelease($claims, '1.2.3', $commit, $digest, '1.2.3', true);
+trustCheck(true, 'Integrity-node policy may verify the exact already-installed release when explicitly enabled.');
+trustReject(
+    fn() => $policy->assertTrustedRelease($claims, '1.2.2', $commit, $digest, '1.2.3', true),
+    'Allowing the installed release must never permit an older release.'
 );
 trustReject(
     fn() => $policy->assertTrustedRelease($claims, '1.2.2', $commit, $digest, '1.2.3'),
