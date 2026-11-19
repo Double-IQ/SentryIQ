@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Updates/TufRootStore.php';
 
-use SentryIQ\\Updates\\TufRootStore;
+use SentryIQ\Updates\TufRootStore;
 
 function rootStoreAssert(bool $condition, string $message): void
 {
@@ -84,7 +84,7 @@ try {
     try { new TufRootStore($private); } catch (RuntimeException) { $writableDirectoryRejected = true; }
     rootStoreAssert($writableDirectoryRejected, 'A group/world-writable private directory must be rejected.');
 
-    echo "TUF root persistence boundary tests passed.\\n";
+    echo "TUF root persistence boundary tests passed.\n";
 } finally {
     foreach (glob($private . '/*') ?: [] as $file) if (is_file($file) || is_link($file)) @unlink($file);
     @rmdir($private);
