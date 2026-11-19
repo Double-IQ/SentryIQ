@@ -14,7 +14,7 @@
     function showError(message) {
         var node = document.getElementById('passkey-status');
         node.textContent = message;
-        node.style.display = 'block';
+        node.classList.add('is-visible');
     }
     async function login() {
         if (!window.PublicKeyCredential || !navigator.credentials) { showError('Passkeys are not available in this browser.'); return; }
