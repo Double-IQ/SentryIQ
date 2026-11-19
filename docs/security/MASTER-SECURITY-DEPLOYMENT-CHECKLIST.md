@@ -605,3 +605,15 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - Replaced the raw-request guard with a per-directory `RewriteRule` matching Apache's normalized path. To preserve the 22 legacy public endpoint rewrites into `app/`, those internal rewrite rules now use Apache 2.4's `[END]` flag so their targets are not reprocessed by the direct-request denial rule.
 - Updated `tests/deployment_hardening.test.php` to assert the normalized-path guard and all 22 [END] legacy application rewrites. The live Apache integration tests now cover encoded first characters, encoded separators, and encoded `.git` names.
 - Fix commit: `7e2bbe1073e31cedd42ec4a28c19bbfd3670d26f`; source-test commit: `0b9470227f26ab49ff2abf68a98add8e817e28c6`. Awaiting exact-head CI. Apache 2.4.8+ is required for [END]; confirm production host version before deployment.
+
+
+### Encoded Apache path bypass — regression now passes
+
+- The normalized-path guard and [END] legacy rewrite changes passed the disposable Apache HTTP integration step on exact PR #56 head `0b9470227f26ab49ff2abf68a98add8e817e28c6`.
+- Observed protected path responses:
+  - HTTP 403: direct `/app/...`, `/app?probe=1`, `/docs?probe=1`, docs file, `.github`, and `.git` requests.
+  - HTTP 403: encoded leading character `/%61pp/Security/SecurityBootstrap.php` — bypass closed.
+  - HTTP 404: encoded separators `/app%2fSecurity%2fSecurityBootstrap.php` — rejected by Apache.
+  - HTTP 403: encoded VCS directory `/.%67it/HEAD` — bypass closed.
+  - HTTP 200: direct CSS asset and legacy `/pm_style.css` alias — compatibility preserved.
+- Diagnostic write-access CLI-only and GitHub CLI attestation adapter tests also passed in the same job. Overall workflow completion and the other three workflow conclusions are still pending at this point.
