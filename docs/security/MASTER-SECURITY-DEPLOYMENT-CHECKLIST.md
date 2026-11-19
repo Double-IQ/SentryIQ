@@ -699,3 +699,11 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - Added `tests/self_test_cli.test.php`, which executes the actual `diagnostics/self_test.php` in an isolated CLI context, extracts its structured JSON report, and fails CI if any server-side source/filesystem/configuration check fails.
 - Wired it into Gallery Security Checks. This covers the self-test's server-side checks without requiring production credentials or mutating runtime data. The diagnostic's browser URL checks still require an installed, authenticated deployment and are not claimed as verified by this CLI test.
 - Commit: `052c9eb4429fc338a9f7d299cf90f0af4022ce4a`; workflow wiring commit: `870e61ebbafa26f48b5e308422103308ee908fc7`. CI pending.
+
+
+### Self-diagnostic source-contract findings and correction
+
+- The first CI execution of the actual self-test exposed stale diagnostic contracts: the favicon is now a PNG asset file (not an embedded base64 constant), favicon and stylesheet URLs carry cache-busting query strings, Gallery markup is emitted by `app/Gallery/SecurePage.php`, index loads the current Vault JS assets rather than the removed Records JS include, and CSS rule parsing missed valid combined/nested selectors.
+- Updated `diagnostics/self_test.php` to validate the actual PNG asset bytes/type, compare URL paths independently of cache-busting query strings, inspect the Gallery render template, validate current index JS assets, and parse CSS rules without assuming a top-level-only selector layout.
+- The isolated CLI self-test explicitly treats the absent install configuration as expected fixture state; all other server-side checks must pass. It does not mark a real deployment's install state healthy or claim browser URL tests.
+- Fix commits: `34a32f61bfdb385e9e8d41a19b19285e526e7799`, `43bebf63ea6bc074eb376a60462cc42d7c2b07de`. CI pending.
