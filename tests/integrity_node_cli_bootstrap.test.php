@@ -40,7 +40,9 @@ fclose($pipes[1]);
 fclose($pipes[2]);
 $status = proc_close($process);
 
-chmod($config, 0400);
+if (!chmod($config, 0400)) throw new RuntimeException('Unable to change node config mode for regression test.');
+clearstatcache(true, $config);
+if (((fileperms($config) ?: 0) & 0777) !== 0400) throw new RuntimeException('Node config mode did not change to 0400.');
 $unsafeProcess = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $unsafePipes, null, $environment);
 if (!is_resource($unsafeProcess)) throw new RuntimeException('Unable to launch CLI permission regression check.');
 fclose($unsafePipes[0]);
@@ -66,7 +68,7 @@ fclose($webPipes[2]);
 $webStatus = proc_close($webProcess);
 
 integrityCliAssert($unsafeStatus === 2,
-    'CLI must reject a read-only 0400 config rather than accepting any mode without group/world access.');
+    'CLI must reject a read-only 0400 config rather than accepting any mode without group/world access. Status=' . $unsafeStatus . ' stderr=' . $unsafeStderr);
 integrityCliAssert($webStatus === 2, 'CLI must reject a node config located inside the public webroot.');
 integrityCliAssert($status === 1, 'CLI must reject a config that does not return a scheduled runner.');
 integrityCliAssert(str_contains((string)$stderr, 'Integrity node run failed: RuntimeException'),
