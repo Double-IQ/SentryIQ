@@ -650,3 +650,12 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - PR #56 head `e23964a6734917492620e75644c0a68a2057c7ba` passed all four workflows: Gallery Security Checks, PHP Syntax Check, Release Manifest Tests, and Validate v0.1.2 release attestation.
 - Gallery Security Checks passed the updater rollback suite, including backup digest/size/mode-0600 verification and the new failure-workspace cleanup regression. The real Apache integration suite also passed all plain and percent-encoded path-denial checks while preserving legacy CSS delivery.
 - On update failure, only the attempt's ZIP, checksum, and staging directory are cleaned; rollback backups are deliberately retained.
+
+
+### GitHub repository protection re-check (2026-11-19)
+
+- Live branch metadata confirms `main.protected: false`.
+- The repository rulesets API returned an empty list. No repository rulesets are currently present in the returned result.
+- The connected integration cannot read the detailed branch-protection endpoint (HTTP 403); repository-admin access is required to configure and verify required reviews/status checks and immutable `v*` tags.
+- The repository metadata response did not expose `security_and_analysis`; secret scanning, push protection, and Dependabot alert settings remain unverified. No GitHub platform settings were changed.
+- Updated `docs/security/REPOSITORY-SECURITY-SETTINGS.md` on PR #56 with this evidence. This remains an owner-side deployment acceptance blocker.
