@@ -231,3 +231,14 @@ body { background:var(--neo-bg); color:var(--neo-text); }
 }
 
 .first-run-note { font-size:12px; color:#777; }
+
+
+/* Recovery-key and login helper presentation. */
+.recovery-key-page{max-width:720px;margin:40px auto}
+.recovery-key-display{padding:20px;margin:20px 0;background:#f8f9fa;border:1px solid #dee2e6;border-radius:10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:18px;line-height:1.8;word-break:break-word;text-align:center}
+.recovery-key-note{font-size:13px;color:#666}
+.recovery-key-warning{font-size:13px;color:#b02a37}
+.recovery-key-continue{display:block;text-align:center;text-decoration:none;margin-top:20px}
+.vault-login-secondary-link{margin-top:15px;text-align:center}
+.vault-credits-footer{max-width:820px;margin:0 auto 24px;padding:12px 18px;text-align:center;font-size:13px;color:var(--text-muted,#667085)}
+.vault-credits-link{color:inherit;text-decoration:underline;text-underline-offset:3px}
