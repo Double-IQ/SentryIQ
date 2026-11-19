@@ -200,6 +200,15 @@ try {
         'Updater did not enforce the GitHub attestation against the resolved release commit.'
     );
 
+    $unconfiguredManager = new UpdateManager($app, $data, null, $apiRunner);
+    $failClosed = false;
+    try {
+        $verifyMethod->invoke($unconfiguredManager, $artifact, $version, '1.2.2');
+    } catch (Throwable) {
+        $failClosed = true;
+    }
+    releaseCheck($failClosed, 'Updater must fail closed when neither native Sigstore nor an explicit test verifier is configured.');
+
     echo "Updater release provenance and manifest tests passed.\\n";
 } finally {
     releaseRemoveTree($root);
