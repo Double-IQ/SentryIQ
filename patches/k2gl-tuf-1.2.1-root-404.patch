@@ -388,3 +388,87 @@ index 0000000..0000000
 +        self::assertSame('ok', (new HttpFetcher)->fetch($this->baseUrl . '/ok', 128));
 +    }
 +}
+
+diff --git a/tests/UpdaterRootRotationSecurityTest.php b/tests/UpdaterRootRotationSecurityTest.php
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/tests/UpdaterRootRotationSecurityTest.php
+@@ -0,0 +1,77 @@
++<?php
++
++declare(strict_types=1);
++
++namespace K2gl\Tuf\Tests;
++
++use K2gl\Tuf\Exception\ExpiredMetadataException;
++use K2gl\Tuf\Exception\UnsignedMetadataException;
++use K2gl\Tuf\Tests\Support\LocalFetcher;
++use K2gl\Tuf\Tests\Support\RepoBuilder;
++use K2gl\Tuf\Tests\Support\SigningKey;
++use K2gl\Tuf\Updater;
++use DateTimeImmutable;
++use DateTimeZone;
++
++final class UpdaterRootRotationSecurityTest extends \PHPUnit\Framework\TestCase
++{
++    private const META_URL = 'https://example.test/metadata';
++    private const TARGET_URL = 'https://example.test/targets';
++
++    public function testRootRotationRejectsRootNotSignedByPreviouslyTrustedKey(): void
++    {
++        $repo = new RepoBuilder;
++        $rootV1 = $repo->rootDoc();
++        $repo->rootVersion = 2;
++        $rootV2 = $repo->rootDoc([$repo->timestampKey]);
++        $fetcher = $this->publish($repo);
++        $fetcher->put(self::META_URL . '/2.root.json', $rootV2);
++        $updater = new Updater($rootV1, self::META_URL, self::TARGET_URL, $fetcher);
++
++        $this->expectException(UnsignedMetadataException::class);
++        $updater->refresh();
++    }
++
++    public function testRootRotationRejectsRootNotSignedByNewRootThreshold(): void
++    {
++        $repo = new RepoBuilder;
++        $rootV1 = $repo->rootDoc();
++        $previousRootKey = $repo->rootKey;
++        $repo->rootKey = SigningKey::generate();
++        $repo->rootVersion = 2;
++        $rootV2 = $repo->rootDoc([$previousRootKey]);
++        $fetcher = $this->publish($repo);
++        $fetcher->put(self::META_URL . '/2.root.json', $rootV2);
++        $updater = new Updater($rootV1, self::META_URL, self::TARGET_URL, $fetcher);
++
++        $this->expectException(UnsignedMetadataException::class);
++        $updater->refresh();
++    }
++
++    public function testExpiredTrustedRootAbortsRefresh(): void
++    {
++        $repo = new RepoBuilder;
++        $repo->rootExpires = '2020-01-01T00:00:00Z';
++        $referenceTime = new DateTimeImmutable('2026-11-14T10:50:00Z', new DateTimeZone('UTC'));
++        $updater = new Updater(
++            $repo->rootDoc(),
++            self::META_URL,
++            self::TARGET_URL,
++            $this->publish($repo),
++            $referenceTime,
++        );
++
++        $this->expectException(ExpiredMetadataException::class);
++        $updater->refresh();
++    }
++
++    private function publish(RepoBuilder $repo): LocalFetcher
++    {
++        $fetcher = new LocalFetcher;
++        $fetcher->put(self::META_URL . '/timestamp.json', $repo->timestampDoc());
++        $fetcher->put(self::META_URL . '/' . $repo->snapshotVersion . '.snapshot.json', $repo->snapshotDoc());
++        $fetcher->put(self::META_URL . '/' . $repo->targetsVersion . '.targets.json', $repo->targetsDoc());
++
++        return $fetcher;
++    }
++}
