@@ -635,3 +635,11 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
   - Validate v0.1.2 release attestation — passed.
 - The updater backup helper now verifies byte count, SHA-256, and exact mode 0600 before allowing live replacement. Existing destinations and symlinked paths remain rejected.
 - The Apache integration suite now verifies encoded source/VCS paths are denied while legacy CSS rewrite compatibility remains intact.
+
+
+### Updater temporary workspace cleanup hardening
+
+- Found that failed update attempts could leave downloaded ZIP/checksum files and extracted staging trees under the private update workspace. Successful updates removed them, but failures before commit did not.
+- Added cleanup in the updater's `finally` path for only that attempt's ZIP, checksum, and staging directory. The separately-created rollback backup directory is intentionally retained, including when rollback is incomplete, so recovery evidence is not destroyed.
+- Added regression coverage verifying partial downloads and nested staging artifacts are removed while the retained backup directory remains.
+- Commits: `c189e3ebe1aaf524d7552b76190e1535f7dfc3b0`, `e23964a6734917492620e75644c0a68a2057c7ba`. Latest-head CI pending.
