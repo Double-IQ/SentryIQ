@@ -422,6 +422,30 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 | 2026-11-18 | 5.5 | Reviewed update UI/API authentication, fresh-auth and CSRF enforcement, method controls, lock, cache, and failure responses | Confirmed authenticated check and fresh-auth+CSRF install path; recorded lock/workspace path hardening and post-failure maintenance/lock gaps already covered by 5.3/5.4/6.3; no update executed | Yes |
 | 2026-11-18 | 4.4 | Audited Documents encryption/metadata, Gallery browser-side encryption, B2 object authorization, signed URL lifecycle, and setup requirements | Confirmed encrypted document bodies and client-side Gallery ciphertext; recorded B2 actual-size/expiry verification gaps and unverified live bucket privacy/CORS/key scope; source review only, no live B2 test | Yes |
 
+
+## Remediation progress — 2026-11-19
+
+### Consolidated remediation PR #56
+
+- PR: https://github.com/Double-IQ/SentryIQ/pull/56
+- Current verified head: `ed108a5e3e4dacb6d49641afea9f6640e40e3dbb`
+- PR state: open, not merged; GitHub reports mergeable.
+- Latest CI at this exact head: all four workflows completed successfully:
+  - PHP Syntax Check: https://github.com/Double-IQ/SentryIQ/actions/runs/44374662289
+  - Gallery Security Checks: https://github.com/Double-IQ/SentryIQ/actions/runs/44374662034
+  - Release Manifest Tests: https://github.com/Double-IQ/SentryIQ/actions/runs/44374662417
+  - Release Attestation Verification: https://github.com/Double-IQ/SentryIQ/actions/runs/44374662644
+
+### CSP remediation completed in source and covered by tests
+
+- Consolidated route-aware CSP handling so Gallery-only `blob:` image support and the configured B2 endpoint do not conflict with a stricter second CSP header.
+- Externalized inline executable scripts and event handlers from the reviewed application pages, including Storage, updater confirmation, Passkeys management, Gallery settings, System Log and copy-code.
+- Externalized inline `<style>` blocks from the reviewed pages into version-controlled CSS assets, including the Security Features page.
+- Added a recursive PHP-source regression scan for executable inline script blocks, inline event handlers and inline style blocks (excluding the email-template PHP fragment, which is not a rendered page).
+- Added Node syntax checks for the new Passkeys and copy-code JavaScript assets.
+- Remaining CSP work: inline `style=` attributes still exist in templates and `style-src 'unsafe-inline'` has therefore deliberately not been removed. This remains open; do not describe CSP hardening as fully complete.
+- No production deployment or live-host configuration change was performed.
+
 ## Working rules
 
 1. Complete Phase 1 audit items 3.1 through 6.5 sequentially, recording each item and its evidence before moving on; do not pause for user review after every audit item.
