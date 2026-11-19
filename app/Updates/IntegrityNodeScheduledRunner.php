@@ -102,6 +102,7 @@ final class IntegrityNodeScheduledRunner
                 throw new RuntimeException('Release resolver version must use stable MAJOR.MINOR.PATCH format.');
             }
             $commit = strtolower($release['commit']);
+            $this->releaseState->assertCandidateIdentity($version, $commit);
             $installedVersion = $baseline['version'];
             $staged = $this->artifactFetcher->fetch(
                 $version,
