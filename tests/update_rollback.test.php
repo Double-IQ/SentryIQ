@@ -63,6 +63,10 @@ try {
         'Verified backup copy digest differs from its source.'
     );
     rollbackCheck(
+        (fileperms($backup . '/verified-copy.bin') & 0777) === 0600,
+        'Verified backup copy must be restricted to owner read/write permissions.'
+    );
+    rollbackCheck(
         $backupCopy->invoke($manager, $app . '/backup-source.bin', $backup . '/verified-copy.bin') === false,
         'Backup creation must refuse to overwrite an existing destination.'
     );
