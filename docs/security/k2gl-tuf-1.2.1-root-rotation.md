@@ -68,3 +68,18 @@ file, DNS setting, or deployment configuration is changed by this patch PR.
 ## CI compatibility note
 
 The current `roave/security-advisories` development-only meta-package no longer resolves on the PHP 8.1 patch level supplied by the hosted runner. The validation workflow temporarily omits that development-only constraint for the PHP 8.1 test job; it does not change the package patch or any runtime dependency.
+
+## Additional rotation and expiry regression tests
+
+The candidate patch also adds offline regression tests for three fail-closed
+conditions: a candidate root not signed by the previously trusted root, a
+candidate root not signed by its own new root threshold, and an expired trusted
+bootstrap root. The upstream suite already covers a successful root rotation
+and verifies that the updater exposes the latest verified root bytes after
+refresh. The HelioHost live probe confirms a successful refresh, but does not
+claim that a root rotation occurred during that run.
+
+The updater exposes verified root bytes to its caller; durable storage,
+atomic replacement, permissions, corruption recovery, and reload across
+separate PHP requests remain application-integration responsibilities and
+must be tested before Node C relies on persisted rotation state.
