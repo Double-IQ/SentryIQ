@@ -86,7 +86,11 @@ async function checkOne(test){
                             const ar=await fetch(resolvedUrl,{credentials:'same-origin',cache:'no-store',redirect:'follow',headers:{'Accept':'*/*'}});
                             const at=ar.headers.get('content-type')||'';
                             const expectedType=ref.tag==='link'?'text/css':(ref.tag==='script'?'text/javascript':'image/');
-                            const typeOk=ref.tag==='img'?at.toLowerCase().startsWith('image/'):at.toLowerCase().startsWith(expectedType);
+                            const typeOk=ref.tag==='img'
+                                ?at.toLowerCase().startsWith('image/')
+                                :(ref.tag==='script'
+                                    ?(at.toLowerCase().startsWith('text/javascript')||at.toLowerCase().startsWith('application/javascript'))
+                                    :at.toLowerCase().startsWith(expectedType));
                             urlCheck={status:ar.status,statusOk:ar.status>=200&&ar.status<300,contentType:at,contentTypeOk:typeOk,finalUrl:ar.url};
                             if(!(urlCheck.statusOk&&urlCheck.contentTypeOk))bodySignatureOk=false;
                         }catch(error){
