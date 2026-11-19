@@ -19,6 +19,8 @@ This document is the single working checklist for the reset security review and 
 - Real Apache integration covers direct and encoded protected-path denial while preserving static assets and the legacy stylesheet route. Isolated updater apply integration exercises the real apply path against disposable directories; genuine Sigstore verification is separately covered by the attestation workflow.
 - No production deployment/update, DNS or credential change, or live-host configuration change has been made.
 
+**Owner execution pack:** [OWNER-ACCEPTANCE-HANDOVER.md](OWNER-ACCEPTANCE-HANDOVER.md) provides the sequenced repository-admin, backup/restore, production-host, B2, release/updater, and four-node acceptance steps, with evidence fields and explicit safety boundaries.
+
 **Open owner/production acceptance gates:** configure and verify branch protection and immutable release-tag rules; verify GitHub secret-scanning/push-protection/Dependabot/private-reporting settings; configure encrypted off-host backups and complete a restore exercise; verify production Apache/PHP/TLS/HSTS/reverse-proxy/filesystem/logging settings; verify B2 bucket privacy/CORS/key scope/version retention; configure and test `SENTRYIQ_GH_BINARY` on the production host; publish a new signed manifest-bearing release before any updater-based production update.
 
 **Phase 2 four-node deployment remains blocked** until PR review/merge and the required operational acceptance gates. Node 4 (BTM-SA) shares a physical host with SentryIQ and is not an independent infrastructure failure domain.
