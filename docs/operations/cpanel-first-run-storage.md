@@ -53,7 +53,7 @@ Before creating the directory, the installer checks that:
 
 After creation, the installer additionally verifies that the resulting directory resolves outside the document root, applies mode `0700`, and can be written to by PHP.
 
-The application must not be initialized until the variable is confirmed to reach PHP and these checks pass. A missing or invalid value is a hard stop, not a reason to fall back to a path inferred from the source tree.
+The application must not be initialized until both required environment values are confirmed to reach PHP, the owner token passes its format check without being disclosed, and the private-storage checks pass. A missing or invalid value is a hard stop, not a reason to fall back to a path inferred from the source tree.
 
 ## Operator check before first-run
 
