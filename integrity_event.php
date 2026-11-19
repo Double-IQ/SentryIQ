@@ -29,6 +29,10 @@ header('Allow: POST');
 function integrityEventRespond(int $status, array $body): never
 {
     http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    header('Pragma: no-cache');
+    header('X-Content-Type-Options: nosniff');
     echo json_encode($body, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
     exit;
 }
