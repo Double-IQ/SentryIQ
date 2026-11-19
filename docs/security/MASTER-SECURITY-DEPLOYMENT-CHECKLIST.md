@@ -533,3 +533,15 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - Added regression coverage for successful digest verification and refusal to overwrite an existing backup destination in `tests/update_rollback.test.php`.
 - Latest PR #56 head: `d3164287cf83e671a8d0fc667ceff8f7bfbaa126`. CI had not yet published runs at the time of this entry; do not count this updater change as verified until the focused updater rollback test and all four workflows pass on this exact head.
 - This improves per-update rollback backup integrity only. It is not a substitute for the separate off-host disaster-recovery backup system and restore exercise, which remain outstanding.
+
+
+### Verification update: updater backup integrity change passed CI
+
+- Updater backup copies are now independently verified by byte length and SHA-256 before any live replacement. Backup destination overwrite and symlink cases are rejected; backup files are mode 0600.
+- The new regression cases in `tests/update_rollback.test.php` passed in Gallery Security Checks on exact PR #56 head `d3164287cf83e671a8d0fc667ceff8f7bfbaa126`.
+- All four workflows passed on this exact head:
+  - [Gallery Security Checks](https://github.com/Double-IQ/SentryIQ/actions/runs/44457996224) — passed, including updater rollback and provenance tests.
+  - [PHP Syntax Check](https://github.com/Double-IQ/SentryIQ/actions/runs/44457996206) — passed.
+  - [Release Manifest Tests](https://github.com/Double-IQ/SentryIQ/actions/runs/44457996169) — passed.
+  - [Release Attestation Verification](https://github.com/Double-IQ/SentryIQ/actions/runs/44457996208) — passed, including genuine published asset digest and Sigstore attestation verification.
+- This verifies updater backup copy integrity under the automated regression suite. It does not establish off-host disaster-recovery backups or a successful restore exercise; those remain open.
