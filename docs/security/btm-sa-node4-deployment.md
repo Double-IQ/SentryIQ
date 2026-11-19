@@ -18,6 +18,11 @@ own independent owner-alert paths.
   state-file replacement to consume each challenge once and retain evidence.
 - A/B Ed25519 public keys and per-node bearer tokens are supplied only through
   the private runtime configuration.
+- `PrivateHostAttestationRequestHandler` is framework-neutral code for a separate
+  isolated host service. It is not exposed by `integrity_event.php` or wired into
+  the ordinary SentryIQ web-PHP process. Its listener/reverse-proxy adapter is a
+  separate deployment gate because the collector signing key must not be
+  readable by the normal web application.
 
 The event endpoint is not part of the user login/session flow. It accepts only
 POST JSON over HTTPS, has no browser CORS surface, applies a strict body limit,
@@ -77,6 +82,13 @@ php -r 'echo rtrim(strtr(base64_encode(random_bytes(48)), "+/", "-_"), "="), PHP
 
 Place token A only in Node 4's private `node_tokens['integrity-a']` and Node A's private runtime config; place token B only in the matching B entries. Transfer each token to its node over a secure channel. Do not paste tokens into GitHub issues, pull requests, source files, or shared logs.
 
+
+## Private-host attestation is not wired into the ordinary web application
+
+The A/B `PrivateHostAttestationClient` targets `https://sentryiq.bichet.co.za/private-host-attestation`. The repository contains the collector, verifier, nonce store and framework-neutral request handler, but intentionally does not expose that handler through the normal SentryIQ PHP web process. A real listener or reverse-proxy adapter must run under a separate OS identity with exclusive read access to the collector key and private-file inventory. Do not add a normal `.htaccess` rewrite to a PHP endpoint running under the same cPanel account: that would let a web-app compromise read the signing key and forge its own host attestation.
+
+If the current shared cPanel account cannot provide a separate service identity and read-only access boundary, A/B private-host attestation cannot be enabled there. A/B remain fail-closed until an approved isolated service exists. Public HTTP checks must not be described as verification of private PHP or configuration files.
+
 ## Protocol
 
 1. A/B use `IntegrityEventClient` to authenticate to `POST /integrity_event.php` with
@@ -135,7 +147,7 @@ does not replace those checks.
 
 Node 4 shares the SentryIQ host and is not a failure-independent alert destination. Each separately hosted node must therefore configure its own direct owner-alert callback, with credentials and destination held in that node's private configuration and delivery performed from that node's own provider. The callback is invoked for attestation rejection and public-origin content mismatch; a callback delivery failure fails the node run rather than silently treating the alert as delivered.
 
-The A/B constructors require a fourth argument `$notifyFailure` for attestation rejection and origin mismatch. Node C has the same mandatory direct-alert requirement. A node cannot be constructed without a separately configured owner-alert transport. The event runner requires a direct alert callback and invokes it if Node 4 cannot issue a challenge or accept the signed report:
+The A/B constructors require their node-bound `PrivateHostAttestationGate`, a direct `$notifyFailure` callback and an origin-header verifier. Node C requires its own direct-alert callback and origin-header verifier, but no private-host gate. A node cannot be constructed without the required security checks and separately configured owner-alert transport. The event runner requires a direct alert callback and invokes it if Node 4 cannot issue a challenge or accept the signed report:
 
 **On Node A only** (its own host, credentials and schedule):
 
@@ -143,7 +155,7 @@ The A/B constructors require a fourth argument `$notifyFailure` for attestation 
 $nodeAOwnerAlert = static function (string $nodeId, string $reason, array $context): void {
     // Deliver directly from Node A's provider to the owner.
 };
-$nodeA = new IntegrityNodeA($signerA, $verifyAttestation, null, $nodeAOwnerAlert);
+$nodeA = new IntegrityNodeA($signerA, $verifyAttestation, $privateHostGateA, null, $nodeAOwnerAlert, $verifyHeaders);
 $clientA = new IntegrityEventClient($node4Endpoint, 'integrity-a', $node4BearerTokenA);
 $runnerA = new IntegrityNodeEventRunner($clientA, $nodeAOwnerAlert);
 ```
@@ -154,7 +166,7 @@ $runnerA = new IntegrityNodeEventRunner($clientA, $nodeAOwnerAlert);
 $nodeBOwnerAlert = static function (string $nodeId, string $reason, array $context): void {
     // Deliver directly from Node B's provider to the owner.
 };
-$nodeB = new IntegrityNodeB($signerB, $verifyAttestation, null, $nodeBOwnerAlert);
+$nodeB = new IntegrityNodeB($signerB, $verifyAttestation, $privateHostGateB, null, $nodeBOwnerAlert, $verifyHeaders);
 $clientB = new IntegrityEventClient($node4Endpoint, 'integrity-b', $node4BearerTokenB);
 $runnerB = new IntegrityNodeEventRunner($clientB, $nodeBOwnerAlert);
 ```
@@ -188,7 +200,7 @@ SENTRYIQ_INTEGRITY_NODE_CONFIG=/absolute/private/path/integrity-node.php php /ab
 
 `bin/integrity-node-run.php` is CLI-only. The private PHP configuration must return a fully constructed `IntegrityNodeScheduledRunner`. The runner requires a final `IntegrityNodeVerifierBinding` that wraps the concrete `IntegrityNodeA`, `IntegrityNodeB` or `IntegrityNodeC` class for the same node ID; arbitrary verification callbacks are not accepted. The runner stages the selected release assets outside the webroot, invokes the node verifier, and for A/B performs the Node 4 challenge/report exchange. Node C generates its own nonce and never contacts Node 4. Exit status is zero only for an approved result; rejected results and operational failures exit nonzero.
 
-The private configuration must supply a `resolveRelease` callable returning the release version, full source commit and installed-version baseline. This resolver must identify the release actually deployed at the production origin (for example from an authenticated deployment record or a protected deployment marker). It must **not** blindly select GitHub's newest release, because a newly published release may not yet be deployed. The public-path allowlist, private data directory, actual webroot, signing identity, native Sigstore verifier and direct owner-alert transport are all node-local configuration.
+The private configuration must supply a `resolveRelease` callable returning the release version and full source commit from the live `/VERSION` marker and canonical GitHub tag. The installed-version baseline is stored separately in the node's private monotonic state store. Initialize it once with `bin/integrity-node-baseline.php`, using a mode-0600 private PHP config containing only the independently confirmed known-good version, commit, manifest digest and ZIP digest. The script creates the state lock safely and refuses to overwrite an existing baseline. Delete the one-time baseline config after use. Never select GitHub's newest release blindly. The public-path allowlist, private data directory, actual webroot, signing identity, native Sigstore verifier and direct owner-alert transport are all node-local configuration.
 
 Example construction pattern (illustrative; use that node's own paths, signer and credentials):
 
