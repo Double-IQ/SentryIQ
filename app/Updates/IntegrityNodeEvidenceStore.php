@@ -185,8 +185,29 @@ final class IntegrityNodeEvidenceStore
         }
 
         $existingRecords = glob($this->directory . '/report-*.json');
-        if (!is_array($existingRecords) || count($existingRecords) >= 10000) {
-            throw new RuntimeException('Node C private evidence store is full or unreadable.');
+        if (!is_array($existingRecords)) {
+            throw new RuntimeException('Unable to enumerate Node C evidence history.');
+        }
+        $retainedRecords = 0;
+        $retentionCutoff = time() - 30 * 86400;
+        foreach ($existingRecords as $existingPath) {
+            clearstatcache(true, $existingPath);
+            $existingStat = @lstat($existingPath);
+            if (!is_array($existingStat) || (($existingStat['mode'] ?? 0) & 0170000) !== 0100000
+                || (($existingStat['mode'] ?? 0) & 0777) !== 0600
+                || preg_match('/^report-[0-9]{1,12}-[a-f0-9]{64}\\.json$/', basename($existingPath)) !== 1) {
+                throw new RuntimeException('Node C evidence history contains an unsafe file.');
+            }
+            $modified = @filemtime($existingPath);
+            if (!is_int($modified)) throw new RuntimeException('Unable to read Node C evidence retention timestamp.');
+            if ($modified < $retentionCutoff) {
+                if (!@unlink($existingPath)) throw new RuntimeException('Unable to prune expired Node C evidence.');
+                continue;
+            }
+            $retainedRecords++;
+        }
+        if ($retainedRecords >= 10000) {
+            throw new RuntimeException('Node C evidence capacity has been reached; refusing to discard recent signed history.');
         }
         $evidenceId = hash('sha256', $signedEnvelope);
         $filename = 'report-' . $payload['issued_at'] . '-' . $payload['nonce'] . '.json';
