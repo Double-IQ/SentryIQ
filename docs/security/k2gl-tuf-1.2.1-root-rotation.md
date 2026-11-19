@@ -83,3 +83,18 @@ The updater exposes verified root bytes to its caller; durable storage,
 atomic replacement, permissions, corruption recovery, and reload across
 separate PHP requests remain application-integration responsibilities and
 must be tested before Node C relies on persisted rotation state.
+
+## Durable root persistence boundary
+
+The separate `TufRootStore` candidate persists only the exact root bytes returned
+after a complete successful TUF refresh. It enforces an atomic replacement,
+owner-only root-file permissions, a private-directory boundary outside the
+document root, a monotonic root-version guard, and rejection of corrupt or
+symlinked root/lock files. It does not verify signatures itself; callers must
+never pass unverified metadata to `storeVerifiedRoot()`.
+
+CI exercises the real pinned TUF updater against a synthetic root rotation,
+reloads the stored root in a fresh PHP process, and verifies that an incomplete
+refresh cannot replace the last trusted root. This is still a storage component
+and test boundary, not production activation: the updater runtime has not yet
+been wired to this store or tested on the HelioHost PHP web SAPI.
