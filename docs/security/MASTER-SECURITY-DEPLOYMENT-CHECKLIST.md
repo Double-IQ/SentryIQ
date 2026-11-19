@@ -575,3 +575,18 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - The next diagnostic run showed the direct static CSS target itself returned 403, before the legacy rewrite assertion. Therefore the observed failure was not isolated to the legacy alias.
 - The CI harness now serves the copied repository from Apache's standard `/var/www/html/sentryiq-apache-test` location with an explicit matching `<Directory>` authorization/override block. If the HTTP checks fail, the workflow emits Apache's error log to identify the exact denial reason.
 - Harness correction commit: `1d572933e8353e6dcaeb00bfcfc71e9757bc07ec`. Re-run pending; the actual Apache HTTP test remains unverified.
+
+
+### Apache HTTP integration result — assertions passed
+
+- On PR #56 head `1d572933e8353e6dcaeb00bfcfc71e9757bc07ec`, the disposable Apache HTTP integration step completed successfully.
+- Observed responses from the job log:
+  - HTTP 403: `/app/Security/SecurityBootstrap.php`
+  - HTTP 403: `/app?probe=1`
+  - HTTP 403: `/docs/operations/backup-restore-runbook.md`
+  - HTTP 403: `/.github/workflows/gallery-security.yml`
+  - HTTP 403: `/.git/HEAD`
+  - HTTP 200: `/assets/css/sentryiq.css`
+  - HTTP 200: `/pm_style.css` (legacy internal rewrite)
+- The remaining Gallery Security workflow steps, including write-capable diagnostics CLI-only and GitHub CLI attestation adapter tests, also completed successfully. The job's steps are all green; the workflow run is still finalizing its post-job cleanup at the time of this note.
+- This verifies the tested rules in a disposable Apache 2.4 CI virtual host. Production hosting configuration still requires provider-specific validation.
