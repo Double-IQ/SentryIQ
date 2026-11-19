@@ -68,7 +68,7 @@ try {
   }
 
   const routeEntries = Object.entries(routes)
-    .map(([route, target]) => ${JSON.stringify(route)} + ' => ' + ${JSON.stringify(target)})
+    .map(([route, target]) => JSON.stringify(route) + ' => ' + JSON.stringify(target))
     .join(',\n');
   const router = `<?php
 $root = ${JSON.stringify(root)};
