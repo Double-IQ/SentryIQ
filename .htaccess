@@ -5,6 +5,11 @@ RewriteEngine On
 RewriteRule ^private_data(?:/|$) - [F,L]
 RewriteRule ^(?:sentryiq_config\.php|auth_flow\.php|\.user\.ini)$ - [F,L]
 
+# Block direct HTTP requests to source, test, documentation, and VCS directories.
+# Internal rewrites to application handlers remain allowed because THE_REQUEST retains the public URL.
+RewriteCond %{THE_REQUEST} "\\s/+((app|cloud|docs|tests|scripts|\\.github|\\.git))(/|\\s)" [NC]
+RewriteRule ^ - [F,L]
+
 # Keep existing deployed endpoint URLs working while implementations live under app/.
 RewriteRule ^document_delete\.php$ app/Documents/Delete.php [L]
 RewriteRule ^document_download\.php$ app/Documents/Download.php [L]
