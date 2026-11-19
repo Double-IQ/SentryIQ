@@ -328,7 +328,9 @@ add_stylesheet_contract_checks('assets/css/sentryiq.css');
 
 $browserTests = [
     ['type' => 'asset', 'label' => 'CSS', 'url' => 'assets/css/sentryiq.css', 'expectedContentType' => 'text/css', 'parseCss' => true],
-    ['type' => 'asset', 'label' => 'Vault folders JS', 'url' => 'assets/js/vault_folders.js?v=20260915-2', 'expectedContentType' => 'text/javascript'],
+    ['type' => 'asset', 'label' => 'Vault folders JS', 'url' => 'assets/js/vault_folders.js?v=20260919-7', 'expectedContentType' => 'text/javascript'],
+    ['type' => 'asset', 'label' => 'Vault page JS', 'url' => 'assets/js/vault_page.js', 'expectedContentType' => 'text/javascript'],
+    ['type' => 'asset', 'label' => 'Vault page initialization JS', 'url' => 'assets/js/vault_page_init.js', 'expectedContentType' => 'text/javascript'],
     ['type' => 'asset', 'label' => 'Records JS', 'url' => 'assets/js/records_view.js?v=20260916-2', 'expectedContentType' => 'text/javascript'],
     ['type' => 'asset', 'label' => 'Safari JS', 'url' => 'assets/js/safari.js', 'expectedContentType' => 'text/javascript'],
     ['type' => 'asset', 'label' => 'Wide logo', 'url' => 'assets/images/sentryiq-logo-wide.webp', 'expectedContentType' => 'image/webp'],
@@ -336,7 +338,8 @@ $browserTests = [
     ['type' => 'page', 'label' => 'index.php', 'url' => 'index.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
         ['tag'=>'link','value'=>'assets/css/sentryiq.css'],
         ['tag'=>'script','prefix'=>'assets/js/vault_folders.js'],
-        ['tag'=>'script','prefix'=>'assets/js/records_view.js'],
+        ['tag'=>'script','prefix'=>'assets/js/vault_page.js'],
+        ['tag'=>'script','prefix'=>'assets/js/vault_page_init.js'],
         ['tag'=>'img','value'=>'assets/images/sentryiq-logo-wide.webp'],
         ['tag'=>'link','value'=>'sentryiq-icon.php'],
     ]],
