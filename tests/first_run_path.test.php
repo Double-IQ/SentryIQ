@@ -58,6 +58,19 @@ try {
         !sentryiq_first_run_path_is_safe_candidate($outside . '/private_data', $docRoot),
         'A path outside the cPanel account root must be rejected.'
     );
+    firstRunPathAssert(
+        !sentryiq_first_run_path_is_safe_candidate($accountRoot . '/sentryiq-private', ''),
+        'A missing document root must fail closed for web first-run storage.'
+    );
+    $linkedParent = $fixture . '/linked-account';
+    if (!symlink($accountRoot, $linkedParent)) {
+        throw new RuntimeException('Unable to create symlinked account-root fixture.');
+    }
+    firstRunPathAssert(
+        !sentryiq_first_run_path_is_safe_candidate($linkedParent . '/sentryiq-private', $docRoot),
+        'A symlinked account-root parent must be rejected.'
+    );
+    unlink($linkedParent);
 } finally {
     rmdir($docRoot);
     rmdir($accountRoot);
