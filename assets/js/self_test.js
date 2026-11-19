@@ -78,7 +78,8 @@ async function checkOne(test){
                     else if(ref.tag==='img')match=Array.from(doc.querySelectorAll('img[src]')).find(el=>{const v=el.getAttribute('src')||'';return ref.value?v===ref.value:(ref.prefix&&v.startsWith(ref.prefix));})||null;
                     const found=!!match;
                     const actualUrl=match?(match.getAttribute(ref.tag==='link'?'href':'src')||''):'';
-                    const resolvedUrl=actualUrl?new URL(actualUrl,location.href).href:'';
+                    // HTML asset references are relative to the page being tested, not the diagnostic page.
+                    const resolvedUrl=actualUrl?new URL(actualUrl,r.url).href:'';
                     let urlCheck=null;
                     if(found){
                         try{
