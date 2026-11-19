@@ -1,5 +1,7 @@
 # SentryIQ subdomain migration runbook
 
+**Deployment model decision (2026-11-19):** The owner has chosen a clean installation at `https://sentryiq.bichet.co.za`. The existing installation is disposable; do not back up or migrate its users, passkeys, vault, documents, Gallery data, runtime configuration, or B2 objects. The old origin is not to be modified or retired during initial deployment. See `clean-subdomain-deployment.md` for the authoritative clean-install sequence and gates.
+
 Status: subdomain provisioning and B2 CORS preparation completed (user-confirmed); application deployment and runtime migration have not started. No production application files or runtime configuration have been changed.
 
 ## Target
