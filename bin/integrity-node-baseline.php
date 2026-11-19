@@ -62,6 +62,34 @@ try {
         if (!is_string($baseline[$field])) throw new RuntimeException('Baseline field types are invalid.');
     }
 
+    $lockPath = $private . '/integrity-release-state.lock';
+    clearstatcache(true, $lockPath);
+    if (is_link($lockPath)) throw new RuntimeException('Integrity release state lock must not be a symlink.');
+    if (!file_exists($lockPath)) {
+        $lockHandle = @fopen($lockPath, 'x+b');
+        if ($lockHandle === false) throw new RuntimeException('Unable to pre-provision the integrity release state lock.');
+        $lockOk = @chmod($lockPath, 0600);
+        if ($lockOk) $lockOk = @fflush($lockHandle);
+        if ($lockOk && function_exists('fsync')) $lockOk = @fsync($lockHandle);
+        $lockStat = @fstat($lockHandle);
+        fclose($lockHandle);
+        clearstatcache(true, $lockPath);
+        $lockPathStat = @lstat($lockPath);
+        if (!$lockOk || !is_array($lockStat) || !is_array($lockPathStat)
+            || (($lockStat['mode'] ?? 0) & 0170000) !== 0100000
+            || (($lockStat['mode'] ?? 0) & 0777) !== 0600
+            || ($lockStat['dev'] ?? null) !== ($lockPathStat['dev'] ?? null)
+            || ($lockStat['ino'] ?? null) !== ($lockPathStat['ino'] ?? null)) {
+            throw new RuntimeException('Integrity release state lock could not be safely pre-provisioned.');
+        }
+    } else {
+        $lockStat = @lstat($lockPath);
+        if (!is_array($lockStat) || (($lockStat['mode'] ?? 0) & 0170000) !== 0100000
+            || (($lockStat['mode'] ?? 0) & 0777) !== 0600) {
+            throw new RuntimeException('Existing integrity release state lock has unsafe type or permissions.');
+        }
+    }
+
     $store = new IntegrityNodeReleaseStateStore($private, $web);
     $store->initializeBaseline(
         $baseline['version'],
