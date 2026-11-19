@@ -1,7 +1,7 @@
 # SentryIQ Security and Migration Roadmap
 
 **Status:** Active planning document  
-**Last reviewed:** 2026-11-18  
+**Last reviewed:** 2026-11-19  
 **Canonical target origin:** `https://sentryiq.bichet.co.za`  
 **Current production origin:** `https://bichet.co.za/SentryIQ`
 
@@ -21,16 +21,17 @@ This document is the project-level execution plan for security hardening, zero-k
 |---|---|
 | Subdomain DNS and HTTPS | Confirmed resolving with a valid certificate |
 | New public document root | Created; directory listing disabled |
-| New protected data directory | Intended sibling path documented; PHP environment exposure and runtime provisioning not yet verified |
+| New protected data directory | Intended sibling path and `SENTRYIQ_DATA_DIR` owner-confirmed; PHP web-SAPI access and runtime provisioning not yet verified |
 | Migration preparation | PR #15 merged |
 | Backblaze B2 CORS | Exact old and new origins configured; browser-level verification still required |
 | Gallery encryption design | PR #11 merged; end-to-end acceptance testing pending |
 | Zero-knowledge password vault and documents | Not complete; PHP currently handles the master key and document crypto |
-| Signed release verification | Native Sigstore/SLSA verifier and scheduled-node integration implemented on stacked PR #50; not merged to main or deployed |
+| Release packaging | Exact release ZIP, runtime-template inventory, manifest and checksums are built and validated in CI (PR #75); no release tag or published release yet |
+| Signed release verification | Native Sigstore/SLSA verifier and scheduled-node integration remain in open stacked PRs #48/#50; not merged to main or deployed |
 | Integrity Nodes A and B | Verifier/runtime prototypes implemented on PR #50; separate provider/host provisioning, keys, schedules, baselines and direct alerts not verified |
 | Integrity Node C (HelioHost) | Compatibility prototype and tests exist; HelioHost provisioning, native runtime configuration, key and schedule not verified |
 | Node 4 (BTM-SA) | Event receiver/incident pipeline implemented on PR #50; shares the SentryIQ host and is not an independent failure domain; runtime configuration and alert transport not deployed |
-| Production subdomain cutover | Not approved or performed |
+| Production subdomain cutover | Not approved or performed; no production deployment or release tag exists |
 
 ## Guardrails
 
@@ -53,13 +54,17 @@ This document is the project-level execution plan for security hardening, zero-k
 - [x] Disable directory listing in the new public root.
 - [x] Configure B2 CORS for the exact old and new origins.
 - [x] Merge migration preparation and document the first-run path hazard (PR #15).
-- [ ] Review the complete application/runtime file inventory and deployment packaging.
+- [x] Build and validate the exact release ZIP, runtime-template inventory, manifest coverage, file hashes, and checksum sidecars in CI (PR #75; PR #76 fixes installer use of packaged `runtime/`).
+- [ ] Review the complete application/runtime file inventory and deployment packaging for any remaining host-specific requirements.
 - [ ] Provision the new protected runtime directory from a verified, recoverable source; verify ownership, PHP access, `open_basedir`, and restrictive permissions.
-- [x] Replace the unsafe source-relative first-run path with an explicit, validated `SENTRYIQ_DATA_DIR` setting and add cPanel path-boundary tests (PR #72; CI passed). The hosting provider must still confirm the variable reaches the PHP web SAPI before first-run setup.
+- [x] Replace the unsafe source-relative first-run path with an explicit, validated `SENTRYIQ_DATA_DIR` setting and add cPanel path-boundary tests (PR #72; CI passed).
+- [x] Require a separate high-entropy `SENTRYIQ_INSTALL_TOKEN` for owner-only first-run initialization, compare it with `hash_equals`, and test valid/missing/malformed/mismatched cases (PR #78; PHP lint and Gallery Security Checks passed).
+- [ ] Confirm both `SENTRYIQ_DATA_DIR` and `SENTRYIQ_INSTALL_TOKEN` reach the PHP web SAPI; verify private-directory read/write/delete under the active `open_basedir` policy.
 - [ ] Verify all required runtime files and configuration references without copying or modifying the old installation.
 - [ ] Confirm the intended WebAuthn RP ID and document the passkey re-enrolment plan. Passkeys registered for `bichet.co.za` do not automatically become credentials for `sentryiq.bichet.co.za`.
 - [ ] Test login, 2FA, passkey enrolment/login, recovery, vault lock/logout, CSRF, and Gallery flows on the new origin.
 - [ ] Test browser-origin B2 PUT/GET/DELETE from the new origin.
+- [ ] Configure the selected MEGA off-site destination, encryption/key custody, consistent B2 Gallery + runtime backup, integrity verification, retention, and isolated restore; none is configured or tested yet.
 - [ ] Complete backup and restore rehearsal, rollback plan, and explicit cutover approval.
 - [ ] Cut over only after all gates pass; retain the old origin during the agreed rollback window.
 
@@ -119,9 +124,12 @@ The server cannot decrypt vault or document content using its database, runtime 
 - [ ] Confirm the authoritative source repository and updater target. The updater currently references `BTM-SA/SentryIQ`, while the working repository is `Double-IQ/SentryIQ`; resolve this before changing update behavior.
 - [x] Define a versioned release manifest containing release identity, monotonic sequence/anti-rollback data, commit/build identity, file paths, sizes, SHA-256 hashes, timestamp, and signing-key ID (prototype in merged PR #27; current format and release integration still require final review).
 - [ ] Approve and operationalise signing-key custody. The signing private key must never be stored on production hosting or either verifier.
-- [ ] Complete end-to-end signed release publication and updater enforcement. Native Sigstore/SLSA verification is implemented in stacked PRs #48/#50, but those PRs are not merged to main and no production release has been verified.
+- [x] Build the exact release package from the selected source commit and validate ZIP contents, four runtime templates, manifest coverage, embedded/external manifest equality, SHA-256 entries, and sidecars in CI (PR #75; installer path aligned in PR #76).
+- [ ] Complete end-to-end signed release publication and updater enforcement. The tag-triggered workflow is prepared and uses GitHub build-provenance attestation, but no release tag/release has been created and no production artifact has been verified. Native Sigstore/SLSA updater and node verification remain in open stacked PRs #48/#50.
 - [ ] Make builds reproducible or otherwise attest the exact build inputs and artifact identity.
-- [ ] Complete general CI security gates for tests, dependency review/scanning, secret scanning, and release artifact validation.
+- [x] PHP syntax, Gallery security, and release-manifest/package validation workflows are present; required PR checks are enforced by active repository rulesets.
+- [x] Owner-confirmed GitHub secret scanning, push protection, Dependabot alerts, and Dependabot security updates are enabled (platform settings are owner-confirmed, not API-verified).
+- [ ] Add/verify dependency review and any remaining dependency scanning gates.
 - [ ] Protect release tags/branches and separate build, signing, and deployment permissions.
 
 ### Independent verifiers
@@ -185,13 +193,14 @@ Update this section whenever a phase changes. Link the PR, workflow run, test ev
 | Gallery end-to-end validation | Pending | Test report and supported-device results |
 | Client crypto/key foundation | Pending | Design review, test vectors, cross-browser results |
 | Zero-knowledge vault/documents | Pending | Migration and no-plaintext/no-key-leak test evidence |
-| Signed release pipeline | Prototype in stacked PRs #48/#50; not merged/deployed | Merge/review, approved key custody, signed production release and updater verification |
+| Release package/CI | Exact package builder and validation merged (PR #75); installer runtime path corrected (PR #76) | CI evidence on main; tag/release publication and production verification remain pending |
+| Signed release verification/updater | Native Sigstore/TUF prototypes in open stacked PRs #48/#50; not merged/deployed | Merge/review, approved key custody, signed production release and updater verification |
 | Integrity Node A | Code prototype; host/provider not confirmed or deployed | Independent host inspection, private config/key/baseline, schedule, signed report and direct-alert test |
 | Integrity Node B (Val Town) | Hosting assignment confirmed; deployment/runtime not verified | Val Town app/runtime, private secrets/configuration, pinned trust roots, independent schedule/state, signed report and direct-alert test |
 | Integrity Node C (HelioHost) | Compatibility prototype; not deployed | HelioHost account/runtime, native verifier, key, private evidence store, schedule and direct-alert test |
 | Node 4 (BTM-SA) | Event pipeline prototype; same host as SentryIQ, not deployed | Separate logical service/runtime, A/B trust config, replay store, alert transport and host-isolation checks |
 | Origin hardening/incident exercise | Pending | Security test report and exercise record |
-| New-origin deployment/cutover | Pending | Acceptance checklist, restore/rollback evidence, approval |
+| New-origin deployment/cutover | Pending; no production files changed | PHP web-SAPI preflight for both environment variables, private storage test, full acceptance checklist, restore/rollback evidence, explicit approval |
 
 ## Related documents and issues
 
