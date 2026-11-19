@@ -717,3 +717,10 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - All four workflows passed on PR #56 head `43bebf63ea6bc074eb376a60462cc42d7c2b07de`: Gallery Security Checks, PHP Syntax Check, Release Manifest Tests, and Validate v0.1.2 release attestation.
 - The new CLI self-diagnostic test passed all 117 server-side checks after the stale source/icon/CSS contracts were corrected.
 - The browser portion of `diagnostics/self_test.php` remains a live authenticated deployment check and was not run in CI. Phase 1 item 6.4 therefore remains open until that browser diagnostic is executed against an installed non-production environment or production after explicit deployment approval.
+
+
+### Additional public browser-asset HTTP coverage
+
+- Extended the disposable Apache integration test to request the current public CSS, Vault JS, Vault page JS/init JS, Records JS, Safari JS, wide logo, and PNG icon assets directly, in addition to the legacy stylesheet alias.
+- This supplements the 117 server-side self-diagnostic checks with actual HTTP status coverage for the static browser assets. It does not replace the browser-side DOM/CSS computation checks or authenticated page-route checks.
+- Commit: `9e1b34c8e24385ecef8aaf6e980daaa306c116c4`; CI pending.
