@@ -68,6 +68,7 @@ try {
     rootStoreAssert($symlinkRejected, 'A symlinked root file must be rejected.');
     unlink($private . '/tuf-root.json');
 
+    @unlink($private . '/tuf-root.lock');
     file_put_contents($base . '/outside-lock', '');
     symlink($base . '/outside-lock', $private . '/tuf-root.lock');
     $lockSymlinkRejected = false;
