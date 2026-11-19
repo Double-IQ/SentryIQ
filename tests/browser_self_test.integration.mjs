@@ -69,7 +69,7 @@ try {
 
   const routeEntries = Object.entries(routes)
     .map(([route, target]) => ${JSON.stringify(route)} + ' => ' + ${JSON.stringify(target)})
-    .join(',\\n');
+    .join(',\n');
   const router = `<?php
 $root = ${JSON.stringify(root)};
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
