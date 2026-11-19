@@ -20,3 +20,11 @@
 .secure-gallery-viewer button{position:absolute;top:14px;right:14px}
 .secure-gallery-actions{display:flex;gap:8px;flex-wrap:wrap}
 @media(max-width:600px){.secure-gallery-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.secure-gallery-card{padding:3px;border:0}.secure-gallery-card small{font-size:10px}.secure-gallery-card strong{font-size:11px}.secure-gallery-card button{font-size:11px;padding:6px 4px}}
+
+.secure-gallery-inline-1{text-align:right;margin:0 0 12px;}
+
+.secure-gallery-inline-2{margin-top:10px;}
+
+.secure-gallery-inline-3{justify-content:space-between;}
+
+.secure-gallery-inline-4{margin-bottom:0;}
