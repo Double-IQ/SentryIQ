@@ -17,7 +17,6 @@ final class TufRootStore
 {
     private const MAX_ROOT_BYTES = 5_000_000;
 
-    private string $directory;
     private string $rootPath;
     private string $lockPath;
 
@@ -57,7 +56,6 @@ final class TufRootStore
             }
         }
 
-        $this->directory = $realDirectory;
         $this->rootPath = $realDirectory . DIRECTORY_SEPARATOR . 'tuf-root.json';
         $this->lockPath = $realDirectory . DIRECTORY_SEPARATOR . 'tuf-root.lock';
     }
