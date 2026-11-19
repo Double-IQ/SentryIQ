@@ -1,0 +1,16 @@
+.system-log-table{overflow-x:auto}.system-log-list{display:none}.security-device{display:inline-flex;align-items:center;gap:6px;font-weight:600}.security-user-agent{margin-top:4px;font-size:10px;color:#888;word-break:break-word}.security-user-agent summary{cursor:pointer;color:#888}.security-user-agent code{font-family:inherit}@media(max-width:700px){.system-log-table{display:none}.system-log-list{display:flex;flex-direction:column;gap:10px}.security-log-card{border:1px solid #e9ecef;border-radius:10px;padding:12px;margin-bottom:0;background:#fff}.security-log-card-header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:10px}.security-log-event{font-weight:700;word-break:break-word}.security-log-time{font-size:11px;color:#777;text-align:right;white-space:nowrap}.security-log-field{display:flex;flex-direction:row;align-items:baseline;gap:5px;padding:7px 0;border-top:1px solid #f1f3f5}.security-log-label{width:auto;flex:0 0 auto;font-size:11px;color:#777;font-weight:700}.security-log-value{font-size:12px;word-break:break-word}.security-device{font-size:13px}.security-user-agent{font-size:10px}} .system-log-back{width:100%;margin-top:16px;margin-bottom:16px;clear:both;position:relative;z-index:1}.system-log-back .btn{display:block !important;width:100% !important;box-sizing:border-box !important;text-align:center;text-decoration:none !important}@media(max-width:700px){.system-log-back{width:100% !important;margin-top:16px !important;margin-bottom:16px !important;padding-top:16px}.system-log-back .btn{width:100% !important;min-width:0 !important}}
+.system-log-container{max-width:900px;margin:0 auto}
+.system-log-title{margin-bottom:6px}
+.system-log-description{margin-top:0;color:#666}
+.system-log-panel{margin-top:20px}
+.system-log-panel-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;gap:10px;flex-wrap:wrap}
+.system-log-section-title{margin:0}
+.system-log-count{font-size:12px;color:#777}
+.system-log-empty{text-align:center;padding:20px;color:#777}
+.system-log-data-table{width:100%;border-collapse:collapse;font-size:12px}
+.system-log-table-heading{background:#e9ecef;text-align:left}
+.system-log-cell{padding:9px}
+.system-log-table-row{border-bottom:1px solid #eee}
+.system-log-nowrap{white-space:nowrap}
+.system-log-bold{font-weight:bold}
+.system-log-user-agent-cell{max-width:260px}
