@@ -186,7 +186,7 @@ final class IntegrityReleaseArtifactFetcher
             $versions[] = $entry;
         }
         usort($versions, static fn(string $left, string $right): int => version_compare($right, $left));
-        $keep = array_slice(array_values(array_unique(array_merge([$currentVersion], $versions)), 0, 3);
+        $keep = array_slice(array_values(array_unique(array_merge([$currentVersion], $versions))), 0, 3);
         foreach ($versions as $version) {
             if (in_array($version, $keep, true)) continue;
             $path = $releaseRoot . DIRECTORY_SEPARATOR . $version;
