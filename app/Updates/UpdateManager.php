@@ -223,8 +223,8 @@ final class UpdateManager
                     if (!$originalPublic[$relative]) continue;
                     $target = $this->applicationRoot . '/' . $relative;
                     $backup = $backupRoot . '/public/' . $relative;
-                    if (!$this->ensureDirectory(dirname($backup), 0700) || !@copy($target, $backup)) {
-                        throw new RuntimeException('Unable to back up ' . $relative . '.');
+                    if (!$this->ensureDirectory(dirname($backup), 0700) || !$this->copyAndVerifyBackup($target, $backup)) {
+                        throw new RuntimeException('Unable to create and verify backup for ' . $relative . '.');
                     }
                     $backedPublic[$relative] = true;
                 }
@@ -232,8 +232,8 @@ final class UpdateManager
                     if (!$originalRuntime[$relative]) continue;
                     $target = $this->dataDir . '/' . $relative;
                     $backup = $backupRoot . '/runtime/' . $relative;
-                    if (!$this->ensureDirectory(dirname($backup), 0700) || !@copy($target, $backup)) {
-                        throw new RuntimeException('Unable to back up runtime file ' . $relative . '.');
+                    if (!$this->ensureDirectory(dirname($backup), 0700) || !$this->copyAndVerifyBackup($target, $backup)) {
+                        throw new RuntimeException('Unable to create and verify runtime backup for ' . $relative . '.');
                     }
                     $backedRuntime[$relative] = true;
                 }
@@ -645,6 +645,29 @@ final class UpdateManager
             }
         }
         return $errors;
+    }
+
+    private function copyAndVerifyBackup(string $source, string $destination): bool
+    {
+        if (is_link($source) || !is_file($source) || file_exists($destination) || is_link($destination)) {
+            return false;
+        }
+        if (!@copy($source, $destination)) {
+            @unlink($destination);
+            return false;
+        }
+        $sourceHash = @hash_file('sha256', $source);
+        $backupHash = @hash_file('sha256', $destination);
+        $sourceSize = @filesize($source);
+        $backupSize = @filesize($destination);
+        if (!is_string($sourceHash) || !is_string($backupHash)
+            || !is_int($sourceSize) || !is_int($backupSize)
+            || $sourceSize !== $backupSize || !hash_equals($sourceHash, $backupHash)) {
+            @unlink($destination);
+            return false;
+        }
+        @chmod($destination, 0600);
+        return true;
     }
 
     private function replaceFile(string $source, string $target, int $mode = 0644): void
