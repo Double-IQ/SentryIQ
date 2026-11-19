@@ -20,6 +20,7 @@ final class IntegrityNode4Monitor
     /** @return array{evaluation:array<string,mixed>,queued:int,delivery:array{delivered:int,remaining:int}} */
     public function run(string $expectedOrigin, int $deliveryBatch = 25): array
     {
+        $this->store->pruneRetention();
         $evaluation = $this->correlator->evaluate($this->store->snapshot(), $expectedOrigin);
         $queued = $this->dispatcher->enqueueEvaluation($evaluation);
         $delivery = $this->dispatcher->dispatchPending($deliveryBatch);
