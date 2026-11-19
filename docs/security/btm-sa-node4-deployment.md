@@ -95,7 +95,7 @@ If the current shared cPanel account cannot provide a separate service identity 
    `Authorization: Bearer <node-token>` and JSON action `challenge`.
 2. Challenge request binds node ID, target origin, release version, commit,
    artifact SHA-256 and manifest SHA-256.
-3. Node 4 returns a random 32-byte nonce with a five-minute expiry.
+3. Node 4 returns a random 32-byte nonce with a ten-minute expiry, allowing bounded native Sigstore verification before report submission.
 4. The node signs a schema-v2 report containing that nonce and the same bound
    release/evidence fields.
 5. The node submits action `report` with its bearer token and the detached
@@ -132,16 +132,18 @@ The event store retains report evidence for seven days, prunes expired
 challenges, and retains delivered alert records for thirty days. Pending alerts
 are never removed by retention. The hard report cap is 5,000 records and the
 alert outbox cap is 2,000 records; exceeding either cap fails closed rather
-than silently dropping live evidence or pending alerts. At a five-minute
-schedule for both A and B, seven days produces about 4,032 reports, within the
-current report cap. Do not schedule the two nodes more frequently than every
-five minutes without increasing and revalidating the capacity limits. The Node
-4 monitor prunes retention before each evaluation.
+than silently dropping live evidence or pending alerts. At a fifteen-minute
+schedule for both A and B, seven days produces about 1,344 reports, within the
+current report cap. Schedule each A/B node no more frequently than every
+fifteen minutes: verification can take several minutes and the per-node run
+lock deliberately rejects overlapping jobs. Node 4 treats reports older than
+thirty minutes as stale. The Node 4 monitor prunes retention before each
+evaluation.
 
 ## Scheduled processing
 
 After a real `alert_sender` callable is configured, schedule the CLI monitor
-under the SentryIQ account (for example, every five minutes):
+under the SentryIQ account (for example, every five minutes; this is separate from the fifteen-minute A/B node schedule):
 
 ```sh
 php /absolute/path/to/SentryIQ/bin/integrity-node4-monitor.php
