@@ -41,6 +41,12 @@ def main() -> None:
         assert not any(name.startswith((".git/", ".github/", "private_data/")) for name in names)
         assert "sentryiq_config.php" not in names
         assert "index.php" in names
+        assert "app/Security/FirstRun.php" in names
+        installer = archive.read("app/Security/FirstRun.php").decode("utf-8")
+        assert "'/runtime'" in installer
+        assert "'/private_data'" not in installer
+        htaccess = archive.read(".htaccess").decode("utf-8")
+        assert "RewriteRule ^runtime(?:/|$) - [F,L]" in htaccess
 
         expected_runtime = {
             "vault_engine.php",
