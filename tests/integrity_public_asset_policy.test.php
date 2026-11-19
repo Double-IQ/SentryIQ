@@ -51,4 +51,36 @@ publicAssetAssert(
     'Legacy format-2 manifests must safely derive static assets without including PHP.'
 );
 
+publicAssetReject(
+    fn() => IntegrityPublicAssetPolicy::resolve($manifest, $entries, ['VERSION', 'VERSION']),
+    'Configured public asset paths must not contain duplicates.'
+);
+$duplicatePublicFiles = $manifest;
+$duplicatePublicFiles['public_files'][] = 'VERSION';
+publicAssetReject(
+    fn() => IntegrityPublicAssetPolicy::resolve($duplicatePublicFiles, $entries, []),
+    'Signed public file inventory must not contain duplicates.'
+);
+$duplicateHttpFiles = $manifest;
+$duplicateHttpFiles['public_http_files'][] = 'VERSION';
+publicAssetReject(
+    fn() => IntegrityPublicAssetPolicy::resolve($duplicateHttpFiles, $entries, []),
+    'Signed HTTP asset inventory must not contain duplicates.'
+);
+$largeEntries = [];
+$largeManifestPaths = [];
+for ($index = 0; $index < 99; $index++) {
+    $path = 'assets/file-' . $index . '.js';
+    $largeEntries[$path] = ['path' => $path, 'size' => 1, 'sha256' => str_repeat('a', 64)];
+    $largeManifestPaths[] = $path;
+}
+publicAssetReject(
+    fn() => IntegrityPublicAssetPolicy::resolve(
+        ['public_files' => $largeManifestPaths, 'public_http_files' => $largeManifestPaths],
+        $largeEntries,
+        []
+    ),
+    'Public asset selection must reserve report slots for mandatory security evidence markers.'
+);
+
 echo "Integrity public asset policy tests passed.\n";
