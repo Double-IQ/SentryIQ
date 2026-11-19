@@ -191,12 +191,10 @@ final class IntegrityNodeReleaseStateStore
         ];
     }
 
-    public function assertCandidate(string $version, string $commit, string $manifestDigest, string $artifactDigest): void
+    public function assertCandidateIdentity(string $version, string $commit): void
     {
         $version = self::normalizeVersion($version);
         $commit = self::normalizeCommit($commit);
-        $manifestDigest = self::normalizeDigest($manifestDigest);
-        $artifactDigest = self::normalizeDigest($artifactDigest);
         $current = $this->current();
         $comparison = version_compare($version, $current['version']);
         if ($comparison < 0) {
@@ -205,7 +203,17 @@ final class IntegrityNodeReleaseStateStore
         if ($comparison === 0 && !hash_equals($current['commit'], $commit)) {
             throw new RuntimeException('Integrity release tag was retargeted: same version now resolves to a different commit.');
         }
-        if ($comparison === 0
+    }
+
+    public function assertCandidate(string $version, string $commit, string $manifestDigest, string $artifactDigest): void
+    {
+        $version = self::normalizeVersion($version);
+        $commit = self::normalizeCommit($commit);
+        $manifestDigest = self::normalizeDigest($manifestDigest);
+        $artifactDigest = self::normalizeDigest($artifactDigest);
+        $this->assertCandidateIdentity($version, $commit);
+        $current = $this->current();
+        if (version_compare($version, $current['version']) === 0
             && (!hash_equals($current['manifest_sha256'], $manifestDigest)
                 || !hash_equals($current['artifact_sha256'], $artifactDigest))) {
             throw new RuntimeException('Integrity release artifacts changed without a version and source-commit change.');
