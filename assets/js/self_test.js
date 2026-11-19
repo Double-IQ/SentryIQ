@@ -92,7 +92,7 @@ async function checkOne(test){
                         try{
                             const ar=await fetch(resolvedUrl,{credentials:'same-origin',cache:'no-store',redirect:'follow',headers:{'Accept':'*/*'}});
                             const at=ar.headers.get('content-type')||'';
-                            const expectedType=ref.tag==='link'?'text/css':(ref.tag==='script'?'text/javascript':'image/');
+                            const expectedType=ref.expectedContentType||(ref.tag==='link'?'text/css':(ref.tag==='script'?'text/javascript':'image/'));
                             const typeOk=ref.tag==='img'
                                 ?at.toLowerCase().startsWith('image/')
                                 :(ref.tag==='script'
