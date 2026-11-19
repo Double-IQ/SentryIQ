@@ -52,6 +52,10 @@ try {
     $store->initializeBaseline('v1.2.3', $commitA, $manifestA, $artifactA);
     releaseStateAssert($store->current()['version'] === '1.2.3', 'Explicit baseline should be persisted.');
     releaseStateAssert((fileperms($private . '/integrity-release-state.json') & 0777) === 0600, 'Persisted release state must be exactly 0600.');
+    $store->assertCandidateIdentity('1.2.3', $commitA);
+    $store->assertCandidateIdentity('1.2.4', $commitB);
+    releaseStateReject(fn() => $store->assertCandidateIdentity('1.2.2', $commitA), 'Rollback identity must be rejected before artifact staging.');
+    releaseStateReject(fn() => $store->assertCandidateIdentity('1.2.3', $commitB), 'Same-version tag retarget must be rejected before artifact staging.');
     $store->assertCandidate('1.2.3', $commitA, $manifestA, $artifactA);
     $store->assertCandidate('1.2.4', $commitB, $manifestB, $artifactB);
     releaseStateReject(fn() => $store->assertCandidate('1.2.2', $commitA, $manifestA, $artifactA), 'Older release must be rejected.');
