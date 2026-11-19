@@ -30,6 +30,10 @@ These checks do **not** establish that the new document root is ready for applic
 
 ## Important findings from the repository audit
 
+## First-run owner authorization
+
+The public first-run installer also requires a separate high-entropy `SENTRYIQ_INSTALL_TOKEN` supplied to the PHP web SAPI. This prevents an unauthorised visitor from initializing the clean installation before the owner. Configure the token directly in the hosting environment (never in Git or chat), enter it only in the protected first-run form, and remove the setting plus the public `first_run.php` entry point immediately after successful initialization. See [the cPanel first-run storage guide](./cpanel-first-run-storage.md).
+
 ## First-run protected storage configuration
 
 PR #72 is merged into `main`. It replaces the unsafe source-relative path calculation with an explicit `SENTRYIQ_DATA_DIR` setting and fails closed when the setting is absent or unsafe.
