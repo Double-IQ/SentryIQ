@@ -21,8 +21,8 @@ sentryiq_require_auth();
     <div class="passkey-page passkey-setup-page">
         <h2>🔑 Set Up Your Passkey</h2>
         <p>Your vault is ready. Set up a passkey so future unlocks can use Face ID, Touch ID, or your device's passkey authentication instead of email codes.</p>
-        <button type="button" id="passkey-register" class="btn btn-primary" style="width:100%;margin-top:12px;">Set Up Passkey</button>
-        <p id="passkey-status" class="error" style="display:none;"></p>
+        <button type="button" id="passkey-register" class="btn btn-primary passkey-action-button">Set Up Passkey</button>
+        <p id="passkey-status" class="error passkey-status"></p>
         <p class="passkey-setup-note">The first setup requires the current authenticated vault session. Once registered, the passkey becomes the normal unlock method.</p>
     </div>
 </div>
