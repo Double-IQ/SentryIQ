@@ -196,19 +196,32 @@ final class IntegrityEventReportVerifier
             throw new RuntimeException('Signed integrity event evidence exceeds limits or has invalid shape.');
         }
         $seen = [];
+        $publicPathCount = 0;
         foreach ($checked as $path) {
-            if (!is_string($path) || !$this->safePath($path) || isset($seen[$path])) {
+            if (!is_string($path) || !$this->safePath($path) || isset($seen[$path])
+                || (str_starts_with($path, '@') && !in_array($path, ['@origin-headers', '@private-host-attestation'], true))) {
                 throw new RuntimeException('Signed integrity event contains an unsafe or duplicate checked path.');
             }
             $seen[$path] = true;
+            if (!str_starts_with($path, '@')) $publicPathCount++;
         }
+        if (!isset($seen['@origin-headers']) || !isset($seen['@private-host-attestation']) || $publicPathCount < 1) {
+            throw new RuntimeException('Node A/B event evidence must include public assets, origin headers and private-host attestation.');
+        }
+        $mismatchSeen = [];
         foreach ($mismatches as $item) {
             if (!is_array($item) || array_is_list($item)
                 || array_keys($item) !== ['path', 'reason']
                 || !is_string($item['path']) || !$this->safePath($item['path'])
                 || !in_array($item['reason'], ['content_mismatch', 'fetch_failed', 'security_header_mismatch', 'private_host_attestation_failed'], true)
-                || !isset($seen[$item['path']])) {
-                throw new RuntimeException('Signed integrity event contains an invalid mismatch record.');
+                || !isset($seen[$item['path']]) || isset($mismatchSeen[$item['path']])) {
+                throw new RuntimeException('Signed integrity event contains an invalid or duplicate mismatch record.');
+            }
+            $mismatchSeen[$item['path']] = true;
+            if (($item['reason'] === 'security_header_mismatch' && $item['path'] !== '@origin-headers')
+                || ($item['reason'] === 'private_host_attestation_failed' && $item['path'] !== '@private-host-attestation')
+                || (in_array($item['reason'], ['content_mismatch', 'fetch_failed'], true) && str_starts_with($item['path'], '@'))) {
+                throw new RuntimeException('Signed integrity event mismatch reason does not match its evidence path.');
             }
         }
         if (($payload['decision'] === 'approve') !== ($mismatches === [])) {
