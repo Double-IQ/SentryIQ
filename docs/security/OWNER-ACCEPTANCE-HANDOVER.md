@@ -100,7 +100,7 @@ Complete only against the actual production host, with a maintenance/change reco
 
 ## 5. Release and updater readiness
 
-- [ ] Confirm [PR #63](https://github.com/Double-IQ/SentryIQ/pull/63) has been reviewed, merged, and passed CI; it prevents overwriting existing release assets and blocks prerelease tags from the stable release workflow.
+- [x] [PR #63](https://github.com/Double-IQ/SentryIQ/pull/63) merged as `894f05ac1f4063399ea17df23bc79ea32327bbbf`; it prevents overwriting existing release assets, rejects prerelease tags from the stable release workflow, and requires the existing tag. Post-merge PHP Syntax, Gallery Security, and Release Manifest checks are running; confirm all three complete successfully before release publication.
 - [ ] Review/merge [PR #64](https://github.com/Double-IQ/SentryIQ/pull/64) to set `VERSION` to `0.1.3`; this only prepares the next release and does not publish it.
 - [ ] Do not use the previously published v0.1.2 release for the new updater path: it predates the required embedded canonical manifest and KDF runtime policy.
 - [ ] Generate a new release from the merged `main` source using the updated release workflow; PR #56 is already merged.
