@@ -6,36 +6,37 @@ RewriteRule ^private_data(?:/|$) - [F,L]
 RewriteRule ^(?:sentryiq_config\.php|auth_flow\.php|\.user\.ini)$ - [F,L]
 
 # Block direct HTTP requests to source, test, documentation, and VCS directories.
-# Internal rewrites to application handlers remain allowed because THE_REQUEST retains the public URL.
-RewriteCond %{THE_REQUEST} "\s/+((app|cloud|docs|tests|scripts|\.github|\.git))(/|\s|\?)" [NC]
-RewriteRule ^ - [F,L]
+# Apache normalizes encoded path characters before matching this per-directory rule.
+# Legacy public routes below terminate their internal rewrite with [END], so their
+# application targets are not reprocessed by this direct-request guard.
+RewriteRule ^(app|cloud|docs|tests|scripts|\.github|\.git)(/|$) - [F,L,NC]
 
 # Keep existing deployed endpoint URLs working while implementations live under app/.
-RewriteRule ^document_delete\.php$ app/Documents/Delete.php [L]
-RewriteRule ^document_download\.php$ app/Documents/Download.php [L]
-RewriteRule ^document_upload\.php$ app/Documents/Upload.php [L]
+RewriteRule ^document_delete\.php$ app/Documents/Delete.php [END]
+RewriteRule ^document_download\.php$ app/Documents/Download.php [END]
+RewriteRule ^document_upload\.php$ app/Documents/Upload.php [END]
 
-RewriteRule ^gallery_album\.php$ app/Gallery/AlbumActions.php [L]
-RewriteRule ^gallery_bulk_delete\.php$ app/Gallery/BulkDelete.php [L]
-RewriteRule ^gallery_delete\.php$ app/Gallery/Delete.php [L]
-RewriteRule ^gallery_image\.php$ app/Gallery/Image.php [L]
-RewriteRule ^gallery_settings\.php$ app/Gallery/Settings.php [L]
-RewriteRule ^gallery_upload\.php$ app/Gallery/Upload.php [L]
+RewriteRule ^gallery_album\.php$ app/Gallery/AlbumActions.php [END]
+RewriteRule ^gallery_bulk_delete\.php$ app/Gallery/BulkDelete.php [END]
+RewriteRule ^gallery_delete\.php$ app/Gallery/Delete.php [END]
+RewriteRule ^gallery_image\.php$ app/Gallery/Image.php [END]
+RewriteRule ^gallery_settings\.php$ app/Gallery/Settings.php [END]
+RewriteRule ^gallery_upload\.php$ app/Gallery/Upload.php [END]
 
-RewriteRule ^passkey_auth\.php$ app/Auth/PasskeyAuth.php [L]
-RewriteRule ^passkey_login\.php$ app/Auth/PasskeyLogin.php [L]
-RewriteRule ^passkey_setup\.php$ app/Auth/PasskeySetup.php [L]
-RewriteRule ^passkeys\.php$ app/Auth/Passkeys.php [L]
+RewriteRule ^passkey_auth\.php$ app/Auth/PasskeyAuth.php [END]
+RewriteRule ^passkey_login\.php$ app/Auth/PasskeyLogin.php [END]
+RewriteRule ^passkey_setup\.php$ app/Auth/PasskeySetup.php [END]
+RewriteRule ^passkeys\.php$ app/Auth/Passkeys.php [END]
 
-RewriteRule ^record_actions\.php$ app/Vault/RecordActions.php [L]
-RewriteRule ^records_category_actions\.php$ app/Vault/RecordsCategoryActions.php [L]
-RewriteRule ^records_view_data\.php$ app/Vault/RecordsViewData.php [L]
-RewriteRule ^security-features\.php$ app/Security/SecurityFeatures.php [L]
-RewriteRule ^security_log\.php$ app/Security/SecurityLog.php [L]
-RewriteRule ^system_log\.php$ app/Security/SystemLog.php [L]
-RewriteRule ^vault_actions\.php$ app/Vault/Actions.php [L]
-RewriteRule ^vault_category_actions\.php$ app/Vault/CategoryActions.php [L]
-RewriteRule ^vault_folder_data\.php$ app/Vault/FolderData.php [L]
+RewriteRule ^record_actions\.php$ app/Vault/RecordActions.php [END]
+RewriteRule ^records_category_actions\.php$ app/Vault/RecordsCategoryActions.php [END]
+RewriteRule ^records_view_data\.php$ app/Vault/RecordsViewData.php [END]
+RewriteRule ^security-features\.php$ app/Security/SecurityFeatures.php [END]
+RewriteRule ^security_log\.php$ app/Security/SecurityLog.php [END]
+RewriteRule ^system_log\.php$ app/Security/SystemLog.php [END]
+RewriteRule ^vault_actions\.php$ app/Vault/Actions.php [END]
+RewriteRule ^vault_category_actions\.php$ app/Vault/CategoryActions.php [END]
+RewriteRule ^vault_folder_data\.php$ app/Vault/FolderData.php [END]
 
 # Preserve existing browser asset URLs after moving static files under assets/.
 RewriteRule ^pm_style\.css$ assets/css/sentryiq.css [L]
