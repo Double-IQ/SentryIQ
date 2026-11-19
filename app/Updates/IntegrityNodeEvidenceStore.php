@@ -6,6 +6,8 @@ namespace SentryIQ\Updates;
 
 use RuntimeException;
 
+require_once __DIR__ . '/IntegrityEventRequestDecoder.php';
+
 /**
  * Append-only private evidence retention for independent Node C.
  * Every stored report is signature-verified against Node C's public key.
@@ -70,13 +72,14 @@ final class IntegrityNodeEvidenceStore
         if ($signedEnvelope === '' || strlen($signedEnvelope) > 65536) {
             throw new RuntimeException('Node C signed evidence is empty or exceeds the size limit.');
         }
+        IntegrityEventRequestDecoder::assertNoDuplicateObjectKeys($signedEnvelope);
         try {
             $envelope = json_decode($signedEnvelope, true, 8, JSON_THROW_ON_ERROR);
         } catch (\JsonException $exception) {
             throw new RuntimeException('Node C signed evidence envelope is not valid JSON.', 0, $exception);
         }
-        if (!is_array($envelope) || !is_string($envelope['payload'] ?? null)
-            || !is_string($envelope['signature'] ?? null)) {
+        if (!is_array($envelope) || array_is_list($envelope) || count($envelope) !== 2
+            || !is_string($envelope['payload'] ?? null) || !is_string($envelope['signature'] ?? null)) {
             throw new RuntimeException('Node C signed evidence envelope schema is invalid.');
         }
         $payloadBytes = base64_decode($envelope['payload'], true);
@@ -86,12 +89,22 @@ final class IntegrityNodeEvidenceStore
             || !sodium_crypto_sign_verify_detached($signature, $payloadBytes, $this->publicKey)) {
             throw new RuntimeException('Node C evidence signature is invalid.');
         }
+        IntegrityEventRequestDecoder::assertNoDuplicateObjectKeys($payloadBytes);
         try {
             $payload = json_decode($payloadBytes, true, 16, JSON_THROW_ON_ERROR);
         } catch (\JsonException $exception) {
             throw new RuntimeException('Node C signed evidence payload is not valid JSON.', 0, $exception);
         }
-        if (!is_array($payload)
+        $requiredPayloadFields = [
+            'schema_version', 'node_id', 'decision', 'issued_at', 'expires_at', 'nonce',
+            'repository', 'repository_id', 'release_version', 'tag', 'commit',
+            'artifact_sha256', 'workflow_path', 'target_origin', 'manifest_sha256',
+            'checked_paths', 'mismatches',
+        ];
+        $actualPayloadFields = is_array($payload) ? array_keys($payload) : [];
+        sort($actualPayloadFields);
+        sort($requiredPayloadFields);
+        if (!is_array($payload) || $actualPayloadFields !== $requiredPayloadFields
             || ($payload['schema_version'] ?? null) !== 2
             || ($payload['node_id'] ?? null) !== 'integrity-c'
             || ($payload['repository'] ?? null) !== 'Double-IQ/SentryIQ'
@@ -127,6 +140,7 @@ final class IntegrityNodeEvidenceStore
         $origin = $payload['target_origin'] ?? null;
         $parts = is_string($origin) ? parse_url($origin) : false;
         if (!is_array($parts) || ($parts['scheme'] ?? null) !== 'https'
+            || $origin !== 'https://sentryiq.bichet.co.za'
             || strtolower((string)($parts['host'] ?? '')) !== 'sentryiq.bichet.co.za'
             || ($parts['path'] ?? '') !== '' || isset($parts['port'])
             || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])
