@@ -20,7 +20,7 @@ if ($installed && !$authenticated) {
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 
-const SENTRYIQ_DIAGNOSTIC_BUILD = 'strict-2xx-url-source-contracts-2026-09-21';
+const SENTRYIQ_DIAGNOSTIC_BUILD = 'current-browser-asset-contracts-2026-11-19';
 
 $results = [];
 function add_check(string $group, string $name, bool $ok, string $detail = ''): void
