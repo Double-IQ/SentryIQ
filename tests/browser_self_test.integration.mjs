@@ -67,11 +67,16 @@ try {
     throw new Error('Browser fixture setup failed: ' + fixture.stderr + fixture.stdout);
   }
 
+  const routeEntries = Object.entries(routes)
+    .map(([route, target]) => ${JSON.stringify(route)} + ' => ' + ${JSON.stringify(target)})
+    .join(',\\n');
   const router = `<?php
 $root = ${JSON.stringify(root)};
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 if ($path === '/') $path = '/index.php';
-$routes = ${JSON.stringify(routes)};
+$routes = [
+${routeEntries}
+];
 $relative = $routes[$path] ?? ltrim(rawurldecode($path), '/');
 $target = $root . '/' . $relative;
 if (!is_file($target) || !str_ends_with(strtolower($target), '.php')) {
