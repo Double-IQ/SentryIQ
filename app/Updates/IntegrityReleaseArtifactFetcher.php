@@ -166,9 +166,11 @@ final class IntegrityReleaseArtifactFetcher
                 $ok = curl_exec($handle);
                 $status = (int)curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
                 curl_close($handle);
+                $flushed = @fflush($stream);
+                $synced = !function_exists('fsync') || @fsync($stream);
                 fclose($stream);
 
-                if ($ok === true && $status === 200 && $written > 0) {
+                if ($ok === true && $status === 200 && $written > 0 && $flushed && $synced) {
                     if (!@rename($temporary, $destination)) {
                         throw new RuntimeException('Unable to atomically publish downloaded release asset.');
                     }
