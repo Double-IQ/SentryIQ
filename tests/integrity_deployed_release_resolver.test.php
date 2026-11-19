@@ -61,4 +61,14 @@ deployedResolverReject(
     'Resolver must pin the canonical SentryIQ origin.'
 );
 
+$tokenedResolver = new IntegrityDeployedReleaseResolver(
+    'https://sentryiq.bichet.co.za',
+    static fn(string $url, int $maxBytes): array => ['status' => 500, 'body' => ''],
+    'github_pat_' . str_repeat('A', 40)
+);
+deployedResolverReject(
+    fn() => new IntegrityDeployedReleaseResolver('https://sentryiq.bichet.co.za', null, 'bad-token'),
+    'Resolver must reject malformed GitHub API tokens.'
+);
+
 echo "Integrity deployed release resolver tests passed.\n";
