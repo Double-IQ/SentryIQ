@@ -3,3 +3,5 @@
 .update-notes{margin-top:18px;padding:14px;border-radius:10px;background:#f8f9fa;white-space:pre-wrap;word-break:break-word}
 .update-success{padding:12px;border-radius:9px;background:#eef8f0;color:#23632c}
 .update-warning{padding:12px;border-radius:9px;background:#fff8e8;color:#765500}
+
+.update-confirm-form,.update-back-link{margin-top:20px}
