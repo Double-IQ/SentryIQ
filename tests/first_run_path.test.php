@@ -38,4 +38,32 @@ firstRunPathAssert(
     'Filesystem root must be rejected.'
 );
 
+$fixture = sys_get_temp_dir() . '/sentryiq-first-run-' . bin2hex(random_bytes(6));
+$accountRoot = $fixture . '/account';
+$docRoot = $accountRoot . '/sentryiq.bichet.co.za';
+$outside = $fixture . '/outside';
+if (!mkdir($docRoot, 0700, true) || !mkdir($outside, 0700, true)) {
+    throw new RuntimeException('Unable to create first-run path fixtures.');
+}
+try {
+    firstRunPathAssert(
+        sentryiq_first_run_path_is_safe_candidate($accountRoot . '/sentryiq-private', $docRoot),
+        'A sibling protected directory under the cPanel account root should be accepted.'
+    );
+    firstRunPathAssert(
+        !sentryiq_first_run_path_is_safe_candidate($docRoot . '/private_data', $docRoot),
+        'A path inside the document root must be rejected before directory creation.'
+    );
+    firstRunPathAssert(
+        !sentryiq_first_run_path_is_safe_candidate($outside . '/private_data', $docRoot),
+        'A path outside the cPanel account root must be rejected.'
+    );
+} finally {
+    rmdir($docRoot);
+    rmdir($accountRoot);
+    rmdir($outside);
+    rmdir($fixture);
+}
+
+
 echo "First-run explicit storage path tests passed.\n";
