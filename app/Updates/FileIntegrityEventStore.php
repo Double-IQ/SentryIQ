@@ -161,10 +161,16 @@ final class FileIntegrityEventStore
             if (count($state['challenges']) >= 1000) {
                 throw new RuntimeException('Node 4 active challenge capacity has been reached.');
             }
+            $nodeActiveChallenges = 0;
             foreach ($state['challenges'] as $existingKey => $existingChallenge) {
                 if (!is_array($existingChallenge) || ($existingChallenge['expires_at'] ?? 0) <= $issuedAt) {
                     unset($state['challenges'][$existingKey]);
+                    continue;
                 }
+                if (($existingChallenge['node_id'] ?? null) === $nodeId) $nodeActiveChallenges++;
+            }
+            if ($nodeActiveChallenges >= 5) {
+                throw new RuntimeException('Node 4 per-node active challenge capacity has been reached.');
             }
             $key = hash('sha256', $nonce);
             if (isset($state['challenges'][$key])) {
