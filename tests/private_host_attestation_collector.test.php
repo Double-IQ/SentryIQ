@@ -185,6 +185,27 @@ try {
         'Collector must not silently repair operator-supplied signing-key permissions.');
     chmod($keyPath, 0600);
 
+    chmod($private, 0750);
+    collectorReject(
+        fn() => new PrivateHostAttestationCollector(
+            'sentryiq-host-attestor', $web, $private, $keyPath,
+            ['app/release.php' => $fileDigest], [],
+        ),
+        'Collector must reject a private data directory that is not exact 0700.'
+    );
+    chmod($private, 0700);
+
+    $oversizedKeyPath = $private . '/oversized-collector.key';
+    file_put_contents($oversizedKeyPath, str_repeat('A', 4096));
+    chmod($oversizedKeyPath, 0600);
+    collectorReject(
+        fn() => new PrivateHostAttestationCollector(
+            'sentryiq-host-attestor', $web, $private, $oversizedKeyPath,
+            ['app/release.php' => $fileDigest], [],
+        ),
+        'Collector must reject an oversized signing-key file before reading it without a bound.'
+    );
+    unlink($oversizedKeyPath);
 
     sodium_memzero($secret);
     echo "Private host attestation collector tests passed.\n";
