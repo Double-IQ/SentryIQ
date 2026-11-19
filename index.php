@@ -55,13 +55,13 @@ if (($_GET['setup'] ?? '') === 'complete' && isset($_SESSION['first_run_recovery
     <link rel="stylesheet" href="assets/css/sentryiq.css">
     </head>
     <body>
-    <div class="box" style="max-width:720px;margin:40px auto;">
+    <div class="box recovery-key-page">
         <h2>🔐 Your SentryIQ Recovery Key</h2>
         <p><strong>Save this key before continuing.</strong> It is generated once for this fresh vault and is designed to recover access to the same Vault Master Key.</p>
-        <div style="padding:20px;margin:20px 0;background:#f8f9fa;border:1px solid #dee2e6;border-radius:10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:18px;line-height:1.8;word-break:break-word;text-align:center;"><?php echo htmlspecialchars($recoveryDisplay, ENT_QUOTES, 'UTF-8'); ?></div>
-        <p style="font-size:13px;color:#666;">Store it offline or in a trusted password manager. Do not send it by email or store it in the SentryIQ vault itself.</p>
-        <p style="font-size:13px;color:#b02a37;"><strong>Important:</strong> SentryIQ will not be able to recreate this exact recovery key if you lose it.</p>
-        <a href="index.php?recovery_seen=1" class="btn btn-primary" style="display:block;text-align:center;text-decoration:none;margin-top:20px;">I Have Saved My Recovery Key → Continue</a>
+        <div class="recovery-key-display"><?php echo htmlspecialchars($recoveryDisplay, ENT_QUOTES, 'UTF-8'); ?></div>
+        <p class="recovery-key-note">Store it offline or in a trusted password manager. Do not send it by email or store it in the SentryIQ vault itself.</p>
+        <p class="recovery-key-warning"><strong>Important:</strong> SentryIQ will not be able to recreate this exact recovery key if you lose it.</p>
+        <a href="index.php?recovery_seen=1" class="btn btn-primary recovery-key-continue">I Have Saved My Recovery Key → Continue</a>
     </div>
     </body>
     </html>
@@ -117,18 +117,18 @@ $ogImageUrl = rtrim((string)($config['base_url'] ?? ''), '/') . '/sentryiq-og.ph
 <div class="form-group"><label>Recovery Key:</label><input type="text" name="recovery_key" class="input-field" autocomplete="off" autocapitalize="characters" spellcheck="false" required autofocus></div>
 <button type="submit" name="recovery_login" class="btn btn-primary">Recover Vault</button>
 </form>
-<p style="margin-top:15px;text-align:center;"><a href="index.php">← Back to Password Login</a></p>
+<p class="vault-login-secondary-link"><a href="index.php">← Back to Password Login</a></p>
 <?php elseif (!isset($_SESSION['pending_key'])): ?>
 <?php if ($decryption_failed): ?><p class="error">Unable to verify the master vault password.</p><?php endif; ?><form method="POST" autocomplete="off"><input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>"><div class="form-group"><label>Master Vault Password:</label><input type="password" name="master_password" class="input-field" autocomplete="current-password" required autofocus></div><button type="submit" name="login_step_1" class="btn btn-primary">Unlock</button></form>
-<p style="margin-top:15px;text-align:center;"><a href="index.php?recovery=1">🛟 Use Recovery Key</a></p>
+<p class="vault-login-secondary-link"><a href="index.php?recovery=1">🛟 Use Recovery Key</a></p>
 <?php else: ?><h2>🔐 Verification</h2><p>A temporary verification code has been sent to the configured 2FA email address.</p><?php if ($error_step_2 !== ''): ?><p class="error"><?php echo htmlspecialchars($error_step_2, ENT_QUOTES, 'UTF-8'); ?></p><?php endif; ?><form method="POST" autocomplete="off"><input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>"><div class="form-group"><label>Enter 6-Digit Code:</label><input type="text" name="verification_code" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code" class="input-field" required autofocus></div><button type="submit" name="login_step_2" class="btn btn-primary">Verify &amp; Unlock</button></form><?php endif; ?>
 <?php else: ?>
 <?php require_once __DIR__ . '/app/Vault/DashboardList.php'; ?>
 <?php require_once __DIR__ . '/app/Vault/DashboardActions.php'; ?>
 <?php endif; ?>
 </div>
-<footer style="max-width:820px;margin:0 auto 24px;padding:12px 18px;text-align:center;font-size:13px;color:var(--text-muted,#667085);">
-    <a href="credits.php" style="color:inherit;text-decoration:underline;text-underline-offset:3px;">Credits &amp; acknowledgements</a>
+<footer class="vault-credits-footer">
+    <a class="vault-credits-link" href="credits.php">Credits &amp; acknowledgements</a>
 </footer>
 <script src="assets/js/vault_page_init.js" defer></script>
 </body></html>
