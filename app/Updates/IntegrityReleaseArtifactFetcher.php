@@ -44,17 +44,181 @@ final class IntegrityReleaseArtifactFetcher
         }
         $directory = $this->ensurePrivateDirectory($privateDirectory);
         if ($directory === $realPublicRoot
-            || str_starts_with($directory, rtrim($realPublicRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
-            throw new RuntimeException('Release staging directory must be outside the public webroot.');
+            || str_starts_with($directory, rtrim($realPublicRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)
+            || basename(dirname($directory)) !== 'integrity-releases') {
+            throw new RuntimeException('Release staging directory must be an integrity-releases child outside the public webroot.');
         }
-        @chmod($directory, 0700);
+        $releaseRoot = dirname($directory);
+        if (!@chmod($releaseRoot, 0700) || !@chmod($directory, 0700)) {
+            throw new RuntimeException('Unable to enforce private release staging directory permissions.');
+        }
+        foreach ([$releaseRoot, $directory] as $privatePath) {
+            clearstatcache(true, $privatePath);
+            $privateStat = @lstat($privatePath);
+            if (!is_array($privateStat) || (($privateStat['mode'] ?? 0) & 0170000) !== 0040000
+                || (($privateStat['mode'] ?? 0) & 0777) !== 0700) {
+                throw new RuntimeException('Release staging directories must be real exact 0700 directories.');
+            }
+        }
 
         $manifest = $directory . '/release-manifest.json';
         $artifact = $directory . '/sentryiq-' . $version . '.zip';
-        $this->download(self::RELEASE_BASE . 'v' . $version . '/release-manifest.json', $manifest, 5_000_000);
-        $this->download(self::RELEASE_BASE . 'v' . $version . '/sentryiq-' . $version . '.zip', $artifact, 250_000_000);
+        $metadata = $directory . '/.integrity-cache.json';
+        if (!$this->isReusableCache($version, $manifest, $artifact, $metadata)) {
+            $this->download(self::RELEASE_BASE . 'v' . $version . '/release-manifest.json', $manifest, 5_000_000);
+            $this->download(self::RELEASE_BASE . 'v' . $version . '/sentryiq-' . $version . '.zip', $artifact, 250_000_000);
+            $manifestDigest = @hash_file('sha256', $manifest);
+            $artifactDigest = @hash_file('sha256', $artifact);
+            if (!is_string($manifestDigest) || !preg_match('/^[a-f0-9]{64}$/', $manifestDigest)
+                || !is_string($artifactDigest) || !preg_match('/^[a-f0-9]{64}$/', $artifactDigest)) {
+                throw new RuntimeException('Unable to fingerprint staged release artifacts for safe cache reuse.');
+            }
+            $this->writeCacheMetadata($metadata, $version, $manifestDigest, $artifactDigest);
+        }
+        $this->pruneOldVersionDirectories($releaseRoot, $version);
 
         return ['manifest_path' => $manifest, 'artifact_path' => $artifact];
+    }
+
+    private function isReusableCache(string $version, string $manifest, string $artifact, string $metadataPath): bool
+    {
+        if (is_link($manifest) || is_link($artifact) || is_link($metadataPath)) {
+            throw new RuntimeException('Release artifact cache must not contain symlinks.');
+        }
+        if (!is_file($manifest) || !is_file($artifact) || !is_file($metadataPath)) return false;
+
+        foreach ([[$manifest, 5_000_000], [$artifact, 250_000_000], [$metadataPath, 1024]] as [$path, $maximum]) {
+            clearstatcache(true, $path);
+            $stat = @lstat($path);
+            if (!is_array($stat) || (($stat['mode'] ?? 0) & 0170000) !== 0100000
+                || (($stat['mode'] ?? 0) & 0777) !== 0600) {
+                throw new RuntimeException('Release artifact cache file type or permissions are unsafe.');
+            }
+            if (($stat['size'] ?? 0) < 1 || ($stat['size'] ?? 0) > $maximum) return false;
+        }
+
+        $raw = @file_get_contents($metadataPath);
+        if (!is_string($raw) || $raw === '') return false;
+        try {
+            $metadata = json_decode($raw, true, 8, JSON_THROW_ON_ERROR);
+        } catch (Throwable) {
+            return false;
+        }
+        if (!is_array($metadata) || array_is_list($metadata)) return false;
+        $keys = array_keys($metadata);
+        sort($keys);
+        $expectedKeys = ['artifact_sha256', 'manifest_sha256', 'schema_version', 'version'];
+        sort($expectedKeys);
+        if ($keys !== $expectedKeys || ($metadata['schema_version'] ?? null) !== 1
+            || ($metadata['version'] ?? null) !== $version
+            || !is_string($metadata['manifest_sha256'] ?? null)
+            || !preg_match('/^[a-f0-9]{64}$/', $metadata['manifest_sha256'])
+            || !is_string($metadata['artifact_sha256'] ?? null)
+            || !preg_match('/^[a-f0-9]{64}$/', $metadata['artifact_sha256'])) {
+            return false;
+        }
+        $manifestDigest = @hash_file('sha256', $manifest);
+        $artifactDigest = @hash_file('sha256', $artifact);
+        return is_string($manifestDigest) && is_string($artifactDigest)
+            && hash_equals($metadata['manifest_sha256'], $manifestDigest)
+            && hash_equals($metadata['artifact_sha256'], $artifactDigest);
+    }
+
+    private function writeCacheMetadata(string $path, string $version, string $manifestDigest, string $artifactDigest): void
+    {
+        if (is_link($path)) throw new RuntimeException('Release artifact cache metadata must not be a symlink.');
+        $bytes = json_encode([
+            'schema_version' => 1,
+            'version' => $version,
+            'manifest_sha256' => $manifestDigest,
+            'artifact_sha256' => $artifactDigest,
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\\n";
+        $temporary = $path . '.tmp-' . bin2hex(random_bytes(8));
+        $handle = @fopen($temporary, 'x+b');
+        if ($handle === false) throw new RuntimeException('Unable to create release artifact cache metadata.');
+        $ok = @chmod($temporary, 0600);
+        $offset = 0;
+        while ($ok && $offset < strlen($bytes)) {
+            $written = @fwrite($handle, substr($bytes, $offset));
+            if (!is_int($written) || $written < 1) {
+                $ok = false;
+                break;
+            }
+            $offset += $written;
+        }
+        if ($ok) $ok = @fflush($handle);
+        if ($ok && function_exists('fsync')) $ok = @fsync($handle);
+        $stat = @fstat($handle);
+        $ok = $ok && is_array($stat) && (($stat['mode'] ?? 0) & 0170000) === 0100000
+            && (($stat['mode'] ?? 0) & 0777) === 0600 && $offset === strlen($bytes);
+        fclose($handle);
+        if (!$ok || !@rename($temporary, $path)) {
+            @unlink($temporary);
+            throw new RuntimeException('Unable to atomically publish release artifact cache metadata.');
+        }
+        if (!@chmod($path, 0600)) {
+            @unlink($path);
+            throw new RuntimeException('Unable to enforce release artifact cache metadata permissions.');
+        }
+        clearstatcache(true, $path);
+        $final = @lstat($path);
+        if (!is_array($final) || (($final['mode'] ?? 0) & 0170000) !== 0100000
+            || (($final['mode'] ?? 0) & 0777) !== 0600) {
+            @unlink($path);
+            throw new RuntimeException('Release artifact cache metadata permissions are unsafe.');
+        }
+    }
+
+    private function pruneOldVersionDirectories(string $releaseRoot, string $currentVersion): void
+    {
+        $entries = @scandir($releaseRoot);
+        if (!is_array($entries)) throw new RuntimeException('Unable to enumerate private release cache directories.');
+        $versions = [];
+        foreach ($entries as $entry) {
+            if (!preg_match('/^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$/', $entry)) continue;
+            $path = $releaseRoot . DIRECTORY_SEPARATOR . $entry;
+            clearstatcache(true, $path);
+            $stat = @lstat($path);
+            if (!is_array($stat) || (($stat['mode'] ?? 0) & 0170000) !== 0040000
+                || (($stat['mode'] ?? 0) & 0777) !== 0700 || is_link($path)) {
+                throw new RuntimeException('Release cache version directory has unsafe type or permissions.');
+            }
+            $versions[] = $entry;
+        }
+        usort($versions, static fn(string $left, string $right): int => version_compare($right, $left));
+        $keep = array_slice(array_values(array_unique(array_merge([$currentVersion], $versions)), 0, 3);
+        foreach ($versions as $version) {
+            if (in_array($version, $keep, true)) continue;
+            $path = $releaseRoot . DIRECTORY_SEPARATOR . $version;
+            $allowed = ['release-manifest.json', 'sentryiq-' . $version . '.zip', '.integrity-cache.json'];
+            $files = @scandir($path);
+            if (!is_array($files)) continue;
+            $safeToDelete = true;
+            foreach ($files as $file) {
+                if ($file === '.' || $file === '..') continue;
+                if (!in_array($file, $allowed, true)) {
+                    $safeToDelete = false;
+                    break;
+                }
+                $filePath = $path . DIRECTORY_SEPARATOR . $file;
+                clearstatcache(true, $filePath);
+                $fileStat = @lstat($filePath);
+                if (!is_array($fileStat) || (($fileStat['mode'] ?? 0) & 0170000) !== 0100000
+                    || (($fileStat['mode'] ?? 0) & 0777) !== 0600) {
+                    $safeToDelete = false;
+                    break;
+                }
+            }
+            if (!$safeToDelete) continue;
+            foreach ($allowed as $file) {
+                $filePath = $path . DIRECTORY_SEPARATOR . $file;
+                if (file_exists($filePath) && !@unlink($filePath)) {
+                    $safeToDelete = false;
+                    break;
+                }
+            }
+            if ($safeToDelete) @rmdir($path);
+        }
     }
 
     /**
