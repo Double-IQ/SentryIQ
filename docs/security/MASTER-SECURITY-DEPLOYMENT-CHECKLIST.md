@@ -624,3 +624,14 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - All four GitHub Actions workflows passed on PR #56 head `0b9470227f26ab49ff2abf68a98add8e817e28c6`: Gallery Security Checks, PHP Syntax Check, Release Manifest Tests, and Validate v0.1.2 release attestation.
 - The live Apache test specifically confirmed encoded `/%61pp` and `/.%67it` requests are denied, encoded separators are rejected, and both direct and legacy CSS URLs remain available.
 - Separate updater hardening now also fails closed if chmod cannot set a backup copy to exactly mode 0600 or if the resulting permissions cannot be verified. Regression coverage asserts mode 0600. Changes are on the newer PR head (`4b38d51db0b4d6367d1ba1e262f2aed254724dae` and `2d6fd4c1692d3003ecc35bd41745118811c2ffb7)); CI for this latest updater permission check is pending.
+
+
+### Latest exact-head CI verification: updater backup permissions
+
+- PR #56 head `2d6fd4c1692d3003ecc35bd41745118811c2ffb7` passed all four workflows:
+  - Gallery Security Checks — passed, including updater backup digest/size/permission assertions and the real Apache encoded-path integration suite.
+  - PHP Syntax Check — passed.
+  - Release Manifest Tests — passed.
+  - Validate v0.1.2 release attestation — passed.
+- The updater backup helper now verifies byte count, SHA-256, and exact mode 0600 before allowing live replacement. Existing destinations and symlinked paths remain rejected.
+- The Apache integration suite now verifies encoded source/VCS paths are denied while legacy CSS rewrite compatibility remains intact.
