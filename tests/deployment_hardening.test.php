@@ -31,8 +31,12 @@ deploymentCheck(
 );
 
 deploymentCheck(
-    str_contains($apache, 'RewriteCond %{THE_REQUEST} "\s/+((app|cloud|docs|tests|scripts|\.github|\.git))(/|\s|\?)" [NC]'),
-    'Apache rules must deny direct requests to source, test, documentation, and VCS directories without blocking internal rewrites.'
+    str_contains($apache, 'RewriteRule ^(app|cloud|docs|tests|scripts|\\.github|\\.git)(/|$) - [F,L,NC]'),
+    'Apache rules must deny normalized direct requests to source, test, documentation, and VCS directories.'
+);
+deploymentCheck(
+    preg_match_all('/^RewriteRule\\s+\\^.*\\s+app\\/.*\\[END\\]$/m', $apache) === 22,
+    'All 22 legacy application endpoint rewrites must terminate per-directory processing with [END] so the direct-request guard cannot block their internal targets.'
 );
 
 echo "PHP and Apache deployment hardening source checks passed.\n";
