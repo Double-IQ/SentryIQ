@@ -56,10 +56,13 @@ jobs:
           php-version: '8.4'
           extensions: curl, zip
 
-      - name: Install Chromium browser test dependencies
+      - name: Install Playwright and locate runner Chromium
         run: |
           npm install --no-save --no-package-lock playwright@1.56.1
-          npx playwright install --with-deps chromium
+          chrome_bin="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$chrome_bin"
+          "$chrome_bin" --version
+          echo "CHROME_BIN=$chrome_bin" >> "$GITHUB_ENV"
 
       - name: Lint PHP files
         shell: bash
