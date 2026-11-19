@@ -38,6 +38,15 @@ expect_not_success "/%61pp/Security/SecurityBootstrap.php"
 expect_not_success "/app%2fSecurity%2fSecurityBootstrap.php"
 expect_not_success "/.%67it/HEAD"
 
-# Confirm the target asset is directly readable, then test the legacy rewrite.
+# Static browser assets must be directly readable with their real URLs.
 expect_status "/assets/css/sentryiq.css" 200
+expect_status "/assets/js/vault_folders.js" 200
+expect_status "/assets/js/vault_page.js" 200
+expect_status "/assets/js/vault_page_init.js" 200
+expect_status "/assets/js/records_view.js" 200
+expect_status "/assets/js/safari.js" 200
+expect_status "/assets/images/sentryiq-logo-wide.webp" 200
+expect_status "/assets/images/sentryiq-icon.png" 200
+
+# Preserve the legacy stylesheet alias through its internal rewrite.
 expect_status "/pm_style.css" 200
