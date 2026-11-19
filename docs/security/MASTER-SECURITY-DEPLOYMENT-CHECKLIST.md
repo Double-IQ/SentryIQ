@@ -659,3 +659,12 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - The connected integration cannot read the detailed branch-protection endpoint (HTTP 403); repository-admin access is required to configure and verify required reviews/status checks and immutable `v*` tags.
 - The repository metadata response did not expose `security_and_analysis`; secret scanning, push protection, and Dependabot alert settings remain unverified. No GitHub platform settings were changed.
 - Updated `docs/security/REPOSITORY-SECURITY-SETTINGS.md` on PR #56 with this evidence. This remains an owner-side deployment acceptance blocker.
+
+
+### Phase 1.5: isolated end-to-end updater exercise added
+
+- Added a dedicated non-production integration test that creates a synthetic release ZIP and manifest, uses a fake GitHub API response, a test-only asset downloader, and a synthetic verifier result, then invokes the real `UpdateManager::applyLatest()` against disposable application/private-data directories.
+- The test exercises checksum validation, verifier invocation, archive extraction, manifest inventory/hash validation, pre-update backups, public/runtime replacement, runtime mode 0600, post-update version verification, backup retention, and successful cleanup of downloads/staging.
+- Added a test-only download callback seam to `UpdateManager`; production defaults remain the existing HTTPS GitHub/cURL downloader. CI explicitly installs PHP cURL and ZipArchive and runs the integration test in Gallery Security Checks.
+- This provides an isolated update-application exercise; it does not update production or prove the host's real GitHub CLI configuration. The synthetic verifier is a contract fixture; genuine Sigstore verification remains separately covered by the release-attestation workflow.
+- Commits: `2329f2661c2cf14180e9baade483ec8708c7327b`, `7453f3278fa4eb82333c4386b063852af3436f5d`, `cd6fca948998ae2c07a51d238ff24c847f6b3526`. Exact-head CI pending.
