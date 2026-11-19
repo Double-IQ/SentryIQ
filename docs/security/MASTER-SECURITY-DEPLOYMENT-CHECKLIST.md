@@ -707,3 +707,10 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - Updated `diagnostics/self_test.php` to validate the actual PNG asset bytes/type, compare URL paths independently of cache-busting query strings, inspect the Gallery render template, validate current index JS assets, and parse CSS rules without assuming a top-level-only selector layout.
 - The isolated CLI self-test explicitly treats the absent install configuration as expected fixture state; all other server-side checks must pass. It does not mark a real deployment's install state healthy or claim browser URL tests.
 - Fix commits: `34a32f61bfdb385e9e8d41a19b19285e526e7799`, `43bebf63ea6bc074eb376a60462cc42d7c2b07de`. CI pending.
+
+
+### Latest exact-head CI verification: self-diagnostics
+
+- All four workflows passed on PR #56 head `43bebf63ea6bc074eb376a60462cc42d7c2b07de`: Gallery Security Checks, PHP Syntax Check, Release Manifest Tests, and Validate v0.1.2 release attestation.
+- The new CLI self-diagnostic test passed all 117 server-side checks after the stale source/icon/CSS contracts were corrected.
+- The browser portion of `diagnostics/self_test.php` remains a live authenticated deployment check and was not run in CI. Phase 1 item 6.4 therefore remains open until that browser diagnostic is executed against an installed non-production environment or production after explicit deployment approval.
