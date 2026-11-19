@@ -152,7 +152,7 @@ return true;
   const report = JSON.parse(await page.locator('#report').textContent());
   const failedBrowserChecks = report.browserChecks.filter(check => check.ok === false);
   assert.deepEqual(
-    failedBrowserChecks.map(check => ({ label: check.label, url: check.url, status: check.status, contentType: check.contentType, finalUrl: check.finalUrl, checks: check.checks, stylesheetDetail: check.stylesheetDetail })),
+    failedBrowserChecks.map(check => ({ label: check.label, url: check.url, status: check.status, contentType: check.contentType, finalUrl: check.finalUrl, checks: check.checks, stylesheetDetail: check.stylesheetDetail, htmlReferenceResults: check.htmlReferenceResults })),
     [],
     'Real browser URL/DOM/CSS checks failed.'
   );
