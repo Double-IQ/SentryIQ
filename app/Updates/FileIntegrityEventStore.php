@@ -153,7 +153,7 @@ final class FileIntegrityEventStore
             'artifact_sha256' => $artifactSha256,
             'manifest_sha256' => $manifestSha256,
             'issued_at' => $issuedAt,
-            'expires_at' => $issuedAt + 300,
+            'expires_at' => $issuedAt + 600,
         ];
 
         $this->transact(function (array &$state) use ($nonce, $challenge, $issuedAt): void {
