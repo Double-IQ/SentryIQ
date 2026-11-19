@@ -33,7 +33,7 @@ if ($method === 'GET') {
 </head>
 <body>
 <div class="card">
-    <h2 style="color:#0066cc;margin-top:0;font-size:22px;">SentryIQ Verification</h2>
+    <h2 class="copy-code-title">SentryIQ Verification</h2>
     <p id="status" class="hint">Retrieving your one-time verification code…</p>
     <div id="auth-code" class="code-display" hidden></div>
     <button type="button" id="copy-btn" class="btn-copy" hidden>Copy Verification Code</button>
