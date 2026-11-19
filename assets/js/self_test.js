@@ -28,10 +28,11 @@ async function checkOne(test){
                 stylesheetDetail={status:sr.status,statusOk:sr.status>=200&&sr.status<300,contentType:st,contentTypeOk:st.toLowerCase().startsWith('text/css'),url:sr.url,bytes:styleText.length,parseOk:false,ruleCount:0,contracts:[]};
                 stylesheetOk=stylesheetOk&&stylesheetDetail.statusOk&&stylesheetDetail.contentTypeOk&&styleText.trim().length>0;
                 if(stylesheetOk){
-                    const probe=document.createElement('style');
-                    probe.textContent=styleText;
-                    document.head.appendChild(probe);
-                    const rules=probe.sheet&&probe.sheet.cssRules?Array.from(probe.sheet.cssRules):[];
+                    // Parse the fetched same-origin stylesheet without injecting an inline
+                    // <style> block, which the production style-src 'self' CSP correctly blocks.
+                    const parsedSheet=new CSSStyleSheet();
+                    parsedSheet.replaceSync(styleText);
+                    const rules=Array.from(parsedSheet.cssRules);
                     stylesheetDetail.ruleCount=rules.length;
                     stylesheetDetail.parseOk=rules.length>0;
                     stylesheetOk=stylesheetOk&&rules.length>0;
@@ -50,7 +51,7 @@ async function checkOne(test){
                         stylesheetDetail.contracts.push({...contract,actual,ok});
                         if(!ok)stylesheetOk=false;
                     }
-                    probe.remove();
+                    
                 }
             }catch(error){
                 stylesheetOk=false;
