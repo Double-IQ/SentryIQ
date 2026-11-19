@@ -22,12 +22,12 @@ if (isset($_SESSION['master_key']) && is_string($_SESSION['master_key']) && strl
 <body>
 <div class="box">
     <img class="sentryiq-brand-banner" src="assets/images/sentryiq-logo-wide.webp" width="1952" height="588" alt="SentryIQ" fetchpriority="high">
-    <div style="max-width:460px;margin:20px auto;text-align:center;">
+    <div class="passkey-page passkey-login-page">
         <h2>🔐 Unlock SentryIQ</h2>
         <p>Use your passkey to unlock your secure vault.</p>
-        <button type="button" id="passkey-login" class="btn btn-primary" style="width:100%;margin-top:12px;">Use Passkey / Face ID</button>
-        <p id="passkey-status" class="error" style="display:none;"></p>
-        <p style="margin-top:20px;font-size:13px;"><a href="index.php?password=1">Use the recovery login instead</a></p>
+        <button type="button" id="passkey-login" class="btn btn-primary passkey-action-button">Use Passkey / Face ID</button>
+        <p id="passkey-status" class="error passkey-status"></p>
+        <p class="passkey-login-fallback"><a href="index.php?password=1">Use the recovery login instead</a></p>
     </div>
 </div>
 <script src="assets/js/passkey_login.js" defer></script>
