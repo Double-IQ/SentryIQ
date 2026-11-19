@@ -14,10 +14,12 @@ final class IntegrityDeployedReleaseResolver
 {
     /** @var callable(string,int):array{status:int,body:string} */
     private $get;
+    private ?string $githubApiToken = null;
 
     public function __construct(
         private readonly string $targetOrigin = 'https://sentryiq.bichet.co.za',
-        ?callable $get = null
+        ?callable $get = null,
+        ?string $githubApiToken = null
     ) {
         $parts = parse_url($targetOrigin);
         if (!is_array($parts) || ($parts['scheme'] ?? null) !== 'https'
@@ -28,6 +30,10 @@ final class IntegrityDeployedReleaseResolver
             || ($parts['path'] ?? '') !== '') {
             throw new RuntimeException('Deployed release resolver must use the canonical SentryIQ HTTPS origin.');
         }
+        if ($githubApiToken !== null && preg_match('/^[A-Za-z0-9_]{20,255}$/', $githubApiToken) !== 1) {
+            throw new RuntimeException('Optional GitHub API token has an invalid format.');
+        }
+        $this->githubApiToken = $githubApiToken;
         $this->get = $get ?? fn(string $url, int $maxBytes): array => $this->curlGet($url, $maxBytes);
     }
 
@@ -79,6 +85,7 @@ final class IntegrityDeployedReleaseResolver
         if (str_starts_with($url, 'https://api.github.com/')) {
             $headers[0] = 'Accept: application/vnd.github+json';
             $headers[] = 'User-Agent: SentryIQ-Integrity-Node/1.0';
+            if ($this->githubApiToken !== null) $headers[] = 'Authorization: Bearer ' . $this->githubApiToken;
         }
         curl_setopt_array($handle, [
             CURLOPT_HTTPHEADER => $headers,
