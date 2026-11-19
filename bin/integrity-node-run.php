@@ -42,6 +42,7 @@ $publicWebRoot = getenv('SENTRYIQ_INTEGRITY_PUBLIC_WEB_ROOT');
 $private = is_string($privateDataDirectory) ? realpath($privateDataDirectory) : false;
 $web = is_string($publicWebRoot) ? realpath($publicWebRoot) : false;
 $configReal = is_string($configPath) ? realpath($configPath) : false;
+if (is_string($configPath)) clearstatcache(true, $configPath);
 $configStat = is_string($configPath) ? @lstat($configPath) : false;
 $privateStat = is_string($private) ? @lstat($private) : false;
 if (!is_string($configPath) || $configPath === '' || !str_starts_with($configPath, DIRECTORY_SEPARATOR)
