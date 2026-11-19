@@ -37,7 +37,7 @@ final class IntegrityPublicAssetPolicy
                 throw new RuntimeException('Release manifest public file inventory is invalid.');
             }
             foreach ($publicFiles as $publicPath) {
-                if (!is_string($publicPath) || !self::isSafePath($publicPath)) {
+                if (!is_string($publicPath) || !self::isSafePath($publicPath) || isset($publicFileSet[$publicPath])) {
                     throw new RuntimeException('Release manifest contains an unsafe public file path.');
                 }
             }
@@ -74,10 +74,12 @@ final class IntegrityPublicAssetPolicy
         }
 
         $selected = $configuredPaths === [] ? array_keys($allowed) : $configuredPaths;
+        $selectedSeen = [];
         foreach ($selected as $path) {
-            if (!is_string($path) || !self::isSafePath($path) || !isset($allowed[$path])) {
-                throw new RuntimeException('Configured public path is not in the signed static-asset allowlist.');
+            if (!is_string($path) || !self::isSafePath($path) || !isset($allowed[$path]) || isset($selectedSeen[$path])) {
+                throw new RuntimeException('Configured public path is not in the signed static-asset allowlist or is duplicated.');
             }
+            $selectedSeen[$path] = true;
         }
         if (count($selected) > 99) {
             throw new RuntimeException('Release manifest exceeds the signed event evidence path limit.');
