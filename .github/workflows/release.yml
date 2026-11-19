@@ -27,6 +27,9 @@ jobs:
           TAG="${GITHUB_REF_NAME#v}"
           VERSION="$(tr -d '\r\n' < VERSION)"
           test "$TAG" = "$VERSION"
+          # This workflow publishes stable releases only. The updater's
+          # latest-release path intentionally rejects prereleases.
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
 
       - name: Build package and canonical inventory manifest
         shell: bash
