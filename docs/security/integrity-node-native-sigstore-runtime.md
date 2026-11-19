@@ -128,7 +128,7 @@ Nodes A and B also require the node-bound `PrivateHostAttestationGate` shown abo
 
 Each node also verifies the origin's HSTS, CSP, framing, MIME-sniffing, referrer and permissions headers. The SentryIQ `.htaccess` now declares that conservative header policy. The signed release manifest carries a `public_http_files` list containing only byte-verifiable static assets. Dynamic PHP endpoints are not compared with their packaged source bytes; private runtime files remain outside HTTP checks. Leave `$publicPathSubset` empty to check every signed static asset, or provide a subset.
 
-The CLI preloads the node classes, native verifier, concrete `IntegrityNodeVerifierBinding` and runtime dependencies before requiring the protected config file. The config file only needs to construct the host-specific objects and return the runner. The CLI requires an absolute, readable, regular, non-symlink config file with exact `0600` permissions; broader or merely read-only modes are rejected. It then requires the file and requires it to return the runner. The private monotonic state baseline must already exist; first-run bootstrap is an explicit one-time administrator action.
+The CLI preloads the node classes, native verifier, concrete `IntegrityNodeVerifierBinding` and runtime dependencies before requiring the protected config file. The config file only needs to construct the host-specific objects and return the runner. Set `SENTRYIQ_INTEGRITY_NODE_CONFIG`, `SENTRYIQ_INTEGRITY_PRIVATE_DATA_DIR` and `SENTRYIQ_INTEGRITY_PUBLIC_WEB_ROOT` in the CLI environment. The config must be a regular, non-symlink mode-0600 file inside the exact mode-0700 private data directory; a path in the public webroot is rejected. The private monotonic state baseline is initialized once with `bin/integrity-node-baseline.php`, using a separate protected mode-0600 PHP config containing only the independently confirmed version, commit, manifest SHA-256 and ZIP SHA-256. That command safely creates the required mode-0600 state lock, refuses to overwrite an existing baseline, and prints a non-secret summary. Delete the one-time baseline config immediately after successful initialization. Never initialize from the live `/VERSION` response alone.
 
 
 ### Mandatory A/B trust-separation checks
@@ -187,7 +187,7 @@ The key file must be a regular non-symlink file with mode 0600 in a mode-0700 pr
 
 ## CLI and schedule
 
-Set `SENTRYIQ_INTEGRITY_NODE_CONFIG` to the absolute path of this host's protected PHP config, then run:
+Set `SENTRYIQ_INTEGRITY_NODE_CONFIG`, `SENTRYIQ_INTEGRITY_PRIVATE_DATA_DIR` and `SENTRYIQ_INTEGRITY_PUBLIC_WEB_ROOT` to this host's protected paths, then run:
 
 ```sh
 php /absolute/private-or-code-path/SentryIQ/bin/integrity-node-run.php
@@ -208,3 +208,24 @@ These HTTP checks do not attest the deployed PHP source, private runtime files o
 Before a host can run this bootstrap, its administrator must supply and test: the deployed-release resolver, exact public path allowlist, node-specific Ed25519 key, independent alert transport, private vendor autoload path, private data directory, and (for C) a private evidence store. Nodes A/B additionally require unique Node 4 bearer tokens. Node 4 separately needs A/B public keys, matching bearer tokens, private event storage and a real alert sender.
 
 No production endpoint, release marker, host path, recipient, provider credential or secret is invented here. The repository code and CI do not prove that any node has been provisioned, scheduled or deployed.
+
+## Host-attestation listener is deliberately not a public SentryIQ PHP endpoint
+
+`PrivateHostAttestationRequestHandler` is a framework-neutral authenticated
+handler. The repository does not expose it through the ordinary SentryIQ
+web-PHP process. Its configured route
+`https://sentryiq.bichet.co.za/private-host-attestation` requires a
+host-specific isolated listener or reverse-proxy adapter that runs under a
+separate OS identity and is the only process allowed to read the collector
+signing key and pinned private-file inventory. The listener must create and
+protect the nonce registry lock/state in the exact-0700 private directory.
+
+Do not add a rewrite to the ordinary SentryIQ PHP application or load the
+collector key into the normal web process as a workaround: on shared cPanel
+hosting, the application and web PHP commonly run as the same account, so a
+web-application compromise could then read the collector key and forge its
+own attestation. If the host cannot provide a separate service identity and
+read-only file access, private-host attestation is unavailable on that host.
+The A/B nodes must remain fail-closed until an approved isolated service is
+available; public HTTP checks alone must not be described as private PHP
+integrity verification.
