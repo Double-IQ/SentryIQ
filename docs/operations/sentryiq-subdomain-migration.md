@@ -32,7 +32,7 @@ These checks do **not** establish that the new document root is ready for applic
 
 ## First-run protected storage configuration
 
-The original first-run path calculation was unsafe for this cPanel layout: deriving a directory by walking up from the PHP source tree could select `/home/private_data` rather than the intended account-private sibling. PR #72 replaces that guess with an explicit `SENTRYIQ_DATA_DIR` setting and fails closed when it is absent or unsafe.
+PR #72 is merged into `main`. It replaces the unsafe source-relative path calculation with an explicit `SENTRYIQ_DATA_DIR` setting and fails closed when the setting is absent or unsafe.
 
 Expected deployment layout:
 
@@ -42,12 +42,9 @@ Expected deployment layout:
 └── sentryiq-private/          # protected runtime directory
 ```
 
-The expected PHP environment value is `SENTRYIQ_DATA_DIR=/home/bicheveb/sentryiq-private`. The hosting provider must confirm that this value reaches the subdomain's PHP web SAPI, and that PHP `open_basedir` permits access. The installer validates the target before creating it, requires it to be a direct sibling under the account root, rejects symlinked/non-canonical parents, and applies owner-only directory permissions.
+The expected PHP value is `SENTRYIQ_DATA_DIR=/home/bicheveb/sentryiq-private`. The hosting provider must confirm that it reaches the PHP web SAPI and that `open_basedir` permits the directory. Do not run first-run setup until a controlled PHP-side check verifies the variable and filesystem access. The Apache `SetEnv` option is only a possibility where supported by the host's Apache/PHP handler; do not assume it works or weaken `open_basedir`.
 
-For this clean deployment, run first-run setup only after the reviewed release is uploaded and the environment variable has been verified through PHP. A missing or invalid value must stop installation; do not fall back to a source-relative path. The installer creates the fresh protected runtime configuration and root pointer configuration itself. Do not manually invent either configuration file or reuse old runtime data. Confirm ownership, PHP readability/writability, and restrictive permissions after setup.
-
-Implementation and test evidence: [PR #72](https://github.com/Double-IQ/SentryIQ/pull/72). The code and CI changes are reviewed/merged separately from production deployment; this runbook does not authorize changing cPanel or exposing the installer.
-
+The corrected installer creates the fresh protected runtime and root pointer configuration itself. Do not manually invent those files or reuse legacy runtime data. Keep the old installation untouched until the new origin passes acceptance and cutover is explicitly approved.
 
 1. **The installed origin is stored in protected runtime configuration.** First-run setup derives `base_url` from `SERVER_NAME` and the deployed script path, then writes it into both the root `sentryiq_config.php` pointer and the protected runtime configuration. The passkey handlers read the root pointer configuration. These files are not tracked in Git and must be handled as protected production configuration, not overwritten by a code deployment.
 2. **WebAuthn origin and RP ID are coupled today.** `app/Auth/PasskeyAuth.php` and `app/Auth/GalleryPasskeyAuth.php` derive both the expected browser origin and WebAuthn RP ID from `base_url`. The old host yields RP ID `bichet.co.za`; the new host would yield `sentryiq.bichet.co.za`. Existing passkey credentials are scoped to the old RP ID and will not work with the new RP ID. Do not change `base_url` before choosing and testing a passkey migration strategy.
@@ -64,8 +61,8 @@ Implementation and test evidence: [PR #72](https://github.com/Double-IQ/SentryIQ
 - [ ] Confirm the hosting plan supports the subdomain and identify the exact document root for `sentryiq.bichet.co.za`.
 - [ ] Confirm the new document root will contain only the intended SentryIQ public application files; keep the protected data directory outside it.
 - [x] Operator confirms the new hostname resolves and HTTPS loads without a browser certificate warning. Do not change the old hostname yet.
-- [ ] Take and verify a backup of the application files, database (if applicable), and complete protected runtime directory. Keep secrets out of Git and support tickets.
-- [ ] Provision and verify the new root pointer config before the first public request; set its protected `data_dir` explicitly to `/home/bicheveb/sentryiq-private` and `base_url` to `https://sentryiq.bichet.co.za`. Verify protected runtime config without disclosing contents.
+- [x] Legacy installation backup/migration explicitly declined by the owner; new deployment is a clean install. Backups for new production data remain a separate pre-acceptance requirement.
+- [ ] Configure and verify `SENTRYIQ_DATA_DIR` reaches the new subdomain's PHP web SAPI and `open_basedir` permits `/home/bicheveb/sentryiq-private`; let the corrected installer generate the pointer/runtime configuration.
 - [ ] Record only the number of registered vault passkeys and Gallery passkey envelopes. Confirm password/recovery access before changing RP ID.
 - [ ] Decide and document whether passkeys will be re-enrolled under RP ID `sentryiq.bichet.co.za` (preferred) or whether a parent-domain RP ID compatibility exception is justified.
 - [x] Add the new exact B2 CORS origin while retaining the old origin. Browser upload, download and delete from the new origin remain to be tested.

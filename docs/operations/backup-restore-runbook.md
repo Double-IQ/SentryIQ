@@ -1,10 +1,20 @@
 # SentryIQ Backup and Restore Runbook
 
+**Current deployment decision (2026-11-19):** The owner has explicitly declared the existing SentryIQ installation disposable. It will not be backed up or migrated. The new SentryIQ version will be deployed cleanly at `sentryiq.bichet.co.za`; this runbook's operational backup requirements apply to the new installation and its newly created production data, not the legacy installation.
 **Status:** Procedure template only — no backup job or restore has been executed.  
 **Selected off-site destination:** MEGA account (owner decision, 2026-11-19; owner reports 20 GB available, not yet independently measured).  
 **Scope:** SentryIQ application source/configuration, protected runtime data, and encrypted Backblaze B2 Gallery objects.
 
 This runbook is not evidence that backups exist. MEGA has been selected as the destination, but available quota, transfer allowance, MEGAcmd installation/session, encryption/key custody, retention, automation, and restore exercise remain unverified or unconfigured. The reported 20 GB account capacity must be checked against a measured encrypted recovery-set size before acceptance.
+
+## Scope decision: legacy installation versus new deployment
+
+- Do not generate a cPanel full-account backup or a legacy SentryIQ-only archive for the purpose of preserving the old installation. The owner has stated that the old installation and its existing users, Gallery content, albums, and runtime data do not need to be retained.
+- Do not migrate legacy application files, configuration, credentials, runtime stores, users, or Gallery records into the new deployment.
+- Build the new subdomain deployment from the reviewed GitHub source and configure it independently with fresh production secrets and storage settings.
+- Before the new version accepts production data, define and implement a backup/recovery set for its actual architecture. Include only data the new system is designed to retain, plus its exact release/configuration and any external object storage it uses.
+- The legacy Gallery's Backblaze B2 objects are not being migrated under this decision. Any new Gallery storage must have its own documented backup and restore coverage.
+- The existing MEGA account remains a possible off-site destination for the new system, but no account setup, upload, schedule, or restore is authorised or configured by this documentation change.
 
 ## Data that must be recoverable
 
@@ -36,7 +46,20 @@ If the bucket's versioning/lifecycle policy can permanently remove historical ve
 
 ## MEGA destination design
 
-Before any MEGA account setup on the production host, run `bash scripts/mega_host_preflight.sh` from a shell in a non-production context. It reports only OS/architecture, command presence, PHP CLI extensions/functions, MEGAcmd server process presence, and home-directory writability/free space. It does not log in, contact MEGA, inspect application data, or display account identity/secrets. Its output is capability evidence only; it does not prove that the MEGA account is authenticated, that remote quota is sufficient, or that an upload/restore works.
+The owner has confirmed that the hosting control panel is **cPanel** and that both **Backup / Backup Wizard** and **Cron Jobs** are visible. The owner has no shell/SSH access to the hosting account. Therefore, the optional shell preflight script in this repository is not the operational path for this host; do not ask the owner to run it. Keep it only as an optional diagnostic for a future host where shell access is available.
+
+### cPanel-specific constraints and workflow
+
+- cPanel's Backup Wizard availability is provider-controlled. The owner has confirmed it is visible, but the exact backup options, account quota, archive size, and restore permissions have not yet been inspected.
+- A cPanel full-account backup is a broad account-level archive, not a SentryIQ-only recovery set. It may contain unrelated account files, database exports, mail, account configuration, and sensitive material such as private keys or credentials. Treat the archive as highly sensitive; never upload it unencrypted to MEGA, email it, or place it in a public web directory.
+- cPanel's standard full-account backup destinations are generally the home directory or supported FTP/SCP destinations; there is no native MEGA destination. A full-account restore generally requires the hosting provider/WHM. cPanel user-level partial backup/restore capabilities vary by provider.
+- A full-account cPanel archive is useful as an additional disaster-recovery layer, but it is not automatically a point-in-time application snapshot and it does not include Backblaze B2 Gallery objects. It must not be represented as a complete SentryIQ recovery set.
+- Cron Jobs is visible, but this does not prove that PHP CLI, shell commands, sufficient execution time, required extensions, or reliable scheduled execution are available. Before any cron entry is created, verify the provider's PHP CLI path/version, execution limits, account filesystem quotas, job output handling, and whether jobs can run outside the document root.
+- Do not create a cron entry that calls a public HTTP endpoint, embeds credentials in the command line, or copies the live runtime directory recursively. Any eventual scheduled job must invoke a reviewed, least-privilege backup implementation from a private path, use protected credentials, create an application-consistent snapshot, and fail closed on incomplete B2 inventory or upload.
+- No cPanel backup has been generated, downloaded, restored, or uploaded. No cron job has been created or enabled. First inspect the available Backup Wizard options and provider limits; do not start a full-account backup until its destination, expected size, quota impact, and handling of the resulting sensitive archive are understood.
+- If cPanel provides only a full-account archive, plan a controlled download to the owner's trusted device, encrypt it locally with a separately held recovery key, and then upload the encrypted artifact through MEGA's trusted client/web interface. Verify the downloaded and uploaded ciphertext by checksum. This manual path is a fallback, not yet an accepted automated solution.
+
+For hosts where shell access is available, `scripts/mega_host_preflight.sh` remains an optional read-only capability check. It reports OS/architecture, command presence, PHP CLI extensions/functions, MEGAcmd server process presence, and home-directory writability/free space. It does not log in, contact MEGA, inspect application data, or display account identity/secrets. It is not runnable by the owner on the current cPanel host without shell access.
 
 
 MEGA is the selected off-site destination, using a dedicated SentryIQ backup folder in the owner's existing account. Keep the folder private: do not create public links, shared folders, or public exports for backup objects. MEGA's reported 20 GB capacity is owner-provided and must be verified in the account before relying on it. The complete encrypted backup set, retained generations, and available free-account transfer allowance must fit the actual account limits.
