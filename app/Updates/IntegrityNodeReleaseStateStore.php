@@ -75,6 +75,18 @@ final class IntegrityNodeReleaseStateStore
             throw new RuntimeException('Another integrity check is already running on this node.');
         }
 
+        clearstatcache(true, $this->lockPath);
+        $lockedPathStat = @lstat($this->lockPath);
+        if (!is_array($lockedPathStat)
+            || $lockedPathStat['dev'] !== $openedStat['dev']
+            || $lockedPathStat['ino'] !== $openedStat['ino']
+            || (($lockedPathStat['mode'] & 0170000) !== 0100000)
+            || (($lockedPathStat['mode'] & 0777) !== 0600)) {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+            throw new RuntimeException('Integrity release state lock path changed after acquiring its inode lock.');
+        }
+
         $this->runLockHeld = true;
         try {
             return $operation();
@@ -112,6 +124,7 @@ final class IntegrityNodeReleaseStateStore
     /** @return array{version:string,commit:string,manifest_sha256:string,artifact_sha256:string,approved_at:int} */
     public function current(): array
     {
+        clearstatcache(true, $this->statePath);
         $stateStat = @lstat($this->statePath);
         if (!is_array($stateStat) || (($stateStat['mode'] & 0170000) !== 0100000)
             || (($stateStat['mode'] & 0777) !== 0600)) {
@@ -132,8 +145,15 @@ final class IntegrityNodeReleaseStateStore
         }
         $bytes = stream_get_contents($stateHandle, 4097);
         $finalStateStat = @fstat($stateHandle);
+        clearstatcache(true, $this->statePath);
+        $finalPathStat = @lstat($this->statePath);
         fclose($stateHandle);
-        if (!is_array($finalStateStat)
+        if (!is_array($finalPathStat)
+            || $finalPathStat['dev'] !== $openedStateStat['dev']
+            || $finalPathStat['ino'] !== $openedStateStat['ino']
+            || (($finalPathStat['mode'] & 0170000) !== 0100000)
+            || (($finalPathStat['mode'] & 0777) !== 0600)
+            || !is_array($finalStateStat)
             || $finalStateStat['dev'] !== $openedStateStat['dev']
             || $finalStateStat['ino'] !== $openedStateStat['ino']
             || $finalStateStat['size'] !== $openedStateStat['size']
