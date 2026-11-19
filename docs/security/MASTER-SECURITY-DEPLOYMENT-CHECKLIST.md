@@ -20,7 +20,7 @@ This document is the single working checklist for the reset security review and 
 
 ## Current progress
 
-**Phase 1: 28/30 findings/tasks completed.**
+**Phase 1: 29/30 findings/tasks completed.**
 
 - Completed: 1.1 — identified the public installation diagnostic endpoint as an exposure requiring protection.
 - Completed: 1.2 — authentication protection merged in [PR #53](https://github.com/Double-IQ/SentryIQ/pull/53); production deployment/runtime verification remains outstanding and is not claimed.
@@ -291,7 +291,7 @@ All findings must be verified against `main`. The existing application is the ba
   - `update_apply.php` requires fresh authentication and CSRF before invoking the updater and locks the vault after a successful update. On failure it returns HTTP 500 with the exception message and does not explicitly lock the vault or set maintenance state. Normalize the error response and fail closed into a locked/maintenance state after any partial-update failure.
   - **Test status:** no UpdateManager test suite was found for backup failure, partial replacement, rollback failure, process crash, concurrent requests, retention, or workspace cleanup. No update was executed. Required tests include failure injection before/during every backup and replacement, restore failures, process interruption, concurrent request blocking, and post-failure file hash equality against the original installation.
   - No application files, runtime files, backups, or production data were changed.
-- [ ] **5.5** Test the update process safely in a non-production environment.
+- [x] **5.5** Test the update process safely in a non-production environment. Isolated end-to-end `UpdateManager::applyLatest()` integration passed on PR #56 head `693266f9a96fb92e0fda860170ba3ada32c581af`; see execution log and CI evidence. No production update was run.
   - **Blocked / not run:** no isolated staging copy of the SentryIQ installation and its private runtime directory was available in this audit context. The production updater was deliberately not invoked. A safe test requires a disposable copy of the application, a synthetic private data directory, and a controlled mock/local release source so the update, failure injection, rollback, and cleanup paths can be exercised without touching production. This remains pending and must not be marked complete based on source review.
 
 ## 6. Dependencies and operational security
@@ -422,6 +422,9 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 | 2026-11-18 | 5.5 | Reviewed update UI/API authentication, fresh-auth and CSRF enforcement, method controls, lock, cache, and failure responses | Confirmed authenticated check and fresh-auth+CSRF install path; recorded lock/workspace path hardening and post-failure maintenance/lock gaps already covered by 5.3/5.4/6.3; no update executed | Yes |
 | 2026-11-18 | 4.4 | Audited Documents encryption/metadata, Gallery browser-side encryption, B2 object authorization, signed URL lifecycle, and setup requirements | Confirmed encrypted document bodies and client-side Gallery ciphertext; recorded B2 actual-size/expiry verification gaps and unverified live bucket privacy/CORS/key scope; source review only, no live B2 test | Yes |
 
+
+
+| 2026-11-19 | 5.5 | `tests/update_apply_integration.test.php` exercised the real updater apply path in disposable app/private-data directories with synthetic release/API/verifier fixtures; all four workflows passed on [PR #56 head `693266f9`](https://github.com/Double-IQ/SentryIQ/actions/runs/44461293753) | Isolated update application, manifest/checksum policy, backup, public/runtime replacement, mode 0600, backup retention, and cleanup passed; no production update | Yes |
 
 ## Remediation progress — 2026-11-19
 
