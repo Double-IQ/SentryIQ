@@ -63,6 +63,21 @@ final class IntegrityNode4RuntimeConfig
             throw new RuntimeException('SentryIQ private runtime configuration escaped its data directory.');
         }
 
+        $privateHandle = @fopen($privatePath, 'rb');
+        $openedPrivateStat = is_resource($privateHandle) ? @fstat($privateHandle) : false;
+        clearstatcache(true, $privatePath);
+        $currentPrivateStat = @lstat($privatePath);
+        if (!is_resource($privateHandle) || !is_array($openedPrivateStat) || !is_array($currentPrivateStat)
+            || ($openedPrivateStat['dev'] ?? null) !== ($privateStat['dev'] ?? null)
+            || ($openedPrivateStat['ino'] ?? null) !== ($privateStat['ino'] ?? null)
+            || ($currentPrivateStat['dev'] ?? null) !== ($openedPrivateStat['dev'] ?? null)
+            || ($currentPrivateStat['ino'] ?? null) !== ($openedPrivateStat['ino'] ?? null)
+            || (($openedPrivateStat['mode'] ?? 0) & 0170000) !== 0100000
+            || (($openedPrivateStat['mode'] ?? 0) & 0777) !== 0600) {
+            if (is_resource($privateHandle)) fclose($privateHandle);
+            throw new RuntimeException('SentryIQ private runtime configuration changed during open.');
+        }
+        fclose($privateHandle);
         $private = require $privatePath;
         if (!is_array($private)) {
             throw new RuntimeException('SentryIQ private runtime configuration is invalid.');
