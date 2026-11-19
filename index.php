@@ -93,7 +93,7 @@ $ogImageUrl = rtrim((string)($config['base_url'] ?? ''), '/') . '/sentryiq-og.ph
 <meta name="twitter:image" content="<?php echo htmlspecialchars($ogImageUrl, ENT_QUOTES, 'UTF-8'); ?>">
 <meta name="csrf-token" content="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
 <meta name="description" content="SentryIQ secure password vault and credential management.">
-<title>SentryIQ</title><link rel="stylesheet" href="assets/css/sentryiq.css?v=20260922-2">
+<title>SentryIQ</title><link rel="stylesheet" href="assets/css/sentryiq.css?v=20260922-2"><link rel="stylesheet" href="assets/css/vault_dashboard.css?v=20261119-1">
 <link rel="stylesheet" href="assets/css/vault_page.css">
 <script src="assets/js/vault_folders.js?v=20260919-7"></script>
 <script src="assets/js/vault_page.js" defer></script>
