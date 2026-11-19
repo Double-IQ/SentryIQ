@@ -138,7 +138,7 @@ function sentryiq_build_content_security_policy(bool $galleryRoute, string $b2Ho
 
     return "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; img-src "
         . $imgSources
-        . "; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src "
+        . "; style-src 'self'; script-src 'self'; connect-src "
         . $connectSources;
 }
 function sentryiq_security_bootstrap(): void
