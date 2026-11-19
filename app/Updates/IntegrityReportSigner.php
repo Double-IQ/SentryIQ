@@ -160,18 +160,39 @@ final class IntegrityReportSigner
             throw new RuntimeException('Signed event evidence is incomplete or invalid.');
         }
         $checkedPaths = [];
+        $publicPathCount = 0;
         foreach ($checked as $path) {
-            if (!is_string($path) || !$this->isSafeEvidencePath($path) || in_array($path, $checkedPaths, true)) {
+            if (!is_string($path) || !$this->isSafeEvidencePath($path) || in_array($path, $checkedPaths, true)
+                || (str_starts_with($path, '@') && !in_array($path, ['@origin-headers', '@private-host-attestation'], true))) {
                 throw new RuntimeException('Signed event evidence contains an unsafe or duplicate checked path.');
             }
             $checkedPaths[] = $path;
+            if (!str_starts_with($path, '@')) $publicPathCount++;
+        }
+        $requiredMarkers = $this->nodeId === 'integrity-c'
+            ? ['@origin-headers']
+            : ['@origin-headers', '@private-host-attestation'];
+        foreach ($requiredMarkers as $marker) {
+            if (!in_array($marker, $checkedPaths, true)) {
+                throw new RuntimeException('Signed event evidence is missing a required node security check.');
+            }
+        }
+        if ($publicPathCount < 1) {
+            throw new RuntimeException('Signed event evidence must include at least one public asset check.');
         }
         $normalizedMismatches = [];
+        $mismatchPaths = [];
         foreach ($mismatches as $item) {
             if (!is_array($item) || !is_string($item['path'] ?? null) || !$this->isSafeEvidencePath($item['path'])
                 || !in_array($item['reason'] ?? null, ['content_mismatch', 'fetch_failed', 'security_header_mismatch', 'private_host_attestation_failed'], true)
-                || !in_array($item['path'], $checkedPaths, true)) {
-                throw new RuntimeException('Signed event evidence contains an invalid mismatch record.');
+                || !in_array($item['path'], $checkedPaths, true) || isset($mismatchPaths[$item['path']])) {
+                throw new RuntimeException('Signed event evidence contains an invalid or duplicate mismatch record.');
+            }
+            $mismatchPaths[$item['path']] = true;
+            if (($item['reason'] === 'security_header_mismatch' && $item['path'] !== '@origin-headers')
+                || ($item['reason'] === 'private_host_attestation_failed' && $item['path'] !== '@private-host-attestation')
+                || (in_array($item['reason'], ['content_mismatch', 'fetch_failed'], true) && str_starts_with($item['path'], '@'))) {
+                throw new RuntimeException('Signed event mismatch reason does not match its evidence path.');
             }
             $normalizedMismatches[] = ['path' => $item['path'], 'reason' => $item['reason']];
         }
