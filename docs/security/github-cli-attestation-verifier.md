@@ -1,6 +1,6 @@
 # GitHub CLI attestation verifier adapter
 
-**Status:** Experimental integration adapter. Not connected to `UpdateManager` and not approved for production use.
+**Status:** Integrated into the updater on remediation branch `security/enforce-release-provenance` (PR #56); not merged or production-enabled.
 
 ## Verifier choice
 
@@ -40,12 +40,13 @@ The caller must resolve the release tag to a full commit SHA through a separatel
 
 ## Runtime prerequisites and limitations
 
-- A supported, current GitHub CLI with `gh attestation verify` support must be installed on the host. Configure its administrator-controlled absolute executable path; the adapter rejects relative paths and symlink binaries.
+- A supported, current GitHub CLI with `gh attestation verify` support must be installed on the host. Set the administrator-controlled absolute executable path in `SENTRYIQ_GH_BINARY`; the updater fails closed if it is unset, relative, missing, non-executable, or a symlink.
 - The CLI must be able to reach GitHub and Sigstore trust services; any authentication needed for the repository's attestation API must be configured securely.
 - Shared hosting may not permit installing or executing GitHub CLI. Do not enable this adapter there without verifying the actual runtime and process permissions.
 - The adapter's test runner seam is only for contract tests. Synthetic JSON fixtures do not test cryptography.
 - This does not yet provide a separately pinned trust root, a canonical signed manifest, or two independent Integrity Node signatures.
-- No production updater enforcement is enabled by this change.
+- The integration is present on PR #56 only. It is not merged or deployed. No production updater enforcement is enabled yet.
+- The updater permits only the four runtime PHP templates currently emitted by the release workflow: `email_template.php`, `vault_engine.php`, `vault_icon_cache.php`, and `VaultKdfPolicy.php`. Changes to this list require a reviewed policy/code update.
 
 ## Tests
 

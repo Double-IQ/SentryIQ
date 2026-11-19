@@ -15,8 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout release tag
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Validate version
@@ -42,6 +43,7 @@ jobs:
           cp private_data/vault_engine.php "$WORK/runtime/vault_engine.php"
           cp private_data/email_template.php "$WORK/runtime/email_template.php"
           cp private_data/vault_icon_cache.php "$WORK/runtime/vault_icon_cache.php"
+          cp private_data/VaultKdfPolicy.php "$WORK/runtime/VaultKdfPolicy.php"
 
           python3 scripts/build-release-manifest.py \
             --root "$WORK" \
@@ -64,7 +66,7 @@ jobs:
         run: python3 tests/build_release_manifest.test.py
 
       - name: Attest release package and inventory manifest provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
           subject-path: |
             sentryiq-*.zip

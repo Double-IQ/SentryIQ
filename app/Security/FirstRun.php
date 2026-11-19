@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/security_bootstrap.php';
+require_once __DIR__ . '/BoundedLog.php';
 sentryiq_security_bootstrap();
 
 $pointerConfigFile = dirname(__DIR__, 2) . '/sentryiq_config.php';
@@ -33,7 +34,7 @@ function first_run_log(string $stage, array $details = []): void
     foreach ($details as $key => $value) if (is_scalar($value) || $value === null) $record[$key] = $value;
     $path = $dir . '/install_debug.log';
     $line = json_encode($record, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    if (is_string($line)) { @file_put_contents($path, $line . PHP_EOL, FILE_APPEND | LOCK_EX); @chmod($path, 0600); }
+    if (is_string($line)) { try { \SentryIQ\Security\BoundedLog::append($path, $line . PHP_EOL); } catch (Throwable) {} }
 }
 
 function first_run_prepare_dir(string $dir): bool
@@ -42,6 +43,7 @@ function first_run_prepare_dir(string $dir): bool
     if (preg_match('#/(public_html|htdocs|www)(/|$)#i', $dir)) return false;
     if (is_link($dir)) return false;
     if (!is_dir($dir) && !@mkdir($dir, 0700, true)) return false;
+    if (!sentryiq_path_is_outside_document_root($dir)) return false;
     @chmod($dir, 0700);
     clearstatcache(true, $dir);
     $perms = @fileperms($dir);
@@ -120,7 +122,7 @@ function first_run_cleanup(): bool
     $dir = dirname(__DIR__, 2) . '/private_data';
     if (!is_dir($dir)) return true;
 
-    foreach (['vault_engine.php', 'email_template.php', 'vault_icon_cache.php'] as $name) {
+    foreach (['vault_engine.php', 'email_template.php', 'vault_icon_cache.php', 'VaultKdfPolicy.php'] as $name) {
         $path = $dir . '/' . $name;
         if (is_file($path) && !@unlink($path)) return false;
     }
@@ -148,19 +150,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_first_run'])
     elseif (!first_run_prepare_dir($directory)) $error = 'SentryIQ could not prepare secure storage.';
     elseif (strlen($password) < 12) $error = 'The master vault password must be at least 12 characters long.';
     elseif ($password !== $confirm) $error = 'The master vault passwords do not match.';
-    elseif (!is_file($sourcePrivateDir . '/vault_engine.php') || !is_file($sourcePrivateDir . '/email_template.php') || !is_file($sourcePrivateDir . '/vault_icon_cache.php')) $error = 'SentryIQ installation files are incomplete.';
+    elseif (!is_file($sourcePrivateDir . '/vault_engine.php') || !is_file($sourcePrivateDir . '/email_template.php') || !is_file($sourcePrivateDir . '/vault_icon_cache.php') || !is_file($sourcePrivateDir . '/VaultKdfPolicy.php')) $error = 'SentryIQ installation files are incomplete.';
     else {
         $engineTarget = $directory . '/vault_engine.php';
         $templateTarget = $directory . '/email_template.php';
         $iconCacheTarget = $directory . '/vault_icon_cache.php';
+        $kdfPolicyTarget = $directory . '/VaultKdfPolicy.php';
         $secureConfig = $directory . '/sentryiq_config.php';
         $pointerConfig = "<?php\nreturn [\n    'data_dir' => " . var_export($directory, true) . ",\n    'base_url' => " . var_export($baseUrl, true) . ",\n];\n";
         try {
-            @unlink($engineTarget); @unlink($templateTarget); @unlink($iconCacheTarget);
+            @unlink($engineTarget); @unlink($templateTarget); @unlink($iconCacheTarget); @unlink($kdfPolicyTarget);
             if (!@copy($sourcePrivateDir . '/vault_engine.php', $engineTarget)) throw new RuntimeException('runtime_copy_failed');
             if (!@copy($sourcePrivateDir . '/email_template.php', $templateTarget)) throw new RuntimeException('template_copy_failed');
             if (!@copy($sourcePrivateDir . '/vault_icon_cache.php', $iconCacheTarget)) throw new RuntimeException('icon_cache_copy_failed');
-            @chmod($engineTarget, 0600); @chmod($templateTarget, 0600); @chmod($iconCacheTarget, 0600);
+            if (!@copy($sourcePrivateDir . '/VaultKdfPolicy.php', $kdfPolicyTarget)) throw new RuntimeException('kdf_policy_copy_failed');
+            @chmod($engineTarget, 0600); @chmod($templateTarget, 0600); @chmod($iconCacheTarget, 0600); @chmod($kdfPolicyTarget, 0600);
             if (!first_run_write_config($secureConfig, $username, $email, $baseUrl, $directory)) throw new RuntimeException('secure_config_failed');
 
             clearstatcache(true, $engineTarget);
@@ -230,7 +234,7 @@ $csrf = sentryiq_csrf_token();
         <div class="form-group"><label>2FA Email Address:</label><input type="email" name="setup_email" class="input-field" required></div>
         <div class="form-group"><label>Master Vault Password:</label><input type="password" name="setup_password" class="input-field" autocomplete="new-password" minlength="12" required></div>
         <div class="form-group"><label>Confirm Master Vault Password:</label><input type="password" name="setup_password_confirm" class="input-field" autocomplete="new-password" minlength="12" required></div>
-        <p style="font-size:12px;color:#777;">SentryIQ securely stores its encrypted vault outside the public web root.</p>
+        <p class="first-run-note">SentryIQ securely stores its encrypted vault outside the public web root.</p>
         <button type="submit" name="complete_first_run" class="btn btn-primary">Complete Secure Installation</button>
     </form>
 </div>

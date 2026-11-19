@@ -26,7 +26,8 @@ function cache_vault_icon(string $url, string $entryId): array
     }
 
     $host = strtolower((string)$parts['host']);
-    $origin = 'https://' . $host;
+    $originHost = str_contains($host, ':') ? '[' . $host . ']' : $host;
+    $origin = 'https://' . $originHost;
 
     $page = curl_vault_asset($url, false);
     if ($page === null) {
@@ -38,7 +39,8 @@ function cache_vault_icon(string $url, string $entryId): array
     if (!is_array($baseParts) || strtolower((string)($baseParts['scheme'] ?? '')) !== 'https' || empty($baseParts['host'])) {
         return $empty;
     }
-    $baseOrigin = 'https://' . strtolower((string)$baseParts['host']);
+    $baseHost = strtolower((string)$baseParts['host']);
+    $baseOrigin = 'https://' . (str_contains($baseHost, ':') ? '[' . $baseHost . ']' : $baseHost);
 
     $faviconUrl = null;
     $ogImageUrl = null;
@@ -112,40 +114,197 @@ function cache_vault_icon(string $url, string $entryId): array
     return $empty;
 }
 
-function curl_vault_asset(string $url, bool $imageOnly): ?array
+function vault_icon_ipv4_in_cidr(string $ip, string $cidr): bool
+{
+    [$network, $prefix] = explode('/', $cidr, 2);
+    $ipBytes = inet_pton($ip);
+    $networkBytes = inet_pton($network);
+    if ($ipBytes === false || $networkBytes === false || strlen($ipBytes) !== 4 || strlen($networkBytes) !== 4) {
+        return false;
+    }
+    $prefixBits = (int)$prefix;
+    $mask = $prefixBits === 0 ? 0 : ((0xFFFFFFFF << (32 - $prefixBits)) & 0xFFFFFFFF);
+    $ipValue = unpack('N', $ipBytes)[1];
+    $networkValue = unpack('N', $networkBytes)[1];
+    return ($ipValue & $mask) === ($networkValue & $mask);
+}
+
+function vault_icon_is_public_ip(string $ip): bool
+{
+    if (filter_var($ip, FILTER_VALIDATE_IP) === false) return false;
+    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) return false;
+
+    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+        foreach ([
+            '0.0.0.0/8',
+            '10.0.0.0/8',
+            '100.64.0.0/10',
+            '127.0.0.0/8',
+            '169.254.0.0/16',
+            '172.16.0.0/12',
+            '192.0.0.0/24',
+            '192.0.2.0/24',
+            '192.88.99.0/24',
+            '192.168.0.0/16',
+            '198.18.0.0/15',
+            '198.51.100.0/24',
+            '203.0.113.0/24',
+            '224.0.0.0/4',
+            '240.0.0.0/4',
+        ] as $range) {
+            if (vault_icon_ipv4_in_cidr($ip, $range)) return false;
+        }
+        return true;
+    }
+
+    // Reject address-translation/tunnelling ranges because they can encode
+    // an otherwise-private IPv4 destination behind a globally-routable IPv6.
+    $blockedIpv6Prefixes = [
+        '::ffff:0:0/96',
+        '64:ff9b::/96',
+        '64:ff9b:1::/48',
+        '2001::/23',
+        '2001:db8::/32',
+        '2002::/16',
+    ];
+    $packed = inet_pton($ip);
+    if ($packed === false || strlen($packed) !== 16) return false;
+    // Only globally routable unicast space (2000::/3) is eligible.
+    if ((ord($packed[0]) & 0xE0) !== 0x20) return false;
+    foreach ($blockedIpv6Prefixes as $range) {
+        [$network, $prefix] = explode('/', $range, 2);
+        $networkBytes = inet_pton($network);
+        if ($networkBytes === false) continue;
+        $bits = (int)$prefix;
+        $wholeBytes = intdiv($bits, 8);
+        $remainingBits = $bits % 8;
+        if (substr($packed, 0, $wholeBytes) !== substr($networkBytes, 0, $wholeBytes)) continue;
+        if ($remainingBits === 0) return false;
+        $mask = (0xFF << (8 - $remainingBits)) & 0xFF;
+        if ((ord($packed[$wholeBytes]) & $mask) === (ord($networkBytes[$wholeBytes]) & $mask)) return false;
+    }
+    return true;
+}
+
+/**
+ * Resolve and pin every DNS answer. If even one answer is private/reserved,
+ * reject the hostname rather than allowing round-robin selection to reach it.
+ *
+ * @return list<string>
+ */
+function vault_icon_filter_public_addresses(array $addresses): array
+{
+    $addresses = array_values(array_unique(array_filter($addresses, 'is_string')));
+    if ($addresses === []) return [];
+    foreach ($addresses as $address) {
+        if (!vault_icon_is_public_ip($address)) return [];
+    }
+    return $addresses;
+}
+
+function vault_icon_remote_url_parts(string $url): ?array
 {
     $parts = parse_url($url);
-    if (!is_array($parts) || strtolower((string)($parts['scheme'] ?? '')) !== 'https' || empty($parts['host'])) {
+    if (!is_array($parts)
+        || strtolower((string)($parts['scheme'] ?? '')) !== 'https'
+        || empty($parts['host'])
+        || isset($parts['user'])
+        || isset($parts['pass'])
+        || (isset($parts['port']) && (int)$parts['port'] !== 443)) {
         return null;
+    }
+    $host = strtolower((string)$parts['host']);
+    if (filter_var($host, FILTER_VALIDATE_IP)) {
+        if (!vault_icon_is_public_ip($host)) return null;
+    } elseif (filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false) {
+        return null;
+    }
+    return ['host' => $host, 'port' => 443];
+}
+
+function vault_icon_append_bounded_body(string &$body, string $chunk, int $maxBytes): int
+{
+    if ($maxBytes < 0 || strlen($body) + strlen($chunk) > $maxBytes) return 0;
+    $body .= $chunk;
+    return strlen($chunk);
+}
+
+function vault_icon_resolve_public_addresses(string $host): array
+{
+    if (filter_var($host, FILTER_VALIDATE_IP)) {
+        return vault_icon_is_public_ip($host) ? [$host] : [];
+    }
+
+    $records = @dns_get_record($host, DNS_A | DNS_AAAA);
+    if (!is_array($records) || $records === []) return [];
+    $addresses = [];
+    foreach ($records as $record) {
+        if (isset($record['ip']) && is_string($record['ip'])) $addresses[] = $record['ip'];
+        if (isset($record['ipv6']) && is_string($record['ipv6'])) $addresses[] = $record['ipv6'];
+    }
+    return vault_icon_filter_public_addresses($addresses);
+}
+
+function curl_vault_asset(string $url, bool $imageOnly): ?array
+{
+    $urlParts = vault_icon_remote_url_parts($url);
+    if ($urlParts === null) return null;
+    $host = $urlParts['host'];
+    $addresses = vault_icon_resolve_public_addresses($host);
+    if ($addresses === []) return null;
+
+    $resolveEntries = [];
+    if (filter_var($host, FILTER_VALIDATE_IP) === false) {
+        $pinnedAddresses = array_map(
+            static fn(string $address): string => str_contains($address, ':') ? '[' . $address . ']' : $address,
+            $addresses
+        );
+        $resolveEntries[] = $host . ':443:' . implode(',', $pinnedAddresses);
     }
 
     $ch = curl_init($url);
     if ($ch === false) return null;
 
+    $body = '';
+    $tooLarge = false;
+    $maxBytes = 5 * 1024 * 1024;
     curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_MAXREDIRS => 5,
+        CURLOPT_RETURNTRANSFER => false,
+        CURLOPT_FOLLOWLOCATION => false,
         CURLOPT_CONNECTTIMEOUT => 5,
         CURLOPT_TIMEOUT => 10,
         CURLOPT_USERAGENT => 'SentryIQ/1.0',
         CURLOPT_SSL_VERIFYPEER => true,
         CURLOPT_SSL_VERIFYHOST => 2,
+        CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+        CURLOPT_RESOLVE => $resolveEntries,
+        CURLOPT_FAILONERROR => true,
         CURLOPT_HTTPHEADER => $imageOnly
             ? ['Accept: image/avif,image/webp,image/png,image/jpeg,image/gif,image/x-icon,*/*;q=0.8']
             : ['Accept: text/html,application/xhtml+xml;q=0.9,*/*;q=0.8'],
+        CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use (&$body, &$tooLarge, $maxBytes): int {
+            $written = vault_icon_append_bounded_body($body, $chunk, $maxBytes);
+            if ($written === 0 && $chunk !== '') $tooLarge = true;
+            return $written;
+        },
     ]);
 
-    $body = curl_exec($ch);
+    $ok = curl_exec($ch);
     $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $contentType = strtolower((string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE));
     $finalUrl = (string)curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
     curl_close($ch);
 
     $finalParts = parse_url($finalUrl !== '' ? $finalUrl : $url);
-    if (!is_array($finalParts) || strtolower((string)($finalParts['scheme'] ?? '')) !== 'https') return null;
-
-    if (!is_string($body) || $body === '' || $httpCode < 200 || $httpCode >= 400 || strlen($body) > 5 * 1024 * 1024) {
+    if ($tooLarge
+        || $ok !== true
+        || $httpCode < 200
+        || $httpCode >= 300
+        || !is_array($finalParts)
+        || strtolower((string)($finalParts['scheme'] ?? '')) !== 'https'
+        || strtolower((string)($finalParts['host'] ?? '')) !== $host
+        || (isset($finalParts['port']) && (int)$finalParts['port'] !== 443)
+        || $body === '') {
         return null;
     }
 

@@ -331,7 +331,7 @@
         title.style.setProperty('flex-basis', 'auto', 'important');
         title.style.setProperty('margin', '0', 'important');
 
-        var createFolderButton = header.querySelector('button[onclick="showCreateFolderForm()"]');
+        var createFolderButton = header.querySelector('button[data-vault-action="show-create-folder"]');
         var addRecordButton = header.querySelector('.vault-add-record-button');
 
         var wrapper = document.createElement('span');

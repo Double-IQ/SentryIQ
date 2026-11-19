@@ -6,6 +6,7 @@ declare(strict_types=1);
 // Keep web access behind the normal SentryIQ authenticated session; when the
 // application is not installed, allow this diagnostic only from the CLI.
 require_once dirname(__DIR__) . '/app/Security/SecurityBootstrap.php';
+require_once dirname(__DIR__) . '/app/Security/BoundedLog.php';
 sentryiq_security_bootstrap();
 
 if (PHP_SAPI !== 'cli') {
@@ -15,6 +16,18 @@ if (PHP_SAPI !== 'cli') {
         exit('Not found.');
     }
     sentryiq_require_auth();
+}
+
+$writeDiagnosticLog = PHP_SAPI === 'cli';
+if (PHP_SAPI !== 'cli') {
+    $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+    if ($method === 'POST') {
+        sentryiq_require_csrf();
+        $writeDiagnosticLog = true;
+    } elseif (!in_array($method, ['GET', 'HEAD'], true)) {
+        http_response_code(405);
+        exit('Method not allowed.');
+    }
 }
 
 header('Content-Type: application/json; charset=utf-8');
@@ -82,10 +95,10 @@ if ($record['config_exists'] === false && $record['first_run_exists'] === false)
     $record['index_failure_reason'] = 'no_index_startup_failure_detected';
 }
 
-if (is_dir($inferredDataDir)) {
+if ($writeDiagnosticLog && is_dir($inferredDataDir)) {
     $line = json_encode($record, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     if (is_string($line)) {
-        @file_put_contents($logFile, $line . PHP_EOL, FILE_APPEND | LOCK_EX);
+        \SentryIQ\Security\BoundedLog::append($logFile, $line . PHP_EOL);
         @chmod($logFile, 0600);
     }
 }

@@ -39,13 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_updates'])) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SentryIQ — System Updates</title>
 <link rel="stylesheet" href="assets/css/sentryiq.css">
-<style>
-.update-card{max-width:760px;margin:20px auto;padding:20px;border:1px solid #e9ecef;border-radius:12px;background:#fff}
-.update-meta{font-size:13px;color:#666;line-height:1.6}
-.update-notes{margin-top:18px;padding:14px;border-radius:10px;background:#f8f9fa;white-space:pre-wrap;word-break:break-word}
-.update-success{padding:12px;border-radius:9px;background:#eef8f0;color:#23632c}
-.update-warning{padding:12px;border-radius:9px;background:#fff8e8;color:#765500}
-</style>
+<script src="assets/js/sentryiq_navigation.js" defer></script>
+<link rel="stylesheet" href="assets/css/update.css">
 </head>
 <body>
 <div class="box">
@@ -68,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_updates'])) {
                 <div class="update-warning"><strong>Update available:</strong> SentryIQ <?php echo htmlspecialchars((string)$result['latest_version'], ENT_QUOTES, 'UTF-8'); ?></div>
                 <p class="update-meta"><?php echo htmlspecialchars((string)$result['name'], ENT_QUOTES, 'UTF-8'); ?> · <?php echo htmlspecialchars((string)$result['published_at'], ENT_QUOTES, 'UTF-8'); ?></p>
                 <?php if ((string)($result['body'] ?? '') !== ''): ?><div class="update-notes"><?php echo htmlspecialchars((string)$result['body'], ENT_QUOTES, 'UTF-8'); ?></div><?php endif; ?>
-                <form method="POST" action="update_apply.php" style="margin-top:20px;" onsubmit="return confirm('Install this SentryIQ update now? The vault will be locked after the update and you will need to unlock it again.');">
+                <form method="POST" action="update_apply.php" class="update-confirm-form" data-confirm-submit="Install this SentryIQ update now? The vault will be locked after the update and you will need to unlock it again.">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
                     <button class="btn btn-primary" type="submit">Install Update</button>
                 </form>
@@ -83,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_updates'])) {
                 <button class="btn btn-primary" type="submit" name="check_updates">Check for Updates</button>
             </form>
         <?php endif; ?>
-        <p style="margin-top:20px;"><a href="index.php?pane=settings">← System Settings</a></p>
+        <p class="update-back-link"><a href="index.php?pane=settings">← System Settings</a></p>
     </div>
 </div>
 </body>

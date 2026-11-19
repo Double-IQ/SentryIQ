@@ -79,7 +79,8 @@ $server = null;
 $serverPipes = [];
 try {
     if (!copy($repoRoot . '/diagnostics/post_install_diagnostic.php', $documentRoot . '/diagnostics/post_install_diagnostic.php')
-        || !copy($repoRoot . '/app/Security/SecurityBootstrap.php', $documentRoot . '/app/Security/SecurityBootstrap.php')) {
+        || !copy($repoRoot . '/app/Security/SecurityBootstrap.php', $documentRoot . '/app/Security/SecurityBootstrap.php')
+        || !copy($repoRoot . '/app/Security/BoundedLog.php', $documentRoot . '/app/Security/BoundedLog.php')) {
         throw new RuntimeException('Unable to stage diagnostic endpoint test fixture.');
     }
 
@@ -143,9 +144,12 @@ try {
 
     // Installed application + authenticated vault session: diagnostic JSON.
     $sessionId = bin2hex(random_bytes(16));
+    $authenticatedAt = time();
     file_put_contents(
         $sessionDirectory . '/sess_' . $sessionId,
         'master_key|s:32:"' . str_repeat('K', 32) . '";'
+        . 'authenticated_at|i:' . $authenticatedAt . ';'
+        . 'last_activity|i:' . $authenticatedAt . ';'
     );
     [$status, $body] = diagnosticHttpRequest($url, 'PHPSESSID=' . $sessionId);
     assertDiagnostic($status === 200, 'Authenticated web request must succeed (HTTP 200); got ' . $status . '.');

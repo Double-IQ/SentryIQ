@@ -1,0 +1,14 @@
+.security-log-page{max-width:1000px;margin:20px auto}
+.security-log-header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.security-log-title{margin-bottom:6px}
+.security-log-description{margin-top:0;color:#666}
+.security-log-back{text-decoration:none}
+.security-log-empty{margin-top:20px;text-align:center;color:#777}
+.security-log-table,.security-log-list{overflow-x:auto;margin-top:20px}
+.security-log-events{width:100%;border-collapse:collapse;font-size:12px}
+.security-log-head-row{background:#e9ecef;text-align:left}
+.security-log-heading,.security-log-cell{padding:9px}
+.security-log-row{border-bottom:1px solid #eee}
+.security-log-timestamp{white-space:nowrap}
+.security-log-event{font-weight:bold}
+.security-log-agent{max-width:360px;word-break:break-word;color:#666}

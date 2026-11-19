@@ -9,23 +9,15 @@ sentryiq_require_auth();
 $csrf = sentryiq_csrf_token();
 $dataDirectory = sentryiq_data_dir();
 $b2Configured = false;
-$b2Host = '';
 if (is_string($dataDirectory) && $dataDirectory !== '') {
     require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/BackblazeB2Signer.php';
     try {
         $b2Signer = \SentryIQCloud\Gallery\Storage\BackblazeB2Signer::fromRuntimeDirectory($dataDirectory);
-        $b2Host = $b2Signer->endpointHost();
         $b2Configured = true;
     } catch (Throwable) {
         $b2Configured = false;
-        $b2Host = '';
     }
 }
-$csp = "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'";
-if ($b2Configured && preg_match('/^[a-z0-9.-]+$/', $b2Host)) {
-    $csp .= ' https://' . $b2Host;
-}
-header('Content-Security-Policy: ' . $csp);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -36,30 +28,7 @@ header('Content-Security-Policy: ' . $csp);
 <meta name="robots" content="noindex,nofollow">
 <title>SentryIQ — Secure Gallery</title>
 <link rel="stylesheet" href="assets/css/sentryiq.css">
-<style>
-.secure-gallery{max-width:1040px;margin:22px auto;font-family:Arial,sans-serif}
-.secure-gallery-panel{padding:18px;margin:16px 0;border:1px solid #e3e6f0;border-radius:12px;background:#fff}
-.secure-gallery-panel h2,.secure-gallery-panel h3{margin-top:0}
-.secure-gallery-status{min-height:22px;margin:12px 0;color:#555;font-size:14px}
-.secure-gallery-status.error{color:#b02a37}
-.secure-gallery-status.success{color:#176b3a}
-.secure-gallery-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.secure-gallery-row input[type=file]{max-width:100%}
-.secure-gallery-row input[type=text]{flex:1;min-width:180px}
-.secure-gallery-recovery{width:100%;min-height:100px;padding:12px;border:1px solid #d9dee5;border-radius:8px;font-family:monospace;overflow-wrap:anywhere}
-.secure-gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-top:16px}
-.secure-gallery-card{min-width:0;padding:8px;border:1px solid #e9ecef;border-radius:10px;background:#fff}
-.secure-gallery-card img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:6px;background:#f4f5f7;cursor:pointer}
-.secure-gallery-card strong{display:block;margin-top:8px;font-size:13px;overflow-wrap:anywhere}
-.secure-gallery-card small{display:block;margin-top:3px;color:#6c757d;overflow-wrap:anywhere}
-.secure-gallery-card button{width:100%;margin-top:8px}
-.secure-gallery-viewer{position:fixed;inset:0;z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.9)}
-.secure-gallery-viewer[hidden]{display:none}
-.secure-gallery-viewer img{max-width:100%;max-height:calc(100vh - 90px);object-fit:contain}
-.secure-gallery-viewer button{position:absolute;top:14px;right:14px}
-.secure-gallery-actions{display:flex;gap:8px;flex-wrap:wrap}
-@media(max-width:600px){.secure-gallery-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.secure-gallery-card{padding:3px;border:0}.secure-gallery-card small{font-size:10px}.secure-gallery-card strong{font-size:11px}.secure-gallery-card button{font-size:11px;padding:6px 4px}}
-</style>
+<link rel="stylesheet" href="assets/css/gallery_secure.css">
 </head>
 <body>
 <div class="box">
@@ -77,14 +46,14 @@ header('Content-Security-Policy: ' . $csp);
         </div>
     </div>
     <div class="vault-tabs">
-        <button class="tab-btn" type="button" onclick="window.location.href='index.php?pane=view'">📋 Vault</button>
-        <button class="tab-btn" type="button" onclick="window.location.href='documents.php'">📄 Docs</button>
+        <button class="tab-btn" type="button" data-sentryiq-nav="index.php?pane=view">📋 Vault</button>
+        <button class="tab-btn" type="button" data-sentryiq-nav="documents.php">📄 Docs</button>
         <button class="tab-btn active" type="button">🖼️ Gallery</button>
-        <button class="tab-btn" type="button" onclick="window.location.href='index.php?pane=settings'">⚙️ System</button>
+        <button class="tab-btn" type="button" data-sentryiq-nav="index.php?pane=settings">⚙️ System</button>
     </div>
 
     <main class="secure-gallery" data-b2-configured="<?php echo $b2Configured ? 1 : 0; ?>">
-        <p style="text-align:right;margin:0 0 12px;"><a class="btn" href="gallery_b2_settings.php">☁️ Backblaze Storage Settings</a></p>
+        <p class="secure-gallery-inline-1"><a class="btn" href="gallery_b2_settings.php">☁️ Backblaze Storage Settings</a></p>
         <section id="secure-gallery-unlock-panel" class="secure-gallery-panel">
             <h2>🔐 Unlock your private photos</h2>
             <p>Photos are encrypted in this browser before they are sent directly to your private Backblaze B2 bucket. The server stores encrypted key envelopes and photo metadata, not readable images.</p>
@@ -96,7 +65,7 @@ header('Content-Security-Policy: ' . $csp);
             <h2>Save your Gallery recovery code</h2>
             <p>This recovery code is generated in your browser and is never sent to SentryIQ. Save it somewhere secure before continuing. If you lose every passkey and this code, your photos cannot be recovered.</p>
             <textarea id="secure-gallery-recovery-code" class="secure-gallery-recovery" readonly spellcheck="false"></textarea>
-            <div class="secure-gallery-actions" style="margin-top:10px;">
+            <div class="secure-gallery-actions" class="secure-gallery-inline-2">
                 <button id="secure-gallery-copy-recovery" class="btn" type="button">Copy recovery code</button>
                 <label><input id="secure-gallery-recovery-saved" type="checkbox"> I have saved this recovery code securely</label>
             </div>
@@ -113,8 +82,8 @@ header('Content-Security-Policy: ' . $csp);
         </section>
 
         <section id="secure-gallery-workspace" class="secure-gallery-panel" hidden>
-            <div class="secure-gallery-row" style="justify-content:space-between;">
-                <h2 style="margin-bottom:0;">Your private photos</h2>
+            <div class="secure-gallery-row" class="secure-gallery-inline-3">
+                <h2 class="secure-gallery-inline-4">Your private photos</h2>
                 <div class="secure-gallery-actions">
                     <button id="secure-gallery-add-passkey" class="btn" type="button">Add this passkey</button>
                     <button id="secure-gallery-lock" class="btn" type="button">Lock Gallery</button>
@@ -143,6 +112,7 @@ header('Content-Security-Policy: ' . $csp);
     <img id="secure-gallery-viewer-image" alt="Decrypted private photo">
 </div>
 
+<script src="assets/js/sentryiq_navigation.js" defer></script>
 <script src="assets/js/gallery_crypto.js"></script>
 <script src="assets/js/gallery_secure.js"></script>
 <script src="assets/js/gallery_storage.js"></script>

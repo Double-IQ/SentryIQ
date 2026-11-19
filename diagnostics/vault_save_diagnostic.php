@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/security_bootstrap.php';
+require_once dirname(__DIR__) . '/app/Security/BoundedLog.php';
 sentryiq_security_bootstrap();
-sentryiq_require_auth();
+sentryiq_require_fresh_auth();
+sentryiq_require_csrf();
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -143,7 +145,7 @@ $logFile = defined('LOG_FILE') ? LOG_FILE : '';
 $directory = defined('SENTRYIQ_DATA_DIR') ? SENTRYIQ_DATA_DIR : '';
 $line = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 if ($directory !== '' && $logFile !== '' && is_dir($directory) && is_string($line)) {
-    @file_put_contents($logFile, $line . PHP_EOL, FILE_APPEND | LOCK_EX);
+    \SentryIQ\Security\BoundedLog::append($logFile, $line . PHP_EOL);
     @chmod($logFile, 0600);
 }
 

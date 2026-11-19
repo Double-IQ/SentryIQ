@@ -1,5 +1,8 @@
 name: Gallery Security Checks
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main, feature/zero-knowledge-gallery-storage]
@@ -11,28 +14,55 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
 
-      - name: Check browser Gallery scripts
+      - name: Verify immutable GitHub Actions references
+        run: python3 tests/workflow_action_pinning.test.py
+
+      - name: Check browser and application scripts
         run: |
           node --check assets/js/gallery_crypto.js
           node --check assets/js/gallery_secure.js
           node --check assets/js/gallery_storage.js
           node --check assets/js/gallery_secure_ui.js
+          node --check assets/js/passkey_login.js
+          node --check assets/js/passkey_setup.js
+          node --check assets/js/welcome.js
+          node --check assets/js/documents.js
+          node --check assets/js/vault_page.js
+          node --check assets/js/vault_page_init.js
+          node --check assets/js/vault_dashboard.js
+          node --check assets/js/vault_dashboard_actions.js
+          node --check assets/js/sentryiq_navigation.js
+          node --check assets/js/gallery_b2_diagnostic.js
+          node --check assets/js/self_test.js
+          node --check assets/js/passkeys.js
+          node --check assets/js/copy_code.js
           node --check tests/gallery_crypto.test.js
 
       - name: Test browser-side Gallery cryptography
         run: node --test tests/gallery_crypto.test.js
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: '8.4'
+          extensions: curl, zip
+
+      - name: Install Playwright and locate runner Chromium
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          chrome_bin="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$chrome_bin"
+          "$chrome_bin" --version
+          echo "CHROME_BIN=$chrome_bin" >> "$GITHUB_ENV"
 
       - name: Lint PHP files
         shell: bash
@@ -45,8 +75,97 @@ jobs:
       - name: Test Gallery storage and authorization primitives
         run: php tests/gallery_storage.test.php
 
+      - name: Test document metadata locking and path security
+        run: php tests/document_store.test.php
+
       - name: Test release trust policy decisions
         run: php tests/release_trust_policy.test.php
+
+      - name: Test updater rollback safety
+        run: php tests/update_rollback.test.php
+
+      - name: Exercise complete updater apply in an isolated workspace
+        run: php tests/update_apply_integration.test.php
+
+      - name: Test updater release provenance and manifest
+        run: php tests/update_release_provenance.test.php
+
+      - name: Test private data directory boundary
+        run: php tests/private_data_path.test.php
+
+      - name: Test vault icon SSRF protections
+        run: php tests/vault_icon_ssrf.test.php
+
+      - name: Test authentication throttle exception handling
+        run: php tests/auth_throttle_exception.test.php
+
+      - name: Test atomic authentication throttle storage
+        run: php tests/auth_throttle_store.test.php
+
+      - name: Test one-time copy-code token flow
+        run: php tests/copy_code_token.test.php
+
+      - name: Test WebAuthn attested COSE key binding
+        run: php tests/webauthn_cose.test.php
+
+      - name: Test WebAuthn challenge expiry and replay
+        run: php tests/webauthn_challenge.test.php
+
+      - name: Test authenticated session expiry
+        run: php tests/authenticated_session_expiry.test.php
+
+      - name: Test vault Argon2id resource policy
+        run: php tests/vault_kdf_policy.test.php
+
+      - name: Test bounded security log rotation
+        run: php tests/security_log_rotation.test.php
+
+      - name: Test bounded diagnostic log rotation
+        run: php tests/bounded_log.test.php
+
+      - name: Test strict external-script CSP
+        run: php tests/csp_policy.test.php
+
+      - name: Test PHP and Apache deployment hardening
+        run: php tests/deployment_hardening.test.php
+
+      - name: Exercise Apache rewrite rules over HTTP
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y apache2
+          sudo a2enmod rewrite
+          apache_docroot="/var/www/html/sentryiq-apache-test"
+          sudo mkdir -p "$apache_docroot"
+          sudo cp -a "$GITHUB_WORKSPACE/." "$apache_docroot/"
+          sudo chmod -R a+rX "$apache_docroot"
+          sudo tee /etc/apache2/sites-available/000-default.conf >/dev/null <<EOF
+          <VirtualHost *:80>
+              DocumentRoot "$apache_docroot"
+              <Directory "$apache_docroot">
+                  Options +FollowSymLinks -Indexes
+                  AllowOverride All
+                  Require all granted
+              </Directory>
+          </VirtualHost>
+          EOF
+          sudo apachectl configtest
+          sudo apachectl start
+          trap 'sudo apachectl stop || true' EXIT
+          if ! bash tests/apache_rewrite_integration.sh; then
+            sudo tail -n 80 /var/log/apache2/error.log || true
+            exit 1
+          fi
+
+      - name: Test server-side SentryIQ self-diagnostics
+        run: php tests/self_test_cli.test.php
+
+      - name: Run installed authenticated browser self-diagnostics
+        run: node tests/browser_self_test.integration.mjs
+
+      - name: Test write-capable diagnostics are CLI-only
+        run: php tests/diagnostic_write_access.test.php
 
       - name: Test GitHub CLI attestation adapter contract
         run: php tests/github_cli_attestation_verifier.test.php

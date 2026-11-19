@@ -8,6 +8,9 @@ on:
       - '.github/workflows/validate-v012-attestation.yml'
       - 'scripts/validate-v012-attestation.py'
       - 'app/Updates/GitHubCliAttestationVerifier.php'
+      - 'app/Updates/UpdateManager.php'
+      - 'app/Updates/ReleaseTrustPolicy.php'
+      - 'tests/update_release_provenance.test.php'
       - 'app/Updates/IntegrityReportVerifier.php'
       - 'app/Updates/IntegrityReportSigner.php'
       - 'app/Updates/IntegrityNodeA.php'
@@ -39,7 +42,9 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout validation code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Confirm GitHub CLI is available
         run: gh --version
@@ -115,7 +120,7 @@ jobs:
 
       - name: Preserve genuine verifier output for review
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sentryiq-v0.1.2-attestation-verification
           path: |

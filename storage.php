@@ -348,27 +348,7 @@ $csrf = sentryiq_csrf_token();
 <meta name="twitter:image" content="https://bichet.co.za/SentryIQ/sentryiq-og.php">
 <title>SentryIQ — Storage</title>
 <link rel="stylesheet" href="assets/css/sentryiq.css?v=20260924-1">
-<style>
-.storage-section{margin-top:20px}
-.storage-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
-.storage-stat{padding:16px;border-radius:16px;background:var(--neo-surface,#e7ebf1);box-shadow:inset 4px 4px 8px var(--neo-shadow-dark,rgba(142,151,166,.35)),inset -4px -4px 8px var(--neo-shadow-light,rgba(255,255,255,.96))}
-.storage-stat-label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--neo-muted,#697586);font-weight:700;margin-bottom:5px}
-.storage-stat-value{display:block;font-size:20px;font-weight:700;color:var(--neo-text,#253041);overflow-wrap:anywhere}
-.storage-stat-note{display:block;font-size:12px;color:var(--neo-muted,#697586);margin-top:5px}
-.storage-progress{height:14px;border-radius:999px;overflow:hidden;background:var(--neo-surface,#e7ebf1);box-shadow:inset 3px 3px 7px var(--neo-shadow-dark,rgba(142,151,166,.35)),inset -3px -3px 7px var(--neo-shadow-light,rgba(255,255,255,.96));margin-top:16px}
-.storage-progress-bar{height:100%;border-radius:999px;background:#1769aa}
-.storage-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}
-.storage-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 14px;border-radius:14px;background:var(--neo-surface,#e7ebf1);box-shadow:6px 6px 12px var(--neo-shadow-dark,rgba(142,151,166,.35)),-6px -6px 12px var(--neo-shadow-light,rgba(255,255,255,.96))}
-.storage-row-name{font-weight:700;color:var(--neo-text,#253041);min-width:0;overflow-wrap:anywhere}
-.storage-row-size{font-weight:700;color:var(--neo-accent,#1769aa);white-space:nowrap}
-.storage-warning{margin:0;padding:14px 16px;border-radius:14px;background:#fff3cd;color:#664d03;border:1px solid #ffecb5}
-.storage-muted{color:var(--neo-muted,#697586)}
-@media(max-width:700px){
- .storage-grid{grid-template-columns:1fr}
- .storage-row{align-items:flex-start;flex-direction:column;gap:5px}
- .storage-row-size{white-space:normal}
-}
-</style>
+<link rel="stylesheet" href="assets/css/storage.css">
 </head>
 <body>
 <div class="box">
@@ -393,10 +373,10 @@ $csrf = sentryiq_csrf_token();
     </div>
 
     <div id="vault-mobile-menu" class="vault-tabs">
-        <button class="tab-btn" type="button" onclick="window.location.href='index.php?pane=view'">📋 Vault</button>
-        <button class="tab-btn" type="button" onclick="window.location.href='documents.php'">📄 Docs</button>
-        <button class="tab-btn" type="button" onclick="window.location.href='gallery.php'">🖼️ Gallery</button>
-        <button class="tab-btn active" type="button" onclick="window.location.href='index.php?pane=settings'">⚙️ System</button>
+        <button class="tab-btn" type="button" data-sentryiq-nav="index.php?pane=view">📋 Vault</button>
+        <button class="tab-btn" type="button" data-sentryiq-nav="documents.php">📄 Docs</button>
+        <button class="tab-btn" type="button" data-sentryiq-nav="gallery.php">🖼️ Gallery</button>
+        <button class="tab-btn active" type="button" data-sentryiq-nav="index.php?pane=settings">⚙️ System</button>
         <form method="POST" class="vault-menu-lock-form">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
             <input type="hidden" name="lock_vault" value="1">
@@ -404,13 +384,13 @@ $csrf = sentryiq_csrf_token();
         </form>
     </div>
 
-    <div style="width:100%;margin:16px 0;">
-        <a href="index.php?pane=settings" class="btn" style="text-decoration:none;">← System Settings</a>
+    <div class="storage-back-wrap">
+        <a href="index.php?pane=settings" class="btn storage-back-link">← System Settings</a>
     </div>
 
     <div class="form-box">
-        <h2 style="margin-top:0;">💾 Storage</h2>
-        <p style="margin-top:0;color:#697586;">Current SentryIQ storage usage together with the disk quota assigned to this cPanel account.</p>
+        <h2 class="storage-title">💾 Storage</h2>
+        <p class="storage-description">Current SentryIQ storage usage together with the disk quota assigned to this cPanel account.</p>
 
         <section class="storage-section">
             <h3>cPanel Account Quota</h3>
@@ -452,16 +432,14 @@ $csrf = sentryiq_csrf_token();
                 </div>
 
                 <?php if (!$quota['unlimited']): ?>
-                    <div class="storage-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?php echo htmlspecialchars(number_format((float)$quotaPercent, 1, '.', ''), ENT_QUOTES, 'UTF-8'); ?>" aria-label="cPanel storage usage">
-                        <div class="storage-progress-bar" style="width:<?php echo htmlspecialchars(number_format((float)$quotaPercent, 2, '.', ''), ENT_QUOTES, 'UTF-8'); ?>%;"></div>
-                    </div>
+                    <progress class="storage-progress" value="<?php echo htmlspecialchars(number_format((float)$quotaPercent, 2, '.', ''), ENT_QUOTES, 'UTF-8'); ?>" max="100" aria-label="cPanel storage usage"><?php echo htmlspecialchars(number_format((float)$quotaPercent, 1), ENT_QUOTES, 'UTF-8'); ?>%</progress>
                 <?php endif; ?>
             <?php endif; ?>
         </section>
 
         <section class="storage-section">
             <h3>SentryIQ Folder Usage</h3>
-            <p class="storage-muted" style="margin-top:0;">Folder sizes are calculated from files accessible to the SentryIQ account. Private vault data remains outside the public web root.</p>
+            <p class="storage-muted storage-folder-note">Folder sizes are calculated from files accessible to the SentryIQ account. Private vault data remains outside the public web root.</p>
 
             <div class="storage-list">
                 <div class="storage-row">
@@ -483,18 +461,6 @@ $csrf = sentryiq_csrf_token();
     </div>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    var toggle = document.querySelector('.vault-mobile-menu-toggle');
-    var menu = document.getElementById('vault-mobile-menu');
-
-    if (toggle && menu) {
-        toggle.addEventListener('click', function () {
-            var open = menu.classList.toggle('mobile-open');
-            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-        });
-    }
-});
-</script>
+<script src="assets/js/sentryiq_navigation.js" defer></script>
 </body>
 </html>

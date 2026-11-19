@@ -9,23 +9,6 @@ require_once __DIR__ . '/cloud/Gallery/Storage/BackblazeB2Signer.php';
 
 use SentryIQCloud\Gallery\Storage\BackblazeB2Signer;
 
-// The diagnostic makes direct browser requests to the configured S3 endpoint.
-// Add only the validated bucket endpoint to connect-src; never use a wildcard.
-$b2Host = '';
-$dataDirectory = sentryiq_data_dir();
-if (is_string($dataDirectory) && $dataDirectory !== '') {
-    try {
-        $b2Host = BackblazeB2Signer::fromRuntimeDirectory($dataDirectory)->endpointHost();
-    } catch (Throwable) {
-        $b2Host = '';
-    }
-}
-$csp = "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'";
-if ($b2Host !== '' && preg_match('/^[a-z0-9.-]+$/', $b2Host)) {
-    $csp .= ' https://' . $b2Host;
-}
-header('Content-Security-Policy: ' . $csp);
-
 header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: no-referrer');
@@ -82,13 +65,7 @@ $csrf = sentryiq_csrf_token();
 <meta name="csrf-token" content="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
 <meta name="robots" content="noindex,nofollow">
 <title>SentryIQ — Backblaze B2 diagnostic</title>
-<style>
-body{font:16px/1.5 system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 18px;color:#20242a}
-button{padding:11px 18px;border:0;border-radius:7px;background:#175cd3;color:white;font-weight:600;cursor:pointer}
-button:disabled{opacity:.55;cursor:wait}
-#result{white-space:pre-wrap;padding:14px;background:#f3f5f7;border-radius:8px;margin-top:18px;min-height:48px}
-a{color:#175cd3}
-</style>
+<link rel="stylesheet" href="assets/css/gallery_b2_diagnostic.css">
 </head>
 <body>
 <h1>Backblaze B2 connection test</h1>
@@ -97,78 +74,6 @@ a{color:#175cd3}
 <button id="run" type="button">Run B2 connection test</button>
 <pre id="result" role="status" aria-live="polite">Ready. No test object has been created.</pre>
 <p><a href="gallery.php">Return to Secure Gallery</a></p>
-<script>
-(function () {
-    'use strict';
-    const button = document.getElementById('run');
-    const output = document.getElementById('result');
-    const csrf = document.querySelector('meta[name="csrf-token"]').content;
-    function report(lines) { output.textContent = lines.join('\n'); }
-    button.addEventListener('click', async function () {
-        button.disabled = true;
-        const lines = ['Preparing a short-lived, object-specific authorization…'];
-        report(lines);
-        let urls = null;
-        let uploadMayExist = false;
-        let passed = false;
-        try {
-            const preparedResponse = await fetch('gallery_b2_diagnostic.php', {
-                method: 'POST',
-                credentials: 'same-origin',
-                cache: 'no-store',
-                headers: {'Content-Type':'application/json','Accept':'application/json'},
-                body: JSON.stringify({action:'prepare',csrf_token:csrf})
-            });
-            const prepared = await preparedResponse.json();
-            if (!preparedResponse.ok || prepared.status !== 'ok') throw new Error(prepared.message || 'Could not prepare the B2 test.');
-            urls = prepared;
-            const bytes = new Uint8Array(32);
-            crypto.getRandomValues(bytes);
-            lines.push('PASS — PHP loaded the protected B2 configuration and signed short-lived URLs.');
-            report(lines);
-            const put = await fetch(urls.put, {
-                method:'PUT', mode:'cors', credentials:'omit', cache:'no-store', redirect:'error',
-                headers:{'Content-Type':urls.contentType}, body:bytes
-            });
-            if (!put.ok) throw new Error('B2 upload returned HTTP ' + put.status + '.');
-            uploadMayExist = true;
-            lines.push('PASS — browser uploaded a 32-byte random test object directly to B2.');
-            report(lines);
-            const get = await fetch(urls.get, {
-                method:'GET', mode:'cors', credentials:'omit', cache:'no-store', redirect:'error'
-            });
-            if (!get.ok) throw new Error('B2 download returned HTTP ' + get.status + '.');
-            const received = new Uint8Array(await get.arrayBuffer());
-            if (received.length !== bytes.length || received.some((value, index) => value !== bytes[index])) {
-                throw new Error('Downloaded test bytes did not match the uploaded bytes.');
-            }
-            lines.push('PASS — browser downloaded the object and verified every byte.');
-            report(lines);
-            passed = true;
-        } catch (error) {
-            lines.push('FAIL — ' + (error && error.message ? error.message : 'B2 test failed.'));
-        } finally {
-            if (urls && urls.delete && (uploadMayExist || !passed)) {
-                try {
-                    const deletion = await fetch(urls.delete, {
-                        method:'DELETE', mode:'cors', credentials:'omit', cache:'no-store', redirect:'error'
-                    });
-                    if (deletion.ok || deletion.status === 404) {
-                        lines.push('PASS — temporary test object deletion request completed.');
-                    } else {
-                        lines.push('WARNING — B2 did not confirm deletion (HTTP ' + deletion.status + '). Check the bucket for the temporary test object.');
-                    }
-                } catch (_) {
-                    lines.push('WARNING — browser could not confirm deletion. Check the bucket for a temporary object under gallery/v1/.');
-                }
-            }
-            if (passed) lines.push('RESULT — B2 upload, download and byte verification succeeded.');
-            else lines.push('RESULT — test did not complete successfully. Do not upload personal photos yet.');
-            report(lines);
-            button.disabled = false;
-        }
-    });
-}());
-</script>
+<script src="assets/js/gallery_b2_diagnostic.js" defer></script>
 </body>
 </html>

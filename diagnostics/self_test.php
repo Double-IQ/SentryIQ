@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/app/Security/SecurityBootstrap.php';
+require_once dirname(__DIR__) . '/app/Security/BoundedLog.php';
 sentryiq_security_bootstrap();
 
 $root = dirname(__DIR__);
@@ -19,7 +20,7 @@ if ($installed && !$authenticated) {
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 
-const SENTRYIQ_DIAGNOSTIC_BUILD = 'strict-2xx-url-source-contracts-2026-09-21';
+const SENTRYIQ_DIAGNOSTIC_BUILD = 'current-browser-asset-contracts-2026-11-19';
 
 $results = [];
 function add_check(string $group, string $name, bool $ok, string $detail = ''): void
@@ -72,8 +73,12 @@ function add_source_asset_check(string $relativePath, string $expectedUrl, strin
     $path = dirname(__DIR__) . '/' . $relativePath;
     $source = is_readable($path) ? @file_get_contents($path) : false;
     $urls = is_string($source) ? extract_html_asset_urls($source) : [];
-    $ok = in_array($expectedUrl, $urls, true);
-    add_check('URL/source references', $label, $ok, $ok ? 'exact URL present' : ($relativePath . ': exact URL missing: ' . $expectedUrl));
+    $expectedPath = parse_url($expectedUrl, PHP_URL_PATH);
+    $ok = is_string($expectedPath) && count(array_filter(
+        $urls,
+        static fn(string $url): bool => parse_url($url, PHP_URL_PATH) === $expectedPath
+    )) > 0;
+    add_check('URL/source references', $label, $ok, $ok ? 'expected asset path present' : ($relativePath . ': expected asset path missing: ' . $expectedUrl));
 }
 
 function add_source_no_exact_asset_check(string $relativePath, string $legacyUrl, string $label): void
@@ -122,7 +127,13 @@ if (is_array($config)) {
 }
 
 $serverHost = trim((string)($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? ''));
-$scriptDir = rtrim(str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? ''))), '/');
+$scriptPath = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? ''));
+$scriptDir = rtrim(str_replace('\\', '/', dirname($scriptPath)), '/');
+// The diagnostic is one directory below the application root; compare the
+// configured base URL to the app root, not to /diagnostics.
+if (basename($scriptPath) === 'self_test.php' && basename($scriptDir) === 'diagnostics') {
+    $scriptDir = rtrim(str_replace('\\', '/', dirname($scriptDir)), '/');
+}
 $runtimeExpectedBaseUrl = $serverHost !== '' && $httpsOk ? 'https://' . $serverHost . ($scriptDir === '/' ? '' : $scriptDir) : '';
 $baseUrlMatchesRuntime = $baseUrl === '' || ($runtimeExpectedBaseUrl !== '' && $baseUrl === rtrim($runtimeExpectedBaseUrl, '/'));
 add_check('Configuration URL', 'Base URL matches current application URL', $baseUrlMatchesRuntime, $runtimeExpectedBaseUrl !== '' ? ('configured=' . ($baseUrl !== '' ? $baseUrl : 'missing') . ', current=' . rtrim($runtimeExpectedBaseUrl, '/')) : 'current application URL could not be determined');
@@ -139,18 +150,17 @@ if ($wideLogoState['file'] && !$wideLogoState['link']) {
     add_check('Branding', 'Wide logo SHA-256', is_string($logoHash) && preg_match('/^[a-f0-9]{64}$/', $logoHash) === 1, is_string($logoHash) ? $logoHash : 'hash unavailable');
 }
 
-$iconSourcePath = $root . '/sentryiq-icon.php';
-$iconSource = is_readable($iconSourcePath) ? @file_get_contents($iconSourcePath) : false;
-$iconPayloadOk = false;
-$iconDecodedLength = 0;
-if (is_string($iconSource) && preg_match("/const\\s+SENTRYIQ_ICON_BASE64\\s*=\\s*'([^']+)'/", $iconSource, $iconMatch) === 1) {
-    $decoded = base64_decode($iconMatch[1], true);
-    if (is_string($decoded)) {
-        $iconDecodedLength = strlen($decoded);
-        $iconPayloadOk = $iconDecodedLength >= 8 && substr($decoded, 0, 8) === "\x89PNG\r\n\x1a\n";
-    }
-}
-add_check('Branding', 'Icon PHP payload', $iconPayloadOk, $iconPayloadOk ? ('valid PNG payload, ' . $iconDecodedLength . ' bytes') : 'embedded PNG payload could not be decoded/validated');
+$iconPath = $root . '/assets/images/sentryiq-icon.png';
+$iconState = safe_path_state($iconPath);
+$iconBytes = $iconState['file'] && !$iconState['link'] && $iconState['readable'] ? @file_get_contents($iconPath) : false;
+$iconInfo = $iconState['file'] && !$iconState['link'] ? @getimagesize($iconPath) : false;
+$iconPayloadOk = is_string($iconBytes)
+    && strlen($iconBytes) >= 8
+    && substr($iconBytes, 0, 8) === "\x89PNG\r\n\x1a\n"
+    && is_array($iconInfo)
+    && strtolower((string)($iconInfo['mime'] ?? '')) === 'image/png';
+$iconDecodedLength = is_string($iconBytes) ? strlen($iconBytes) : 0;
+add_check('Branding', 'Icon PNG asset', $iconPayloadOk, $iconPayloadOk ? ('valid PNG asset, ' . $iconDecodedLength . ' bytes') : 'assets/images/sentryiq-icon.png missing or invalid');
 
 $logoCssPath = $root . '/assets/css/sentryiq.css';
 $logoCss = is_readable($logoCssPath) ? @file_get_contents($logoCssPath) : false;
@@ -186,10 +196,12 @@ $sourceRefs = [
     ['index.php', 'assets/css/sentryiq.css', 'index stylesheet URL'],
     ['index.php', 'assets/images/sentryiq-logo-wide.webp', 'index wide-logo URL'],
     ['index.php', 'sentryiq-icon.php', 'index favicon/icon URL'],
-    ['index.php', 'assets/js/vault_folders.js?v=20260915-2', 'index Vault JS URL'],
-    ['index.php', 'assets/js/records_view.js?v=20260916-2', 'index Records JS URL'],
-    ['gallery.php', 'assets/css/sentryiq.css', 'gallery stylesheet URL'],
-    ['gallery.php', 'assets/images/sentryiq-logo-wide.webp', 'gallery wide-logo URL'],
+    ['index.php', 'assets/js/vault_folders.js', 'index Vault folders JS URL'],
+    ['index.php', 'assets/js/vault_page.js', 'index Vault page JS URL'],
+    ['index.php', 'assets/js/vault_page_init.js', 'index Vault page initialization JS URL'],
+    ['diagnostics/self_test.php', '../assets/js/self_test.js', 'Self-test browser runner JS URL'],
+    ['app/Gallery/SecurePage.php', 'assets/css/sentryiq.css', 'Gallery stylesheet URL'],
+    ['app/Gallery/SecurePage.php', 'assets/images/sentryiq-logo-wide.webp', 'Gallery wide-logo URL'],
     ['documents.php', 'assets/css/sentryiq.css', 'documents stylesheet URL'],
     ['documents.php', 'assets/images/sentryiq-logo-wide.webp', 'documents wide-logo URL'],
     ['app/Auth/PasskeySetup.php', 'assets/css/sentryiq.css', 'Passkey setup stylesheet URL'],
@@ -267,7 +279,7 @@ add_legacy_attribute_reference_scan();
 function stylesheet_rule_body(string $css, string $selector): string
 {
     if ($css === '' || $selector === '') return '';
-    if (!preg_match_all('/(?:^|})\s*([^{}]+)\{([^{}]*)\}/s', $css, $matches, PREG_SET_ORDER)) return '';
+    if (!preg_match_all('/([^{}]+)\{([^{}]*)\}/s', $css, $matches, PREG_SET_ORDER)) return '';
     $bodies = [];
     foreach ($matches as $match) {
         $selectors = preg_split('/\s*,\s*/', trim((string)$match[1])) ?: [];
@@ -322,40 +334,43 @@ function add_stylesheet_contract_checks(string $relativePath): void
 add_stylesheet_contract_checks('assets/css/sentryiq.css');
 
 $browserTests = [
-    ['type' => 'asset', 'label' => 'CSS', 'url' => 'assets/css/sentryiq.css', 'expectedContentType' => 'text/css', 'parseCss' => true],
-    ['type' => 'asset', 'label' => 'Vault folders JS', 'url' => 'assets/js/vault_folders.js?v=20260915-2', 'expectedContentType' => 'text/javascript'],
-    ['type' => 'asset', 'label' => 'Records JS', 'url' => 'assets/js/records_view.js?v=20260916-2', 'expectedContentType' => 'text/javascript'],
-    ['type' => 'asset', 'label' => 'Safari JS', 'url' => 'assets/js/safari.js', 'expectedContentType' => 'text/javascript'],
-    ['type' => 'asset', 'label' => 'Wide logo', 'url' => 'assets/images/sentryiq-logo-wide.webp', 'expectedContentType' => 'image/webp'],
-    ['type' => 'asset', 'label' => 'Favicon/icon endpoint', 'url' => 'sentryiq-icon.php', 'expectedContentType' => 'image/png', 'expectedMagic' => [137,80,78,71,13,10,26,10]],
-    ['type' => 'page', 'label' => 'index.php', 'url' => 'index.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
+    ['type' => 'asset', 'label' => 'CSS', 'url' => '../assets/css/sentryiq.css', 'expectedContentType' => 'text/css', 'parseCss' => true],
+    ['type' => 'asset', 'label' => 'Vault folders JS', 'url' => '../assets/js/vault_folders.js?v=20260919-7', 'expectedContentType' => 'application/javascript'],
+    ['type' => 'asset', 'label' => 'Vault page JS', 'url' => '../assets/js/vault_page.js', 'expectedContentType' => 'application/javascript'],
+    ['type' => 'asset', 'label' => 'Vault page initialization JS', 'url' => '../assets/js/vault_page_init.js', 'expectedContentType' => 'application/javascript'],
+    ['type' => 'asset', 'label' => 'Records JS', 'url' => '../assets/js/records_view.js?v=20260916-2', 'expectedContentType' => 'application/javascript'],
+    ['type' => 'asset', 'label' => 'Safari JS', 'url' => '../assets/js/safari.js', 'expectedContentType' => 'application/javascript'],
+    ['type' => 'asset', 'label' => 'Wide logo', 'url' => '../assets/images/sentryiq-logo-wide.webp', 'expectedContentType' => 'image/webp'],
+    ['type' => 'asset', 'label' => 'Favicon/icon endpoint', 'url' => '../sentryiq-icon.php', 'expectedContentType' => 'image/png', 'expectedMagic' => [137,80,78,71,13,10,26,10]],
+    ['type' => 'page', 'label' => 'index.php', 'url' => '../index.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
         ['tag'=>'link','value'=>'assets/css/sentryiq.css'],
         ['tag'=>'script','prefix'=>'assets/js/vault_folders.js'],
-        ['tag'=>'script','prefix'=>'assets/js/records_view.js'],
+        ['tag'=>'script','prefix'=>'assets/js/vault_page.js'],
+        ['tag'=>'script','prefix'=>'assets/js/vault_page_init.js'],
         ['tag'=>'img','value'=>'assets/images/sentryiq-logo-wide.webp'],
-        ['tag'=>'link','value'=>'sentryiq-icon.php'],
+        ['tag'=>'link','value'=>'sentryiq-icon.php','expectedContentType'=>'image/png'],
     ]],
-    ['type' => 'page', 'label' => 'documents.php', 'url' => 'documents.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
+    ['type' => 'page', 'label' => 'documents.php', 'url' => '../documents.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
         ['tag'=>'link','value'=>'assets/css/sentryiq.css'],
         ['tag'=>'img','value'=>'assets/images/sentryiq-logo-wide.webp'],
     ]],
-    ['type' => 'page', 'label' => 'gallery.php', 'url' => 'gallery.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
+    ['type' => 'page', 'label' => 'gallery.php', 'url' => '../gallery.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
         ['tag'=>'link','value'=>'assets/css/sentryiq.css'],
         ['tag'=>'img','value'=>'assets/images/sentryiq-logo-wide.webp'],
     ]],
-    ['type' => 'page', 'label' => 'passkey_setup.php', 'url' => 'passkey_setup.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
+    ['type' => 'page', 'label' => 'passkey_setup.php', 'url' => '../passkey_setup.php?add=1', 'expectedFinalPath' => '../passkey_setup.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
         ['tag'=>'link','value'=>'assets/css/sentryiq.css'],
         ['tag'=>'img','value'=>'assets/images/sentryiq-logo-wide.webp'],
     ]],
-    ['type' => 'page', 'label' => 'passkey_login.php', 'url' => 'passkey_login.php', 'expectedFinalPath' => 'index.php', 'expectedContentType' => 'text/html'],
-    ['type' => 'page', 'label' => 'passkeys.php', 'url' => 'passkeys.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
+    ['type' => 'page', 'label' => 'passkey_login.php', 'url' => '../passkey_login.php', 'expectedFinalPath' => '../index.php', 'expectedContentType' => 'text/html'],
+    ['type' => 'page', 'label' => 'passkeys.php', 'url' => '../passkeys.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
         ['tag'=>'link','value'=>'assets/css/sentryiq.css'],
         ['tag'=>'img','value'=>'assets/images/sentryiq-logo-wide.webp'],
     ]],
-    ['type' => 'page', 'label' => 'gallery_settings.php', 'url' => 'gallery_settings.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
+    ['type' => 'page', 'label' => 'gallery_settings.php', 'url' => '../gallery_settings.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
         ['tag'=>'link','value'=>'assets/css/sentryiq.css'],
         ['tag'=>'img','value'=>'assets/images/sentryiq-logo-wide.webp'],
-    ], 'expectedStylesheet' => 'assets/css/sentryiq.css', 'expectedCssContracts' => [
+    ], 'expectedStylesheet' => '../assets/css/sentryiq.css', 'expectedCssContracts' => [
         ['selector'=>'.box','property'=>'boxShadow','not'=>'none'],
         ['selector'=>'.form-box','property'=>'borderRadius','not'=>'0px'],
         ['selector'=>'.form-box','property'=>'boxShadow','not'=>'none'],
@@ -366,39 +381,59 @@ $browserTests = [
         ['selector'=>'.btn','property'=>'borderRadius','not'=>'0px'],
         ['selector'=>'.btn','property'=>'boxShadow','not'=>'none'],
     ]],
-    ['type' => 'data', 'label' => 'records_view_data.php', 'url' => 'records_view_data.php', 'expectedContentType' => 'application/json'],
-    ['type' => 'data', 'label' => 'vault_folder_data.php', 'url' => 'vault_folder_data.php', 'expectedContentType' => 'application/json'],
-    ['type' => 'page', 'label' => 'security-features.php', 'url' => 'security-features.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
+    ['type' => 'data', 'label' => 'records_view_data.php', 'url' => '../records_view_data.php', 'expectedContentType' => 'application/json'],
+    ['type' => 'data', 'label' => 'vault_folder_data.php', 'url' => '../vault_folder_data.php', 'expectedContentType' => 'application/json'],
+    ['type' => 'page', 'label' => 'security-features.php', 'url' => '../security-features.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
         ['tag'=>'link','value'=>'assets/css/sentryiq.css'],
     ]],
-    ['type' => 'page', 'label' => 'security_log.php', 'url' => 'security_log.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
-        ['tag'=>'link','value'=>'assets/css/sentryiq.css'],
-        ['tag'=>'img','value'=>'assets/images/sentryiq-logo-wide.webp'],
-    ]],
-    ['type' => 'page', 'label' => 'system_log.php', 'url' => 'system_log.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
+    ['type' => 'page', 'label' => 'security_log.php', 'url' => '../security_log.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
         ['tag'=>'link','value'=>'assets/css/sentryiq.css'],
         ['tag'=>'img','value'=>'assets/images/sentryiq-logo-wide.webp'],
     ]],
-    ['type' => 'not-tested', 'label' => 'document_upload.php', 'url' => 'document_upload.php', 'reason' => 'POST-only endpoint; browser GET is not a health test'],
-    ['type' => 'not-tested', 'label' => 'document_delete.php', 'url' => 'document_delete.php', 'reason' => 'POST-only endpoint; browser GET is not a health test'],
-    ['type' => 'not-tested', 'label' => 'gallery_album.php', 'url' => 'gallery_album.php', 'reason' => 'POST-only endpoint; browser GET is not a health test'],
-    ['type' => 'not-tested', 'label' => 'gallery_bulk_delete.php', 'url' => 'gallery_bulk_delete.php', 'reason' => 'POST-only endpoint; browser GET is not a health test'],
-    ['type' => 'not-tested', 'label' => 'gallery_delete.php', 'url' => 'gallery_delete.php', 'reason' => 'POST-only endpoint; browser GET is not a health test'],
-    ['type' => 'not-tested', 'label' => 'gallery_upload.php', 'url' => 'gallery_upload.php', 'reason' => 'POST-only endpoint; browser GET is not a health test'],
-    ['type' => 'not-tested', 'label' => 'record_actions.php', 'url' => 'record_actions.php', 'reason' => 'POST-only endpoint; browser GET is not a health test'],
-    ['type' => 'not-tested', 'label' => 'records_category_actions.php', 'url' => 'records_category_actions.php', 'reason' => 'POST-only endpoint; browser GET is not a health test'],
-    ['type' => 'not-tested', 'label' => 'vault_actions.php', 'url' => 'vault_actions.php', 'reason' => 'POST-only endpoint; browser GET is not a health test'],
-    ['type' => 'not-tested', 'label' => 'vault_category_actions.php', 'url' => 'vault_category_actions.php', 'reason' => 'POST-only endpoint; browser GET is not a health test'],
-    ['type' => 'not-tested', 'label' => 'document_download.php', 'url' => 'document_download.php', 'reason' => 'Requires a real document id; no-id GET is intentionally not a health test'],
-    ['type' => 'not-tested', 'label' => 'gallery_image.php', 'url' => 'gallery_image.php', 'reason' => 'Requires a real photo id; no-id GET is intentionally not a health test'],
+    ['type' => 'page', 'label' => 'system_log.php', 'url' => '../system_log.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
+        ['tag'=>'link','value'=>'assets/css/sentryiq.css'],
+        ['tag'=>'img','value'=>'assets/images/sentryiq-logo-wide.webp'],
+    ]],
+    ['type' => 'not-tested', 'label' => 'document_upload.php', 'url' => '../document_upload.php', 'reason' => 'POST-only endpoint; browser GET is not a health test'],
+    ['type' => 'not-tested', 'label' => 'document_delete.php', 'url' => '../document_delete.php', 'reason' => 'POST-only endpoint; browser GET is not a health test'],
+    ['type' => 'not-tested', 'label' => 'gallery_album.php', 'url' => '../gallery_album.php', 'reason' => 'POST-only endpoint; browser GET is not a health test'],
+    ['type' => 'not-tested', 'label' => 'gallery_bulk_delete.php', 'url' => '../gallery_bulk_delete.php', 'reason' => 'POST-only endpoint; browser GET is not a health test'],
+    ['type' => 'not-tested', 'label' => 'gallery_delete.php', 'url' => '../gallery_delete.php', 'reason' => 'POST-only endpoint; browser GET is not a health test'],
+    ['type' => 'not-tested', 'label' => 'gallery_upload.php', 'url' => '../gallery_upload.php', 'reason' => 'POST-only endpoint; browser GET is not a health test'],
+    ['type' => 'not-tested', 'label' => 'record_actions.php', 'url' => '../record_actions.php', 'reason' => 'POST-only endpoint; browser GET is not a health test'],
+    ['type' => 'not-tested', 'label' => 'records_category_actions.php', 'url' => '../records_category_actions.php', 'reason' => 'POST-only endpoint; browser GET is not a health test'],
+    ['type' => 'not-tested', 'label' => 'vault_actions.php', 'url' => '../vault_actions.php', 'reason' => 'POST-only endpoint; browser GET is not a health test'],
+    ['type' => 'not-tested', 'label' => 'vault_category_actions.php', 'url' => '../vault_category_actions.php', 'reason' => 'POST-only endpoint; browser GET is not a health test'],
+    ['type' => 'not-tested', 'label' => 'document_download.php', 'url' => '../document_download.php', 'reason' => 'Requires a real document id; no-id GET is intentionally not a health test'],
+    ['type' => 'not-tested', 'label' => 'gallery_image.php', 'url' => '../gallery_image.php', 'reason' => 'Requires a real photo id; no-id GET is intentionally not a health test'],
 ];
 
 $csrf = function_exists('sentryiq_csrf_token') ? sentryiq_csrf_token() : '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['diagnostic_log']) && $dataDir !== '' && is_dir($dataDir) && !is_link($dataDir)) {
+    sentryiq_require_csrf();
     $raw = (string)($_POST['diagnostic_log'] ?? '');
-    $decoded = json_decode($raw, true);
-    $safe = is_array($decoded) ? $decoded : [];
+    if (strlen($raw) > 262144) {
+        http_response_code(413);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => 'Diagnostic report exceeds the size limit.']);
+        exit;
+    }
+    try {
+        $decoded = json_decode($raw, true, 32, JSON_THROW_ON_ERROR);
+    } catch (Throwable) {
+        http_response_code(400);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => 'Invalid diagnostic report.']);
+        exit;
+    }
+    if (!is_array($decoded)) {
+        http_response_code(400);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => 'Invalid diagnostic report.']);
+        exit;
+    }
+    $safe = $decoded;
     $record = [
         'timestamp' => date('c'),
         'stage' => 'SELF_TEST_BROWSER_RESULTS',
@@ -409,7 +444,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['diagnostic_log']) && 
     $log = $dataDir . '/diagnostic_self_test.log';
     $line = json_encode($record, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     if (is_string($line)) {
-        @file_put_contents($log, $line . PHP_EOL, FILE_APPEND | LOCK_EX);
+        \SentryIQ\Security\BoundedLog::append($log, $line . PHP_EOL);
         @chmod($log, 0600);
     }
     header('Content-Type: application/json; charset=utf-8');
@@ -424,9 +459,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['diagnostic_log']) && 
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="csrf-token" content="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
 <title>SentryIQ Self-Test</title>
-<style>
-body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f4f6f8;color:#20252b;margin:0;padding:24px}.wrap{max-width:1150px;margin:auto}.card{background:#fff;border:1px solid #dfe4ea;border-radius:10px;padding:20px;margin-bottom:18px;box-shadow:0 2px 8px rgba(0,0,0,.04)}h1{margin:0 0 6px;font-size:24px}h2{font-size:17px;margin:22px 0 10px}.summary{font-size:15px;margin:12px 0}.ok{color:#137333;font-weight:600}.bad{color:#b3261e;font-weight:600}.warn{color:#8a5a00;font-weight:600}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:9px 8px;border-bottom:1px solid #edf0f3;text-align:left;vertical-align:top}th{font-weight:650}pre{white-space:pre-wrap;word-break:break-word;background:#f7f8fa;border:1px solid #e5e8ec;padding:12px;border-radius:7px;max-height:420px;overflow:auto}.muted{color:#6b7280}button{border:0;border-radius:7px;padding:10px 14px;font-weight:600;cursor:pointer}#run{background:#1f6feb;color:#fff}#copy{background:#e9eef5;margin-left:8px}.danger{background:#fff4f2;border-color:#f1c7c1}.note{font-size:12px;color:#6b7280;margin-top:12px}
-</style>
+<link rel="stylesheet" href="../assets/css/self_test.css">
 </head>
 <body>
 <div class="wrap">
@@ -454,151 +487,7 @@ body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-seri
 <pre id="report">Run the browser checks. The full JSON report will appear here.</pre>
 </div>
 </div>
-<script>
-const tests=<?= json_encode($browserTests, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>;
-const csrf=<?= json_encode($csrf) ?>;
-let reportData={diagnosticBuild:<?= json_encode(SENTRYIQ_DIAGNOSTIC_BUILD) ?>,serverChecks:<?= json_encode($results, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>,browserChecks:[]};
-function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
-async function checkOne(test){
-    const started=performance.now();
-    const expectedRequestedPath=new URL(test.url,location.href).pathname;
-    try{
-        const r=await fetch(test.url,{credentials:'same-origin',cache:'no-store',redirect:'follow',headers:{'Accept':'*/*'}});
-        const ms=Math.round(performance.now()-started);
-        const contentType=r.headers.get('content-type')||'';
-        const statusOk=Number.isInteger(r.status)&&r.status>=200&&r.status<300;
-        const finalUrl=new URL(r.url,location.href);
-        const expectedFinalPath=test.expectedFinalPath?new URL(test.expectedFinalPath,location.href).pathname:expectedRequestedPath;
-        const finalPathOk=finalUrl.pathname===expectedFinalPath;
-        const contentTypeOk=!test.expectedContentType||contentType.toLowerCase().startsWith(test.expectedContentType.toLowerCase());
-
-        let stylesheetOk=true;
-        let stylesheetDetail=null;
-        if(statusOk&&(test.expectedStylesheet||test.parseCss)){
-            try{
-                const stylesheetUrl=test.expectedStylesheet||test.url;
-                const sr=await fetch(stylesheetUrl,{credentials:'same-origin',cache:'no-store',redirect:'follow',headers:{'Accept':'text/css,*/*'}});
-                const st=sr.headers.get('content-type')||'';
-                const styleText=await sr.text();
-                stylesheetDetail={status:sr.status,statusOk:sr.status>=200&&sr.status<300,contentType:st,contentTypeOk:st.toLowerCase().startsWith('text/css'),url:sr.url,bytes:styleText.length,parseOk:false,ruleCount:0,contracts:[]};
-                stylesheetOk=stylesheetOk&&stylesheetDetail.statusOk&&stylesheetDetail.contentTypeOk&&styleText.trim().length>0;
-                if(stylesheetOk){
-                    const probe=document.createElement('style');
-                    probe.textContent=styleText;
-                    document.head.appendChild(probe);
-                    const rules=probe.sheet&&probe.sheet.cssRules?Array.from(probe.sheet.cssRules):[];
-                    stylesheetDetail.ruleCount=rules.length;
-                    stylesheetDetail.parseOk=rules.length>0;
-                    stylesheetOk=stylesheetOk&&rules.length>0;
-
-                    for(const contract of (test.expectedCssContracts||[])){
-                        const declarationProperty=contract.property.replace(/[A-Z]/g,m=>'-'+m.toLowerCase());
-                        let actual='';
-                        let found=false;
-                        for(const rule of rules){
-                            if(rule.type!==CSSRule.STYLE_RULE||typeof rule.selectorText!=='string')continue;
-                            if(!rule.selectorText.split(',').map(v=>v.trim()).includes(contract.selector))continue;
-                            const value=rule.style.getPropertyValue(declarationProperty).trim();
-                            if(value){actual=value;found=true;}
-                        }
-                        const ok=contract.value!==undefined?actual===contract.value:(contract.not!==undefined?actual!==contract.not:actual!=='');
-                        stylesheetDetail.contracts.push({...contract,actual,ok});
-                        if(!ok)stylesheetOk=false;
-                    }
-                    probe.remove();
-                }
-            }catch(error){
-                stylesheetOk=false;
-                stylesheetDetail={error:String(error&&error.message||error)};
-            }
-        }
-
-        let bodySignatureOk=true;
-        let bodyBytes=null;
-        const htmlReferenceResults=[];
-        if(Array.isArray(test.expectedMagic)){
-            const buffer=await r.arrayBuffer();
-            bodyBytes=new Uint8Array(buffer);
-            bodySignatureOk=test.expectedMagic.every((value,index)=>bodyBytes[index]===value);
-        }else if(test.type!=='asset'){
-            const textBody=await r.text();
-            bodySignatureOk=textBody.length>0;
-            if(bodySignatureOk&&Array.isArray(test.requiredHtmlRefs)){
-                const doc=new DOMParser().parseFromString(textBody,'text/html');
-                for(const ref of test.requiredHtmlRefs){
-                    let match=null;
-                    if(ref.tag==='link')match=Array.from(doc.querySelectorAll('link')).find(el=>{const v=el.getAttribute('href')||'';return ref.value?v===ref.value:(ref.prefix&&v.startsWith(ref.prefix));})||null;
-                    else if(ref.tag==='script')match=Array.from(doc.querySelectorAll('script[src]')).find(el=>{const v=el.getAttribute('src')||'';return ref.value?v===ref.value:(ref.prefix&&v.startsWith(ref.prefix));})||null;
-                    else if(ref.tag==='img')match=Array.from(doc.querySelectorAll('img[src]')).find(el=>{const v=el.getAttribute('src')||'';return ref.value?v===ref.value:(ref.prefix&&v.startsWith(ref.prefix));})||null;
-                    const found=!!match;
-                    const actualUrl=match?(match.getAttribute(ref.tag==='link'?'href':'src')||''):'';
-                    const resolvedUrl=actualUrl?new URL(actualUrl,location.href).href:'';
-                    let urlCheck=null;
-                    if(found){
-                        try{
-                            const ar=await fetch(resolvedUrl,{credentials:'same-origin',cache:'no-store',redirect:'follow',headers:{'Accept':'*/*'}});
-                            const at=ar.headers.get('content-type')||'';
-                            const expectedType=ref.tag==='link'?'text/css':(ref.tag==='script'?'text/javascript':'image/');
-                            const typeOk=ref.tag==='img'?at.toLowerCase().startsWith('image/'):at.toLowerCase().startsWith(expectedType);
-                            urlCheck={status:ar.status,statusOk:ar.status>=200&&ar.status<300,contentType:at,contentTypeOk:typeOk,finalUrl:ar.url};
-                            if(!(urlCheck.statusOk&&urlCheck.contentTypeOk))bodySignatureOk=false;
-                        }catch(error){
-                            urlCheck={status:0,statusOk:false,contentType:'',contentTypeOk:false,finalUrl:'',error:String(error&&error.message||error)};
-                            bodySignatureOk=false;
-                        }
-                    }else{
-                        bodySignatureOk=false;
-                    }
-                    htmlReferenceResults.push({...ref,found,actualUrl,resolvedUrl,urlCheck});
-                }
-            }
-        }
-
-        const allOk=statusOk&&contentTypeOk&&finalPathOk&&stylesheetOk&&bodySignatureOk;
-        return {...test,ok:allOk,status:r.status,statusText:r.statusText,finalUrl:r.url,timeMs:ms,contentType,stylesheetDetail,htmlReferenceResults,
-            checks:{tested:true,statusOk,contentTypeOk,finalPathOk,stylesheetOk,bodySignatureOk,expectedFinalPath}};
-    }catch(e){
-        return {...test,ok:false,status:0,statusText:String(e&&e.message||e),finalUrl:'',timeMs:Math.round(performance.now()-started),contentType:'',
-            stylesheetDetail:null,htmlReferenceResults:[],
-            checks:{tested:true,statusOk:false,contentTypeOk:false,finalPathOk:false,stylesheetOk:false,bodySignatureOk:false,expectedFinalPath:expectedRequestedPath}};
-    }
-}
-async function runChecks(){
-    const tbody=document.querySelector('#browser-table tbody');
-    tbody.innerHTML='';
-    document.querySelector('#browser-summary').textContent='Running checks…';
-    const out=[];
-    for(const test of tests){
-        if(test.type==='not-tested'){
-            const item={...test,ok:null,status:null,statusText:'NOT TESTED',finalUrl:'',timeMs:0,contentType:'',checks:{tested:false}};
-            out.push(item);
-            const tr=document.createElement('tr');
-            tr.innerHTML='<td>'+esc(item.type)+'</td><td><code>'+esc(item.url)+'</code></td><td class="warn">NOT TESTED</td><td>—</td><td>—</td><td>'+esc(item.reason||'')+'</td>';
-            tbody.appendChild(tr);
-            continue;
-        }
-        const item=await checkOne(test);
-        out.push(item);
-        const tr=document.createElement('tr');
-        const statusLabel=item.ok===true?'PASS':'FAIL';
-        const statusClass=item.ok===true?'ok':'bad';
-        const detail=item.stylesheetDetail?'<br><small>'+esc(JSON.stringify(item.stylesheetDetail))+'</small>':'';
-        tr.innerHTML='<td>'+esc(item.type)+'</td><td><code>'+esc(item.url)+'</code></td><td class="'+statusClass+'">'+statusLabel+'</td><td>'+esc(item.status)+' '+esc(item.statusText)+'</td><td>'+esc(item.contentType)+'</td><td>'+esc(item.finalUrl)+detail+'</td>';
-        tbody.appendChild(tr);
-    }
-    reportData.browserChecks=out;
-    const failed=out.filter(x=>x.ok===false);
-    const notTested=out.filter(x=>x.ok===null);
-    document.querySelector('#browser-summary').innerHTML=failed.length
-        ? '<span class="bad">'+failed.length+' browser health check(s) failed.</span>'+(notTested.length?' <span class="warn">'+notTested.length+' not tested.</span>':'')
-        : '<span class="ok">All '+out.filter(x=>x.ok!==null).length+' browser health checks passed.</span>'+(notTested.length?' <span class="warn">'+notTested.length+' not tested.</span>':'');
-    document.querySelector('#report').textContent=JSON.stringify(reportData,null,2);
-    try{await fetch(location.pathname,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({diagnostic_log:JSON.stringify(reportData),csrf_token:csrf}).toString()});}catch(_){}
-}
-
-
-document.querySelector('#run').addEventListener('click',runChecks);
-document.querySelector('#copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(document.querySelector('#report').textContent);document.querySelector('#copy').textContent='Copied';setTimeout(()=>document.querySelector('#copy').textContent='Copy report',1400);}catch(_){}});
-</script>
+<script type="application/json" id="sentryiq-self-test-data"><?= json_encode(['tests'=>$browserTests,'csrf'=>$csrf,'diagnosticBuild'=>SENTRYIQ_DIAGNOSTIC_BUILD,'serverChecks'=>$results], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) ?></script>
+<script src="../assets/js/self_test.js" defer></script>
 </body>
 </html>

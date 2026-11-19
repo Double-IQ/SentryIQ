@@ -15,9 +15,12 @@ final class BackblazeB2Signer
     private string $keyId;
     private string $applicationKey;
     private string $host;
+    /** @var callable|null Test seam for provider HEAD requests. */
+    private $headRequest;
 
-    public function __construct(array $configuration)
+    public function __construct(array $configuration, ?callable $headRequest = null)
     {
+        $this->headRequest = $headRequest;
         $this->bucket = trim((string)($configuration['bucket'] ?? ''));
         $this->region = trim((string)($configuration['region'] ?? ''));
         $this->keyId = trim((string)($configuration['key_id'] ?? ''));
@@ -152,6 +155,67 @@ final class BackblazeB2Signer
 
         $query['X-Amz-Signature'] = $signature;
         return 'https://' . $this->host . $canonicalUri . '?' . $this->canonicalQuery($query);
+    }
+
+    /**
+     * Confirm the object exists at the provider and that its actual stored
+     * Content-Length matches the browser-reported encrypted-object size.
+     */
+    public function assertObjectSize(string $objectKey, int $expectedSize): void
+    {
+        if ($expectedSize < 17 || $expectedSize > 52428800) {
+            throw new RuntimeException('Gallery object size is outside the permitted range.');
+        }
+        $url = $this->presign('HEAD', $objectKey, 60);
+        if ($this->headRequest !== null) {
+            $result = ($this->headRequest)($url, 'HEAD');
+            if (!is_array($result)
+                || ($result['status'] ?? null) !== 200
+                || ($result['content_length'] ?? null) !== $expectedSize) {
+                throw new RuntimeException('Backblaze B2 object size verification failed.');
+            }
+            return;
+        }
+        if (!function_exists('curl_init')) {
+            throw new RuntimeException('PHP cURL is required to verify Gallery uploads.');
+        }
+
+        $contentLength = null;
+        $ch = curl_init($url);
+        if ($ch === false) throw new RuntimeException('Unable to initialize Backblaze B2 object verification.');
+        curl_setopt_array($ch, [
+            CURLOPT_NOBODY => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 10,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+            CURLOPT_HEADERFUNCTION => static function ($handle, string $line) use (&$contentLength): int {
+                if (stripos($line, 'HTTP/') === 0) $contentLength = null;
+                if (stripos($line, 'Content-Length:') === 0) {
+                    $value = trim(substr($line, strlen('Content-Length:')));
+                    if (preg_match('/^\d+$/', $value)) $contentLength = (int)$value;
+                }
+                return strlen($line);
+            },
+        ]);
+        $ok = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $effectiveUrl = (string)curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+        curl_close($ch);
+
+        $parts = parse_url($effectiveUrl);
+        if ($ok !== true
+            || $status !== 200
+            || $contentLength !== $expectedSize
+            || !is_array($parts)
+            || strtolower((string)($parts['scheme'] ?? '')) !== 'https'
+            || strtolower((string)($parts['host'] ?? '')) !== $this->host
+            || (isset($parts['port']) && (int)$parts['port'] !== 443)) {
+            throw new RuntimeException('Backblaze B2 object size verification failed.');
+        }
     }
 
     private function encodePathSegment(string $segment): string

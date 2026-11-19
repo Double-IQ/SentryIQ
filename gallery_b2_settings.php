@@ -144,17 +144,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta name="csrf-token" content="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
 <title>SentryIQ — Backblaze Storage</title>
 <link rel="stylesheet" href="assets/css/sentryiq.css">
-<style>
-.b2-settings{max-width:780px;margin:24px auto;padding:22px;border:1px solid #e3e6f0;border-radius:12px;background:#fff}
-.b2-settings .field{margin:16px 0}
-.b2-settings label{display:block;font-weight:600;margin-bottom:6px}
-.b2-settings input{width:100%;box-sizing:border-box;padding:11px;border:1px solid #cfd5df;border-radius:7px}
-.b2-settings small{display:block;color:#687386;margin-top:5px}
-.b2-status{padding:12px;border-radius:8px;background:#f2f5f8;margin:14px 0}
-.b2-status.success{color:#176b3a}.b2-status.error{color:#a3212b}
-.b2-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
-.b2-warning{font-size:14px;color:#6a4b00;background:#fff7df;padding:12px;border-radius:8px}
-</style>
+<script src="assets/js/sentryiq_navigation.js" defer></script>
+<link rel="stylesheet" href="assets/css/gallery_b2_settings.css">
 </head>
 <body>
 <div class="box">
@@ -172,10 +163,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
   </div>
   <div class="vault-tabs">
-    <button class="tab-btn" type="button" onclick="window.location.href='index.php?pane=view'">📋 Vault</button>
-    <button class="tab-btn" type="button" onclick="window.location.href='documents.php'">📄 Docs</button>
-    <button class="tab-btn active" type="button" onclick="window.location.href='gallery.php'">🖼️ Gallery</button>
-    <button class="tab-btn" type="button" onclick="window.location.href='index.php?pane=settings'">⚙️ System</button>
+    <button class="tab-btn" type="button" data-sentryiq-nav="index.php?pane=view">📋 Vault</button>
+    <button class="tab-btn" type="button" data-sentryiq-nav="documents.php">📄 Docs</button>
+    <button class="tab-btn active" type="button" data-sentryiq-nav="gallery.php">🖼️ Gallery</button>
+    <button class="tab-btn" type="button" data-sentryiq-nav="index.php?pane=settings">⚙️ System</button>
   </div>
   <main class="b2-settings">
     <h2>☁️ Backblaze B2 connection</h2>
@@ -196,13 +187,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="b2-actions"><button type="submit" class="btn btn-primary">Save Backblaze settings securely</button><a class="btn" href="gallery_b2_diagnostic.php">Run connection test</a><a class="btn" href="gallery.php">Return to Gallery</a></div>
     </form>
     <?php if ($configured): ?>
-    <hr style="margin:24px 0;border:0;border-top:1px solid #e5e8ee">
+    <hr class="b2-settings-divider">
     <h3>Disconnect Backblaze</h3>
     <p>Disconnecting removes the local credential file only. It does not delete encrypted objects from your bucket or erase Gallery metadata. Reconnect the same bucket and key to restore access.</p>
-    <form method="POST" onsubmit="return confirm('Disconnect Backblaze? Gallery uploads and downloads will stop until you reconnect.');">
+    <form method="POST" data-confirm-submit="Disconnect Backblaze? Gallery uploads and downloads will stop until you reconnect.">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
       <input type="hidden" name="action" value="disconnect">
-      <label style="display:flex;gap:8px;align-items:center;font-weight:400"><input style="width:auto" type="checkbox" name="confirm_disconnect" value="yes" required> I understand Gallery storage will be unavailable until reconnected.</label>
+      <label class="b2-disconnect-confirm-label"><input class="b2-disconnect-confirm-checkbox" type="checkbox" name="confirm_disconnect" value="yes" required> I understand Gallery storage will be unavailable until reconnected.</label>
       <div class="b2-actions"><button type="submit" class="btn">Disconnect Backblaze</button></div>
     </form>
     <?php endif; ?>

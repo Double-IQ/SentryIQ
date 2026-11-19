@@ -4,10 +4,35 @@ declare(strict_types=1);
 
 const SENTRYIQ_IDLE_TIMEOUT = 900;
 const SENTRYIQ_FRESH_AUTH_WINDOW = 300;
+const SENTRYIQ_ABSOLUTE_SESSION_TIMEOUT = 43200;
+
+function sentryiq_path_is_outside_document_root(string $path): bool
+{
+    if ($path === '' || !str_starts_with($path, '/') || is_link($path)) return false;
+    $realPath = realpath($path);
+    if ($realPath === false || rtrim($realPath, DIRECTORY_SEPARATOR) !== rtrim($path, DIRECTORY_SEPARATOR)) return false;
+
+    $documentRoot = trim((string)($_SERVER['DOCUMENT_ROOT'] ?? ''));
+    if ($documentRoot === '') return PHP_SAPI === 'cli';
+    $realDocumentRoot = realpath($documentRoot);
+    if ($realDocumentRoot === false || !is_dir($realDocumentRoot)) return false;
+
+    $root = rtrim($realDocumentRoot, DIRECTORY_SEPARATOR);
+    $target = rtrim($realPath, DIRECTORY_SEPARATOR);
+    if ($root === '') $root = DIRECTORY_SEPARATOR;
+    if (DIRECTORY_SEPARATOR === '\\') {
+        $root = strtolower($root);
+        $target = strtolower($target);
+    }
+    $prefix = rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    return $target !== $root && !str_starts_with($target, $prefix);
+}
 
 function sentryiq_data_dir(): string
 {
-    if (defined('SENTRYIQ_DATA_DIR') && is_dir(SENTRYIQ_DATA_DIR) && !is_link(SENTRYIQ_DATA_DIR)) {
+    if (defined('SENTRYIQ_DATA_DIR')
+        && is_dir(SENTRYIQ_DATA_DIR)
+        && sentryiq_path_is_outside_document_root(SENTRYIQ_DATA_DIR)) {
         return SENTRYIQ_DATA_DIR;
     }
 
@@ -22,7 +47,10 @@ function sentryiq_data_dir(): string
     }
 
     $dataDir = rtrim((string)($config['data_dir'] ?? ''), '/');
-    if ($dataDir === '' || !str_starts_with($dataDir, '/') || is_link($dataDir) || !is_dir($dataDir)) {
+    if ($dataDir === ''
+        || !str_starts_with($dataDir, '/')
+        || !is_dir($dataDir)
+        || !sentryiq_path_is_outside_document_root($dataDir)) {
         return '';
     }
 
@@ -87,6 +115,32 @@ function sentryiq_brand_head_inject(string $buffer): string
     return str_ireplace('</head>', $tags . '</head>', $buffer);
 }
 
+function sentryiq_authenticated_session_expired(array $session, int $now): bool
+{
+    if (!isset($session['master_key']) || !is_string($session['master_key']) || strlen($session['master_key']) !== 32) {
+        return false;
+    }
+    $authenticatedAt = (int)($session['authenticated_at'] ?? 0);
+    $lastActivity = (int)($session['last_activity'] ?? 0);
+    if ($authenticatedAt <= 0 || $authenticatedAt > $now + 5 || ($now - $authenticatedAt) > SENTRYIQ_ABSOLUTE_SESSION_TIMEOUT) {
+        return true;
+    }
+    return $lastActivity <= 0 || $lastActivity > $now + 5 || ($now - $lastActivity) > SENTRYIQ_IDLE_TIMEOUT;
+}
+
+function sentryiq_build_content_security_policy(bool $galleryRoute, string $b2Host = ''): string
+{
+    $imgSources = "'self' data:" . ($galleryRoute ? ' blob:' : '');
+    $connectSources = "'self'";
+    if ($galleryRoute && $b2Host !== '' && preg_match('/^[a-z0-9.-]+$/', $b2Host) === 1) {
+        $connectSources .= ' https://' . $b2Host;
+    }
+
+    return "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; img-src "
+        . $imgSources
+        . "; style-src 'self'; script-src 'self'; connect-src "
+        . $connectSources;
+}
 function sentryiq_security_bootstrap(): void
 {
     $dataDir = sentryiq_data_dir();
@@ -144,9 +198,18 @@ function sentryiq_security_bootstrap(): void
     header('X-Frame-Options: DENY');
     header('Referrer-Policy: no-referrer');
     header('Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()');
-    header("Content-Security-Policy: default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'");
-
     $script = basename((string)($_SERVER['SCRIPT_FILENAME'] ?? ''));
+    $galleryCspRoute = in_array($script, ['gallery.php', 'gallery_secure.php', 'gallery_b2_diagnostic.php'], true);
+    $b2Host = '';
+    if ($galleryCspRoute && $dataDir !== '') {
+        require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/BackblazeB2Signer.php';
+        try {
+            $b2Host = \SentryIQCloud\Gallery\Storage\BackblazeB2Signer::fromRuntimeDirectory($dataDir)->endpointHost();
+        } catch (Throwable) {
+            $b2Host = '';
+        }
+    }
+    header('Content-Security-Policy: ' . sentryiq_build_content_security_policy($galleryCspRoute, $b2Host));
     $passkeyPath = $script === 'passkey.php' || $script === 'passkey_login.php' || $script === 'passkey_setup.php' || $script === 'passkey_auth.php';
     $passwordFallback = isset($_GET['password']) && $_GET['password'] === '1';
 
@@ -163,8 +226,7 @@ function sentryiq_security_bootstrap(): void
     }
 
     if (isset($_SESSION['master_key'])) {
-        $lastActivity = (int)($_SESSION['last_activity'] ?? 0);
-        if ($lastActivity > 0 && (time() - $lastActivity) > SENTRYIQ_IDLE_TIMEOUT) {
+        if (sentryiq_authenticated_session_expired($_SESSION, time())) {
             sentryiq_lock_vault();
             return;
         }
@@ -282,11 +344,23 @@ function cleanup_expired_tokens(): void
 {
     $dataDir = sentryiq_data_dir();
     if (!isset($_SESSION) || $dataDir === '') return;
-    foreach (glob($dataDir . '/token_*.json') ?: [] as $file) {
-        if (is_link($file)) continue;
+    $now = time();
+    $tokenFiles = glob($dataDir . '/token_*.json') ?: [];
+    usort($tokenFiles, static fn(string $left, string $right): int => (int)@filemtime($left) <=> (int)@filemtime($right));
+    foreach (array_slice($tokenFiles, 0, 200) as $file) {
+        if (is_link($file) || !is_file($file)) continue;
         $raw = @file_get_contents($file);
         $token = is_string($raw) ? json_decode($raw, true) : null;
-        if (!is_array($token) || (int)($token['expires'] ?? 0) <= time()) {
+        if (!is_array($token) || (int)($token['expires'] ?? 0) <= $now) {
+            @unlink($file);
+        }
+    }
+    $claimedFiles = glob($dataDir . '/consumed_*.token') ?: [];
+    usort($claimedFiles, static fn(string $left, string $right): int => (int)@filemtime($left) <=> (int)@filemtime($right));
+    foreach (array_slice($claimedFiles, 0, 200) as $file) {
+        if (is_link($file) || !is_file($file)) continue;
+        $modified = @filemtime($file);
+        if (is_int($modified) && $modified <= $now - 600) {
             @unlink($file);
         }
     }

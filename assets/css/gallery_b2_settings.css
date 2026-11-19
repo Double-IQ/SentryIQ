@@ -1,0 +1,13 @@
+.b2-settings{max-width:780px;margin:24px auto;padding:22px;border:1px solid #e3e6f0;border-radius:12px;background:#fff}
+.b2-settings .field{margin:16px 0}
+.b2-settings label{display:block;font-weight:600;margin-bottom:6px}
+.b2-settings input{width:100%;box-sizing:border-box;padding:11px;border:1px solid #cfd5df;border-radius:7px}
+.b2-settings small{display:block;color:#687386;margin-top:5px}
+.b2-status{padding:12px;border-radius:8px;background:#f2f5f8;margin:14px 0}
+.b2-status.success{color:#176b3a}.b2-status.error{color:#a3212b}
+.b2-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+.b2-warning{font-size:14px;color:#6a4b00;background:#fff7df;padding:12px;border-radius:8px}
+
+.b2-settings-divider{margin:24px 0;border:0;border-top:1px solid #e5e8ee}
+.b2-disconnect-confirm-label{display:flex;gap:8px;align-items:center;font-weight:400}
+.b2-disconnect-confirm-checkbox{width:auto}

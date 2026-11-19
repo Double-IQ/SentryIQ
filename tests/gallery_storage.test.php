@@ -31,6 +31,33 @@ $signer = new BackblazeB2Signer([
     'key_id' => 'test-key-id',
     'application_key' => 'test-application-secret',
 ]);
+$headCalls = [];
+$headSigner = new BackblazeB2Signer([
+    'bucket' => 'sentryiq-test-bucket',
+    'region' => 'us-west-004',
+    'key_id' => 'test-key-id',
+    'application_key' => 'test-application-secret',
+], static function (string $url, string $method) use (&$headCalls): array {
+    $headCalls[] = [$url, $method];
+    return ['status' => 200, 'content_length' => 100];
+});
+$headObjectKey = BackblazeB2Signer::newObjectKey('original');
+$headSigner->assertObjectSize($headObjectKey, 100);
+check(count($headCalls) === 1 && $headCalls[0][1] === 'HEAD', 'Upload verification must use a provider-signed HEAD request.');
+$headParts = parse_url($headCalls[0][0]);
+parse_str((string)($headParts['query'] ?? ''), $headQuery);
+check(($headParts['host'] ?? '') === 's3.us-west-004.backblazeb2.com', 'HEAD verification must target the configured B2 endpoint.');
+check(($headQuery['X-Amz-Expires'] ?? '') === '60', 'HEAD verification authorization must be short-lived.');
+$wrongSizeSigner = new BackblazeB2Signer([
+    'bucket' => 'sentryiq-test-bucket',
+    'region' => 'us-west-004',
+    'key_id' => 'test-key-id',
+    'application_key' => 'test-application-secret',
+], static fn(string $url, string $method): array => ['status' => 200, 'content_length' => 99]);
+expectFailure(
+    fn() => $wrongSizeSigner->assertObjectSize($headObjectKey, 100),
+    'Provider-reported object size mismatch must be rejected.'
+);
 $objectKey = BackblazeB2Signer::newObjectKey('original');
 $now = new DateTimeImmutable('2026-11-07T00:00:00+00:00');
 $putUrl = $signer->presign('PUT', $objectKey, 300, $now);
