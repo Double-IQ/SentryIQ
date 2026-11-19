@@ -46,3 +46,15 @@ These controls require repository administration privileges. The connected GitHu
 - The repository rulesets endpoint currently returns an empty list (`[]`); no repository rulesets are present in the returned result.
 - The connected integration cannot read the branch-protection detail endpoint (HTTP 403, insufficient integration access), so it cannot inspect any legacy protection configuration beyond the branch metadata flag. The owner must configure and verify protection with repository administration access.
 - The repository metadata response did not expose a `security_and_analysis` object, so secret scanning, push protection, and Dependabot alert settings remain unverified. No platform settings were changed.
+
+
+## Owner confirmation (2026-11-19)
+
+The repository owner reports that they reviewed and enabled the following controls in GitHub repository settings:
+
+- Secret scanning.
+- Push protection.
+- Dependabot alerts and security updates.
+- Private vulnerability reporting.
+
+This status is recorded as **owner-confirmed**. The connected GitHub API integration did not expose the repository `security_and_analysis` settings for independent read-back, so this document does not claim API-level verification. The separate `main` and `v*` rulesets are independently verified and recorded in the master checklist.
