@@ -335,11 +335,11 @@ add_stylesheet_contract_checks('assets/css/sentryiq.css');
 
 $browserTests = [
     ['type' => 'asset', 'label' => 'CSS', 'url' => '../assets/css/sentryiq.css', 'expectedContentType' => 'text/css', 'parseCss' => true],
-    ['type' => 'asset', 'label' => 'Vault folders JS', 'url' => '../assets/js/vault_folders.js?v=20260919-7', 'expectedContentType' => 'text/javascript'],
-    ['type' => 'asset', 'label' => 'Vault page JS', 'url' => '../assets/js/vault_page.js', 'expectedContentType' => 'text/javascript'],
-    ['type' => 'asset', 'label' => 'Vault page initialization JS', 'url' => '../assets/js/vault_page_init.js', 'expectedContentType' => 'text/javascript'],
-    ['type' => 'asset', 'label' => 'Records JS', 'url' => '../assets/js/records_view.js?v=20260916-2', 'expectedContentType' => 'text/javascript'],
-    ['type' => 'asset', 'label' => 'Safari JS', 'url' => '../assets/js/safari.js', 'expectedContentType' => 'text/javascript'],
+    ['type' => 'asset', 'label' => 'Vault folders JS', 'url' => '../assets/js/vault_folders.js?v=20260919-7', 'expectedContentType' => 'application/javascript'],
+    ['type' => 'asset', 'label' => 'Vault page JS', 'url' => '../assets/js/vault_page.js', 'expectedContentType' => 'application/javascript'],
+    ['type' => 'asset', 'label' => 'Vault page initialization JS', 'url' => '../assets/js/vault_page_init.js', 'expectedContentType' => 'application/javascript'],
+    ['type' => 'asset', 'label' => 'Records JS', 'url' => '../assets/js/records_view.js?v=20260916-2', 'expectedContentType' => 'application/javascript'],
+    ['type' => 'asset', 'label' => 'Safari JS', 'url' => '../assets/js/safari.js', 'expectedContentType' => 'application/javascript'],
     ['type' => 'asset', 'label' => 'Wide logo', 'url' => '../assets/images/sentryiq-logo-wide.webp', 'expectedContentType' => 'image/webp'],
     ['type' => 'asset', 'label' => 'Favicon/icon endpoint', 'url' => '../sentryiq-icon.php', 'expectedContentType' => 'image/png', 'expectedMagic' => [137,80,78,71,13,10,26,10]],
     ['type' => 'page', 'label' => 'index.php', 'url' => '../index.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
@@ -358,7 +358,7 @@ $browserTests = [
         ['tag'=>'link','value'=>'assets/css/sentryiq.css'],
         ['tag'=>'img','value'=>'assets/images/sentryiq-logo-wide.webp'],
     ]],
-    ['type' => 'page', 'label' => 'passkey_setup.php', 'url' => '../passkey_setup.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
+    ['type' => 'page', 'label' => 'passkey_setup.php', 'url' => '../passkey_setup.php?add=1', 'expectedFinalPath' => '../passkey_setup.php', 'expectedContentType' => 'text/html', 'requiredHtmlRefs' => [
         ['tag'=>'link','value'=>'assets/css/sentryiq.css'],
         ['tag'=>'img','value'=>'assets/images/sentryiq-logo-wide.webp'],
     ]],
