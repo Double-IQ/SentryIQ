@@ -724,3 +724,11 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - Extended the disposable Apache integration test to request the current public CSS, Vault JS, Vault page JS/init JS, Records JS, Safari JS, wide logo, and PNG icon assets directly, in addition to the legacy stylesheet alias.
 - This supplements the 117 server-side self-diagnostic checks with actual HTTP status coverage for the static browser assets. It does not replace the browser-side DOM/CSS computation checks or authenticated page-route checks.
 - Commit: `9e1b34c8e24385ecef8aaf6e980daaa306c116c4`; CI pending.
+
+
+### Exact-head CI verification: public static assets
+
+- All four workflows passed on PR #56 head `9e1b34c8e24385ecef8aaf6e980daaa306c116c4`.
+- The real Apache HTTP test returned 200 for the CSS, Vault folders JS, Vault page JS, Vault page initialization JS, Records JS, Safari JS, wide logo, and PNG icon; the legacy `/pm_style.css` alias also returned 200.
+- The same job continued to deny direct and encoded source/VCS paths and passed the 117-check server-side self-diagnostic.
+- This adds HTTP coverage for all public static assets used by the self-test. Authenticated browser page checks and DOM-computed stylesheet contracts still require a live installed browser session.
