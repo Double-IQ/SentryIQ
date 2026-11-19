@@ -26,6 +26,9 @@ jobs:
       - name: Verify immutable GitHub Actions references
         run: python3 tests/workflow_action_pinning.test.py
 
+      - name: Check MEGAcmd host preflight script syntax
+        run: bash -n scripts/mega_host_preflight.sh
+
       - name: Check browser and application scripts
         run: |
           node --check assets/js/gallery_crypto.js
