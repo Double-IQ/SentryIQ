@@ -118,7 +118,7 @@ jobs:
           php -l "$RUNNER_TEMP/sentryiq-verifier/vendor/k2gl/tuf/src/HttpFetcher.php"
           php -l "$RUNNER_TEMP/sentryiq-verifier/vendor/k2gl/tuf/src/Updater.php"
           php -l "$RUNNER_TEMP/sentryiq-verifier/vendor/k2gl/tuf/src/Exception/NotFoundException.php"
-          php -r 'require "$RUNNER_TEMP/sentryiq-verifier/vendor/autoload.php"; if (!class_exists("K2gl\\Tuf\\Exception\\NotFoundException")) { exit(1); }'
+          php -r 'require $argv[1]; if (!class_exists("K2gl\\Tuf\\Exception\\NotFoundException")) { exit(1); }' "$RUNNER_TEMP/sentryiq-verifier/vendor/autoload.php"
       - name: Download the published v0.1.2 release ZIP
         run: |
           curl --fail --silent --show-error --location \
