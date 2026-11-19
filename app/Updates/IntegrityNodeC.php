@@ -177,7 +177,7 @@ final class IntegrityNodeC
                 || ($headerResult['approved'] !== ($headerResult['mismatches'] === []))) {
                 throw new RuntimeException('Origin security-header verifier returned an invalid result.');
             }
-        } catch (\\Throwable $exception) {
+        } catch (\Throwable $exception) {
             $this->alertFailure('origin_security_header_check_failed', ['release_version' => $version]);
             throw new IntegrityNodeAlertedException(
                 'Origin security-header verification failed after direct owner alert delivery.',
