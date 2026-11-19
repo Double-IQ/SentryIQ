@@ -73,9 +73,16 @@ async function checkOne(test){
                 const doc=new DOMParser().parseFromString(textBody,'text/html');
                 for(const ref of test.requiredHtmlRefs){
                     let match=null;
-                    if(ref.tag==='link')match=Array.from(doc.querySelectorAll('link')).find(el=>{const v=el.getAttribute('href')||'';return ref.value?v===ref.value:(ref.prefix&&v.startsWith(ref.prefix));})||null;
-                    else if(ref.tag==='script')match=Array.from(doc.querySelectorAll('script[src]')).find(el=>{const v=el.getAttribute('src')||'';return ref.value?v===ref.value:(ref.prefix&&v.startsWith(ref.prefix));})||null;
-                    else if(ref.tag==='img')match=Array.from(doc.querySelectorAll('img[src]')).find(el=>{const v=el.getAttribute('src')||'';return ref.value?v===ref.value:(ref.prefix&&v.startsWith(ref.prefix));})||null;
+                    const matchesReference=value=>{
+                        if(ref.value){
+                            try{return new URL(value,r.url).pathname===new URL(ref.value,r.url).pathname;}
+                            catch{return false;}
+                        }
+                        return !!ref.prefix&&value.startsWith(ref.prefix);
+                    };
+                    if(ref.tag==='link')match=Array.from(doc.querySelectorAll('link')).find(el=>matchesReference(el.getAttribute('href')||''))||null;
+                    else if(ref.tag==='script')match=Array.from(doc.querySelectorAll('script[src]')).find(el=>matchesReference(el.getAttribute('src')||''))||null;
+                    else if(ref.tag==='img')match=Array.from(doc.querySelectorAll('img[src]')).find(el=>matchesReference(el.getAttribute('src')||''))||null;
                     const found=!!match;
                     const actualUrl=match?(match.getAttribute(ref.tag==='link'?'href':'src')||''):'';
                     // HTML asset references are relative to the page being tested, not the diagnostic page.
