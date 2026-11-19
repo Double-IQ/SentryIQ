@@ -21,5 +21,6 @@ expect_status "/docs/operations/backup-restore-runbook.md" 403
 expect_status "/.github/workflows/gallery-security.yml" 403
 expect_status "/.git/HEAD" 403
 
-# A legacy public asset URL must still be internally rewritten successfully.
+# Confirm the target asset is directly readable, then test the legacy rewrite.
+expect_status "/assets/css/sentryiq.css" 200
 expect_status "/pm_style.css" 200
