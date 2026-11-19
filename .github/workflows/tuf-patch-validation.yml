@@ -29,7 +29,7 @@ jobs:
 
     steps:
       - name: Check out SentryIQ patch
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Check out pinned upstream TUF source
         uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
           path: upstream-tuf
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: ${{ matrix.php }}
           tools: composer:v2
