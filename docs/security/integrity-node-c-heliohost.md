@@ -1,33 +1,83 @@
-# Integrity Node C — HelioHost compatibility boundary
+# Integrity Node C — HelioHost deployment boundary
 
 ## Purpose
 
-Node C is a third independently identified public-origin verifier intended for a separate HelioHost account. It uses the shared verifier contract but must have its own runtime, administrator-controlled schedule, signing key, and direct alert destination. Its report identity is `integrity-c`.
+Node C is an additional independently identified public-origin verifier on a
+separate HelioHost account. Its identity is `integrity-c`. It is not Node 4
+and is not a substitute for either mandatory Integrity Node A or B.
+
+Node 4 is BTM-SA on the same physical host as SentryIQ. It receives and
+correlates A/B reports but is not an independent host failure domain. Node C
+must retain its own schedule, signing key, private state and direct owner-alert
+path.
 
 ## HelioHost execution constraints
 
-The HelioHost shared-hosting environment documents that process execution functions such as `proc_open`, `exec`, and `popen` are disabled. Node C therefore does not invoke a shell, GitHub CLI, Composer process, or local executable. Its origin fetch uses PHP cURL with HTTPS-only transport, certificate and hostname verification, no redirects, bounded response size, and request timeouts.
+The HelioHost shared-hosting environment disables process execution functions
+such as `proc_open`, `exec` and `popen`. Node C must not invoke a shell,
+GitHub CLI, Composer process or local executable. Its origin and attestation
+network operations use PHP cURL with HTTPS certificate and hostname
+verification, no redirects, bounded response sizes and request timeouts.
 
-## Critical attestation adapter requirement
+## Native Sigstore adapter
 
-The Node C class deliberately receives its attestation verifier as an injected callable. **This PR does not provide a HelioHost-ready cryptographic Sigstore/GitHub attestation adapter.** The existing `GitHubCliAttestationVerifier` invokes GitHub CLI through `proc_open` and is not suitable for HelioHost. Do not wire that class into Node C or treat the injected test callback as real verification.
+`NativeSigstoreIntegrityAttestationVerifier` implements the callable
+contract accepted by Nodes A/B/C. It verifies `release-manifest.json` and
+`sentryiq-<version>.zip` as separate GitHub attestation subjects using the
+native PHP verifier, pinned Sigstore TUF trust root and SentryIQ release
+policy. It checks the authenticated Fulcio certificate and SLSA provenance,
+including repository ID, workflow identity, issuer, tag, source/workflow
+commit, hosted-runner context and exact subject digest.
 
-Before Node C can approve anything in production, implement and independently test a native PHP / HTTPS-based adapter that cryptographically validates GitHub artifact attestations and enforces the same SentryIQ policy (repository ID, workflow identity, issuer, source ref/commit, subject digest, predicate, trusted timestamp, and hosted-runner requirements). If a trustworthy native verifier cannot be delivered, Node C must fail closed and remain non-operational rather than downgrade to checksum-only or trust unsigned API metadata.
+The adapter is code in the repository, but Node C is not operational until it
+is merged, installed and wired into a protected HelioHost runtime. Do not use
+`GitHubCliAttestationVerifier` on HelioHost or downgrade to checksums or
+unsigned API metadata. A missing verifier, private vendor package or TUF root
+must fail closed.
 
-## Runtime requirements (not performed by this PR)
+See `docs/security/native-sigstore-integrity-node-adapter.md` for the shared
+A/B/C contract.
 
-- Generate a unique Ed25519 key for `integrity-c`; never reuse A/B keys or commit the private key.
-- Store the key and GitHub/API credentials outside the web root in protected HelioHost configuration.
-- Use a dedicated HelioHost account and independent Plesk scheduled task; keep frequency within HelioHost resource limits.
-- Supply a fresh 32-byte nonce from the event plane and implement replay protection there.
-- Configure an explicit public-path allowlist. Never infer that private PHP/config files are externally fetchable.
-- Configure a direct owner alert path independent of Node 4.
-- Restrict any HTTP trigger endpoint with authentication, replay protection, rate limiting, and no secrets in URLs or logs.
+## Runtime requirements — not performed
+
+- Install the pinned private Composer vendor tree outside the webroot. The
+  absolute path must be verified on the actual HelioHost account.
+- Provide a private writable data directory for the persistent Sigstore TUF
+  root and node-local evidence.
+- Generate a unique Ed25519 key for `integrity-c`; never reuse A/B keys or
+  commit the private key.
+- Store the key and any node-specific credentials outside the webroot in
+  protected configuration.
+- Configure an explicit public-path allowlist. Never infer that private PHP
+  or configuration files are externally fetchable.
+- Configure a direct owner-alert path independent of Node 4.
+- Use an administrator-controlled schedule independent of SentryIQ and Nodes
+  A/B, within HelioHost resource limits.
+- Verify PHP extensions, outbound HTTPS, filesystem permissions, clock
+  freshness, execution time and memory on the actual account.
+- Initialize the monotonic baseline only after independently confirming the
+  known-good deployed release. Never initialize from the live origin's claim
+  alone.
 
 ## Regression coverage
 
-The current synthetic regression suite also verifies that a manifest-attestation failure and an artifact-attestation failure each abort before any origin fetch, and that an origin network failure produces a signed rejection (`fetch_failed`) rather than approval. These tests exercise the injected verifier boundary; they do not replace the still-required native cryptographic adapter or HelioHost validation.
+Synthetic node tests verify that manifest-attestation failure and
+artifact-attestation failure abort before origin approval, and that origin
+network failure produces a signed rejection rather than approval. Native
+adapter tests cover canonical manifest/ZIP subject selection, same-version
+monitoring and anti-rollback. The real v0.1.2 ZIP attestation is verified in CI;
+that historical release predates a separately published manifest asset.
+
+These tests do not replace HelioHost runtime validation, independent key
+provisioning, schedule setup or live end-to-end monitoring.
 
 ## Status
 
-Prototype implementation and synthetic contract tests only. No HelioHost account provisioning, key generation, schedule, endpoint, native attestation adapter, or production deployment is included.
+Native PHP Sigstore adapter: implemented in the repository; merge and CI
+acceptance pending.
+
+HelioHost runtime integration, absolute private paths, Node C key provisioning,
+protected configuration, public-path inventory, independent schedule, direct
+alert delivery and live end-to-end validation: not performed.
+
+No HelioHost files or production configuration have been changed.
