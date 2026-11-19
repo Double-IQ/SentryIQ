@@ -113,7 +113,7 @@ return true;
   }
   assert(ready, 'Isolated PHP application server did not become ready. ' + serverOutput);
 
-  browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+  browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_BIN || undefined, args: ['--no-sandbox'] });
   const context = await browser.newContext();
   await context.addCookies([{
     name: 'PHPSESSID',
