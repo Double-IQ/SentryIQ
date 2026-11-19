@@ -65,7 +65,7 @@ $payload = [
     'workflow_path' => '.github/workflows/release.yml',
     'target_origin' => 'https://sentryiq.bichet.co.za',
     'manifest_sha256' => str_repeat('d', 64),
-    'checked_paths' => ['assets/app.js', '@origin-headers'],
+    'checked_paths' => ['assets/app.js', '@origin-headers', '@private-host-attestation'],
     'mismatches' => [],
 ];
 
