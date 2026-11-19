@@ -190,13 +190,31 @@ final class IntegrityReportVerifier
             || count($payload['mismatches']) > 100) {
             return false;
         }
+        $seen = [];
+        $publicPathCount = 0;
         foreach ($payload['checked_paths'] as $path) {
-            if (!is_string($path) || !$this->isSafeEvidencePath($path)) return false;
+            if (!is_string($path) || !$this->isSafeEvidencePath($path) || isset($seen[$path])
+                || (str_starts_with($path, '@') && !in_array($path, ['@origin-headers', '@private-host-attestation'], true))) return false;
+            $seen[$path] = true;
+            if (!str_starts_with($path, '@')) $publicPathCount++;
         }
+        $nodeId = $payload['node_id'] ?? null;
+        $requiredMarkers = $nodeId === 'integrity-c'
+            ? ['@origin-headers']
+            : ['@origin-headers', '@private-host-attestation'];
+        foreach ($requiredMarkers as $marker) {
+            if (!isset($seen[$marker])) return false;
+        }
+        if ($publicPathCount < 1) return false;
+        $mismatchPaths = [];
         foreach ($payload['mismatches'] as $item) {
             if (!is_array($item) || !is_string($item['path'] ?? null) || !$this->isSafeEvidencePath($item['path'])
                 || !in_array($item['reason'] ?? null, ['content_mismatch', 'fetch_failed', 'security_header_mismatch', 'private_host_attestation_failed'], true)
-                || !in_array($item['path'], $payload['checked_paths'], true)) return false;
+                || !isset($seen[$item['path']]) || isset($mismatchPaths[$item['path']])) return false;
+            $mismatchPaths[$item['path']] = true;
+            if (($item['reason'] === 'security_header_mismatch' && $item['path'] !== '@origin-headers')
+                || ($item['reason'] === 'private_host_attestation_failed' && $item['path'] !== '@private-host-attestation')
+                || (in_array($item['reason'], ['content_mismatch', 'fetch_failed'], true) && str_starts_with($item['path'], '@'))) return false;
         }
         if ((($payload['decision'] ?? null) === 'approve') !== ($payload['mismatches'] === [])) return false;
         return true;
