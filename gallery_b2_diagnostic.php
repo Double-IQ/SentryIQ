@@ -65,13 +65,7 @@ $csrf = sentryiq_csrf_token();
 <meta name="csrf-token" content="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
 <meta name="robots" content="noindex,nofollow">
 <title>SentryIQ — Backblaze B2 diagnostic</title>
-<style>
-body{font:16px/1.5 system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 18px;color:#20242a}
-button{padding:11px 18px;border:0;border-radius:7px;background:#175cd3;color:white;font-weight:600;cursor:pointer}
-button:disabled{opacity:.55;cursor:wait}
-#result{white-space:pre-wrap;padding:14px;background:#f3f5f7;border-radius:8px;margin-top:18px;min-height:48px}
-a{color:#175cd3}
-</style>
+<link rel="stylesheet" href="assets/css/gallery_b2_diagnostic.css">
 </head>
 <body>
 <h1>Backblaze B2 connection test</h1>
