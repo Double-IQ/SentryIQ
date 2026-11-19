@@ -62,7 +62,7 @@ final class IntegrityEventClient
             || !preg_match('/^[a-f0-9]{64}$/', $response['nonce'])
             || !is_int($response['expires_at'] ?? null)
             || $response['expires_at'] <= time()
-            || $response['expires_at'] > time() + 330) {
+            || $response['expires_at'] > time() + 630) {
             throw new RuntimeException('Node 4 returned an invalid or expired challenge.');
         }
         return [
