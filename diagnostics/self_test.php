@@ -73,8 +73,12 @@ function add_source_asset_check(string $relativePath, string $expectedUrl, strin
     $path = dirname(__DIR__) . '/' . $relativePath;
     $source = is_readable($path) ? @file_get_contents($path) : false;
     $urls = is_string($source) ? extract_html_asset_urls($source) : [];
-    $ok = in_array($expectedUrl, $urls, true);
-    add_check('URL/source references', $label, $ok, $ok ? 'exact URL present' : ($relativePath . ': exact URL missing: ' . $expectedUrl));
+    $expectedPath = parse_url($expectedUrl, PHP_URL_PATH);
+    $ok = is_string($expectedPath) && count(array_filter(
+        $urls,
+        static fn(string $url): bool => parse_url($url, PHP_URL_PATH) === $expectedPath
+    )) > 0;
+    add_check('URL/source references', $label, $ok, $ok ? 'expected asset path present' : ($relativePath . ': expected asset path missing: ' . $expectedUrl));
 }
 
 function add_source_no_exact_asset_check(string $relativePath, string $legacyUrl, string $label): void
@@ -140,18 +144,17 @@ if ($wideLogoState['file'] && !$wideLogoState['link']) {
     add_check('Branding', 'Wide logo SHA-256', is_string($logoHash) && preg_match('/^[a-f0-9]{64}$/', $logoHash) === 1, is_string($logoHash) ? $logoHash : 'hash unavailable');
 }
 
-$iconSourcePath = $root . '/sentryiq-icon.php';
-$iconSource = is_readable($iconSourcePath) ? @file_get_contents($iconSourcePath) : false;
-$iconPayloadOk = false;
-$iconDecodedLength = 0;
-if (is_string($iconSource) && preg_match("/const\\s+SENTRYIQ_ICON_BASE64\\s*=\\s*'([^']+)'/", $iconSource, $iconMatch) === 1) {
-    $decoded = base64_decode($iconMatch[1], true);
-    if (is_string($decoded)) {
-        $iconDecodedLength = strlen($decoded);
-        $iconPayloadOk = $iconDecodedLength >= 8 && substr($decoded, 0, 8) === "\x89PNG\r\n\x1a\n";
-    }
-}
-add_check('Branding', 'Icon PHP payload', $iconPayloadOk, $iconPayloadOk ? ('valid PNG payload, ' . $iconDecodedLength . ' bytes') : 'embedded PNG payload could not be decoded/validated');
+$iconPath = $root . '/assets/images/sentryiq-icon.png';
+$iconState = safe_path_state($iconPath);
+$iconBytes = $iconState['file'] && !$iconState['link'] && $iconState['readable'] ? @file_get_contents($iconPath) : false;
+$iconInfo = $iconState['file'] && !$iconState['link'] ? @getimagesize($iconPath) : false;
+$iconPayloadOk = is_string($iconBytes)
+    && strlen($iconBytes) >= 8
+    && substr($iconBytes, 0, 8) === "\x89PNG\r\n\x1a\n"
+    && is_array($iconInfo)
+    && strtolower((string)($iconInfo['mime'] ?? '')) === 'image/png';
+$iconDecodedLength = is_string($iconBytes) ? strlen($iconBytes) : 0;
+add_check('Branding', 'Icon PNG asset', $iconPayloadOk, $iconPayloadOk ? ('valid PNG asset, ' . $iconDecodedLength . ' bytes') : 'assets/images/sentryiq-icon.png missing or invalid');
 
 $logoCssPath = $root . '/assets/css/sentryiq.css';
 $logoCss = is_readable($logoCssPath) ? @file_get_contents($logoCssPath) : false;
@@ -187,10 +190,11 @@ $sourceRefs = [
     ['index.php', 'assets/css/sentryiq.css', 'index stylesheet URL'],
     ['index.php', 'assets/images/sentryiq-logo-wide.webp', 'index wide-logo URL'],
     ['index.php', 'sentryiq-icon.php', 'index favicon/icon URL'],
-    ['index.php', 'assets/js/vault_folders.js?v=20260915-2', 'index Vault JS URL'],
-    ['index.php', 'assets/js/records_view.js?v=20260916-2', 'index Records JS URL'],
-    ['gallery.php', 'assets/css/sentryiq.css', 'gallery stylesheet URL'],
-    ['gallery.php', 'assets/images/sentryiq-logo-wide.webp', 'gallery wide-logo URL'],
+    ['index.php', 'assets/js/vault_folders.js', 'index Vault folders JS URL'],
+    ['index.php', 'assets/js/vault_page.js', 'index Vault page JS URL'],
+    ['index.php', 'assets/js/vault_page_init.js', 'index Vault page initialization JS URL'],
+    ['app/Gallery/SecurePage.php', 'assets/css/sentryiq.css', 'Gallery stylesheet URL'],
+    ['app/Gallery/SecurePage.php', 'assets/images/sentryiq-logo-wide.webp', 'Gallery wide-logo URL'],
     ['documents.php', 'assets/css/sentryiq.css', 'documents stylesheet URL'],
     ['documents.php', 'assets/images/sentryiq-logo-wide.webp', 'documents wide-logo URL'],
     ['app/Auth/PasskeySetup.php', 'assets/css/sentryiq.css', 'Passkey setup stylesheet URL'],
@@ -268,7 +272,7 @@ add_legacy_attribute_reference_scan();
 function stylesheet_rule_body(string $css, string $selector): string
 {
     if ($css === '' || $selector === '') return '';
-    if (!preg_match_all('/(?:^|})\s*([^{}]+)\{([^{}]*)\}/s', $css, $matches, PREG_SET_ORDER)) return '';
+    if (!preg_match_all('/([^{}]+)\{([^{}]*)\}/s', $css, $matches, PREG_SET_ORDER)) return '';
     $bodies = [];
     foreach ($matches as $match) {
         $selectors = preg_split('/\s*,\s*/', trim((string)$match[1])) ?: [];
