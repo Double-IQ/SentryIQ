@@ -33,3 +33,44 @@
 .vault-dashboard-inline-32{color:#868e96;font-size:11px;display:block;overflow:hidden;text-overflow:ellipsis;}
 .vault-dashboard-inline-33{padding:12px;}
 .vault-dashboard-inline-34{width:100%;padding:8px 0;font-size:12px;border-radius:6px;background:#0066cc;}
+.vault-actions-inline-1{margin-top:0;border-bottom:2px solid #f1f3f5;padding-bottom:8px;color:#0066cc;}
+.vault-actions-inline-2{display:flex;justify-content:center;margin:8px 0 18px;}
+.vault-actions-inline-3{display:none;width:72px;height:72px;object-fit:contain;border-radius:12px;padding:8px;background:#f8f9fa;border:1px solid #e9ecef;}
+.vault-actions-inline-4{cursor:pointer;}
+.vault-actions-inline-5{color:#0066cc;text-decoration:underline;}
+.vault-actions-inline-6{white-space:pre-wrap;}
+.vault-actions-inline-7{margin-top:20px;display:flex;gap:10px;}
+.vault-actions-inline-8{background:#6c757d;color:#fff;}
+.vault-actions-inline-9{background:#fcc419;color:#212529;font-weight:bold;}
+.vault-actions-inline-10{display:inline;}
+.vault-actions-inline-11{display:block;margin-top:5px;color:#777;}
+.vault-actions-inline-12{margin-top:10px;}
+.vault-actions-inline-13{margin-bottom:16px;}
+.vault-actions-inline-14{text-decoration:none;}
+.vault-actions-inline-15{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:15px;flex-wrap:wrap;}
+.vault-actions-inline-16{margin:0;}
+.vault-actions-inline-17{margin-top:20px;}
+.vault-actions-inline-18{margin-top:0;color:#666;}
+.vault-actions-inline-19{display:none;}
+.vault-actions-inline-20{padding:18px;border:1px solid #e9ecef;border-radius:10px;text-align:center;color:#666;}
+.vault-actions-inline-21{border:1px solid #e9ecef;border-radius:10px;padding:16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;}
+.vault-actions-inline-22{min-width:0;}
+.vault-actions-inline-23{font-size:13px;color:#777;margin-top:4px;}
+.vault-actions-inline-24{font-size:11px;color:#aaa;margin-top:3px;overflow:hidden;text-overflow:ellipsis;max-width:430px;}
+.vault-actions-inline-25{padding:18px;border-radius:10px;background:#f8f9fa;border:1px solid #e9ecef;margin-top:16px;}
+.vault-actions-inline-26{margin-top:0;}
+.vault-actions-inline-27{font-size:14px;color:#666;}
+.vault-actions-inline-28{display:inline-block;text-decoration:none;}
+.vault-actions-inline-29{font-size:13px;color:#777;margin-top:18px;}
+.vault-actions-inline-30{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;gap:10px;flex-wrap:wrap;}
+.vault-actions-inline-31{font-size:12px;color:#777;}
+.vault-actions-inline-32{text-align:center;padding:20px;color:#777;}
+.vault-actions-inline-33{overflow-x:auto;}
+.vault-actions-inline-34{width:100%;border-collapse:collapse;font-size:12px;}
+.vault-actions-inline-35{background:#e9ecef;text-align:left;}
+.vault-actions-inline-36{padding:9px;}
+.vault-actions-inline-37{border-bottom:1px solid #eee;}
+.vault-actions-inline-38{padding:9px;white-space:nowrap;}
+.vault-actions-inline-39{padding:9px;font-weight:bold;}
+.vault-actions-inline-40{padding:9px;max-width:240px;word-break:break-word;color:#666;}
+.vault-actions-inline-41{margin-top:15px;display:flex;gap:10px;}
