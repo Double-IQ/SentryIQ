@@ -675,3 +675,11 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - First end-to-end test execution reached manifest validation and correctly rejected the fixture because it did not include the complete four-file runtime allowlist. The production allowlist is intentional; it was not weakened.
 - Expanded the synthetic release package and existing runtime baseline to include all four approved templates: `email_template.php`, `vault_engine.php`, `vault_icon_cache.php`, and `VaultKdfPolicy.php`. Added assertions that all four are replaced by the update.
 - Fixture commits: `32c6066247ee2ba44844a5fc10f0ff7c68cded42`, `693266f9a96fb92e0fda860170ba3ada32c581af`. Re-run required.
+
+
+### Isolated end-to-end updater apply test — passed
+
+- On PR #56 head `693266f9a96fb92e0fda860170ba3ada32c581af`, `tests/update_apply_integration.test.php` passed in Gallery Security Checks.
+- The test executed the real updater apply path against a disposable app/data root with a synthetic but policy-shaped release ZIP, manifest, checksum, API response, and verifier output. It confirmed all four approved runtime templates and public files were updated, runtime permissions were restricted, the prior public/runtime files were retained in the rollback backup, and downloaded/staging artifacts were cleaned.
+- This is the non-production update-process exercise for Phase 1.5. It does not substitute for a real release/host compatibility update on production; production still requires a newly generated manifest-bearing release and configured GitHub CLI binary.
+- At the time of this entry, the other three workflows on the exact head had passed; Gallery Security Checks was completing its final Apache/diagnostics steps.
