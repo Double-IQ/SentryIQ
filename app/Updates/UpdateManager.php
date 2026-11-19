@@ -666,7 +666,15 @@ final class UpdateManager
             @unlink($destination);
             return false;
         }
-        @chmod($destination, 0600);
+        if (!@chmod($destination, 0600)) {
+            @unlink($destination);
+            return false;
+        }
+        $permissions = @fileperms($destination);
+        if (!is_int($permissions) || ($permissions & 0777) !== 0600) {
+            @unlink($destination);
+            return false;
+        }
         return true;
     }
 
