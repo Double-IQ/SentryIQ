@@ -49,6 +49,12 @@ final class PrivateHostAttestationCollector
             || str_starts_with($private . DIRECTORY_SEPARATOR, rtrim($web, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
             throw new RuntimeException('Collector requires a real private data directory outside the public webroot.');
         }
+        clearstatcache(true, $private);
+        $privateStat = @lstat($private);
+        if (!is_array($privateStat) || (($privateStat['mode'] ?? 0) & 0170000) !== 0040000
+            || (($privateStat['mode'] ?? 0) & 0777) !== 0700) {
+            throw new RuntimeException('Collector private data directory must be a real directory with exact 0700 permissions.');
+        }
         $this->publicRoot = $web;
         $this->privateRoot = $private;
 
@@ -111,14 +117,16 @@ final class PrivateHostAttestationCollector
             $openedKey = fstat($keyHandle);
             if (!is_array($openedKey) || ($openedKey['mode'] & 0170000) !== 0100000
                 || ($openedKey['mode'] & 0777) !== 0600
+                || ($openedKey['size'] ?? 0) < 1 || ($openedKey['size'] ?? 0) > 256
                 || $openedKey['dev'] !== $keyStat['dev'] || $openedKey['ino'] !== $keyStat['ino']) {
-                throw new RuntimeException('Collector signing key identity or permissions changed during opening.');
+                throw new RuntimeException('Collector signing key identity, size, or permissions changed during opening.');
             }
-            $encoded = stream_get_contents($keyHandle);
+            $encoded = stream_get_contents($keyHandle, 257);
             $afterKey = fstat($keyHandle);
             clearstatcache(true, $keyReal);
             $pathAfterKey = @lstat($keyReal);
-            if (!is_string($encoded) || !is_array($afterKey) || !is_array($pathAfterKey)
+            if (!is_string($encoded) || $encoded === '' || strlen($encoded) > 256
+                || !is_array($afterKey) || !is_array($pathAfterKey)
                 || $afterKey['dev'] !== $openedKey['dev'] || $afterKey['ino'] !== $openedKey['ino']
                 || $afterKey['size'] !== $openedKey['size'] || $afterKey['mtime'] !== $openedKey['mtime']
                 || $afterKey['ctime'] !== $openedKey['ctime']
