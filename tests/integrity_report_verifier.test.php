@@ -60,7 +60,7 @@ $eventEvidence = [
     'schema_version' => 2,
     'target_origin' => 'https://sentryiq.bichet.co.za',
     'manifest_sha256' => hash('sha256', 'attested manifest'),
-    'checked_paths' => ['index.php', 'assets/app.js'],
+    'checked_paths' => ['assets/app.js', '@origin-headers', '@private-host-attestation'],
     'mismatches' => [],
 ];
 $eventReports = [
