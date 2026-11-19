@@ -12,11 +12,19 @@ on:
       - 'tests/tuf_root_store.test.php'
       - 'tests/tuf_root_store_process.php'
       - 'tests/tuf_updater_persistence.integration.php'
+      - 'app/Updates/TufRootStore.php'
+      - 'tests/tuf_root_store.test.php'
+      - 'tests/tuf_root_store_process.php'
+      - 'tests/tuf_updater_persistence.integration.php'
   pull_request:
     paths:
       - 'patches/k2gl-tuf-1.2.1-root-404.patch'
       - 'docs/security/k2gl-tuf-1.2.1-root-rotation.md'
       - '.github/workflows/tuf-patch-validation.yml'
+      - 'app/Updates/TufRootStore.php'
+      - 'tests/tuf_root_store.test.php'
+      - 'tests/tuf_root_store_process.php'
+      - 'tests/tuf_updater_persistence.integration.php'
   workflow_dispatch:
 
 permissions:
