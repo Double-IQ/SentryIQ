@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_updates'])) {
                 <div class="update-warning"><strong>Update available:</strong> SentryIQ <?php echo htmlspecialchars((string)$result['latest_version'], ENT_QUOTES, 'UTF-8'); ?></div>
                 <p class="update-meta"><?php echo htmlspecialchars((string)$result['name'], ENT_QUOTES, 'UTF-8'); ?> · <?php echo htmlspecialchars((string)$result['published_at'], ENT_QUOTES, 'UTF-8'); ?></p>
                 <?php if ((string)($result['body'] ?? '') !== ''): ?><div class="update-notes"><?php echo htmlspecialchars((string)$result['body'], ENT_QUOTES, 'UTF-8'); ?></div><?php endif; ?>
-                <form method="POST" action="update_apply.php" style="margin-top:20px;" data-confirm-submit="Install this SentryIQ update now? The vault will be locked after the update and you will need to unlock it again.">
+                <form method="POST" action="update_apply.php" class="update-confirm-form" data-confirm-submit="Install this SentryIQ update now? The vault will be locked after the update and you will need to unlock it again.">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
                     <button class="btn btn-primary" type="submit">Install Update</button>
                 </form>
@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_updates'])) {
                 <button class="btn btn-primary" type="submit" name="check_updates">Check for Updates</button>
             </form>
         <?php endif; ?>
-        <p style="margin-top:20px;"><a href="index.php?pane=settings">← System Settings</a></p>
+        <p class="update-back-link"><a href="index.php?pane=settings">← System Settings</a></p>
     </div>
 </div>
 </body>
