@@ -3,11 +3,15 @@ name: Validate pinned TUF patch
 on:
   push:
     branches:
-      - security/tuf-root-rotation-patch-current-main
+      - security/tuf-root-store-current-main
     paths:
       - 'patches/k2gl-tuf-1.2.1-root-404.patch'
       - 'docs/security/k2gl-tuf-1.2.1-root-rotation.md'
       - '.github/workflows/tuf-patch-validation.yml'
+      - 'app/Updates/TufRootStore.php'
+      - 'tests/tuf_root_store.test.php'
+      - 'tests/tuf_root_store_process.php'
+      - 'tests/tuf_updater_persistence.integration.php'
   pull_request:
     paths:
       - 'patches/k2gl-tuf-1.2.1-root-404.patch'
@@ -80,3 +84,17 @@ jobs:
       - name: Coding standards
         working-directory: upstream-tuf
         run: composer cs
+
+      - name: Validate durable TUF root storage
+        run: |
+          php -l app/Updates/TufRootStore.php
+          php -l tests/tuf_root_store.test.php
+          php -l tests/tuf_root_store_process.php
+          php -l tests/tuf_updater_persistence.integration.php
+          php tests/tuf_root_store.test.php
+          php tests/tuf_updater_persistence.integration.php
+          private_dir="$(mktemp -d)"
+          chmod 700 "$private_dir"
+          trap 'rm -rf "$private_dir"' EXIT
+          php tests/tuf_root_store_process.php write "$private_dir"
+          php tests/tuf_root_store_process.php read "$private_dir"
