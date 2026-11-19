@@ -83,8 +83,8 @@ final class IntegrityPublicAssetPolicy
             }
             $selectedSeen[$path] = true;
         }
-        if (count($selected) > 99) {
-            throw new RuntimeException('Release manifest exceeds the signed event evidence path limit.');
+        if (count($selected) > 98) {
+            throw new RuntimeException('Release manifest exceeds the signed event evidence path limit after mandatory security markers.');
         }
         if ($selected === []) {
             throw new RuntimeException('Release manifest contains no byte-verifiable public static assets.');
