@@ -132,7 +132,7 @@ jobs:
           <VirtualHost *:80>
               DocumentRoot "$apache_docroot"
               <Directory "$apache_docroot">
-                  Options -Indexes
+                  Options +FollowSymLinks -Indexes
                   AllowOverride All
                   Require all granted
               </Directory>
