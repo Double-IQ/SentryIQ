@@ -27,7 +27,7 @@ This document is the project-level execution plan for security hardening, zero-k
 | Gallery encryption design | PR #11 merged; end-to-end acceptance testing pending |
 | Zero-knowledge password vault and documents | Not complete; PHP currently handles the master key and document crypto |
 | Release packaging | Exact release ZIP, runtime-template inventory, manifest and checksums are built and validated in CI (PR #75); no release tag or published release yet |
-| Signed release verification | Native Sigstore/SLSA verifier and scheduled-node integration remain in open stacked PRs #48/#50; not merged to main or deployed |
+| Signed release verification | Native Sigstore/SLSA verifier and scheduled-node integration remain in open stacked PRs #48/#50; durable TUF root storage boundary is merged in PR #91 but not wired into production updater runtime; nothing deployed |
 | Integrity Nodes A and B | Verifier/runtime prototypes implemented on PR #50; separate provider/host provisioning, keys, schedules, baselines and direct alerts not verified |
 | Integrity Node C (HelioHost) | Compatibility prototype and tests exist; HelioHost provisioning, native runtime configuration, key and schedule not verified |
 | Node 4 (BTM-SA) | Event receiver/incident pipeline implemented on PR #50; shares the SentryIQ host and is not an independent failure domain; runtime configuration and alert transport not deployed |
@@ -127,6 +127,9 @@ The server cannot decrypt vault or document content using its database, runtime 
 - [x] Build the exact release package from the selected source commit and validate ZIP contents, four runtime templates, manifest coverage, embedded/external manifest equality, SHA-256 entries, and sidecars in CI (PR #75; installer path aligned in PR #76).
 - [x] Run the exact release-package validation workflow on every pull request to `main` and every push to `main`, so application/installer changes cannot bypass package validation (PR #80; PHP lint, Gallery Security, and Release Manifest checks passed).
 - [ ] Complete end-to-end signed release publication and updater enforcement. The tag-triggered workflow is prepared and uses GitHub build-provenance attestation, but no release tag/release has been created and no production artifact has been verified. Native Sigstore/SLSA updater and node verification remain in open stacked PRs #48/#50.
+- [x] Pin and validate the candidate `k2gl/tuf` 1.2.1 root-rotation hardening patch; distinguish HTTP 404 from other failures, disable redirects, and enforce response-size limits (PR #85; PHP 8.1–8.5 validation workflow).
+- [x] Add root-rotation rejection coverage for old-root threshold, new-root threshold, and expired bootstrap root (PR #90; upstream PHPUnit suite).
+- [x] Add a durable TUF root-storage boundary with private-directory checks, owner-only files, locking, atomic replacement, monotonic versions, corruption/symlink rejection, real updater rotation integration tests, and cross-process reload tests (PR #91). This is a storage component only; production updater wiring and HelioHost PHP web-SAPI validation remain pending.
 - [ ] Make builds reproducible or otherwise attest the exact build inputs and artifact identity.
 - [x] PHP syntax, Gallery security, and release-manifest/package validation workflows are present; PR #80 makes package validation run on every PR to `main` and every push to `main`; required PR checks are enforced by active repository rulesets.
 - [x] Owner-confirmed GitHub secret scanning, push protection, Dependabot alerts, and Dependabot security updates are enabled (platform settings are owner-confirmed, not API-verified).
@@ -140,7 +143,8 @@ The server cannot decrypt vault or document content using its database, runtime 
 - [x] Hosting assignment confirmed: Integrity Node B is hosted on Val Town. [ ] Verify the deployed Val Town app/runtime, independent administrative boundary, private secrets/configuration, pinned trust roots, unique credentials, independent schedule, private state/baseline, and direct owner-alert transport.
 - [ ] Provision A and B separately with pinned public trust roots, unique signing keys, unique credentials, independent schedules, private state/baselines, and direct owner-alert transports. Neither node may trust the other's verdict.
 - [x] Implement a HelioHost-compatible Node C prototype; production provisioning and its native verification runtime remain pending.
-- [x] Implement the BTM-SA / Node 4 event receiver and incident pipeline in PR #50; BTM-SA shares the SentryIQ host and is not a third independent verifier or independent failure domain.
+- [x] Add fail-closed Node C regression tests proving manifest/artifact attestation failures abort before origin fetch and origin network failures never approve (PR #87; tests only, no native adapter or production behaviour change).
+- [ ] Implement the BTM-SA / Node 4 event receiver and incident pipeline (still in open draft PR #50); BTM-SA shares the SentryIQ host and is not a third independent verifier or independent failure domain.
 - [x] Specify the Node 4 signed-report v2 ingestion contract, including exact-byte Ed25519 verification, short-lived one-use node-bound challenges, atomic nonce consumption/report persistence, replay rejection, evidence retention, and incident correlation (PR #82). This is a documented contract, not a deployed implementation.
 - [ ] Provision Node 4 with separate logical service identity, private storage, A/B public keys and unique tokens, replay-safe state, and a tested alert sender. Host-level isolation remains limited by the shared SentryIQ host.
 - [ ] Verify the signed manifest and deployed public resources, including HTML, JavaScript, CSS, service worker/manifest if introduced, redirects, TLS, response headers, and unexpected external scripts/domains.
@@ -196,11 +200,11 @@ Update this section whenever a phase changes. Link the PR, workflow run, test ev
 | Client crypto/key foundation | Pending | Design review, test vectors, cross-browser results |
 | Zero-knowledge vault/documents | Pending | Migration and no-plaintext/no-key-leak test evidence |
 | Release package/CI | Exact package builder and validation merged (PR #75); installer runtime path corrected (PR #76) | CI evidence on main; tag/release publication and production verification remain pending |
-| Signed release verification/updater | Native Sigstore/TUF prototypes in open stacked PRs #48/#50; not merged/deployed | Merge/review, approved key custody, signed production release and updater verification |
+| Signed release verification/updater | Native Sigstore/TUF integration remains in open stacked PRs #48/#50; TUF patch hardening, rotation rejection tests, and durable root-store component are merged (PRs #85, #90, #91); no production updater wiring | Merge/review, approved key custody, HelioHost web-SAPI validation, signed production release and updater verification |
 | Integrity Node A | Code prototype; host/provider not confirmed or deployed | Independent host inspection, private config/key/baseline, schedule, signed report and direct-alert test |
 | Integrity Node B (Val Town) | Hosting assignment confirmed; deployment/runtime not verified | Val Town app/runtime, private secrets/configuration, pinned trust roots, independent schedule/state, signed report and direct-alert test |
-| Integrity Node C (HelioHost) | Compatibility prototype; not deployed | HelioHost account/runtime, native verifier, key, private evidence store, schedule and direct-alert test |
-| Node 4 (BTM-SA) | Event pipeline prototype; same host as SentryIQ, not deployed | Separate logical service/runtime, A/B trust config, replay store, alert transport and host-isolation checks |
+| Integrity Node C (HelioHost) | Compatibility prototype plus fail-closed regression tests (PR #87); native adapter and deployment not verified | HelioHost account/runtime, native verifier, key, private evidence store, schedule and direct-alert test |
+| Node 4 (BTM-SA) | Signed-report contract documented (PR #82); event receiver/runtime remains in open draft PR #50; same host as SentryIQ, not deployed | Separate logical service/runtime, A/B trust config, replay store, alert transport and host-isolation checks |
 | Origin hardening/incident exercise | Pending | Security test report and exercise record |
 | New-origin deployment/cutover | Pending; no production files changed | PHP web-SAPI preflight for both environment variables, private storage test, full acceptance checklist, restore/rollback evidence, explicit approval |
 
