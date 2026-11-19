@@ -117,6 +117,28 @@ jobs:
       - name: Test PHP and Apache deployment hardening
         run: php tests/deployment_hardening.test.php
 
+      - name: Exercise Apache rewrite rules over HTTP
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y apache2
+          sudo a2enmod rewrite
+          sudo tee /etc/apache2/sites-available/000-default.conf >/dev/null <<EOF
+          <VirtualHost *:80>
+              DocumentRoot "$GITHUB_WORKSPACE"
+              <Directory "$GITHUB_WORKSPACE">
+                  Options -Indexes
+                  AllowOverride All
+                  Require all granted
+              </Directory>
+          </VirtualHost>
+          EOF
+          sudo apachectl configtest
+          sudo apachectl start
+          trap 'sudo apachectl stop || true' EXIT
+          bash tests/apache_rewrite_integration.sh
+
       - name: Test write-capable diagnostics are CLI-only
         run: php tests/diagnostic_write_access.test.php
 
