@@ -39,7 +39,6 @@ RELEASE_ROOT="$WORK/release-root"
 mkdir -p "$RELEASE_ROOT"
 
 git -C "$ROOT" archive --format=tar "$SOURCE_REF" | tar -xf - -C "$RELEASE_ROOT"
-rm -rf "$RELEASE_ROOT/private_data" "$RELEASE_ROOT/.git" "$RELEASE_ROOT/.github"
 mkdir -p "$RELEASE_ROOT/runtime"
 for name in vault_engine.php email_template.php vault_icon_cache.php VaultKdfPolicy.php; do
   if [[ ! -f "$RELEASE_ROOT/private_data/$name" ]]; then
@@ -48,6 +47,7 @@ for name in vault_engine.php email_template.php vault_icon_cache.php VaultKdfPol
   fi
   cp "$RELEASE_ROOT/private_data/$name" "$RELEASE_ROOT/runtime/$name"
 done
+rm -rf "$RELEASE_ROOT/private_data" "$RELEASE_ROOT/.git" "$RELEASE_ROOT/.github"
 
 python3 "$ROOT/scripts/build-release-manifest.py" \
   --root "$RELEASE_ROOT" \
