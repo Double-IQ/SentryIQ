@@ -7,3 +7,7 @@
 .b2-status.success{color:#176b3a}.b2-status.error{color:#a3212b}
 .b2-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
 .b2-warning{font-size:14px;color:#6a4b00;background:#fff7df;padding:12px;border-radius:8px}
+
+.b2-settings-divider{margin:24px 0;border:0;border-top:1px solid #e5e8ee}
+.b2-disconnect-confirm-label{display:flex;gap:8px;align-items:center;font-weight:400}
+.b2-disconnect-confirm-checkbox{width:auto}
