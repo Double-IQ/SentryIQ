@@ -50,6 +50,12 @@ final class IntegrityReportSigner
         return $this->nodeId;
     }
 
+    /** Public verification key for this node's signed reports; safe to publish. */
+    public function publicKeyBase64(): string
+    {
+        return base64_encode(sodium_crypto_sign_publickey_from_secretkey($this->secretKey));
+    }
+
     /**
      * @param string $releaseVersion Stable MAJOR.MINOR.PATCH version, with optional leading v.
      * @param string $commit Full lowercase or uppercase Git commit SHA.
@@ -61,7 +67,8 @@ final class IntegrityReportSigner
         string $commit,
         string $artifactSha256,
         string $nonce,
-        string $decision = 'approve'
+        string $decision = 'approve',
+        array $eventEvidence = []
     ): string {
         $version = $this->normalizeVersion($releaseVersion);
         $commit = strtolower(trim($commit));
@@ -82,8 +89,15 @@ final class IntegrityReportSigner
             throw new RuntimeException('Integrity Node clock returned an invalid timestamp.');
         }
 
+        if ($eventEvidence !== []) {
+            $eventEvidence = $this->validateEventEvidence($eventEvidence);
+            if (($decision === 'approve') !== ($eventEvidence['mismatches'] === [])) {
+                throw new RuntimeException('Signed report decision must agree with its mismatch evidence.');
+            }
+        }
+
         $payload = [
-            'schema_version' => 1,
+            'schema_version' => $eventEvidence === [] ? 1 : 2,
             'node_id' => $this->nodeId,
             'decision' => $decision,
             'issued_at' => $issuedAt,
@@ -97,6 +111,10 @@ final class IntegrityReportSigner
             'artifact_sha256' => $digest,
             'workflow_path' => self::WORKFLOW_PATH,
         ];
+
+        if ($eventEvidence !== []) {
+            $payload += $eventEvidence;
+        }
 
         try {
             $rawPayload = json_encode(
@@ -124,6 +142,52 @@ final class IntegrityReportSigner
         }
 
         return $encoded;
+    }
+
+    /** @return array{target_origin:string,manifest_sha256:string,checked_paths:list<string>,mismatches:list<array{path:string,reason:string}>} */
+    private function validateEventEvidence(array $evidence): array
+    {
+        $origin = $evidence['target_origin'] ?? null;
+        $manifestDigest = $evidence['manifest_sha256'] ?? null;
+        $checked = $evidence['checked_paths'] ?? null;
+        $mismatches = $evidence['mismatches'] ?? null;
+        $parts = is_string($origin) ? parse_url($origin) : false;
+        if (!is_array($parts) || ($parts['scheme'] ?? '') !== 'https' || empty($parts['host'])
+            || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])
+            || !is_string($manifestDigest) || !preg_match('/^[a-f0-9]{64}$/', $manifestDigest)
+            || !is_array($checked) || !array_is_list($checked) || count($checked) > 100
+            || !is_array($mismatches) || !array_is_list($mismatches) || count($mismatches) > 100) {
+            throw new RuntimeException('Signed event evidence is incomplete or invalid.');
+        }
+        $checkedPaths = [];
+        foreach ($checked as $path) {
+            if (!is_string($path) || !$this->isSafeEvidencePath($path) || in_array($path, $checkedPaths, true)) {
+                throw new RuntimeException('Signed event evidence contains an unsafe or duplicate checked path.');
+            }
+            $checkedPaths[] = $path;
+        }
+        $normalizedMismatches = [];
+        foreach ($mismatches as $item) {
+            if (!is_array($item) || !is_string($item['path'] ?? null) || !$this->isSafeEvidencePath($item['path'])
+                || !in_array($item['reason'] ?? null, ['content_mismatch', 'fetch_failed', 'security_header_mismatch', 'private_host_attestation_failed'], true)
+                || !in_array($item['path'], $checkedPaths, true)) {
+                throw new RuntimeException('Signed event evidence contains an invalid mismatch record.');
+            }
+            $normalizedMismatches[] = ['path' => $item['path'], 'reason' => $item['reason']];
+        }
+        return [
+            'target_origin' => rtrim($origin, '/'),
+            'manifest_sha256' => strtolower($manifestDigest),
+            'checked_paths' => $checkedPaths,
+            'mismatches' => $normalizedMismatches,
+        ];
+    }
+
+    private function isSafeEvidencePath(string $path): bool
+    {
+        return $path !== '' && strlen($path) <= 512 && !str_starts_with($path, '/')
+            && !str_contains($path, '\\') && !str_contains($path, '//') && !preg_match('~(^|/)\\.\\.?(/|$)~', $path)
+            && !preg_match('/[%?#\\x00-\\x1f]/', $path);
     }
 
     private function normalizeVersion(string $version): string
