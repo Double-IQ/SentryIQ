@@ -105,24 +105,24 @@ if ($activeVaultView !== 'records') {
     <button id="gallery-btn" class="tab-btn" type="button" data-sentryiq-nav="gallery.php">🖼️ Gallery</button>
     <button id="settings-btn" class="tab-btn" type="button" data-sentryiq-nav="index.php?pane=settings">⚙️ System</button>
     <form method="POST" class="vault-menu-lock-form"><input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf ?? '', ENT_QUOTES, 'UTF-8'); ?>"><input type="hidden" name="lock_vault" value="1"><button type="submit" class="tab-btn vault-menu-lock-button">🔒 Lock Vault</button></form>
-    <button id="details-btn" class="tab-btn" style="display:none;" data-vault-tab="details">👁️ Entry Inspection</button>
+    <button id="details-btn" class="tab-btn" class="vault-dashboard-inline-1" data-vault-tab="details">👁️ Entry Inspection</button>
 </div>
 
 <?php if ($active_pane === 'view'): ?>
 <div id="view-panel" class="vault-panel active">
-    <div class="vault-category-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-top:8px;">
+    <div class="vault-category-grid" class="vault-dashboard-inline-2">
         <?php foreach ($vaultCategories as $category): ?>
-            <a href="index.php?pane=records&amp;vault_view=<?php echo rawurlencode($category); ?>" class="btn" style="display:flex;align-items:center;justify-content:center;min-height:58px;text-decoration:none;background:#f1f3f5;color:#212529;border:1px solid #dee2e6;font-size:16px;">📁 <?php echo htmlspecialchars($category, ENT_QUOTES, 'UTF-8'); ?></a>
+            <a href="index.php?pane=records&amp;vault_view=<?php echo rawurlencode($category); ?>" class="btn" class="vault-dashboard-inline-3">📁 <?php echo htmlspecialchars($category, ENT_QUOTES, 'UTF-8'); ?></a>
         <?php endforeach; ?>
-        <div class="vault-add-category-wrap" style="display:flex;align-items:center;min-height:58px;">
-            <button type="button" id="show-add-category" class="btn" data-vault-action="show-add-category" style="width:100%;min-height:42px;background:#f1f3f5;color:#212529;border:1px solid #dee2e6;font-size:16px;">＋ Add Category</button>
-            <form id="add-category-form" method="POST" action="vault_category_actions.php" style="display:none;width:100%;flex-direction:column;align-items:stretch;gap:8px;margin:0;">
+        <div class="vault-add-category-wrap" class="vault-dashboard-inline-4">
+            <button type="button" id="show-add-category" class="btn" data-vault-action="show-add-category" class="vault-dashboard-inline-5">＋ Add Category</button>
+            <form id="add-category-form" method="POST" action="vault_category_actions.php" class="vault-dashboard-inline-6">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf ?? '', ENT_QUOTES, 'UTF-8'); ?>">
                 <input type="hidden" name="action" value="add_category">
-                <input type="text" id="new-category-name" name="category" class="input-field" placeholder="Category name" maxlength="50" required style="width:100%;min-width:0;flex:0 0 auto;margin:0;">
-                <div class="vault-add-category-actions" style="display:flex;gap:8px;width:100%;">
-                    <button type="submit" class="btn" style="height:42px;flex:1;white-space:nowrap;background:#f1f3f5;color:#212529;border:1px solid #dee2e6;font-size:16px;">Add</button>
-                    <button type="button" class="btn" data-vault-action="hide-add-category" style="height:42px;flex:1;white-space:nowrap;background:#fff;color:#495057;border:1px solid #dee2e6;font-size:16px;">Cancel</button>
+                <input type="text" id="new-category-name" name="category" class="input-field" placeholder="Category name" maxlength="50" required class="vault-dashboard-inline-7">
+                <div class="vault-add-category-actions" class="vault-dashboard-inline-8">
+                    <button type="submit" class="btn" class="vault-dashboard-inline-9">Add</button>
+                    <button type="button" class="btn" data-vault-action="hide-add-category" class="vault-dashboard-inline-10">Cancel</button>
                 </div>
             </form>
         </div>
@@ -132,27 +132,27 @@ if ($activeVaultView !== 'records') {
 
 <?php if ($active_pane === 'records'): ?>
 <div id="records-panel" class="vault-panel active" data-vault-title="<?php echo htmlspecialchars($activeVaultView === 'records' ? 'Records' : $activeVaultView, ENT_QUOTES, 'UTF-8'); ?>">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
-        <a href="index.php?pane=view" class="btn" style="background:#f1f3f5;color:#212529;border:1px solid #dee2e6;text-decoration:none;">← Vault</a>
-        <h3 style="margin:0;color:#212529;">📁 <?php echo htmlspecialchars($activeVaultView === 'records' ? 'Records' : $activeVaultView, ENT_QUOTES, 'UTF-8'); ?></h3>
+    <div class="vault-dashboard-inline-11">
+        <a href="index.php?pane=view" class="btn" class="vault-dashboard-inline-12">← Vault</a>
+        <h3 class="vault-dashboard-inline-13">📁 <?php echo htmlspecialchars($activeVaultView === 'records' ? 'Records' : $activeVaultView, ENT_QUOTES, 'UTF-8'); ?></h3>
         <?php if ($activeVaultView !== 'records'): ?>
-            <button type="button" class="btn" data-vault-action="show-create-folder" style="background:#f1f3f5;color:#212529;border:1px solid #dee2e6;">📁 Create Folder</button>
+            <button type="button" class="btn" data-vault-action="show-create-folder" class="vault-dashboard-inline-14">📁 Create Folder</button>
         <?php endif; ?>
-        <a href="index.php?pane=add&amp;vault_view=<?php echo rawurlencode($activeVaultView); ?><?php echo $activeVaultFolder !== '' ? '&amp;vault_folder=' . rawurlencode($activeVaultFolder) : ''; ?>" class="btn btn-primary vault-add-record-button" style="text-decoration:none;"><span class="vault-add-record-icon" aria-hidden="true">+</span> Add Vault Record</a>
+        <a href="index.php?pane=add&amp;vault_view=<?php echo rawurlencode($activeVaultView); ?><?php echo $activeVaultFolder !== '' ? '&amp;vault_folder=' . rawurlencode($activeVaultFolder) : ''; ?>" class="btn btn-primary vault-add-record-button" class="vault-dashboard-inline-15"><span class="vault-add-record-icon" aria-hidden="true">+</span> Add Vault Record</a>
     </div>
     <?php if ($activeVaultView !== 'records' && $activeVaultFolder === ''): ?>
-        <form id="create-folder-form" method="POST" action="vault_category_actions.php" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 16px;padding:12px;background:#f8f9fa;border:1px solid #e3e6f0;border-radius:8px;">
+        <form id="create-folder-form" method="POST" action="vault_category_actions.php" class="vault-dashboard-inline-16">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf ?? '', ENT_QUOTES, 'UTF-8'); ?>">
             <input type="hidden" name="action" value="create_folder">
             <input type="hidden" name="category" value="<?php echo htmlspecialchars($activeVaultView, ENT_QUOTES, 'UTF-8'); ?>">
-            <input type="text" id="new-folder-name" name="folder" class="input-field" placeholder="Folder name" maxlength="50" required style="flex:1 1 220px;width:auto;min-width:0;margin:0;">
-            <button type="submit" class="btn btn-primary" style="white-space:nowrap;">Create Folder</button>
-            <button type="button" class="btn" data-vault-action="hide-create-folder" style="background:#fff;color:#495057;border:1px solid #dee2e6;white-space:nowrap;">Cancel</button>
+            <input type="text" id="new-folder-name" name="folder" class="input-field" placeholder="Folder name" maxlength="50" required class="vault-dashboard-inline-17">
+            <button type="submit" class="btn btn-primary" class="vault-dashboard-inline-18">Create Folder</button>
+            <button type="button" class="btn" data-vault-action="hide-create-folder" class="vault-dashboard-inline-19">Cancel</button>
         </form>
         <?php if ($activeVaultFolder === '' && $activeCategoryFolders !== []): ?>
-            <div class="vault-folder-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin:0 0 18px;">
+            <div class="vault-folder-grid" class="vault-dashboard-inline-20">
                 <?php foreach ($activeCategoryFolders as $folder): ?>
-                    <a href="index.php?pane=records&amp;vault_view=<?php echo rawurlencode($activeVaultView); ?>&amp;vault_folder=<?php echo rawurlencode($folder); ?>" class="vault-folder-card" style="display:flex;align-items:center;gap:10px;padding:14px 16px;background:#fff;border:1px solid #e3e6f0;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.03);text-decoration:none;"><span aria-hidden="true" style="font-size:22px;">📁</span><span style="font-weight:600;color:#212529;overflow-wrap:anywhere;"><?php echo htmlspecialchars($folder, ENT_QUOTES, 'UTF-8'); ?></span></a>
+                    <a href="index.php?pane=records&amp;vault_view=<?php echo rawurlencode($activeVaultView); ?>&amp;vault_folder=<?php echo rawurlencode($folder); ?>" class="vault-folder-card" class="vault-dashboard-inline-21"><span aria-hidden="true" class="vault-dashboard-inline-22">📁</span><span class="vault-dashboard-inline-23"><?php echo htmlspecialchars($folder, ENT_QUOTES, 'UTF-8'); ?></span></a>
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
@@ -169,9 +169,9 @@ if ($activeVaultView !== 'records') {
         return true;
     })); ?>
     <?php if (empty($visiblePasswords)): ?>
-        <p id="vault-empty-message" style="text-align:center;padding:20px;color:#777;"><?php echo $activeVaultView === 'records' ? 'Select a category from the Vault.' : 'No records in this category yet.'; ?></p>
+        <p id="vault-empty-message" class="vault-dashboard-inline-24"><?php echo $activeVaultView === 'records' ? 'Select a category from the Vault.' : 'No records in this category yet.'; ?></p>
     <?php else: ?>
-        <div id="vault-record-grid" class="vault-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:20px;margin-top:15px;">
+        <div id="vault-record-grid" class="vault-grid" class="vault-dashboard-inline-25">
             <?php foreach ($visiblePasswords as $row):
                 $label = $row['label'] ?? 'Vault';
                 $category = trim((string)($row['category'] ?? ''));
@@ -183,13 +183,13 @@ if ($activeVaultView !== 'records') {
                 $inspectArgs = [$label,$row['username'] ?? '',$row['password'] ?? '',$row['url'] ?? '',$row['notes'] ?? '',(string)($row['id'] ?? ''),$category,trim((string)($row['folder'] ?? ''))];
                 $inspectJson = htmlspecialchars(json_encode($inspectArgs, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8');
             ?>
-                <div class="entry-card vault-record-card" data-vault-category="<?php echo htmlspecialchars($category, ENT_QUOTES, 'UTF-8'); ?>" tabindex="0" role="button" aria-label="Inspect <?php echo htmlspecialchars($label); ?>" data-vault-record="<?php echo $inspectJson; ?>" style="background:#fff;border:1px solid #e9ecef;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 4px 6px rgba(0,0,0,.02);position:relative;">
-                    <div class="og-preview-holder" style="height:100px;background:<?php echo $cardGradient; ?>;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;">
-                        <?php if ($hasStoredIcon): ?><img src="vault-icon.php?id=<?php echo rawurlencode((string)$row['id']); ?>" style="width:36px;height:36px;object-fit:contain;position:relative;z-index:2;filter:drop-shadow(0 4px 6px rgba(0,0,0,.15));" alt="Stored website icon" data-icon-fallback="1"><span style="display:none;color:#fff;font-size:28px;font-weight:700;font-family:monospace;opacity:.3;" aria-hidden="true"><?php echo htmlspecialchars($initials); ?></span>
-                        <?php else: ?><span style="color:#fff;font-size:28px;font-weight:700;font-family:monospace;opacity:.3;" aria-hidden="true"><?php echo htmlspecialchars($initials); ?></span><?php endif; ?>
+                <div class="entry-card vault-record-card" data-vault-category="<?php echo htmlspecialchars($category, ENT_QUOTES, 'UTF-8'); ?>" tabindex="0" role="button" aria-label="Inspect <?php echo htmlspecialchars($label); ?>" data-vault-record="<?php echo $inspectJson; ?>" class="vault-dashboard-inline-26">
+                    <div class="og-preview-holder" class="vault-dashboard-card-preview">
+                        <?php if ($hasStoredIcon): ?><img src="vault-icon.php?id=<?php echo rawurlencode((string)$row['id']); ?>" class="vault-dashboard-inline-27" alt="Stored website icon" data-icon-fallback="1"><span class="vault-dashboard-inline-28" aria-hidden="true"><?php echo htmlspecialchars($initials); ?></span>
+                        <?php else: ?><span class="vault-dashboard-inline-29" aria-hidden="true"><?php echo htmlspecialchars($initials); ?></span><?php endif; ?>
                     </div>
-                    <div class="entry-card-identity" style="padding:12px 15px 4px;"><span class="entry-label" style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;color:#212529;"><?php echo htmlspecialchars($label); ?></span><small style="color:#868e96;font-size:11px;display:block;overflow:hidden;text-overflow:ellipsis;"><?php echo htmlspecialchars($row['username'] ?? '[No Username]'); ?></small></div>
-                    <div class="entry-card-actions" style="padding:12px;"><button type="button" class="btn btn-primary inspect-button" style="width:100%;padding:8px 0;font-size:12px;border-radius:6px;background:#0066cc;">👁️ Inspect</button></div>
+                    <div class="entry-card-identity" class="vault-dashboard-inline-30"><span class="entry-label" class="vault-dashboard-inline-31"><?php echo htmlspecialchars($label); ?></span><small class="vault-dashboard-inline-32"><?php echo htmlspecialchars($row['username'] ?? '[No Username]'); ?></small></div>
+                    <div class="entry-card-actions" class="vault-dashboard-inline-33"><button type="button" class="btn btn-primary inspect-button" class="vault-dashboard-inline-34">👁️ Inspect</button></div>
                 </div>
             <?php endforeach; ?>
         </div>
