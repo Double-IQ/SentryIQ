@@ -234,7 +234,7 @@ $csrf = sentryiq_csrf_token();
         <div class="form-group"><label>2FA Email Address:</label><input type="email" name="setup_email" class="input-field" required></div>
         <div class="form-group"><label>Master Vault Password:</label><input type="password" name="setup_password" class="input-field" autocomplete="new-password" minlength="12" required></div>
         <div class="form-group"><label>Confirm Master Vault Password:</label><input type="password" name="setup_password_confirm" class="input-field" autocomplete="new-password" minlength="12" required></div>
-        <p style="font-size:12px;color:#777;">SentryIQ securely stores its encrypted vault outside the public web root.</p>
+        <p class="first-run-note">SentryIQ securely stores its encrypted vault outside the public web root.</p>
         <button type="submit" name="complete_first_run" class="btn btn-primary">Complete Secure Installation</button>
     </form>
 </div>
