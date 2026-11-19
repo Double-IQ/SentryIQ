@@ -475,3 +475,19 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - The stricter scan exposed and drove removal of additional inline styling in `credits.php`, `index.php`, `storage.php`, `app/Auth/Passkeys.php`, `documents.php`, `update.php`, `app/Auth/PasskeyLogin.php`, `app/Auth/PasskeySetup.php`, `diagnostics/self_test.php`, and `diagnostics/copy-code.php`. Dynamic storage quota width was replaced with a native `<progress>` element; passkey status visibility now toggles a CSS class rather than setting inline styles from JavaScript.
 - The GitHub Actions immutable-SHA regression check is running in Gallery Security Checks and has passed in each recent run before the PHP tests.
 - Latest code head at this checklist update: `fa3cf7a378a8851de25c695bcaddf8712679694d`. Latest Gallery Security Checks run: [44454291813](https://github.com/Double-IQ/SentryIQ/actions/runs/44454291813), still running at time of update. The corrected repository-wide CSP test has not yet passed; continue fixing any remaining scan findings and do not remove `style-src 'unsafe-inline'` until the scan passes.
+
+
+### Follow-up: strict CSP completed and verified on PR #56
+
+- Removed the remaining inline style attributes and style blocks found by the repository-wide scan, including in `app/Vault/DashboardList.php`, `app/Vault/DashboardActions.php`, `app/Gallery/Settings.php`, `app/Gallery/SecurePage.php`, `app/Security/SystemLog.php`, and `gallery_b2_diagnostic.php`.
+- Added or extended external stylesheets for the affected pages. Inline email-template HTML remains excluded because it is email content, not rendered page markup.
+- After the repository-wide scan passed, changed the central policy in `app/Security/SecurityBootstrap.php` from `style-src 'self' 'unsafe-inline'` to `style-src 'self'`. The strict CSP test now verifies that inline style blocks/attributes and inline script/event handlers are absent and that `style-src` does not permit `unsafe-inline`.
+- Latest remediation head: `96a1a71b8554d1fd605547ec50207bda7309dae0` (PR #56).
+- All four GitHub Actions workflows passed on that exact head:
+  - [Gallery Security Checks](https://github.com/Double-IQ/SentryIQ/actions/runs/44455532419) — passed, including strict external-script CSP, PHP/Apache deployment hardening, CLI-only write-capable diagnostics, and GitHub CLI attestation adapter contract.
+  - [PHP Syntax Check](https://github.com/Double-IQ/SentryIQ/actions/runs/44455532421) — passed.
+  - [Release Manifest Tests](https://github.com/Double-IQ/SentryIQ/actions/runs/44455532435) — passed.
+  - [Release Attestation Verification](https://github.com/Double-IQ/SentryIQ/actions/runs/44455532403) — passed.
+- These are source/CI results only. Production runtime CSP, browser behavior, updater operation against a newly signed release, and deployment remain unverified and must be tested in a controlled deployment window.
+- This entry supersedes the earlier notes above stating that inline style attributes remained and that `style-src 'unsafe-inline'` had not yet been removed. Those statements described earlier commits and are no longer current.
+- PR #56 remains open and unmerged. No production deployment, DNS, credential, or live-host configuration changes were made.
