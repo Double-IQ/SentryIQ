@@ -51,6 +51,21 @@ if (!mkdir($app, 0700, true) || !mkdir($data, 0700, true) || !mkdir($backup, 070
 
 try {
     $manager = new UpdateManager($app, $data);
+    $backupCopy = new ReflectionMethod(UpdateManager::class, 'copyAndVerifyBackup');
+    $backupCopy->setAccessible(true);
+    rollbackWrite($app . '/backup-source.bin', "backup-integrity-check");
+    rollbackCheck(
+        $backupCopy->invoke($manager, $app . '/backup-source.bin', $backup . '/verified-copy.bin') === true,
+        'A valid backup copy should pass its size and SHA-256 verification.'
+    );
+    rollbackCheck(
+        hash_file('sha256', $app . '/backup-source.bin') === hash_file('sha256', $backup . '/verified-copy.bin'),
+        'Verified backup copy digest differs from its source.'
+    );
+    rollbackCheck(
+        $backupCopy->invoke($manager, $app . '/backup-source.bin', $backup . '/verified-copy.bin') === false,
+        'Backup creation must refuse to overwrite an existing destination.'
+    );
     $method = new ReflectionMethod(UpdateManager::class, 'rollbackTargets');
     $method->setAccessible(true);
 
