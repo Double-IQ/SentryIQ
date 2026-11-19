@@ -197,6 +197,9 @@ try {
     applyCheck(file_get_contents($app . '/VERSION') === $version, 'Application VERSION was not replaced.');
     applyCheck(file_get_contents($app . '/index.php') === '<?php echo "new-release";', 'Public application file was not replaced.');
     applyCheck(file_get_contents($data . '/email_template.php') === '<?php return "new-email-template";', 'Runtime template was not replaced.');
+    applyCheck(file_get_contents($data . '/vault_engine.php') === '<?php return "new-vault-engine";', 'Vault engine runtime file was not replaced.');
+    applyCheck(file_get_contents($data . '/vault_icon_cache.php') === '<?php return "new-icon-cache";', 'Vault icon cache runtime file was not replaced.');
+    applyCheck(file_get_contents($data . '/VaultKdfPolicy.php') === '<?php return "new-kdf-policy";', 'Vault KDF policy runtime file was not replaced.');
     applyCheck((fileperms($data . '/email_template.php') & 0777) === 0600, 'Runtime template permissions were not restricted.');
 
     $backupRoot = $data . '/updates/backups/' . (string)$result['backup'];
