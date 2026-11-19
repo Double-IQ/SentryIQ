@@ -135,7 +135,8 @@ function first_run_cleanup(): bool
 
 $directory = first_run_data_dir();
 $baseUrl = first_run_base_url();
-$error = '';
+$installToken = sentryiq_first_run_configured_install_token();
+$error = $installToken === '' ? 'SentryIQ owner installation token is not configured by the hosting environment.' : '';
 first_run_log('FIRST_RUN_PAGE_LOADED', ['data_dir_configured' => $directory !== '', 'base_url_detected' => $baseUrl !== '']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_first_run'])) {
@@ -144,9 +145,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_first_run'])
     $email = trim((string)($_POST['setup_email'] ?? ''));
     $password = (string)($_POST['setup_password'] ?? '');
     $confirm = (string)($_POST['setup_password_confirm'] ?? '');
+    $providedInstallToken = (string)($_POST['setup_install_token'] ?? '');
 
     $sourcePrivateDir = dirname(__DIR__, 2) . '/private_data';
-    if ($directory === '') $error = 'SentryIQ secure storage is not configured by the hosting environment.';
+    if ($installToken === '') $error = 'SentryIQ owner installation token is not configured by the hosting environment.';
+    elseif (!sentryiq_first_run_install_token_is_valid($providedInstallToken, $installToken)) $error = 'The owner installation token is invalid.';
+    elseif ($directory === '') $error = 'SentryIQ secure storage is not configured by the hosting environment.';
     elseif (!preg_match('/^[A-Za-z0-9._-]{2,64}$/', $username)) $error = 'Please enter a valid administrator username.';
     elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) $error = 'Please enter a valid 2FA email address.';
     elseif ($baseUrl === '') $error = 'SentryIQ could not determine its HTTPS application URL.';
@@ -233,6 +237,7 @@ $csrf = sentryiq_csrf_token();
     <?php if ($error !== ''): ?><p class="error"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></p><?php endif; ?>
     <form method="POST" autocomplete="off">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
+        <div class="form-group"><label>Owner Installation Token:</label><input type="password" name="setup_install_token" class="input-field" autocomplete="off" required></div>
         <div class="form-group"><label>Administrator Username:</label><input type="text" name="setup_username" class="input-field" required></div>
         <div class="form-group"><label>2FA Email Address:</label><input type="email" name="setup_email" class="input-field" required></div>
         <div class="form-group"><label>Master Vault Password:</label><input type="password" name="setup_password" class="input-field" autocomplete="new-password" minlength="12" required></div>
