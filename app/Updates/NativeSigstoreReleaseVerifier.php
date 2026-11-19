@@ -272,7 +272,13 @@ final class NativeSigstoreReleaseVerifier
         curl_close($ch);
 
         if ($ok !== true || $status < 200 || $status >= 300 || $body === '') {
-            throw new RuntimeException('HTTPS attestation request failed (HTTP ' . $status . ').' . ($error !== '' ? ' ' . $error : ''));
+            $remoteCode = '';
+            if (preg_match('/<Code>([^<]{1,80})<\\/Code>/', $body, $matches) === 1) {
+                $remoteCode = ' ' . $matches[1];
+            }
+            throw new RuntimeException(
+                'HTTPS attestation request failed for ' . $host . ' (HTTP ' . $status . ').' . $remoteCode
+            );
         }
         return $body;
     }
