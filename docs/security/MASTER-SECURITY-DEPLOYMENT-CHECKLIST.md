@@ -683,3 +683,12 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - The test executed the real updater apply path against a disposable app/data root with a synthetic but policy-shaped release ZIP, manifest, checksum, API response, and verifier output. It confirmed all four approved runtime templates and public files were updated, runtime permissions were restricted, the prior public/runtime files were retained in the rollback backup, and downloaded/staging artifacts were cleaned.
 - This is the non-production update-process exercise for Phase 1.5. It does not substitute for a real release/host compatibility update on production; production still requires a newly generated manifest-bearing release and configured GitHub CLI binary.
 - At the time of this entry, the other three workflows on the exact head had passed; Gallery Security Checks was completing its final Apache/diagnostics steps.
+
+
+### Latest exact-head CI verification: isolated updater apply
+
+- All four workflows passed on PR #56 head `693266f9a96fb92e0fda860170ba3ada32c581af`:
+  - [Gallery Security Checks](https://github.com/Double-IQ/SentryIQ/actions/runs/44461293753) — passed, including complete updater apply integration, updater rollback/cleanup, encoded-path Apache HTTP integration, CSP, diagnostics, and attestation adapter tests.
+  - [PHP Syntax Check](https://github.com/Double-IQ/SentryIQ/actions/runs/44461293894) — passed.
+  - [Release Manifest Tests](https://github.com/Double-IQ/SentryIQ/actions/runs/44461293798) — passed.
+  - [Release Attestation Verification](https://github.com/Double-IQ/SentryIQ/actions/runs/44461293794) — passed.
