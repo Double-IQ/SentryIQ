@@ -4,9 +4,26 @@
 **Baseline branch:** `main`  
 **Repository:** `Double-IQ/SentryIQ`  
 **Last updated:** 2026-11-19  
-**Execution rule:** Complete the remaining Phase 1 audit items sequentially through 6.5, recording evidence for each. The audit findings have been presented and remediation has been approved. Continue the remediation plan systematically; present the completed corrections and evidence for user review before merge/deployment. Production changes and changes to credentials, DNS, or hosting configuration still require explicit approval.
+**Execution rule:** Phase 1 audit/remediation test tasks are complete (30/30). Do not restart or repeat them. Keep repository changes in review until explicitly approved; proceed with safe documentation and non-production verification. Production changes and changes to credentials, DNS, hosting configuration, repository protection, or release publication require the appropriate owner action and explicit approval.
 
 This document is the single working checklist for the reset security review and subsequent four-node deployment. It is intentionally separate from the broader historical security/migration roadmap. Where older planning documents describe a different sequence, follow this checklist for the current execution.
+
+## Current execution state — 2026-11-19
+
+**Phase 1: 30/30 defined audit/remediation test tasks complete.** This is repository/code and isolated-test completion, not production operational acceptance.
+
+- Consolidated security remediation: [PR #56](https://github.com/Double-IQ/SentryIQ/pull/56), branch `security/enforce-release-provenance`, exact tested head `a0bcabcb838c75b23f941f442214859ba125ad4e`. PR is open and unmerged.
+- Master checklist: [PR #54](https://github.com/Double-IQ/SentryIQ/pull/54), branch `docs/master-security-deployment-checklist`. PR is open and unmerged.
+- All four workflows passed on the exact PR #56 head: Gallery Security Checks [44464167191](https://github.com/Double-IQ/SentryIQ/actions/runs/44464167191), PHP Syntax Check [44464167106](https://github.com/Double-IQ/SentryIQ/actions/runs/44464167106), Release Manifest Tests [44464167042](https://github.com/Double-IQ/SentryIQ/actions/runs/44464167042), and Release Attestation Verification [44464167044](https://github.com/Double-IQ/SentryIQ/actions/runs/44464167044).
+- Installed/authenticated Chromium diagnostic: 20 browser checks passed; 12 POST-only or ID-dependent routes were correctly marked NOT TESTED. Installed-fixture server diagnostics: 125 checks passed. Separate CLI self-diagnostic: 118 server-side checks passed.
+- Real Apache integration covers direct and encoded protected-path denial while preserving static assets and the legacy stylesheet route. Isolated updater apply integration exercises the real apply path against disposable directories; genuine Sigstore verification is separately covered by the attestation workflow.
+- No production deployment/update, DNS or credential change, or live-host configuration change has been made.
+
+**Open owner/production acceptance gates:** configure and verify branch protection and immutable release-tag rules; verify GitHub secret-scanning/push-protection/Dependabot/private-reporting settings; configure encrypted off-host backups and complete a restore exercise; verify production Apache/PHP/TLS/HSTS/reverse-proxy/filesystem/logging settings; verify B2 bucket privacy/CORS/key scope/version retention; configure and test `SENTRYIQ_GH_BINARY` on the production host; publish a new signed manifest-bearing release before any updater-based production update.
+
+**Phase 2 four-node deployment remains blocked** until PR review/merge and the required operational acceptance gates. Node 4 (BTM-SA) shares a physical host with SentryIQ and is not an independent infrastructure failure domain.
+
+The detailed chronological entries below are retained as audit history. Earlier interim statements that a task or test was pending are superseded by the later exact-head evidence recorded in this document.
 
 ## How status is recorded
 
