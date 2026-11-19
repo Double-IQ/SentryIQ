@@ -590,3 +590,10 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
   - HTTP 200: `/pm_style.css` (legacy internal rewrite)
 - The remaining Gallery Security workflow steps, including write-capable diagnostics CLI-only and GitHub CLI attestation adapter tests, also completed successfully. The job's steps are all green; the workflow run is still finalizing its post-job cleanup at the time of this note.
 - This verifies the tested rules in a disposable Apache 2.4 CI virtual host. Production hosting configuration still requires provider-specific validation.
+
+
+### Additional Apache path-normalization coverage added
+
+- Extended the real HTTP integration test to reject percent-encoded protected path variants, including encoded leading directory characters, encoded path separators, and encoded `.git` names. The assertions require a non-2xx response so Apache may legitimately reject encoded separators with 400/404 while still preventing access.
+- Added a query-suffixed `/docs?probe=1` denial assertion as well.
+- Test-only commit: `f9843adbbd17e3a3a018757720f1deba84ba0428`. CI must pass on this exact head before these additional cases are considered verified. If any encoded form returns 2xx, treat it as a real path-normalization finding and fix the access rule rather than weakening the test.
