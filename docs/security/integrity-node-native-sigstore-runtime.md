@@ -10,6 +10,19 @@ The deployed-release resolver reads the live `/VERSION` file from `https://sentr
 
 ## Common construction pattern
 
+### GitHub API rate limit
+
+The node's release resolver and native attestation verifier make authenticated
+GitHub REST API requests. Unauthenticated public requests are limited to 60
+per hour per source IP; a scheduled A/B/C deployment can exceed that budget.
+Use a fine-grained personal access token scoped only to this repository with
+read-only Contents and Attestations permissions. Store it as
+`github_api_token` in the node's mode-0600 private config and pass the same
+value to the resolver and native verifier as shown above. The verifier sends
+the token only to `api.github.com`, never to release asset/blob hosts. Do not
+reuse the Node 4 bearer token, private-host token, or signing key.
+
+
 Load the classes from the SentryIQ application code, then create the private native adapter and node-specific signer:
 
 ```php
@@ -35,11 +48,16 @@ use SentryIQ\Updates\PrivateHostAttestationGate;
 $nodeId = 'integrity-a'; // exactly one of integrity-a, integrity-b, integrity-c
 $signer = new IntegrityReportSigner($nodeId, $base64Ed25519SecretKey);
 $releaseState = new IntegrityNodeReleaseStateStore($privateDataDirectory, $publicWebRoot);
-$resolveDeployedRelease = new IntegrityDeployedReleaseResolver();
+$githubApiToken = $privateConfig['github_api_token'] ?? null; // optional read-only token, private to this node
+$resolveDeployedRelease = new IntegrityDeployedReleaseResolver(
+    'https://sentryiq.bichet.co.za',
+    null,
+    $githubApiToken
+);
 
-// Initialize this once, manually, after independently confirming the known-good
-// release already deployed on this node's target. Do not run this on every cron.
-// $releaseState->initializeBaseline('<verified-version>', '<verified-40-character-commit>', '<manifest-sha256>', '<zip-sha256>');
+// Do not initialize the baseline in the scheduled runner. Run
+// bin/integrity-node-baseline.php once with an independent mode-0600 baseline
+// config containing the known-good deployed version, commit and both digests.
 
 $headerVerifier = new IntegrityOriginSecurityHeaderVerifier();
 $verifyHeaders = static fn(string $origin): array => $headerVerifier->verify($origin);
@@ -64,7 +82,8 @@ if ($nodeId === 'integrity-a' || $nodeId === 'integrity-b') {
 
 $attestation = NativeSigstoreIntegrityAttestationVerifier::fromPrivatePaths(
     $privateVendorAutoload,
-    $privateDataDirectory
+    $privateDataDirectory,
+    $githubApiToken
 );
 
 // This callable must send directly from this node/provider to the owner.
@@ -126,7 +145,7 @@ return new IntegrityNodeScheduledRunner(
 
 Nodes A and B also require the node-bound `PrivateHostAttestationGate` shown above; they refuse construction without it. A valid signed rejection is included in the node's signed report and triggers the direct alert route. A transport/signature/freshness failure triggers a direct alert and fails the run. Node C does not call this collector because it is hosted separately and is not the production-host verifier. The collector and transport remain unimplemented deployment gates; do not use an always-approve placeholder.
 
-Each node also verifies the origin's HSTS, CSP, framing, MIME-sniffing, referrer and permissions headers. The SentryIQ `.htaccess` now declares that conservative header policy. The signed release manifest carries a `public_http_files` list containing only byte-verifiable static assets. Dynamic PHP endpoints are not compared with their packaged source bytes; private runtime files remain outside HTTP checks. Leave `$publicPathSubset` empty to check every signed static asset, or provide a subset.
+Each node also verifies the origin's HSTS, CSP, framing, MIME-sniffing, referrer and permissions headers. The SentryIQ `.htaccess` now declares that conservative header policy. The current signed release manifest carries a `public_files` inventory. `IntegrityPublicAssetPolicy` selects byte-verifiable static assets from that inventory (and always checks the `VERSION` marker); dynamic PHP endpoints are not compared with their packaged source bytes, and private runtime files remain outside HTTP checks. Leave `$publicPathSubset` empty to check every signed static asset, or provide a subset.
 
 The CLI preloads the node classes, native verifier, concrete `IntegrityNodeVerifierBinding` and runtime dependencies before requiring the protected config file. The config file only needs to construct the host-specific objects and return the runner. Set `SENTRYIQ_INTEGRITY_NODE_CONFIG`, `SENTRYIQ_INTEGRITY_PRIVATE_DATA_DIR` and `SENTRYIQ_INTEGRITY_PUBLIC_WEB_ROOT` in the CLI environment. The config must be a regular, non-symlink mode-0600 file inside the exact mode-0700 private data directory; a path in the public webroot is rejected. The private monotonic state baseline is initialized once with `bin/integrity-node-baseline.php`, using a separate protected mode-0600 PHP config containing only the independently confirmed version, commit, manifest SHA-256 and ZIP SHA-256. That command safely creates the required mode-0600 state lock, refuses to overwrite an existing baseline, and prints a non-secret summary. Delete the one-time baseline config immediately after successful initialization. Never initialize from the live `/VERSION` response alone.
 
