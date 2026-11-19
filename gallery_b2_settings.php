@@ -187,13 +187,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="b2-actions"><button type="submit" class="btn btn-primary">Save Backblaze settings securely</button><a class="btn" href="gallery_b2_diagnostic.php">Run connection test</a><a class="btn" href="gallery.php">Return to Gallery</a></div>
     </form>
     <?php if ($configured): ?>
-    <hr style="margin:24px 0;border:0;border-top:1px solid #e5e8ee">
+    <hr class="b2-settings-divider">
     <h3>Disconnect Backblaze</h3>
     <p>Disconnecting removes the local credential file only. It does not delete encrypted objects from your bucket or erase Gallery metadata. Reconnect the same bucket and key to restore access.</p>
     <form method="POST" data-confirm-submit="Disconnect Backblaze? Gallery uploads and downloads will stop until you reconnect.">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
       <input type="hidden" name="action" value="disconnect">
-      <label style="display:flex;gap:8px;align-items:center;font-weight:400"><input style="width:auto" type="checkbox" name="confirm_disconnect" value="yes" required> I understand Gallery storage will be unavailable until reconnected.</label>
+      <label class="b2-disconnect-confirm-label"><input class="b2-disconnect-confirm-checkbox" type="checkbox" name="confirm_disconnect" value="yes" required> I understand Gallery storage will be unavailable until reconnected.</label>
       <div class="b2-actions"><button type="submit" class="btn">Disconnect Backblaze</button></div>
     </form>
     <?php endif; ?>
