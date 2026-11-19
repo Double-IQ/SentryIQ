@@ -65,6 +65,21 @@ $claims = SigstoreProvenance::claimsFromArray($statement, $commit, '0.1.2', str_
 provenanceAssert($claims['source_commit'] === $commit, 'Source commit must be extracted from the SLSA resolved dependency.');
 provenanceAssert($claims['workflow_commit'] === $commit, 'Workflow commit must be supplied from the authenticated Fulcio Build Config Digest.');
 provenanceAssert($claims['repository_id'] === '1345956206', 'Repository ID must be pinned.');
+$manifestStatement = $statement;
+$manifestStatement['subject'][0]['name'] = 'release-manifest.json';
+$manifestClaims = SigstoreProvenance::claimsFromArray(
+    $manifestStatement,
+    $commit,
+    '0.1.2',
+    str_repeat('a', 64),
+    'release-manifest.json'
+);
+provenanceAssert($manifestClaims['subject_sha256'] === str_repeat('a', 64), 'The separately attested canonical release manifest must be accepted.');
+provenanceReject(
+    $manifestStatement,
+    $commit,
+    'The ZIP subject must not be accepted when the canonical ZIP filename is expected.'
+);
 provenanceAssert(!array_key_exists('cryptographically_verified', $claims), 'Unverified parsed JSON must never be marked cryptographically verified.');
 
 $mutations = [
