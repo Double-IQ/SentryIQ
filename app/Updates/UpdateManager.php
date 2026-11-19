@@ -9,6 +9,7 @@ use ZipArchive;
 
 require_once __DIR__ . '/ReleaseTrustPolicy.php';
 require_once __DIR__ . '/GitHubCliAttestationVerifier.php';
+require_once __DIR__ . '/ReleaseDownloadPolicy.php';
 require_once dirname(__DIR__) . '/Security/SecurityBootstrap.php';
 
 final class UpdateManager
@@ -18,9 +19,14 @@ final class UpdateManager
     private const WORKFLOW_PATH = '.github/workflows/release.yml';
     private const ALLOWED_RUNTIME_FILES = ['email_template.php', 'vault_engine.php', 'vault_icon_cache.php', 'VaultKdfPolicy.php'];
     private const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
+    private const MAX_API_BYTES = 2 * 1024 * 1024;
+    private const MAX_ARCHIVE_ENTRIES = 5000;
+    private const MAX_EXTRACTED_BYTES = 250 * 1024 * 1024;
+    private const MAX_MANIFEST_BYTES = 2 * 1024 * 1024;
     private const CACHE_TTL = 21600;
 
-    private readonly GitHubCliAttestationVerifier $attestationVerifier;
+    private readonly ?GitHubCliAttestationVerifier $attestationVerifier;
+    private readonly ?string $sigstoreAutoloadPath;
     /** @var callable|null Test seam for GitHub API responses. */
     private $httpJsonRunner;
     /** @var callable|null Test seam for release asset downloads; never set in production. */
@@ -32,6 +38,7 @@ final class UpdateManager
         ?GitHubCliAttestationVerifier $attestationVerifier = null,
         ?callable $httpJsonRunner = null,
         ?callable $downloadRunner = null,
+        ?string $sigstoreAutoloadPath = null,
     ) {
         if ($this->applicationRoot === '' || !str_starts_with($this->applicationRoot, '/') || !is_dir($this->applicationRoot)) {
             throw new RuntimeException('Invalid SentryIQ application root.');
@@ -42,11 +49,20 @@ final class UpdateManager
         if (!sentryiq_path_is_outside_document_root($this->dataDir)) {
             throw new RuntimeException('SentryIQ secure data directory must resolve outside the public web root.');
         }
-        $ghBinary = getenv('SENTRYIQ_GH_BINARY');
-        $this->attestationVerifier = $attestationVerifier ?? new GitHubCliAttestationVerifier(
-            new ReleaseTrustPolicy(),
-            is_string($ghBinary) ? trim($ghBinary) : ''
-        );
+        $this->attestationVerifier = $attestationVerifier;
+        if ($sigstoreAutoloadPath !== null && $sigstoreAutoloadPath !== '') {
+            $realDataDirectory = realpath($this->dataDir);
+            $realAutoloadPath = realpath($sigstoreAutoloadPath);
+            if (!is_string($realDataDirectory) || !is_string($realAutoloadPath)
+                || is_link($sigstoreAutoloadPath) || !is_file($realAutoloadPath) || !is_readable($realAutoloadPath)
+                || $realAutoloadPath !== $sigstoreAutoloadPath
+                || !str_starts_with($realAutoloadPath, rtrim($realDataDirectory, '/') . DIRECTORY_SEPARATOR)) {
+                throw new RuntimeException('Native Sigstore Composer dependencies must be a canonical file inside the private data directory.');
+            }
+            $this->sigstoreAutoloadPath = $realAutoloadPath;
+        } else {
+            $this->sigstoreAutoloadPath = null;
+        }
         $this->httpJsonRunner = $httpJsonRunner;
         $this->downloadRunner = $downloadRunner;
     }
@@ -327,13 +343,37 @@ final class UpdateManager
     private function verifyReleaseArtifact(string $artifactPath, string $version, string $installedVersion): string
     {
         $expectedCommit = $this->resolveReleaseCommit($version);
-        $this->attestationVerifier->assertTrustedArtifact(
-            $artifactPath,
-            $version,
-            $expectedCommit,
-            $installedVersion
-        );
-        return $expectedCommit;
+        if ($this->sigstoreAutoloadPath !== null) {
+            require_once __DIR__ . '/TufRootStore.php';
+            require_once __DIR__ . '/FulcioCertificateClaims.php';
+            require_once __DIR__ . '/SnappyBlockDecoder.php';
+            require_once __DIR__ . '/SigstoreProvenance.php';
+            require_once __DIR__ . '/NativeSigstoreReleaseVerifier.php';
+            $verifier = new NativeSigstoreReleaseVerifier($this->sigstoreAutoloadPath, $this->dataDir);
+            $claims = $verifier->verifyRelease($artifactPath, $version);
+            $digest = hash_file('sha256', $artifactPath);
+            if (!is_string($digest)) {
+                throw new RuntimeException('Unable to calculate the downloaded release artifact digest.');
+            }
+            (new ReleaseTrustPolicy())->assertTrustedRelease(
+                $claims,
+                $version,
+                $expectedCommit,
+                $digest,
+                $installedVersion
+            );
+            return $expectedCommit;
+        }
+        if ($this->attestationVerifier !== null) {
+            $this->attestationVerifier->assertTrustedArtifact(
+                $artifactPath,
+                $version,
+                $expectedCommit,
+                $installedVersion
+            );
+            return $expectedCommit;
+        }
+        throw new RuntimeException('Native Sigstore verification is not configured; refusing to install an unattested release.');
     }
 
     /**
@@ -522,59 +562,115 @@ final class UpdateManager
             return $result;
         }
         if (!function_exists('curl_init')) throw new RuntimeException('PHP cURL is required for update checks.');
+        $parts = parse_url($url);
+        if (($parts['scheme'] ?? '') !== 'https'
+            || strtolower((string)($parts['host'] ?? '')) !== 'api.github.com'
+            || isset($parts['user']) || isset($parts['pass'])
+            || (isset($parts['port']) && (int)$parts['port'] !== 443)
+            || isset($parts['fragment'])) {
+            throw new RuntimeException('Update API request is outside the approved GitHub API origin.');
+        }
+
+        $body = '';
         $ch = curl_init($url);
+        if ($ch === false) throw new RuntimeException('Unable to initialize the GitHub update API request.');
         curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_TIMEOUT => 15,
+            CURLOPT_RETURNTRANSFER => false,
+            CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_HTTPHEADER => ['Accept: application/vnd.github+json', 'User-Agent: SentryIQ-Updater/1.0'],
+            CURLOPT_TIMEOUT => 15,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+            CURLOPT_HTTPHEADER => ['Accept: application/vnd.github+json', 'X-GitHub-Api-Version: 2026-03-10', 'User-Agent: SentryIQ-Updater/1.0'],
+            CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use (&$body): int {
+                if (strlen($body) + strlen($chunk) > self::MAX_API_BYTES) return 0;
+                $body .= $chunk;
+                return strlen($chunk);
+            },
         ]);
-        $body = curl_exec($ch);
+        $ok = curl_exec($ch);
         $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
         curl_close($ch);
-        if (!is_string($body) || $status < 200 || $status >= 300) {
+        if ($ok !== true || $status < 200 || $status >= 300 || $body === '') {
             throw new RuntimeException('github_http_status:' . $status . ($error !== '' ? ' ' . $error : ''));
         }
-        $data = json_decode($body, true);
+        try {
+            $data = json_decode($body, true, 64, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new RuntimeException('GitHub returned invalid release JSON.', 0, $exception);
+        }
         if (!is_array($data)) throw new RuntimeException('GitHub returned an invalid release response.');
         return $data;
     }
 
     private function download(string $url, string $target): void
     {
-        if (!preg_match('#^https://github\.com/#i', $url)) throw new RuntimeException('Update download source is not trusted.');
+        ReleaseDownloadPolicy::assertAllowedUrl($url);
+        if (strtolower((string)(parse_url($url, PHP_URL_HOST) ?? '')) !== 'github.com') {
+            throw new RuntimeException('Initial update download URL must use github.com.');
+        }
+        if (file_exists($target) || is_link($target)) {
+            throw new RuntimeException('Update download target already exists or is unsafe.');
+        }
+
         if ($this->downloadRunner !== null) {
             $ok = ($this->downloadRunner)($url, $target);
-            if ($ok !== true) {
+            if ($ok !== true || !is_file($target) || is_link($target)) {
                 @unlink($target);
                 throw new RuntimeException('SentryIQ update download failed.');
             }
         } else {
             if (!function_exists('curl_init')) throw new RuntimeException('PHP cURL is required for application updates.');
-            $fp = @fopen($target, 'wb');
+            $fp = @fopen($target, 'xb');
             if ($fp === false) throw new RuntimeException('Unable to create the update download.');
             $ch = curl_init($url);
+            if ($ch === false) {
+                fclose($fp);
+                @unlink($target);
+                throw new RuntimeException('Unable to initialize the SentryIQ update download.');
+            }
+            $downloaded = 0;
             curl_setopt_array($ch, [
-                CURLOPT_FILE => $fp,
+                CURLOPT_RETURNTRANSFER => false,
                 CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS => 5,
+                CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+                CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
                 CURLOPT_TIMEOUT => 120,
                 CURLOPT_CONNECTTIMEOUT => 15,
                 CURLOPT_HTTPHEADER => ['User-Agent: SentryIQ-Updater/1.0'],
                 CURLOPT_FAILONERROR => true,
                 CURLOPT_MAXFILESIZE => self::MAX_DOWNLOAD_BYTES,
+                CURLOPT_HEADERFUNCTION => static function ($handle, string $header): int {
+                    if (stripos($header, 'Location:') === 0) {
+                        $location = trim(substr($header, strlen('Location:')));
+                        if (!ReleaseDownloadPolicy::isAllowedUrl($location)) return 0;
+                    }
+                    return strlen($header);
+                },
+                CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use ($fp, &$downloaded): int {
+                    $length = strlen($chunk);
+                    if ($downloaded + $length > self::MAX_DOWNLOAD_BYTES) return 0;
+                    $written = fwrite($fp, $chunk);
+                    if (!is_int($written) || $written !== $length) return 0;
+                    $downloaded += $written;
+                    return $written;
+                },
             ]);
             $ok = curl_exec($ch);
             $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $effectiveUrl = (string)curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
             $error = curl_error($ch);
             curl_close($ch);
+            $flushed = fflush($fp);
             fclose($fp);
-            if ($ok !== true || $status < 200 || $status >= 300) {
+            if ($ok !== true || $status < 200 || $status >= 300
+                || !ReleaseDownloadPolicy::isAllowedUrl($effectiveUrl) || !$flushed) {
                 @unlink($target);
                 throw new RuntimeException('SentryIQ update download failed.' . ($error !== '' ? ' ' . $error : ''));
             }
         }
+
         $size = @filesize($target);
         if ($size === false || $size <= 0 || $size > self::MAX_DOWNLOAD_BYTES) {
             @unlink($target);
@@ -597,12 +693,60 @@ final class UpdateManager
         $zip = new ZipArchive();
         if ($zip->open($zipPath) !== true) throw new RuntimeException('Unable to open the SentryIQ update package.');
         try {
+            if ($zip->numFiles < 1 || $zip->numFiles > self::MAX_ARCHIVE_ENTRIES) {
+                throw new RuntimeException('The update package contains an invalid number of entries.');
+            }
+
+            $seen = [];
+            $totalUncompressedBytes = 0;
             for ($i = 0; $i < $zip->numFiles; $i++) {
                 $entry = $zip->getNameIndex($i);
-                if (!is_string($entry) || $entry === '' || str_starts_with($entry, '/') || str_contains(str_replace('\\', '/', $entry), '../')) {
-                    throw new RuntimeException('The update package contains an invalid path.');
+                $stat = $zip->statIndex($i);
+                if (!is_string($entry) || $entry === '' || strlen($entry) > 1024 || !is_array($stat)
+                    || !isset($stat['size']) || !is_int($stat['size']) || $stat['size'] < 0) {
+                    throw new RuntimeException('The update package contains an invalid entry.');
+                }
+
+                $normalized = str_replace('\\', '/', $entry);
+                $isDirectoryByName = str_ends_with($normalized, '/');
+                $trimmed = $isDirectoryByName ? rtrim($normalized, '/') : $normalized;
+                $segments = explode('/', $trimmed);
+                if ($trimmed === '' || str_starts_with($normalized, '/')
+                    || preg_match('/^[a-zA-Z]:/', $normalized)
+                    || preg_match('/[\\x00-\\x1f\\x7f]/', $normalized)
+                    || in_array('', $segments, true)
+                    || in_array('.', $segments, true)
+                    || in_array('..', $segments, true)
+                    || isset($seen[$trimmed])) {
+                    throw new RuntimeException('The update package contains an unsafe or duplicate path.');
+                }
+                $seen[$trimmed] = true;
+
+                $isDirectoryByMode = false;
+                $opsys = 0;
+                $attributes = 0;
+                if ($zip->getExternalAttributesIndex($i, $opsys, $attributes)) {
+                    $fileType = ($attributes >> 16) & 0170000;
+                    if ($fileType === 0120000 || ($fileType !== 0 && !in_array($fileType, [0100000, 0040000], true))) {
+                        throw new RuntimeException('The update package contains a symbolic link or special file.');
+                    }
+                    $isDirectoryByMode = $fileType === 0040000;
+                    if ($isDirectoryByName && $fileType === 0100000) {
+                        throw new RuntimeException('The update package contains an inconsistent directory entry.');
+                    }
+                }
+                $isDirectory = $isDirectoryByName || $isDirectoryByMode;
+                if (!$isDirectory) {
+                    $totalUncompressedBytes += $stat['size'];
+                    if ($totalUncompressedBytes > self::MAX_EXTRACTED_BYTES) {
+                        throw new RuntimeException('The update package exceeds the uncompressed size limit.');
+                    }
+                    if ($trimmed === 'update-manifest.json' && $stat['size'] > self::MAX_MANIFEST_BYTES) {
+                        throw new RuntimeException('The update manifest exceeds the configured size limit.');
+                    }
                 }
             }
+
             if (!$this->ensureDirectory($destination, 0700) || !$zip->extractTo($destination)) {
                 throw new RuntimeException('Unable to extract the SentryIQ update package.');
             }
@@ -610,7 +754,10 @@ final class UpdateManager
             $zip->close();
         }
         $manifestPath = $destination . '/update-manifest.json';
-        if (!is_file($manifestPath) || is_link($manifestPath)) throw new RuntimeException('The update manifest is missing.');
+        if (!is_file($manifestPath) || is_link($manifestPath)
+            || (int)@filesize($manifestPath) > self::MAX_MANIFEST_BYTES) {
+            throw new RuntimeException('The update manifest is missing or exceeds the configured size limit.');
+        }
         $manifest = json_decode((string)@file_get_contents($manifestPath), true);
         if (!is_array($manifest) || $this->normalizeVersion((string)($manifest['version'] ?? '')) !== $expectedVersion) {
             throw new RuntimeException('The update package version is invalid.');
@@ -689,6 +836,8 @@ final class UpdateManager
             @unlink($destination);
             return false;
         }
+        // file_exists() above may have cached a negative stat result for this path.
+        clearstatcache(true, $destination);
         $sourceHash = @hash_file('sha256', $source);
         $backupHash = @hash_file('sha256', $destination);
         $sourceSize = @filesize($source);
@@ -703,6 +852,7 @@ final class UpdateManager
             @unlink($destination);
             return false;
         }
+        clearstatcache(true, $destination);
         $permissions = @fileperms($destination);
         if (!is_int($permissions) || ($permissions & 0777) !== 0600) {
             @unlink($destination);
