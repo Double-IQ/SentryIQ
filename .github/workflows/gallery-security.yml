@@ -23,6 +23,9 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Verify immutable GitHub Actions references
+        run: python3 tests/workflow_action_pinning.test.py
+
       - name: Check browser and application scripts
         run: |
           node --check assets/js/gallery_crypto.js
