@@ -13,6 +13,7 @@ use K2gl\Sigstore\Bundle;
 use K2gl\Sigstore\IdentityPolicy;
 use K2gl\Sigstore\SigstoreVerifier;
 use K2gl\Sigstore\TrustedRoot;
+use K2gl\Tuf\Exception\NotFoundException;
 use K2gl\Tuf\HttpFetcher;
 use K2gl\Tuf\Updater;
 use RuntimeException;
