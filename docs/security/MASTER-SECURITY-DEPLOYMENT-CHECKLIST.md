@@ -668,3 +668,10 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - Added a test-only download callback seam to `UpdateManager`; production defaults remain the existing HTTPS GitHub/cURL downloader. CI explicitly installs PHP cURL and ZipArchive and runs the integration test in Gallery Security Checks.
 - This provides an isolated update-application exercise; it does not update production or prove the host's real GitHub CLI configuration. The synthetic verifier is a contract fixture; genuine Sigstore verification remains separately covered by the release-attestation workflow.
 - Commits: `2329f2661c2cf14180e9baade483ec8708c7327b`, `7453f3278fa4eb82333c4386b063852af3436f5d`, `cd6fca948998ae2c07a51d238ff24c847f6b3526`. Exact-head CI pending.
+
+
+### Isolated updater integration fixture correction
+
+- First end-to-end test execution reached manifest validation and correctly rejected the fixture because it did not include the complete four-file runtime allowlist. The production allowlist is intentional; it was not weakened.
+- Expanded the synthetic release package and existing runtime baseline to include all four approved templates: `email_template.php`, `vault_engine.php`, `vault_icon_cache.php`, and `VaultKdfPolicy.php`. Added assertions that all four are replaced by the update.
+- Fixture commits: `32c6066247ee2ba44844a5fc10f0ff7c68cded42`, `693266f9a96fb92e0fda860170ba3ada32c581af`. Re-run required.
