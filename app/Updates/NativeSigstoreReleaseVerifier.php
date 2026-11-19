@@ -39,7 +39,7 @@ final class NativeSigstoreReleaseVerifier implements ReleaseArtifactVerifier
 
     public function __construct(string $vendorAutoloadPath, string $privateDataDirectory, ?string $githubApiToken = null)
     {
-        if ($githubApiToken !== null && preg_match('/^[A-Za-z0-9_]{20,255}$/', $githubApiToken) !== 1) {
+        if ($githubApiToken !== null && preg_match('/^[A-Za-z0-9_-]{20,255}$/', $githubApiToken) !== 1) {
             throw new RuntimeException('Optional GitHub API token has an invalid format.');
         }
         $this->githubApiToken = $githubApiToken;
