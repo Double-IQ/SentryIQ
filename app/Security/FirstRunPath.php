@@ -61,3 +61,26 @@ function sentryiq_first_run_path_is_safe_candidate(string $path, ?string $docume
         && $candidate !== rtrim($realDocumentRoot, '/')
         && !str_starts_with($candidate, rtrim($realDocumentRoot, '/') . '/');
 }
+
+/**
+ * Resolve the one-time owner installation token from the PHP web environment.
+ * Tokens must be high-entropy URL-safe strings; never infer or generate one
+ * during a public request.
+ */
+function sentryiq_first_run_configured_install_token(?array $server = null, ?string $environment = null): string
+{
+    $server ??= $_SERVER;
+    if ($environment === null) $environment = getenv('SENTRYIQ_INSTALL_TOKEN');
+    if (!is_string($environment) || $environment === '') {
+        $environment = (string)($server['SENTRYIQ_INSTALL_TOKEN'] ?? '');
+    }
+    $token = trim($environment);
+    return preg_match('/\\A[A-Za-z0-9_-]{32,128}\\z/', $token) === 1 ? $token : '';
+}
+
+/** Compare the submitted one-time installation token without timing leakage. */
+function sentryiq_first_run_install_token_is_valid(string $provided, string $configured): bool
+{
+    if (preg_match('/\\A[A-Za-z0-9_-]{32,128}\\z/', $configured) !== 1) return false;
+    return hash_equals($configured, $provided);
+}
