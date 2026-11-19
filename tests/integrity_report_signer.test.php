@@ -64,7 +64,7 @@ assertSigner($rejectRejected, 'A signed rejection must not be accepted as approv
 $privateHostEvidence = [
     'target_origin' => 'https://sentryiq.bichet.co.za',
     'manifest_sha256' => str_repeat('d', 64),
-    'checked_paths' => ['@private-host-attestation'],
+    'checked_paths' => ['assets/app.js', '@origin-headers', '@private-host-attestation'],
     'mismatches' => [[
         'path' => '@private-host-attestation',
         'reason' => 'private_host_attestation_failed',
