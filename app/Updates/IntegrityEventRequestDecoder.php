@@ -100,8 +100,10 @@ final class IntegrityEventRequestDecoder
                 $stringStart = $i;
             } elseif ($char === '{') {
                 $stack[] = ['type' => 'object', 'keys' => []];
+                if (count($stack) > 64) return true;
             } elseif ($char === '[') {
                 $stack[] = ['type' => 'array'];
+                if (count($stack) > 64) return true;
             } elseif ($char === '}' || $char === ']') {
                 if ($stack === []) return true;
                 array_pop($stack);
