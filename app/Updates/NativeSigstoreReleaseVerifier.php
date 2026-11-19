@@ -103,7 +103,9 @@ final class NativeSigstoreReleaseVerifier implements ReleaseArtifactVerifier
      */
     public function verifyRelease(string $zipPath, string $version): array
     {
-        return $this->verifyArtifact($zipPath, $version, 'sentryiq-' . $version . '.zip');
+        $normalizedVersion = trim($version);
+        if (str_starts_with($normalizedVersion, 'v')) $normalizedVersion = substr($normalizedVersion, 1);
+        return $this->verifyArtifact($zipPath, $normalizedVersion, 'sentryiq-' . $normalizedVersion . '.zip');
     }
 
     /**
