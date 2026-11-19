@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace SentryIQ\Updates;
 
+require_once __DIR__ . '/TufRootStore.php';
 require_once __DIR__ . '/FulcioCertificateClaims.php';
 require_once __DIR__ . '/SnappyBlockDecoder.php';
+require_once __DIR__ . '/SigstoreProvenance.php';
 
 use K2gl\Sigstore\Bundle;
 use K2gl\Sigstore\IdentityPolicy;
