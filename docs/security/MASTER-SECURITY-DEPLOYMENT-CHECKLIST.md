@@ -617,3 +617,10 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
   - HTTP 403: encoded VCS directory `/.%67it/HEAD` — bypass closed.
   - HTTP 200: direct CSS asset and legacy `/pm_style.css` alias — compatibility preserved.
 - Diagnostic write-access CLI-only and GitHub CLI attestation adapter tests also passed in the same job. Overall workflow completion and the other three workflow conclusions are still pending at this point.
+
+
+### Exact-head verification: encoded path fix complete
+
+- All four GitHub Actions workflows passed on PR #56 head `0b9470227f26ab49ff2abf68a98add8e817e28c6`: Gallery Security Checks, PHP Syntax Check, Release Manifest Tests, and Validate v0.1.2 release attestation.
+- The live Apache test specifically confirmed encoded `/%61pp` and `/.%67it` requests are denied, encoded separators are rejected, and both direct and legacy CSS URLs remain available.
+- Separate updater hardening now also fails closed if chmod cannot set a backup copy to exactly mode 0600 or if the resulting permissions cannot be verified. Regression coverage asserts mode 0600. Changes are on the newer PR head (`4b38d51db0b4d6367d1ba1e262f2aed254724dae` and `2d6fd4c1692d3003ecc35bd41745118811c2ffb7)); CI for this latest updater permission check is pending.
