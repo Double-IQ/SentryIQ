@@ -560,3 +560,11 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - First real Apache run on `fbb9cf64dc0083ee33b41b3b82a2241666dfcf1a` confirmed all five protected URL cases returned HTTP 403, but the legacy asset compatibility assertion returned 403 instead of expected 200. This means the integration test correctly caught a failure in the test environment, but did not yet establish a product rewrite regression.
 - Inspection of the job log showed the Apache document root was the GitHub runner workspace under `/home/runner/work`; Apache could not traverse that parent path to serve ordinary assets. The harness now copies the checkout to `/tmp/sentryiq-apache-docroot`, grants read/traverse permissions to the disposable test copy, and points Apache at that isolated path.
 - Corrected harness commit: `1fdaa0c87775c88230b57e32ab75531d118dd815`. Re-run required. Until the new HTTP test passes, legacy rewrite compatibility remains unverified.
+
+
+### Apache harness second-run diagnosis
+
+- The corrected document-root copy removed the runner workspace traversal issue, but the legacy asset request still returned 403. The first failing assertion did not distinguish direct asset access from internal rewrite behavior.
+- The isolated Apache virtual host had `Options -Indexes`, which also disabled `FollowSymLinks`; Apache per-directory mod_rewrite requires `FollowSymLinks` or `SymLinksIfOwnerMatch`. The CI vhost now explicitly sets `Options +FollowSymLinks -Indexes`.
+- The HTTP test now checks the target CSS file directly (200) before checking the legacy alias (200), so a future failure distinguishes static file access from rewrite behavior.
+- Changes are on PR #56 at commits `91438da118c2dac087f86956c6cd812a6f4f5a61` and `3bed062750958d6f39752e376138397f2aa149af`; the new CI run is the required verification. This is a harness configuration diagnosis, not yet a confirmed passing result.
