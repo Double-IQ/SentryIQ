@@ -3,7 +3,7 @@
 **Target:** `https://sentryiq.bichet.co.za`  
 **Hosting:** cPanel; no shell/SSH access confirmed.  
 **Deployment model:** clean installation from the reviewed GitHub release. The owner has explicitly declined to preserve or migrate the existing installation.  
-**Current status:** subdomain/TLS and the hosting capability to expose `SENTRYIQ_DATA_DIR` with the protected path permitted by `open_basedir` are owner-confirmed; actual PHP web-SAPI runtime verification remains outstanding. Deployment is not started. No application files, runtime configuration, DNS, or production data have been changed by this plan.
+**Current status:** subdomain/TLS and the hosting capability to expose `SENTRYIQ_DATA_DIR` with the protected path permitted by `open_basedir` are owner-confirmed. The ability to expose `SENTRYIQ_INSTALL_TOKEN` to PHP has not yet been confirmed, and neither variable has passed a web-SAPI runtime check. Deployment is not started. No application files, runtime configuration, DNS, or production data have been changed by this plan.
 
 ## Scope and non-goals
 
@@ -30,7 +30,7 @@ These facts must be rechecked in cPanel immediately before deployment. Do not as
 
 PR #72 and PR #76 are merged into `main`. PR #72 replaces the source-relative private-path guess with an explicit `SENTRYIQ_DATA_DIR` setting and rejects missing or unsafe paths. PR #76 aligns the first-run installer with the release archive: the four runtime templates are loaded from the packaged `runtime/` directory, removed after successful installation, and blocked from direct HTTP access by the root Apache rules. The expected value for this cPanel account is `/home/bicheveb/sentryiq-private`, subject to rechecking the actual document root.
 
-The owner confirms that the hosting environment can expose `SENTRYIQ_DATA_DIR` to PHP and that `open_basedir` permits the intended protected directory. This is an owner-reported provider/configuration confirmation, not a runtime test. A possible Apache `SetEnv` directive is documented in `cpanel-first-run-storage.md`, but must not be assumed to work with the provider's PHP handler. Do not expose first-run setup until a controlled PHP-side check confirms the value and storage access. Do not weaken `open_basedir` or use a guessed fallback.
+The owner confirms that the hosting environment can expose `SENTRYIQ_DATA_DIR` to PHP and that `open_basedir` permits the intended protected directory. The separate `SENTRYIQ_INSTALL_TOKEN` capability remains unconfirmed. This is an owner-reported provider/configuration confirmation, not a runtime test. A possible Apache `SetEnv` directive is documented in `cpanel-first-run-storage.md`, but must not be assumed to work with the provider's PHP handler. Do not expose first-run setup until a controlled PHP-side check confirms both `SENTRYIQ_DATA_DIR` and `SENTRYIQ_INSTALL_TOKEN` reach the PHP web SAPI, the token has the required format (without revealing its value), and private storage access works. Do not weaken `open_basedir` or use a guessed fallback.
 
 ## Deployment layout
 
@@ -64,7 +64,7 @@ Fresh configuration only:
 3. In cPanel, re-confirm the subdomain document root and the protected directory path, ownership, permissions, available storage, and PHP `open_basedir` constraints.
 4. Confirm the selected PHP version and required extensions against the release's documented runtime requirements.
 5. Upload the reviewed release archive into the document root using cPanel File Manager or another approved deployment mechanism. Do not upload a working tree containing secrets, local runtime files, test artifacts, or Git metadata.
-6. Configure `SENTRYIQ_DATA_DIR` through the provider-supported PHP environment mechanism. Verify it reaches PHP and that `open_basedir` permits the protected path before exposing first-run setup.
+6. Configure `SENTRYIQ_DATA_DIR` and a unique high-entropy `SENTRYIQ_INSTALL_TOKEN` through provider-supported PHP environment mechanisms. Verify both reach PHP, validate the token format without disclosing it, and confirm `open_basedir` permits protected storage before exposing first-run setup.
 7. Run the corrected fresh-install flow once, using a strong unique master password. Save the generated recovery key offline before continuing.
 8. Configure fresh 2FA email delivery and verify delivery without exposing codes in logs.
 9. Configure Gallery/B2 only after the bucket, key scope, CORS, lifecycle/versioning, and browser transfer checks are reviewed.
@@ -82,7 +82,7 @@ Fresh configuration only:
 - [ ] Error display is disabled; logs are private and do not contain credentials, tokens, or plaintext vault data.
 
 ### Application and protected storage
-- [ ] Corrected first-run path logic is merged and tested.
+- [ ] Corrected first-run path logic and owner installation-token gate are merged and tested.
 - [ ] Document root contains no runtime data or secrets.
 - [ ] Protected directory is outside document root, non-symlinked, private, and PHP-readable/writable.
 - [ ] Root pointer and protected config are restrictive, valid, and agree on base URL and data directory.
@@ -112,4 +112,4 @@ The initial deployment does not modify the old application. Keep it untouched wh
 
 ## Next deployment gate
 
-No further hosting-support confirmation is currently requested. The remaining gate is a controlled, temporary PHP web-SAPI preflight on the new subdomain that verifies the exact environment value, canonical document-root/private-directory relationship, `open_basedir` access, and private-directory write/read/delete capability without displaying secrets or exposing a reusable diagnostic endpoint. A one-time preflight file has been prepared for this purpose; it must be uploaded only for the check and removed immediately afterwards. Only after that check passes should the reviewed release be uploaded and first-run setup exposed.
+No further hosting-support confirmation is currently requested. The remaining gate is a controlled, temporary PHP web-SAPI preflight on the new subdomain that verifies the configured storage path, confirms the owner-token variable is present and correctly formatted without returning its value, checks the canonical document-root/private-directory relationship, `open_basedir` access, and private-directory write/read/delete capability without displaying secrets or exposing a reusable diagnostic endpoint. A one-time preflight file has been prepared for this purpose; it must be uploaded only for the check and removed immediately afterwards. Only after that check passes should the reviewed release be uploaded and first-run setup exposed.
