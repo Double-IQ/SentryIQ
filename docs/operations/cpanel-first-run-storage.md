@@ -1,6 +1,6 @@
 # First-run protected storage configuration on cPanel
 
-The first-run installer no longer guesses a private-data path from the PHP source directory. It requires an explicit `SENTRYIQ_DATA_DIR` environment value and fails closed when the value is missing or unsafe.
+The first-run installer no longer guesses a private-data path from the PHP source directory. It requires an explicit `SENTRYIQ_DATA_DIR` environment value and fails closed when the value is missing or unsafe. The release package carries the four protected runtime templates under `runtime/`; the installer copies them from that directory into protected storage and removes the packaged copies after successful setup. Apache rules deny direct HTTP requests to `/runtime/`.
 
 ## Expected SentryIQ cPanel layout
 
