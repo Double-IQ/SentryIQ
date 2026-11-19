@@ -1,6 +1,7 @@
 # ADR: Four-node resilience and independent integrity monitoring
 
 - **Status:** Proposed
+- **Architecture clarification (2026-11-17):** Node 4 is BTM-SA, hosted on the same host as the SentryIQ production application. It is a separate logical service/trust domain, not an independently hosted failure domain.
 - **Date:** 2026-11-08
 - **Related:** [Security roadmap: signed releases and dual independent Integrity Nodes](https://github.com/Double-IQ/SentryIQ/issues/13)
 - **Branch:** `feature/four-node-resilience-architecture`
@@ -20,7 +21,7 @@ Adopt four logical nodes:
 1. **Node 1 — Core application (production origin).** Runs the existing SentryIQ PHP application and serves the user interface and APIs. It is the monitored target, not a trust authority. It must not possess the release-signing private key or be able to change monitor software, monitor trust roots, monitor schedules, or independent alert destinations.
 2. **Node 2 — Integrity Node A.** Independently retrieves the trusted signed release manifest, checks the live public origin against it, performs its own health and freshness checks, signs its own report, and sends alerts through an independent path.
 3. **Node 3 — Integrity Node B and independent schedule.** Performs the same verification independently from a different provider, credentials, network, and preferably administrative boundary. Its schedule and trigger path must not depend on Node 2 or Node 1. It compares signed reports where useful, but never treats Node 2's verdict as proof.
-4. **Node 4 — Security event and alert plane.** Receives and correlates signed reports, records incidents, and provides an additional owner-notification path. It is an aggregation and response aid, not the root of trust: it cannot rewrite the trusted manifest, change the nodes' pinned trust roots, approve releases, or suppress the nodes' direct owner alerts.
+4. **Node 4 — BTM-SA security event and alert plane (same host as Node 1).** BTM-SA receives and correlates signed reports, records incidents, and provides an additional owner-notification path. It is a separate logical service, but it shares the SentryIQ host and therefore is not an independent infrastructure failure domain. It is an aggregation and response aid, not the root of trust: it cannot rewrite the trusted manifest, change the nodes' pinned trust roots, approve releases, or suppress the nodes' direct owner alerts.
 
 The term **four-node architecture** describes these four trust domains. The two independent Integrity Nodes are mandatory. Scheduling is deliberately distributed: each Integrity Node has its own schedule and an independently controlled trigger. A cron provider or serverless scheduler may trigger checks, but is not itself a release trust anchor. Node 4 must not become a single point of failure for detection or notification.
 
@@ -29,9 +30,9 @@ The term **four-node architecture** describes these four trust domains. The two 
 - Each node has its own identity and narrowly scoped credentials. No shared master API key.
 - Node-to-node reports are authenticated and signed. Reports include node identity, target origin, release/manifest identity, sequence, check time, result categories, and evidence references; they must not include vault content, passwords, session cookies, encryption keys, or other secrets.
 - Each Integrity Node pins the release-signing public key independently. The release-signing private key remains offline or in a separately controlled hardware-backed signing environment and is never deployed to Nodes 1–4.
-- The production origin cannot change monitor code, pinned public keys, schedules, alert destinations, or retained evidence.
+- The production application process must not be able to change BTM-SA monitor code, pinned public keys, schedules, alert destinations, or retained evidence, using separate OS users, filesystem ownership, credentials, and narrowly scoped interfaces where the host permits. Because BTM-SA shares the host, host-level compromise or administrator compromise can affect both Node 1 and Node 4; this separation is defense-in-depth, not infrastructure independence.
 - Node 2 and Node 3 independently fetch and validate the signed manifest and independently inspect the public origin. A disagreement is an incident to investigate, not a majority-vote release approval.
-- Node 4 may correlate and notify, but Nodes 2 and 3 retain direct fallback notification paths to the owner so Node 4 outage or compromise cannot silently suppress all alerts.
+- Node 4 (BTM-SA) may correlate and notify, but Nodes 2 and 3 retain direct fallback notification paths to the owner so a BTM-SA process failure cannot silently suppress all alerts. A host-level outage or compromise can affect both Node 1 and BTM-SA; Nodes 2 and 3 must remain operational and notify the owner without relying on that host.
 - A missing, invalid, expired, or rollback manifest fails closed for verification. A single unverified node report must not automatically lock users out or trigger destructive remediation.
 - External HTTP checks can verify publicly served files, headers, redirects, TLS, and exposed assets. They cannot read private PHP source, private runtime configuration, or server-side files outside the public origin.
 - Private server-side integrity requires a separate authenticated, read-only host attestation/collector with narrowly scoped access. It reports deployment identity and file hashes, never secrets or user data.
@@ -73,7 +74,8 @@ The architecture must document expected detection latency and residual risk. Cli
 - **Node 1 compromised:** Nodes 2 and 3 continue checking independently; Node 4 receives reports; direct owner alerts remain available.
 - **Node 2 unavailable or compromised:** Node 3 continues independently and reports missing or inconsistent Node 2 status. Node 2 cannot change Node 3's trust roots.
 - **Node 3 unavailable or compromised:** Node 2 continues independently and reports missing or inconsistent Node 3 status.
-- **Node 4 unavailable or compromised:** Nodes 2 and 3 continue verification and direct owner notification. Node 4 cannot approve a release or alter verifier trust.
+- **BTM-SA / Node 4 process unavailable or compromised:** Nodes 2 and 3 continue verification and direct owner notification. BTM-SA cannot approve a release or alter verifier trust.
+- **Node 1 host unavailable or compromised:** Both SentryIQ and BTM-SA may be unavailable or untrusted. Nodes 2 and 3 continue from their separate providers and alert directly to the owner. Do not count BTM-SA as surviving a host-level failure.
 - **One cron provider unavailable:** The other Integrity Node's independently controlled schedule continues.
 - **GitHub or release channel compromised:** Nodes reject artifacts whose manifest cannot be validated against the pinned signing key and release policy. Incident response must include signing-key and repository recovery procedures.
 
@@ -99,7 +101,7 @@ No single node may automatically authorize a production update, overwrite eviden
 
 ## Acceptance criteria
 
-- Four documented logical trust domains exist, with two genuinely independent Integrity Nodes.
+- Four documented logical trust domains exist: SentryIQ/Node 1, independent Node 2, independent Node 3, and BTM-SA/Node 4. Node 4 shares Node 1's host and is not counted as an independent infrastructure failure domain; Nodes 2 and 3 are the genuinely independent monitors.
 - Nodes 2 and 3 independently validate the same signed release manifest and live public deployment.
 - Compromising Node 1 cannot modify either Integrity Node, their pinned trust roots, schedules, or independent owner alert paths.
 - Compromising one Integrity Node does not let it change the other node's verdict or suppress all owner notifications.
