@@ -678,46 +678,6 @@ final class UpdateManager
         }
     }
 
-    private function download(string $url, string $target): void
-    {
-        if (!preg_match('#^https://github\.com/#i', $url)) throw new RuntimeException('Update download source is not trusted.');
-        if ($this->downloadRunner !== null) {
-            $ok = ($this->downloadRunner)($url, $target);
-            if ($ok !== true) {
-                @unlink($target);
-                throw new RuntimeException('SentryIQ update download failed.');
-            }
-        } else {
-            if (!function_exists('curl_init')) throw new RuntimeException('PHP cURL is required for application updates.');
-            $fp = @fopen($target, 'wb');
-            if ($fp === false) throw new RuntimeException('Unable to create the update download.');
-            $ch = curl_init($url);
-            curl_setopt_array($ch, [
-                CURLOPT_FILE => $fp,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_TIMEOUT => 120,
-                CURLOPT_CONNECTTIMEOUT => 15,
-                CURLOPT_HTTPHEADER => ['User-Agent: SentryIQ-Updater/1.0'],
-                CURLOPT_FAILONERROR => true,
-                CURLOPT_MAXFILESIZE => self::MAX_DOWNLOAD_BYTES,
-            ]);
-            $ok = curl_exec($ch);
-            $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $error = curl_error($ch);
-            curl_close($ch);
-            fclose($fp);
-            if ($ok !== true || $status < 200 || $status >= 300) {
-                @unlink($target);
-                throw new RuntimeException('SentryIQ update download failed.' . ($error !== '' ? ' ' . $error : ''));
-            }
-        }
-        $size = @filesize($target);
-        if ($size === false || $size <= 0 || $size > self::MAX_DOWNLOAD_BYTES) {
-            @unlink($target);
-            throw new RuntimeException('The downloaded update is too large or empty.');
-        }
-    }
-
     private function findAsset(array $assets, string $name): ?array
     {
         foreach ($assets as $asset) {
