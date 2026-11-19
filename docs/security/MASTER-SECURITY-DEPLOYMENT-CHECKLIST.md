@@ -23,7 +23,7 @@ This document is the single working checklist for the reset security review and 
 
 **Post-merge verification (2026-11-19):** `main` is at `fd4ff7a6236e60df6fb84e178693ed91bc1f695e`. On that exact merge commit, PHP Syntax Check passed (run [44466000329](https://github.com/Double-IQ/SentryIQ/actions/runs/44466000329)) and Gallery Security Checks passed (run [44466000270](https://github.com/Double-IQ/SentryIQ/actions/runs/44466000270)). On the preceding security-remediation merge commit `b413b1ebf1204972e84a0994c19f05079c9efcde`, PHP Syntax Check, Gallery Security Checks, and Release Manifest Tests passed (runs [44465887232](https://github.com/Double-IQ/SentryIQ/actions/runs/44465887232), [44465887168](https://github.com/Double-IQ/SentryIQ/actions/runs/44465887168), and [44465887223](https://github.com/Double-IQ/SentryIQ/actions/runs/44465887223)); the latest main-branch query did not show a post-merge Release Attestation Verification run, so that is not claimed here. Repository metadata currently reports `main.protected: false`, and the rulesets endpoint returns `[]`. The branch-protection detail endpoint is inaccessible to the connected integration (403), and repository metadata does not expose platform security settings.
 
-**Release version preparation:** [PR #64](https://github.com/Double-IQ/SentryIQ/pull/64) prepares `VERSION` 0.1.3; its PHP Syntax Check and Gallery Security Checks passed. It is not merged and does not create a tag or publish a release.
+**Release version preparation:** [PR #65](https://github.com/Double-IQ/SentryIQ/pull/64) prepares `VERSION` 0.1.3; its PHP Syntax Check and Gallery Security Checks passed. It is not merged and does not create a tag or publish a release.
 
 **Release workflow hardening merged:** [PR #63](https://github.com/Double-IQ/SentryIQ/pull/63) merged on 2026-11-19 as `894f05ac1f4063399ea17df23bc79ea32327bbbf`. It removes overwrite-on-existing-release behavior, rejects prerelease tags from the stable release channel, requires an existing tag when creating a release, and triggers manifest tests when the release workflow or `VERSION` changes. Post-merge PHP Syntax Check ([44467440693](https://github.com/Double-IQ/SentryIQ/actions/runs/44467440693)), Gallery Security Checks ([44467440690](https://github.com/Double-IQ/SentryIQ/actions/runs/44467440690)), and Release Manifest Tests ([44467440706](https://github.com/Double-IQ/SentryIQ/actions/runs/44467440706)) all passed.
 
@@ -518,7 +518,7 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
   - [Release Attestation Verification](https://github.com/Double-IQ/SentryIQ/actions/runs/44455532403) — passed.
 - These are source/CI results only. Production runtime CSP, browser behavior, updater operation against a newly signed release, and deployment remain unverified and must be tested in a controlled deployment window.
 - This entry supersedes the earlier notes above stating that inline style attributes remained and that `style-src 'unsafe-inline'` had not yet been removed. Those statements described earlier commits and are no longer current.
-- PR #56 remains open and unmerged. No production deployment, DNS, credential, or live-host configuration changes were made.
+- PR #56 was merged on 2026-11-19; see the merge record above. No production deployment, DNS, credential, or live-host configuration changes were made.
 
 
 ### Follow-up: strict CSP and direct source-directory denial — latest CI verified
