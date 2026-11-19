@@ -132,7 +132,7 @@ final class IntegrityReleaseArtifactFetcher
             'version' => $version,
             'manifest_sha256' => $manifestDigest,
             'artifact_sha256' => $artifactDigest,
-        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\\n";
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n";
         $temporary = $path . '.tmp-' . bin2hex(random_bytes(8));
         $handle = @fopen($temporary, 'x+b');
         if ($handle === false) throw new RuntimeException('Unable to create release artifact cache metadata.');
