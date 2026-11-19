@@ -85,7 +85,18 @@ try {
     integrityEventRespond(400, ['status' => 'error', 'message' => 'Request JSON is invalid or ambiguous.']);
 }
 
-$authorization = (string)($_SERVER['HTTP_AUTHORIZATION'] ?? '');
+$authorization = (string)($_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
+if ($authorization === '' && function_exists('getallheaders')) {
+    $requestHeaders = getallheaders();
+    if (is_array($requestHeaders)) {
+        foreach ($requestHeaders as $name => $value) {
+            if (is_string($name) && strtolower($name) === 'authorization' && is_string($value)) {
+                $authorization = $value;
+                break;
+            }
+        }
+    }
+}
 if (!preg_match('/^Bearer ([A-Za-z0-9_-]{40,128})$/', $authorization, $match)) {
     integrityEventRespond(401, ['status' => 'error', 'message' => 'Node authentication required.']);
 }
