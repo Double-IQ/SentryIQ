@@ -121,7 +121,18 @@ final class IntegrityReleaseArtifactFetcher
                 if ($stream === false) {
                     throw new RuntimeException('Unable to create private release download file.');
                 }
-                @chmod($temporary, 0600);
+                if (!@chmod($temporary, 0600)) {
+                    fclose($stream);
+                    @unlink($temporary);
+                    throw new RuntimeException('Unable to enforce private release artifact file permissions.');
+                }
+                $openedTemporaryStat = @fstat($stream);
+                if (!is_array($openedTemporaryStat) || (($openedTemporaryStat['mode'] ?? 0) & 0170000) !== 0100000
+                    || (($openedTemporaryStat['mode'] ?? 0) & 0777) !== 0600) {
+                    fclose($stream);
+                    @unlink($temporary);
+                    throw new RuntimeException('Release artifact temporary file permissions are unsafe.');
+                }
                 $location = null;
                 $written = 0;
                 $handle = curl_init($current);
