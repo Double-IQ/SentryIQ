@@ -30,4 +30,9 @@ deploymentCheck(
     'Apache rules must deny direct requests to root configuration and bootstrap files.'
 );
 
+deploymentCheck(
+    str_contains($apache, 'RewriteCond %{THE_REQUEST} "\s/+((app|cloud|docs|tests|scripts|\.github|\.git))(/|\s)" [NC]'),
+    'Apache rules must deny direct requests to source, test, documentation, and VCS directories without blocking internal rewrites.'
+);
+
 echo "PHP and Apache deployment hardening source checks passed.\n";
