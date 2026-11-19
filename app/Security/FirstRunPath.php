@@ -56,7 +56,8 @@ function sentryiq_first_run_path_is_safe_candidate(string $path, ?string $docume
     $candidate = rtrim($realParent, '/') . '/' . basename($path);
     $accountPrefix = rtrim($accountRoot, '/') . '/';
 
-    return str_starts_with($candidate, $accountPrefix)
+    return rtrim($realParent, '/') === rtrim($accountRoot, '/')
+        && str_starts_with($candidate, $accountPrefix)
         && $candidate !== rtrim($realDocumentRoot, '/')
         && !str_starts_with($candidate, rtrim($realDocumentRoot, '/') . '/');
 }
