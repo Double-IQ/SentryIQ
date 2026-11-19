@@ -101,7 +101,7 @@ Complete only against the actual production host, with a maintenance/change reco
 ## 5. Release and updater readiness
 
 - [x] [PR #63](https://github.com/Double-IQ/SentryIQ/pull/63) merged as `894f05ac1f4063399ea17df23bc79ea32327bbbf`; it prevents overwriting existing release assets, rejects prerelease tags from the stable release workflow, and requires the existing tag. Post-merge PHP Syntax Check ([44467440693](https://github.com/Double-IQ/SentryIQ/actions/runs/44467440693)), Gallery Security Checks ([44467440690](https://github.com/Double-IQ/SentryIQ/actions/runs/44467440690)), and Release Manifest Tests ([44467440706](https://github.com/Double-IQ/SentryIQ/actions/runs/44467440706)) all passed.
-- [ ] Review/merge [PR #65](https://github.com/Double-IQ/SentryIQ/pull/65) to set `VERSION` to `0.1.3`; this only prepares the next release and does not publish it.
+- [x] [PR #65](https://github.com/Double-IQ/SentryIQ/pull/65) merged as `a8ed98977514fb99cb7c20f3be1410a1b1c2f4ce`, setting `VERSION` to `0.1.3`. PHP lint, Gallery Security, and Release Manifest Tests passed on its exact PR head; post-merge PHP lint and Gallery Security passed. No tag or release was created.
 - [ ] Do not use the previously published v0.1.2 release for the new updater path: it predates the required embedded canonical manifest and KDF runtime policy.
 - [ ] Generate a new release from the merged `main` source using the updated release workflow; PR #56 is already merged.
 - [ ] Verify the new release ZIP checksum and genuine GitHub Sigstore attestation/provenance against the expected repository, workflow, ref, and commit.
