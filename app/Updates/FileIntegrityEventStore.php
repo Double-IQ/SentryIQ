@@ -158,6 +158,9 @@ final class FileIntegrityEventStore
 
         $this->transact(function (array &$state) use ($nonce, $challenge, $issuedAt): void {
             $this->pruneState($state, $issuedAt);
+            if (count($state['challenges']) >= 1000) {
+                throw new RuntimeException('Node 4 active challenge capacity has been reached.');
+            }
             foreach ($state['challenges'] as $existingKey => $existingChallenge) {
                 if (!is_array($existingChallenge) || ($existingChallenge['expires_at'] ?? 0) <= $issuedAt) {
                     unset($state['challenges'][$existingKey]);
