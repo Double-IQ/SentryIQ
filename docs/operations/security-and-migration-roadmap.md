@@ -125,9 +125,10 @@ The server cannot decrypt vault or document content using its database, runtime 
 - [x] Define a versioned release manifest containing release identity, monotonic sequence/anti-rollback data, commit/build identity, file paths, sizes, SHA-256 hashes, timestamp, and signing-key ID (prototype in merged PR #27; current format and release integration still require final review).
 - [ ] Approve and operationalise signing-key custody. The signing private key must never be stored on production hosting or either verifier.
 - [x] Build the exact release package from the selected source commit and validate ZIP contents, four runtime templates, manifest coverage, embedded/external manifest equality, SHA-256 entries, and sidecars in CI (PR #75; installer path aligned in PR #76).
+- [x] Run the exact release-package validation workflow on every pull request to `main` and every push to `main`, so application/installer changes cannot bypass package validation (PR #80; PHP lint, Gallery Security, and Release Manifest checks passed).
 - [ ] Complete end-to-end signed release publication and updater enforcement. The tag-triggered workflow is prepared and uses GitHub build-provenance attestation, but no release tag/release has been created and no production artifact has been verified. Native Sigstore/SLSA updater and node verification remain in open stacked PRs #48/#50.
 - [ ] Make builds reproducible or otherwise attest the exact build inputs and artifact identity.
-- [x] PHP syntax, Gallery security, and release-manifest/package validation workflows are present; required PR checks are enforced by active repository rulesets.
+- [x] PHP syntax, Gallery security, and release-manifest/package validation workflows are present; PR #80 makes package validation run on every PR to `main` and every push to `main`; required PR checks are enforced by active repository rulesets.
 - [x] Owner-confirmed GitHub secret scanning, push protection, Dependabot alerts, and Dependabot security updates are enabled (platform settings are owner-confirmed, not API-verified).
 - [ ] Add/verify dependency review and any remaining dependency scanning gates.
 - [ ] Protect release tags/branches and separate build, signing, and deployment permissions.
