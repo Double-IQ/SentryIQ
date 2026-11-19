@@ -81,7 +81,7 @@ integrityReject(
 );
 
 $privateHostMismatchEvidence = array_replace($eventEvidence, [
-    'checked_paths' => ['assets/app.js', '@private-host-attestation'],
+    'checked_paths' => ['assets/app.js', '@origin-headers', '@private-host-attestation'],
     'mismatches' => [[
         'path' => '@private-host-attestation',
         'reason' => 'private_host_attestation_failed',
