@@ -513,3 +513,14 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - Reviewed `docs/operations/backup-restore-runbook.md`: it is explicitly a procedure template, not evidence of an operating backup system. No automated backup scheduler, approved off-host destination, encryption/key custody, retention configuration, or completed restore exercise is present in the repository. This cannot safely be implemented without the actual host/storage destination and owner-approved recovery objectives; it remains a deployment acceptance blocker.
 - Rechecked repository security requirements: the remediation branch documents required main-branch protection, required CI, code-owner review, immutable release tags, secret scanning, and private vulnerability reporting. The connected GitHub integration returned HTTP 403 for the branch-protection read endpoint, so current platform state could not be re-verified in this pass. Prior Phase 1 evidence records `main` as unprotected; owner action remains required.
 - No production host, backup destination, repository settings, DNS, credentials, or deployment was changed.
+
+
+### Verification update: latest Apache edge-case correction passed CI
+
+- The follow-up query-string correction is now fully CI-verified on PR #56 head `c0352dc08c4493698aff1dc0e0434d83068e1e33`.
+- All four workflows passed on this exact head:
+  - [Gallery Security Checks](https://github.com/Double-IQ/SentryIQ/actions/runs/44457154677) — passed all 28 security steps, including the updated PHP/Apache deployment-hardening test.
+  - [PHP Syntax Check](https://github.com/Double-IQ/SentryIQ/actions/runs/44457154658) — passed.
+  - [Release Manifest Tests](https://github.com/Double-IQ/SentryIQ/actions/runs/44457154579) — passed.
+  - [Release Attestation Verification](https://github.com/Double-IQ/SentryIQ/actions/runs/44457154732) — passed.
+- This supersedes the immediately preceding note that CI was still pending for this head. It does not supersede the explicit limitation: Apache behavior still needs a real disposable Apache integration test before production deployment.
