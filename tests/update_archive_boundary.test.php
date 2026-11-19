@@ -96,7 +96,7 @@ try {
     archiveBoundaryReject($manager, $symlinkZip, $root . '/symlink-stage', 'symlink entry');
 
     archiveBoundaryAssert(!file_exists($root . '/escape.php'), 'Unsafe archive extraction wrote outside the staging directory.');
-    echo "Updater archive boundary tests passed.\\n";
+    echo "Updater archive boundary tests passed.\n";
 } finally {
     $iterator = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
