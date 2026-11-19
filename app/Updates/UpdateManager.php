@@ -127,6 +127,10 @@ final class UpdateManager
             throw new RuntimeException('Another SentryIQ update is already running.');
         }
 
+        $zipPath = null;
+        $checksumPath = null;
+        $stagingPath = null;
+
         try {
             $release = $this->checkLatest(true);
             $current = $this->currentVersion();
@@ -290,8 +294,25 @@ final class UpdateManager
                 throw $exception;
             }
         } finally {
+            $this->cleanupWorkspaceArtifacts($zipPath, $checksumPath, $stagingPath);
             @flock($handle, LOCK_UN);
             fclose($handle);
+        }
+    }
+
+    /**
+     * Remove only this update attempt's temporary download and staging artifacts.
+     * The separately-created backup directory is intentionally retained on failure.
+     */
+    private function cleanupWorkspaceArtifacts(?string $zipPath, ?string $checksumPath, ?string $stagingPath): void
+    {
+        foreach ([$zipPath, $checksumPath] as $file) {
+            if ($file !== null && is_file($file) && !is_link($file)) {
+                @unlink($file);
+            }
+        }
+        if ($stagingPath !== null && is_dir($stagingPath) && !is_link($stagingPath)) {
+            $this->removeDirectory($stagingPath);
         }
     }
 
