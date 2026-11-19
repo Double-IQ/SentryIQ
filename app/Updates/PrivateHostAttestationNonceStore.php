@@ -131,7 +131,7 @@ final class PrivateHostAttestationNonceStore
                 }
                 try {
                     $decoded = json_decode($bytes, true, 8, JSON_THROW_ON_ERROR);
-                } catch (\\JsonException $exception) {
+                } catch (\JsonException $exception) {
                     throw new RuntimeException('Attestation nonce state is invalid JSON.', 0, $exception);
                 }
                 if (!is_array($decoded) || ($decoded['format'] ?? null) !== 1
