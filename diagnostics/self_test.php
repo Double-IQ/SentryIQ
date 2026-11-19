@@ -127,7 +127,13 @@ if (is_array($config)) {
 }
 
 $serverHost = trim((string)($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? ''));
-$scriptDir = rtrim(str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? ''))), '/');
+$scriptPath = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? ''));
+$scriptDir = rtrim(str_replace('\\', '/', dirname($scriptPath)), '/');
+// The diagnostic is one directory below the application root; compare the
+// configured base URL to the app root, not to /diagnostics.
+if (basename($scriptPath) === 'self_test.php' && basename($scriptDir) === 'diagnostics') {
+    $scriptDir = rtrim(str_replace('\\', '/', dirname($scriptDir)), '/');
+}
 $runtimeExpectedBaseUrl = $serverHost !== '' && $httpsOk ? 'https://' . $serverHost . ($scriptDir === '/' ? '' : $scriptDir) : '';
 $baseUrlMatchesRuntime = $baseUrl === '' || ($runtimeExpectedBaseUrl !== '' && $baseUrl === rtrim($runtimeExpectedBaseUrl, '/'));
 add_check('Configuration URL', 'Base URL matches current application URL', $baseUrlMatchesRuntime, $runtimeExpectedBaseUrl !== '' ? ('configured=' . ($baseUrl !== '' ? $baseUrl : 'missing') . ', current=' . rtrim($runtimeExpectedBaseUrl, '/')) : 'current application URL could not be determined');
@@ -193,6 +199,7 @@ $sourceRefs = [
     ['index.php', 'assets/js/vault_folders.js', 'index Vault folders JS URL'],
     ['index.php', 'assets/js/vault_page.js', 'index Vault page JS URL'],
     ['index.php', 'assets/js/vault_page_init.js', 'index Vault page initialization JS URL'],
+    ['diagnostics/self_test.php', '../assets/js/self_test.js', 'Self-test browser runner JS URL'],
     ['app/Gallery/SecurePage.php', 'assets/css/sentryiq.css', 'Gallery stylesheet URL'],
     ['app/Gallery/SecurePage.php', 'assets/images/sentryiq-logo-wide.webp', 'Gallery wide-logo URL'],
     ['documents.php', 'assets/css/sentryiq.css', 'documents stylesheet URL'],
@@ -481,6 +488,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['diagnostic_log']) && 
 </div>
 </div>
 <script type="application/json" id="sentryiq-self-test-data"><?= json_encode(['tests'=>$browserTests,'csrf'=>$csrf,'diagnosticBuild'=>SENTRYIQ_DIAGNOSTIC_BUILD,'serverChecks'=>$results], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) ?></script>
-<script src="assets/js/self_test.js" defer></script>
+<script src="../assets/js/self_test.js" defer></script>
 </body>
 </html>
