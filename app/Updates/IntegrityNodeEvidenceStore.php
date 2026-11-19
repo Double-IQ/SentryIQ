@@ -30,6 +30,12 @@ final class IntegrityNodeEvidenceStore
             || str_starts_with($private . DIRECTORY_SEPARATOR, rtrim($web, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
             throw new RuntimeException('Node C evidence must be stored outside the public webroot.');
         }
+        clearstatcache(true, $private);
+        $privateStat = @lstat($private);
+        if (!is_array($privateStat) || (($privateStat['mode'] ?? 0) & 0170000) !== 0040000
+            || (($privateStat['mode'] ?? 0) & 0777) !== 0700) {
+            throw new RuntimeException('Node C private data directory must be a real directory with exact 0700 permissions.');
+        }
         $publicKey = base64_decode($nodePublicKeyBase64, true);
         if (!is_string($publicKey) || strlen($publicKey) !== SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES) {
             throw new RuntimeException('Node C evidence requires its own valid base64 Ed25519 public key.');
@@ -41,9 +47,14 @@ final class IntegrityNodeEvidenceStore
         if (!is_dir($directory) && !@mkdir($directory, 0700)) {
             throw new RuntimeException('Unable to create private Node C evidence storage.');
         }
-        if (is_link($directory) || !@chmod($directory, 0700)
-            || ((fileperms($directory) ?: 0) & 0077) !== 0) {
+        if (is_link($directory) || !@chmod($directory, 0700)) {
             throw new RuntimeException('Node C evidence directory must have private 0700 permissions.');
+        }
+        clearstatcache(true, $directory);
+        $evidenceDirectoryStat = @lstat($directory);
+        if (!is_array($evidenceDirectoryStat) || (($evidenceDirectoryStat['mode'] ?? 0) & 0170000) !== 0040000
+            || (($evidenceDirectoryStat['mode'] ?? 0) & 0777) !== 0700) {
+            throw new RuntimeException('Node C evidence directory must be a real exact 0700 directory.');
         }
         $this->directory = $directory;
         $this->publicKey = $publicKey;
@@ -117,7 +128,7 @@ final class IntegrityNodeEvidenceStore
         $parts = is_string($origin) ? parse_url($origin) : false;
         if (!is_array($parts) || ($parts['scheme'] ?? null) !== 'https'
             || strtolower((string)($parts['host'] ?? '')) !== 'sentryiq.bichet.co.za'
-            || ($parts['path'] ?? '') !== '' || isset($parts['port']) && $parts['port'] !== 443
+            || ($parts['path'] ?? '') !== '' || isset($parts['port'])
             || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])
             || !is_string($payload['manifest_sha256'] ?? null)
             || !preg_match('/^[a-f0-9]{64}$/', $payload['manifest_sha256'])) {
@@ -131,18 +142,29 @@ final class IntegrityNodeEvidenceStore
             throw new RuntimeException('Node C signed evidence path lists are invalid.');
         }
         $seenChecked = [];
+        $publicPathCount = 0;
         foreach ($checked as $path) {
-            if (!is_string($path) || !self::safeEvidencePath($path) || isset($seenChecked[$path])) {
+            if (!is_string($path) || !self::safeEvidencePath($path) || isset($seenChecked[$path])
+                || (str_starts_with($path, '@') && $path !== '@origin-headers')) {
                 throw new RuntimeException('Node C signed evidence contains an unsafe or duplicate checked path.');
             }
             $seenChecked[$path] = true;
+            if (!str_starts_with($path, '@')) $publicPathCount++;
         }
+        if (!isset($seenChecked['@origin-headers']) || $publicPathCount < 1) {
+            throw new RuntimeException('Node C evidence must include public assets and origin security headers.');
+        }
+        $mismatchSeen = [];
         foreach ($mismatches as $item) {
             if (!is_array($item) || !is_string($item['path'] ?? null)
                 || !self::safeEvidencePath($item['path']) || !isset($seenChecked[$item['path']])
-                || !in_array($item['reason'] ?? null, ['content_mismatch', 'fetch_failed', 'security_header_mismatch', 'private_host_attestation_failed'], true)) {
+                || isset($mismatchSeen[$item['path']])
+                || !in_array($item['reason'] ?? null, ['content_mismatch', 'fetch_failed', 'security_header_mismatch'], true)
+                || ($item['reason'] === 'security_header_mismatch' && $item['path'] !== '@origin-headers')
+                || (in_array($item['reason'], ['content_mismatch', 'fetch_failed'], true) && str_starts_with($item['path'], '@'))) {
                 throw new RuntimeException('Node C signed evidence contains an invalid mismatch record.');
             }
+            $mismatchSeen[$item['path']] = true;
         }
         if (($payload['decision'] === 'approve') !== ($mismatches === [])) {
             throw new RuntimeException('Node C signed decision does not match its signed mismatch evidence.');
@@ -176,18 +198,38 @@ final class IntegrityNodeEvidenceStore
         if ($stream === false) {
             throw new RuntimeException('Unable to create private Node C evidence record.');
         }
-        $written = fwrite($stream, $bytes);
-        $flushed = fflush($stream);
+        $offset = 0;
+        $ok = @chmod($temporary, 0600);
+        while ($ok && $offset < strlen($bytes)) {
+            $count = @fwrite($stream, substr($bytes, $offset));
+            if (!is_int($count) || $count < 1) {
+                $ok = false;
+                break;
+            }
+            $offset += $count;
+        }
+        if ($ok) $ok = @fflush($stream);
+        if ($ok && function_exists('fsync')) $ok = @fsync($stream);
+        $temporaryStat = @fstat($stream);
+        $ok = $ok && is_array($temporaryStat)
+            && (($temporaryStat['mode'] & 0170000) === 0100000)
+            && (($temporaryStat['mode'] & 0777) === 0600)
+            && $offset === strlen($bytes);
         fclose($stream);
-        if ($written !== strlen($bytes) || !$flushed || !@chmod($temporary, 0600)
-            || !@link($temporary, $destination)) {
+        if (!$ok || !@link($temporary, $destination)) {
             @unlink($temporary);
             throw new RuntimeException('Unable to atomically append private Node C evidence.');
         }
+        $temporaryStat = @lstat($temporary);
+        $destinationStat = @lstat($destination);
         @unlink($temporary);
-        if (((fileperms($destination) ?: 0) & 0077) !== 0) {
+        if (!is_array($temporaryStat) || !is_array($destinationStat)
+            || $temporaryStat['dev'] !== $destinationStat['dev']
+            || $temporaryStat['ino'] !== $destinationStat['ino']
+            || (($destinationStat['mode'] & 0170000) !== 0100000)
+            || (($destinationStat['mode'] & 0777) !== 0600)) {
             @unlink($destination);
-            throw new RuntimeException('Node C evidence record permissions are unsafe.');
+            throw new RuntimeException('Node C evidence record identity or permissions are unsafe.');
         }
 
         return [
