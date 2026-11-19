@@ -8,6 +8,7 @@ use RuntimeException;
 
 require_once __DIR__ . '/IntegrityNodeAlertedException.php';
 require_once __DIR__ . '/IntegrityPublicAssetPolicy.php';
+require_once __DIR__ . '/IntegrityEventRequestDecoder.php';
 
 /**
  * Node A's read-only public-origin verifier.
@@ -121,6 +122,7 @@ final class IntegrityNodeA
             throw new RuntimeException('Release manifest is unreadable or exceeds the size limit.');
         }
         try {
+            IntegrityEventRequestDecoder::assertNoDuplicateObjectKeys($manifestBytes);
             $manifest = json_decode($manifestBytes, true, 64, JSON_THROW_ON_ERROR);
         } catch (\JsonException $exception) {
             throw new RuntimeException('Attested release manifest is not valid JSON.', 0, $exception);
