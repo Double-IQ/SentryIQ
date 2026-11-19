@@ -25,9 +25,20 @@ $checks = $report['serverChecks'] ?? null;
 if (!is_array($checks) || $checks === []) {
     throw new RuntimeException('Self-test diagnostic returned no server-side checks.');
 }
+$installedChecks = array_values(array_filter(
+    $checks,
+    static fn($check): bool => is_array($check)
+        && ($check['group'] ?? '') === 'Environment'
+        && ($check['name'] ?? '') === 'Installed flag'
+));
+if (count($installedChecks) !== 1 || ($installedChecks[0]['ok'] ?? true) !== false) {
+    throw new RuntimeException('Self-test CLI fixture must remain an isolated, uninstalled application.');
+}
 $failed = array_values(array_filter(
     $checks,
-    static fn($check): bool => !is_array($check) || ($check['ok'] ?? false) !== true
+    static fn($check): bool => !is_array($check)
+        || (($check['group'] ?? '') !== 'Environment' || ($check['name'] ?? '') !== 'Installed flag')
+            && ($check['ok'] ?? false) !== true
 ));
 if ($failed !== []) {
     $details = array_map(
