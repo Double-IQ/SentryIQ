@@ -17,10 +17,16 @@ Create a ruleset or branch protection rule targeting `main` with:
 1. Require a pull request before merging.
 2. Require at least one approving review; dismiss stale approvals when new commits are pushed.
 3. Require review from Code Owners.
-4. Require the current CI checks: PHP Syntax Check, Gallery Security Checks, Release Manifest Tests, and Validate v0.1.2 release attestation.
+4. Require these exact GitHub Actions job status checks (the job/check names, not merely the workflow display names):
+   - `php-lint`
+   - `gallery-security`
+   - `release-manifest`
+   - `Verify release attestation and dual-node report contract`
 5. Require branches to be up to date before merging.
 6. Block force pushes and branch deletion.
 7. Apply the rules to administrators as well, unless a documented emergency bypass process is required.
+
+The four required check names above were read from successful GitHub Actions jobs on PR remediation head `a0bcabcb838c75b23f941f442214859ba125ad4e` on 2026-11-19. Reconfirm the names in GitHub's branch-protection UI when configuring the ruleset, because renaming a workflow job changes its required status-check name.
 
 Create a tag ruleset for `v*` release tags that prevents tag updates and deletion after publication. Release immutability is a critical input to the attestation trust model.
 
@@ -33,7 +39,6 @@ Create a tag ruleset for `v*` release tags that prevents tag updates and deletio
 - Review Actions workflow permissions and keep the default GITHUB_TOKEN read-only.
 
 These controls require repository administration privileges. The connected GitHub interface available during this remediation can inspect repository settings but cannot change branch-protection/ruleset or platform security settings. Do not mark them complete until the owner applies and verifies them.
-
 
 ## Phase 1 live settings re-check (2026-11-19)
 
