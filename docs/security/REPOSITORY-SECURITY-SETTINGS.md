@@ -33,3 +33,11 @@ Create a tag ruleset for `v*` release tags that prevents tag updates and deletio
 - Review Actions workflow permissions and keep the default GITHUB_TOKEN read-only.
 
 These controls require repository administration privileges. The connected GitHub interface available during this remediation can inspect repository settings but cannot change branch-protection/ruleset or platform security settings. Do not mark them complete until the owner applies and verifies them.
+
+
+## Phase 1 live settings re-check (2026-11-19)
+
+- GitHub's branch metadata endpoint currently reports `main.protected: false`.
+- The repository rulesets endpoint currently returns an empty list (`[]`); no repository rulesets are present in the returned result.
+- The connected integration cannot read the branch-protection detail endpoint (HTTP 403, insufficient integration access), so it cannot inspect any legacy protection configuration beyond the branch metadata flag. The owner must configure and verify protection with repository administration access.
+- The repository metadata response did not expose a `security_and_analysis` object, so secret scanning, push protection, and Dependabot alert settings remain unverified. No platform settings were changed.
