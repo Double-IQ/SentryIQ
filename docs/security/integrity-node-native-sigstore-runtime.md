@@ -222,6 +222,16 @@ Each A/B/C host keeps its own `integrity-release-state.json` in its private data
 
 These HTTP checks do not attest the deployed PHP source, private runtime files or configuration. A successful public-asset check must not be reported as proof that the deployed PHP tree matches the signed release ZIP. Full deployment integrity still requires a separately authenticated, read-only host collector or out-of-band file-reading channel that compares private deployment files against the attested package. The collector's signing key must not be readable by the web application; hardware-backed custody or an independently controlled host identity is preferred. Node 4 on the SentryIQ host cannot serve as an independent attestor of that same host.
 
+## Release artifact staging and cache
+
+The release artifact fetcher caches each release version under the node's
+private `integrity-releases/<version>/` directory. A mode-0600 cache metadata
+file records the staged manifest and ZIP digests; it is only a local corruption
+check, never a trust decision. The native Sigstore verifier still verifies both
+subjects on every scheduled run. If either cached file changes, the cache is
+discarded and both release assets are downloaded again. The fetcher retains the
+current and two most recent version directories to bound disk usage.
+
 ## Deployment gates not fabricated by this code
 
 Before a host can run this bootstrap, its administrator must supply and test: the deployed-release resolver, exact public path allowlist, node-specific Ed25519 key, independent alert transport, private vendor autoload path, private data directory, and (for C) a private evidence store. Nodes A/B additionally require unique Node 4 bearer tokens. Node 4 separately needs A/B public keys, matching bearer tokens, private event storage and a real alert sender.
