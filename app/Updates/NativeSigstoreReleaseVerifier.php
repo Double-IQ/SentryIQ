@@ -148,8 +148,7 @@ final class NativeSigstoreReleaseVerifier
         }
 
         throw new RuntimeException(
-            'No GitHub attestation for this repository passed native Sigstore and SLSA provenance verification.'
-
+            'No GitHub attestation for this repository passed native Sigstore and SLSA provenance verification.',
             0,
             $lastFailure,
         );
