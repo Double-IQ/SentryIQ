@@ -172,7 +172,17 @@ final class IntegrityReleaseArtifactFetcher
                     if (!@rename($temporary, $destination)) {
                         throw new RuntimeException('Unable to atomically publish downloaded release asset.');
                     }
-                    @chmod($destination, 0600);
+                    if (!@chmod($destination, 0600)) {
+                        @unlink($destination);
+                        throw new RuntimeException('Unable to enforce downloaded release artifact permissions.');
+                    }
+                    clearstatcache(true, $destination);
+                    $destinationStat = @lstat($destination);
+                    if (!is_array($destinationStat) || (($destinationStat['mode'] ?? 0) & 0170000) !== 0100000
+                        || (($destinationStat['mode'] ?? 0) & 0777) !== 0600) {
+                        @unlink($destination);
+                        throw new RuntimeException('Downloaded release artifact permissions are unsafe.');
+                    }
                     return;
                 }
 
