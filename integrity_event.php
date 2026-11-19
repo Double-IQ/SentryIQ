@@ -142,10 +142,10 @@ try {
         $authenticated = false;
         $signedNodeId = null;
         if (is_string($envelope)) {
-            SentryIQ\\Updates\\IntegrityEventRequestDecoder::assertNoDuplicateObjectKeys($envelope);
+            \SentryIQ\Updates\IntegrityEventRequestDecoder::assertNoDuplicateObjectKeys($envelope);
             $outer = json_decode($envelope, true);
             $raw = is_array($outer) ? base64_decode((string)($outer['payload'] ?? ''), true) : false;
-            if (is_string($raw)) SentryIQ\\Updates\\IntegrityEventRequestDecoder::assertNoDuplicateObjectKeys($raw);
+            if (is_string($raw)) \SentryIQ\Updates\IntegrityEventRequestDecoder::assertNoDuplicateObjectKeys($raw);
             $signedPayload = is_string($raw) ? json_decode($raw, true) : null;
             $signedNodeId = is_array($signedPayload) ? ($signedPayload['node_id'] ?? null) : null;
         }
