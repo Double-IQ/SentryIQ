@@ -491,3 +491,16 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - These are source/CI results only. Production runtime CSP, browser behavior, updater operation against a newly signed release, and deployment remain unverified and must be tested in a controlled deployment window.
 - This entry supersedes the earlier notes above stating that inline style attributes remained and that `style-src 'unsafe-inline'` had not yet been removed. Those statements described earlier commits and are no longer current.
 - PR #56 remains open and unmerged. No production deployment, DNS, credential, or live-host configuration changes were made.
+
+
+### Follow-up: strict CSP and direct source-directory denial — latest CI verified
+
+- Latest consolidated remediation PR #56 head: `85f3f34568011dd7406e95cb4f5936aacf427894`.
+- All four GitHub Actions workflows passed on this exact head:
+  - [Gallery Security Checks — passed](https://github.com/Double-IQ/SentryIQ/actions/runs/44455775184). The job completed all 28 steps, including immutable action pinning, browser/application script checks, Gallery cryptography, updater rollback/provenance, private-path boundaries, SSRF, authentication/passkey/session/KDF checks, bounded logs, strict CSP, PHP/Apache hardening, CLI-only diagnostics, and attestation adapter contract.
+  - [PHP Syntax Check — passed](https://github.com/Double-IQ/SentryIQ/actions/runs/44455775195).
+  - [Release Manifest Tests — passed](https://github.com/Double-IQ/SentryIQ/actions/runs/44455775354).
+  - [Release Attestation Verification — passed](https://github.com/Double-IQ/SentryIQ/actions/runs/44455775347).
+- Added an Apache rewrite guard that denies direct HTTP requests to `app/`, `cloud/`, `docs/`, `tests/`, `scripts/`, `.github/`, and `.git/` while using the original `THE_REQUEST` to distinguish public requests from legitimate internal rewrites to application handlers. Added a source regression assertion in `tests/deployment_hardening.test.php`.
+- Verification boundary: this is source-level and CI verification only. No live Apache integration test or production-host behavior has been verified. Confirm rewrite behavior in a disposable Apache staging environment before deployment, including direct directory requests, query strings, encoded paths, and all existing front-controller/legacy endpoint rewrites.
+- PR #56 remains open and unmerged. No production deployment, DNS, credentials, or live-host configuration changes were made.
