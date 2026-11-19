@@ -26,7 +26,6 @@ Before Node C can approve anything in production, implement and independently te
 
 ## Regression coverage
 
-
 The current synthetic regression suite also verifies that a manifest-attestation failure and an artifact-attestation failure each abort before any origin fetch, and that an origin network failure produces a signed rejection (`fetch_failed`) rather than approval. These tests exercise the injected verifier boundary; they do not replace the still-required native cryptographic adapter or HelioHost validation.
 
 ## Status
