@@ -1,10 +1,20 @@
 # SentryIQ Backup and Restore Runbook
 
+**Current deployment decision (2026-11-19):** The owner has explicitly declared the existing SentryIQ installation disposable. It will not be backed up or migrated. The new SentryIQ version will be deployed cleanly at `sentryiq.bichet.co.za`; this runbook's operational backup requirements apply to the new installation and its newly created production data, not the legacy installation.
 **Status:** Procedure template only — no backup job or restore has been executed.  
 **Selected off-site destination:** MEGA account (owner decision, 2026-11-19; owner reports 20 GB available, not yet independently measured).  
 **Scope:** SentryIQ application source/configuration, protected runtime data, and encrypted Backblaze B2 Gallery objects.
 
 This runbook is not evidence that backups exist. MEGA has been selected as the destination, but available quota, transfer allowance, MEGAcmd installation/session, encryption/key custody, retention, automation, and restore exercise remain unverified or unconfigured. The reported 20 GB account capacity must be checked against a measured encrypted recovery-set size before acceptance.
+
+## Scope decision: legacy installation versus new deployment
+
+- Do not generate a cPanel full-account backup or a legacy SentryIQ-only archive for the purpose of preserving the old installation. The owner has stated that the old installation and its existing users, Gallery content, albums, and runtime data do not need to be retained.
+- Do not migrate legacy application files, configuration, credentials, runtime stores, users, or Gallery records into the new deployment.
+- Build the new subdomain deployment from the reviewed GitHub source and configure it independently with fresh production secrets and storage settings.
+- Before the new version accepts production data, define and implement a backup/recovery set for its actual architecture. Include only data the new system is designed to retain, plus its exact release/configuration and any external object storage it uses.
+- The legacy Gallery's Backblaze B2 objects are not being migrated under this decision. Any new Gallery storage must have its own documented backup and restore coverage.
+- The existing MEGA account remains a possible off-site destination for the new system, but no account setup, upload, schedule, or restore is authorised or configured by this documentation change.
 
 ## Data that must be recoverable
 
