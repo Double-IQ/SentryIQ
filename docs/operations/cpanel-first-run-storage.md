@@ -28,7 +28,7 @@ The hosting environment must expose `SENTRYIQ_DATA_DIR` to the PHP web SAPI as e
 SetEnv SENTRYIQ_DATA_DIR /home/bicheveb/sentryiq-private
 ```
 
-This directive must be confirmed compatible with the provider's Apache/PHP handler before it is added. If the provider does not permit it, ask support to set the variable for the subdomain's PHP process. Do not substitute a guessed path or weaken PHP `open_basedir`.
+The owner confirms the hosting environment can expose the variable to PHP and that `open_basedir` permits the intended private directory. The exact mechanism is still provider-specific; this owner confirmation is not a runtime test. This directive must be confirmed compatible with the provider's Apache/PHP handler before it is added. If the provider does not permit it, ask support to set the variable for the subdomain's PHP process. Do not substitute a guessed path or weaken PHP `open_basedir`.
 
 ## Installer validation
 
@@ -48,8 +48,8 @@ The application must not be initialized until the variable is confirmed to reach
 
 1. Confirm the actual subdomain document root in cPanel.
 2. Confirm the intended private directory is a sibling of that document root under the account home.
-3. Ask the host or verify in a controlled pre-deployment check that `SENTRYIQ_DATA_DIR` reaches the PHP web SAPI.
-4. Confirm PHP `open_basedir` permits the private directory.
+3. Run a controlled pre-deployment check proving `SENTRYIQ_DATA_DIR` reaches the PHP web SAPI for this subdomain.
+4. Verify PHP can resolve and perform a private write/read/delete probe in the protected directory under the active `open_basedir` policy.
 5. Only then upload and expose the first-run installer.
 
 No production configuration or cPanel setting is changed by this document.
