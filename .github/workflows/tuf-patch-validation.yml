@@ -3,7 +3,7 @@ name: Validate pinned TUF patch
 on:
   push:
     branches:
-      - security/tuf-1.2.1-root-rotation-fail-closed
+      - security/tuf-root-rotation-patch-current-main
     paths:
       - 'patches/k2gl-tuf-1.2.1-root-404.patch'
       - 'docs/security/k2gl-tuf-1.2.1-root-rotation.md'
@@ -32,7 +32,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Check out pinned upstream TUF source
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: k2gl/tuf
           ref: 0c324cd765e04c9d47d01fe0e9887d6ab8153bfd
