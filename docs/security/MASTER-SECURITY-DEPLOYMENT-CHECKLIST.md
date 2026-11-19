@@ -732,3 +732,16 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - The real Apache HTTP test returned 200 for the CSS, Vault folders JS, Vault page JS, Vault page initialization JS, Records JS, Safari JS, wide logo, and PNG icon; the legacy `/pm_style.css` alias also returned 200.
 - The same job continued to deny direct and encoded source/VCS paths and passed the 117-check server-side self-diagnostic.
 - This adds HTTP coverage for all public static assets used by the self-test. Authenticated browser page checks and DOM-computed stylesheet contracts still require a live installed browser session.
+
+
+### Browser self-diagnostic contract correction — verified
+
+- A review of the remaining browser test matrix found that the `index.php` browser contract still expected the obsolete `records_view.js` script. The live source loads `vault_folders.js`, `vault_page.js`, and `vault_page_init.js`; the mismatch would have caused a false browser-diagnostic failure even when the page was correct.
+- Updated `diagnostics/self_test.php` to check the current Vault page and initialization assets and refreshed the diagnostic build identifier.
+- Extended `tests/self_test_cli.test.php` so CI now asserts that the structured browser contract includes all three current index scripts and does not expect `records_view.js` on the index page. This prevents the browser contract from silently regressing.
+- Exact tested head: `7709621cf69eb1abbb55e6182df4094335b4321c`.
+  - [Gallery Security Checks — passed](https://github.com/Double-IQ/SentryIQ/actions/runs/44462550411), including Apache HTTP integration and the server-side self-diagnostic/browser-contract assertion.
+  - [PHP Syntax Check — passed](https://github.com/Double-IQ/SentryIQ/actions/runs/44462550367).
+  - [Release Manifest Tests — passed](https://github.com/Double-IQ/SentryIQ/actions/runs/44462550433).
+  - [Release Attestation Verification — passed](https://github.com/Double-IQ/SentryIQ/actions/runs/44462550357).
+- This corrects and CI-tests the browser test definitions; it does **not** execute the browser fetch/DOM/computed-style checks against a real installed authenticated SentryIQ instance. Item 6.4 remains open until an installed non-production environment is available for that run. No production environment was used or changed.
