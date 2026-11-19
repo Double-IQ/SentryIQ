@@ -66,9 +66,9 @@ A/B/C contract.
 Node C stores each signed result under its private data directory with exact
 0600 file permissions. Evidence older than 30 days is pruned on the next
 successful append; recent records are never silently discarded. The hard cap
-is 10,000 records. At a five-minute schedule, 30 days produces about 8,640
-records. Do not schedule Node C more frequently than every five minutes without
-increasing and revalidating the capacity limit.
+is 10,000 records. At a fifteen-minute schedule, 30 days produces about 2,880
+records. Schedule Node C no more frequently than every fifteen minutes unless
+the run-lock and evidence capacity are deliberately revalidated.
 
 ## Regression coverage
 
