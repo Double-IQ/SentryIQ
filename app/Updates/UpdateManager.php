@@ -836,6 +836,8 @@ final class UpdateManager
             @unlink($destination);
             return false;
         }
+        // file_exists() above may have cached a negative stat result for this path.
+        clearstatcache(true, $destination);
         $sourceHash = @hash_file('sha256', $source);
         $backupHash = @hash_file('sha256', $destination);
         $sourceSize = @filesize($source);
@@ -850,6 +852,7 @@ final class UpdateManager
             @unlink($destination);
             return false;
         }
+        clearstatcache(true, $destination);
         $permissions = @fileperms($destination);
         if (!is_int($permissions) || ($permissions & 0777) !== 0600) {
             @unlink($destination);
