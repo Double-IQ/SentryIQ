@@ -467,3 +467,11 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 8. Do not modify production data, credentials, DNS, or hosting configuration without explicit approval for that specific operation.
 9. Do not revive, merge, or deploy unfinished node prototypes as a substitute for completing this checklist.
 10. This document is the execution source of truth. Update it whenever work is completed, blocked, or re-scoped.
+
+
+### Follow-up: stricter CSP scan findings
+
+- Corrected the CSP regression test's regex escaping and changed it to scan every PHP source file, not just a small selected template list. It now rejects inline executable scripts, event handlers, inline style blocks and inline style attributes. Embedded email HTML is explicitly exempted from page-style checks.
+- The stricter scan exposed and drove removal of additional inline styling in `credits.php`, `index.php`, `storage.php`, `app/Auth/Passkeys.php`, `documents.php`, `update.php`, `app/Auth/PasskeyLogin.php`, `app/Auth/PasskeySetup.php`, `diagnostics/self_test.php`, and `diagnostics/copy-code.php`. Dynamic storage quota width was replaced with a native `<progress>` element; passkey status visibility now toggles a CSS class rather than setting inline styles from JavaScript.
+- The GitHub Actions immutable-SHA regression check is running in Gallery Security Checks and has passed in each recent run before the PHP tests.
+- Latest code head at this checklist update: `fa3cf7a378a8851de25c695bcaddf8712679694d`. Latest Gallery Security Checks run: [44454291813](https://github.com/Double-IQ/SentryIQ/actions/runs/44454291813), still running at time of update. The corrected repository-wide CSP test has not yet passed; continue fixing any remaining scan findings and do not remove `style-src 'unsafe-inline'` until the scan passes.
