@@ -446,6 +446,15 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - Remaining CSP work: inline `style=` attributes still exist in templates and `style-src 'unsafe-inline'` has therefore deliberately not been removed. This remains open; do not describe CSP hardening as fully complete.
 - No production deployment or live-host configuration change was performed.
 
+
+### Follow-up: immutable CI actions and inline-style cleanup
+
+- Added `tests/workflow_action_pinning.test.py`, wired into Gallery Security Checks. It scans all workflow YAML files and rejects third-party action references that are not full 40-character commit SHAs. Existing workflow dependencies were already SHA-pinned; the new test makes that a regression-enforced rule.
+- Extended the repository-wide CSP scan to detect inline `style=` attributes as well as inline executable scripts, event handlers and style blocks.
+- The stricter scan exposed actual inline styling in the First-Run page and System Log page. Replaced these with CSS classes and external stylesheets.
+- The scan also encountered HTML email markup embedded in `app/Auth/AuthFlow.php`; this is email content rather than a rendered page, so it is excluded from the page-template style scan alongside `private_data/email_template.php`.
+- Latest commit: `6a08920b821143f7d483c6a3737072e9dfede04b`. CI has been triggered; the Gallery Security workflow was still running when this entry was written. Earlier runs correctly failed on the newly detected inline styles before they were migrated. Do not mark this stricter CSP test as passing until the latest run completes.
+
 ## Working rules
 
 1. Complete Phase 1 audit items 3.1 through 6.5 sequentially, recording each item and its evidence before moving on; do not pause for user review after every audit item.
