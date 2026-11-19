@@ -54,6 +54,7 @@ jobs:
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: '8.4'
+          extensions: curl, zip
 
       - name: Lint PHP files
         shell: bash
@@ -74,6 +75,9 @@ jobs:
 
       - name: Test updater rollback safety
         run: php tests/update_rollback.test.php
+
+      - name: Exercise complete updater apply in an isolated workspace
+        run: php tests/update_apply_integration.test.php
 
       - name: Test updater release provenance and manifest
         run: php tests/update_release_provenance.test.php
