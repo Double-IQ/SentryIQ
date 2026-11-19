@@ -124,10 +124,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y apache2
           sudo a2enmod rewrite
-          apache_docroot="/tmp/sentryiq-apache-docroot"
-          mkdir -p "$apache_docroot"
-          cp -a "$GITHUB_WORKSPACE/." "$apache_docroot/"
-          chmod -R a+rX "$apache_docroot"
+          apache_docroot="/var/www/html/sentryiq-apache-test"
+          sudo mkdir -p "$apache_docroot"
+          sudo cp -a "$GITHUB_WORKSPACE/." "$apache_docroot/"
+          sudo chmod -R a+rX "$apache_docroot"
           sudo tee /etc/apache2/sites-available/000-default.conf >/dev/null <<EOF
           <VirtualHost *:80>
               DocumentRoot "$apache_docroot"
@@ -141,7 +141,10 @@ jobs:
           sudo apachectl configtest
           sudo apachectl start
           trap 'sudo apachectl stop || true' EXIT
-          bash tests/apache_rewrite_integration.sh
+          if ! bash tests/apache_rewrite_integration.sh; then
+            sudo tail -n 80 /var/log/apache2/error.log || true
+            exit 1
+          fi
 
       - name: Test write-capable diagnostics are CLI-only
         run: php tests/diagnostic_write_access.test.php
