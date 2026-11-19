@@ -545,3 +545,11 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
   - [Release Manifest Tests](https://github.com/Double-IQ/SentryIQ/actions/runs/44457996169) — passed.
   - [Release Attestation Verification](https://github.com/Double-IQ/SentryIQ/actions/runs/44457996208) — passed, including genuine published asset digest and Sigstore attestation verification.
 - This verifies updater backup copy integrity under the automated regression suite. It does not establish off-host disaster-recovery backups or a successful restore exercise; those remain open.
+
+
+### Follow-up: real Apache HTTP integration coverage added
+
+- Added `tests/apache_rewrite_integration.sh` to issue real HTTP requests against Apache and assert that direct requests to application source, query-suffixed protected directories, documentation, GitHub metadata, and Git metadata return HTTP 403 while the legacy `/pm_style.css` URL remains HTTP 200 through its internal rewrite.
+- Wired the integration script into Gallery Security Checks. The workflow installs Apache, enables `mod_rewrite`, serves the checked-out repository from an isolated CI virtual host with `AllowOverride All`, runs `apachectl configtest`, and executes the HTTP assertions.
+- Latest PR #56 head: `fbb9cf64dc0083ee33b41b3b82a2241666dfcf1a`. CI results are pending; do not claim runtime Apache integration verified until the new job passes on this exact head.
+- This is a disposable CI Apache instance, not the production host or its exact hosting configuration. Production deployment remains prohibited until provider-specific behavior is separately verified.
