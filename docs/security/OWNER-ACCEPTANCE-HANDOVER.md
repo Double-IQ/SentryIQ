@@ -55,18 +55,18 @@ This handover separates repository remediation from operational acceptance. It i
 
 Use the companion [Backup and Restore Runbook](backup-restore-runbook.md). It remains a procedure template until the steps below have actually been completed.
 
-- [ ] Approve an off-host destination in a separate infrastructure failure domain from the SentryIQ host.
+- [x] Select MEGA as the off-host destination (owner decision, 2026-11-19); account-reported capacity is 20 GB and still needs live quota/transfer verification. Selection does not mean configured or accepted.
 - [ ] Approve backup encryption and keep the encryption key separate from the archive, with named-administrator custody.
 - [ ] Approve recovery-point and recovery-time objectives and retention; do not assume unapproved retention periods.
 - [ ] Configure a scheduled, monitored backup covering the exact deployed application release/provenance, sensitive root configuration, the complete protected runtime data directory, and the matching encrypted B2 Gallery objects.
-- [ ] Ensure the destination has versioning or immutable retention where available and that the origin cannot silently overwrite every retained copy.
+- [ ] Document and explicitly accept MEGA's account-level deletion risk: unlike independently administered object-lock storage, a compromised MEGAcmd account session may delete retained backups. Use unique dated generations and a tested retention process; do not claim immutable retention.
 - [ ] Verify archive integrity after transfer.
 - [ ] Perform a restore to an isolated recovery host; do not overwrite production for the first exercise.
 - [ ] Verify the restored private path is outside the document root and permissions are restrictive.
 - [ ] Verify an authorised Vault recovery/decryption check and a Gallery object retrieval/decryption check without logging secrets or plaintext.
 - [ ] Record restore duration, recovery point/data-loss window, missing dependencies, and residual limitations.
 
-**Evidence to record:** destination class/provider (not credentials), schedule, retention, encryption/key-custody reference, archive checksum, source release SHA, backup result, restore date/result, and recovery measurements.
+**Evidence to record:** MEGA account quota/transfer capacity (not credentials), MEGAcmd version/session and persistent-server support, schedule, retention/deletion-risk acceptance, encryption/key-custody reference, archive checksum, source release SHA, backup result, restore date/result, and recovery measurements.
 
 ## 3. Production host acceptance — hosting administrator
 
