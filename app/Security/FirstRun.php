@@ -121,7 +121,7 @@ function first_run_direct_crypto_verify(string $password, string $dataFile): voi
 
 function first_run_cleanup(): bool
 {
-    $dir = dirname(__DIR__, 2) . '/private_data';
+    $dir = dirname(__DIR__, 2) . '/runtime';
     if (!is_dir($dir)) return true;
 
     foreach (['vault_engine.php', 'email_template.php', 'vault_icon_cache.php', 'VaultKdfPolicy.php'] as $name) {
@@ -145,7 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_first_run'])
     $password = (string)($_POST['setup_password'] ?? '');
     $confirm = (string)($_POST['setup_password_confirm'] ?? '');
 
-    $sourcePrivateDir = dirname(__DIR__, 2) . '/private_data';
+    $sourcePrivateDir = dirname(__DIR__, 2) . '/runtime';
     if ($directory === '') $error = 'SentryIQ secure storage is not configured by the hosting environment.';
     elseif (!preg_match('/^[A-Za-z0-9._-]{2,64}$/', $username)) $error = 'Please enter a valid administrator username.';
     elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) $error = 'Please enter a valid 2FA email address.';

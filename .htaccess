@@ -1,8 +1,9 @@
 RewriteEngine On
 
-# Prevent direct web access to private runtime templates and root configuration.
+# Prevent direct web access to packaged runtime templates and root configuration.
 # PHP include/require operations are unaffected by these request rewrite rules.
 RewriteRule ^private_data(?:/|$) - [F,L]
+RewriteRule ^runtime(?:/|$) - [F,L]
 RewriteRule ^(?:sentryiq_config\.php|auth_flow\.php|\.user\.ini)$ - [F,L]
 
 # Block direct HTTP requests to source, test, documentation, and VCS directories.
