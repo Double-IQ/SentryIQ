@@ -38,6 +38,32 @@ firstRunPathAssert(
     'Filesystem root must be rejected.'
 );
 
+$ownerToken = str_repeat('A', 43);
+firstRunPathAssert(
+    sentryiq_first_run_configured_install_token([], $ownerToken) === $ownerToken,
+    'A high-entropy URL-safe owner token should be accepted.'
+);
+firstRunPathAssert(
+    sentryiq_first_run_configured_install_token(['SENTRYIQ_INSTALL_TOKEN' => $ownerToken], '') === $ownerToken,
+    'The owner token should be accepted from the Apache/server environment.'
+);
+firstRunPathAssert(
+    sentryiq_first_run_configured_install_token([], 'short') === '',
+    'A short owner token must fail closed.'
+);
+firstRunPathAssert(
+    sentryiq_first_run_install_token_is_valid($ownerToken, $ownerToken),
+    'The exact owner token should validate.'
+);
+firstRunPathAssert(
+    !sentryiq_first_run_install_token_is_valid(str_repeat('B', 43), $ownerToken),
+    'A mismatched owner token must be rejected.'
+);
+firstRunPathAssert(
+    !sentryiq_first_run_install_token_is_valid($ownerToken, ''),
+    'Missing owner token configuration must fail closed.'
+);
+
 $fixture = sys_get_temp_dir() . '/sentryiq-first-run-' . bin2hex(random_bytes(6));
 $accountRoot = $fixture . '/account';
 $docRoot = $accountRoot . '/sentryiq.bichet.co.za';
