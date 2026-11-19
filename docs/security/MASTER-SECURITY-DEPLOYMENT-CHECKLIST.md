@@ -568,3 +568,10 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - The isolated Apache virtual host had `Options -Indexes`, which also disabled `FollowSymLinks`; Apache per-directory mod_rewrite requires `FollowSymLinks` or `SymLinksIfOwnerMatch`. The CI vhost now explicitly sets `Options +FollowSymLinks -Indexes`.
 - The HTTP test now checks the target CSS file directly (200) before checking the legacy alias (200), so a future failure distinguishes static file access from rewrite behavior.
 - Changes are on PR #56 at commits `91438da118c2dac087f86956c6cd812a6f4f5a61` and `3bed062750958d6f39752e376138397f2aa149af`; the new CI run is the required verification. This is a harness configuration diagnosis, not yet a confirmed passing result.
+
+
+### Apache integration harness: isolate authorization denial
+
+- The next diagnostic run showed the direct static CSS target itself returned 403, before the legacy rewrite assertion. Therefore the observed failure was not isolated to the legacy alias.
+- The CI harness now serves the copied repository from Apache's standard `/var/www/html/sentryiq-apache-test` location with an explicit matching `<Directory>` authorization/override block. If the HTTP checks fail, the workflow emits Apache's error log to identify the exact denial reason.
+- Harness correction commit: `1d572933e8353e6dcaeb00bfcfc71e9757bc07ec`. Re-run pending; the actual Apache HTTP test remains unverified.
