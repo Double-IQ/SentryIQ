@@ -36,6 +36,9 @@ If the bucket's versioning/lifecycle policy can permanently remove historical ve
 
 ## MEGA destination design
 
+Before any MEGA account setup on the production host, run `bash scripts/mega_host_preflight.sh` from a shell in a non-production context. It reports only OS/architecture, command presence, PHP CLI extensions/functions, MEGAcmd server process presence, and home-directory writability/free space. It does not log in, contact MEGA, inspect application data, or display account identity/secrets. Its output is capability evidence only; it does not prove that the MEGA account is authenticated, that remote quota is sufficient, or that an upload/restore works.
+
+
 MEGA is the selected off-site destination, using a dedicated SentryIQ backup folder in the owner's existing account. Keep the folder private: do not create public links, shared folders, or public exports for backup objects. MEGA's reported 20 GB capacity is owner-provided and must be verified in the account before relying on it. The complete encrypted backup set, retained generations, and available free-account transfer allowance must fit the actual account limits.
 
 - Use the official MEGAcmd command-line client for scripted server-side uploads (`mega-put`) only after validating that the production host's operating system and runtime support the installed MEGAcmd build. Upload only a finalized, immutable encrypted recovery-set file and its manifest; never point a remote sync at a live SentryIQ data directory.
