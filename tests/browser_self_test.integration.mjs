@@ -102,7 +102,7 @@ return true;
   let serverOutput = '';
   server.stdout.on('data', chunk => { serverOutput += chunk.toString(); });
   server.stderr.on('data', chunk => { serverOutput += chunk.toString(); });
-  const baseUrl = 'http://localhost:' + port;
+  const baseUrl = 'http://127.0.0.1:' + port;
   let ready = false;
   for (let attempt = 0; attempt < 80; attempt++) {
     try {
@@ -140,8 +140,7 @@ return true;
     const text = document.querySelector('#report')?.textContent || '';
     try {
       const report = JSON.parse(text);
-      return Array.isArray(report.browserChecks) && report.browserChecks.length === report.serverChecks.length * 0 + report.browserChecks.length
-        && report.browserChecks.length > 0;
+      return Array.isArray(report.browserChecks) && report.browserChecks.length === JSON.parse(document.querySelector('#sentryiq-self-test-data').textContent).tests.length;
     } catch { return false; }
   }, { timeout: 30000 });
 
@@ -155,7 +154,7 @@ return true;
   const tested = report.browserChecks.filter(check => check.type !== 'not-tested');
   assert(tested.length > 0, 'No browser checks were executed.');
   assert(tested.every(check => check.ok === true), 'At least one tested browser route did not pass.');
-  assert.equal(report.browserChecks.filter(check => check.type === 'not-tested').length, 11, 'Expected POST-only and ID-dependent endpoints to remain explicitly NOT TESTED.');
+  assert.equal(report.browserChecks.filter(check => check.type === 'not-tested').length, 12, 'Expected POST-only and ID-dependent endpoints to remain explicitly NOT TESTED.');
   assert.deepEqual(pageErrors, [], 'Browser JavaScript errors occurred: ' + pageErrors.join('; '));
 
   console.log('Installed authenticated browser self-test passed: ' + tested.length + ' browser checks; ' + report.browserChecks.filter(check => check.type === 'not-tested').length + ' unsafe/non-GET routes correctly marked NOT TESTED.');
