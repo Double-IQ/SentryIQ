@@ -112,7 +112,7 @@ try {
         [
             'target_origin' => $origin,
             'manifest_sha256' => $manifest,
-            'checked_paths' => ['index.php', 'assets/app.js'],
+            'checked_paths' => ['index.php', 'assets/app.js', '@origin-headers', '@private-host-attestation'],
             'mismatches' => [],
         ]
     );
@@ -175,7 +175,7 @@ try {
         [
             'target_origin' => $origin,
             'manifest_sha256' => str_repeat('e', 64),
-            'checked_paths' => ['index.php'],
+            'checked_paths' => ['index.php', '@origin-headers', '@private-host-attestation'],
             'mismatches' => [],
         ]
     );
@@ -198,6 +198,36 @@ try {
     storeAssert(count($store->pendingAlerts()) === 0, 'Delivered alerts must leave the pending outbox.');
     $cooldownDuplicate = $store->queueAlert($incident);
     storeAssert($cooldownDuplicate['created'] === false, 'Recently delivered incidents must be suppressed during the alert cooldown.');
+
+    $statePath = $directory . DIRECTORY_SEPARATOR . 'integrity-events.json';
+    $retentionState = $store->snapshot();
+    $retentionNow = time();
+    $retentionState['challenges']['expired-test'] = ['expires_at' => $retentionNow - 1];
+    $retentionState['challenges']['active-test'] = ['expires_at' => $retentionNow + 120];
+    $retentionState['reports']['old-test'] = ['accepted_at' => $retentionNow - 8 * 86400];
+    $retentionState['reports']['recent-test'] = ['accepted_at' => $retentionNow - 60];
+    $retentionState['alerts']['old-delivered-test'] = [
+        'status' => 'delivered',
+        'delivered_at' => $retentionNow - 31 * 86400,
+    ];
+    $retentionState['alerts']['pending-test'] = [
+        'status' => 'pending',
+        'created_at' => $retentionNow - 31 * 86400,
+        'last_seen' => $retentionNow - 31 * 86400,
+        'occurrences' => 1,
+    ];
+    file_put_contents($statePath, json_encode($retentionState, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+    chmod($statePath, 0600);
+    $pruned = $store->pruneRetention($retentionNow);
+    storeAssert($pruned === ['challenges' => 1, 'reports' => 1, 'alerts' => 1],
+        'Node 4 retention must prune expired challenges, reports older than seven days and delivered alerts older than thirty days.');
+    $afterPrune = $store->snapshot();
+    storeAssert(isset($afterPrune['challenges']['active-test']) && !isset($afterPrune['challenges']['expired-test']),
+        'Retention must preserve live challenges and remove expired challenges.');
+    storeAssert(isset($afterPrune['reports']['recent-test']) && !isset($afterPrune['reports']['old-test']),
+        'Retention must preserve recent evidence and remove reports older than seven days.');
+    storeAssert(isset($afterPrune['alerts']['pending-test']) && !isset($afterPrune['alerts']['old-delivered-test']),
+        'Retention must never discard pending alerts but must remove old delivered alerts.');
 } finally {
     $iterator = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
