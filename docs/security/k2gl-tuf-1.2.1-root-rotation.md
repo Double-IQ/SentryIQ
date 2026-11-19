@@ -41,7 +41,7 @@ composer cs
 
 The companion GitHub Actions workflow checks the patch against the pinned
 upstream revision across PHP 8.1–8.5. The latest pull-request run
-[43580059384](https://github.com/Double-IQ/SentryIQ/actions/runs/43580059384)
+[44551369561](https://github.com/Double-IQ/SentryIQ/actions/runs/44551369561)
 passed all five PHP matrix jobs, including Composer validation/install,
 PHPUnit, PHPStan, and coding standards.
 
