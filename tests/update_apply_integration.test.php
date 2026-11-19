@@ -56,6 +56,9 @@ try {
     applyWrite($app . '/VERSION', '1.2.2');
     applyWrite($app . '/index.php', '<?php echo "old-release";');
     applyWrite($data . '/email_template.php', '<?php return "old-email-template";');
+    applyWrite($data . '/vault_engine.php', '<?php return "old-vault-engine";');
+    applyWrite($data . '/vault_icon_cache.php', '<?php return "old-icon-cache";');
+    applyWrite($data . '/VaultKdfPolicy.php', '<?php return "old-kdf-policy";');
 
     $version = '1.2.3';
     $commit = str_repeat('c', 40);
@@ -63,6 +66,9 @@ try {
         'VERSION' => $version,
         'index.php' => '<?php echo "new-release";',
         'runtime/email_template.php' => '<?php return "new-email-template";',
+        'runtime/vault_engine.php' => '<?php return "new-vault-engine";',
+        'runtime/vault_icon_cache.php' => '<?php return "new-icon-cache";',
+        'runtime/VaultKdfPolicy.php' => '<?php return "new-kdf-policy";',
     ];
 
     $entries = [];
