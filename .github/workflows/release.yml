@@ -91,4 +91,4 @@ jobs:
           # A release tag/version is single-use. Never replace assets on an
           # existing release: doing so would invalidate previously verified
           # checksums and attestations while retaining the same version tag.
-          gh release create "v${VERSION}" "${ASSETS[@]}" --title "SentryIQ ${VERSION}" --generate-notes
+          gh release create "v${VERSION}" "${ASSETS[@]}" --verify-tag --title "SentryIQ ${VERSION}" --generate-notes
