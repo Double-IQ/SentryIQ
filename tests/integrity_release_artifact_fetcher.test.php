@@ -57,10 +57,57 @@ try {
     }
     if (!$webrootRejected) throw new RuntimeException('Fetcher must reject staging inside the public webroot.');
 
+    $privateRoot = $root . '/private';
+    $releaseRoot = $privateRoot . '/integrity-releases';
+    mkdir($privateRoot, 0700);
+    mkdir($releaseRoot, 0700);
+    foreach (['1.2.0', '1.2.1', '1.2.2', '1.2.3'] as $version) {
+        $versionDirectory = $releaseRoot . '/' . $version;
+        mkdir($versionDirectory, 0700);
+        $manifestPath = $versionDirectory . '/release-manifest.json';
+        $artifactPath = $versionDirectory . '/sentryiq-' . $version . '.zip';
+        file_put_contents($manifestPath, json_encode(['version' => $version], JSON_THROW_ON_ERROR));
+        file_put_contents($artifactPath, 'test-zip-' . $version);
+        chmod($manifestPath, 0600);
+        chmod($artifactPath, 0600);
+        $cache = [
+            'schema_version' => 1,
+            'version' => $version,
+            'manifest_sha256' => hash_file('sha256', $manifestPath),
+            'artifact_sha256' => hash_file('sha256', $artifactPath),
+        ];
+        file_put_contents($versionDirectory . '/.integrity-cache.json', json_encode($cache, JSON_THROW_ON_ERROR) . "\n");
+        chmod($versionDirectory . '/.integrity-cache.json', 0600);
+    }
+    $cached = $fetcher->fetch('1.2.3', $releaseRoot . '/1.2.3', $publicRoot);
+    if (file_get_contents($cached['artifact_path']) !== 'test-zip-1.2.3') {
+        throw new RuntimeException('Fetcher must reuse a complete private cache without downloading the same release every run.');
+    }
+    if (is_dir($releaseRoot . '/1.2.0') || !is_dir($releaseRoot . '/1.2.1')
+        || !is_dir($releaseRoot . '/1.2.2') || !is_dir($releaseRoot . '/1.2.3')) {
+        throw new RuntimeException('Fetcher must retain the current and two most recent release caches only.');
+    }
+    file_put_contents($cached['artifact_path'], 'corrupted');
+    $cacheMethod = new ReflectionMethod(IntegrityReleaseArtifactFetcher::class, 'isReusableCache');
+    $cacheMethod->setAccessible(true);
+    $cacheValid = $cacheMethod->invoke(
+        $fetcher,
+        '1.2.3',
+        $cached['manifest_path'],
+        $cached['artifact_path'],
+        dirname($cached['artifact_path']) . '/.integrity-cache.json'
+    );
+    if ($cacheValid !== false) throw new RuntimeException('Fetcher must not reuse a cache whose artifact digest changed.');
+
     echo "Integrity release artifact fetcher tests passed.\n";
 } finally {
-    @rmdir($root . '/linked');
-    @rmdir($root . '/real');
-    @rmdir($publicRoot);
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($iterator as $item) {
+        if ($item->isDir() && !$item->isLink()) @rmdir($item->getPathname());
+        else @unlink($item->getPathname());
+    }
     @rmdir($root);
 }
