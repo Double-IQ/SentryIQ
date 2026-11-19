@@ -553,3 +553,10 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - Wired the integration script into Gallery Security Checks. The workflow installs Apache, enables `mod_rewrite`, serves the checked-out repository from an isolated CI virtual host with `AllowOverride All`, runs `apachectl configtest`, and executes the HTTP assertions.
 - Latest PR #56 head: `fbb9cf64dc0083ee33b41b3b82a2241666dfcf1a`. CI results are pending; do not claim runtime Apache integration verified until the new job passes on this exact head.
 - This is a disposable CI Apache instance, not the production host or its exact hosting configuration. Production deployment remains prohibited until provider-specific behavior is separately verified.
+
+
+### Apache integration test finding and harness correction
+
+- First real Apache run on `fbb9cf64dc0083ee33b41b3b82a2241666dfcf1a` confirmed all five protected URL cases returned HTTP 403, but the legacy asset compatibility assertion returned 403 instead of expected 200. This means the integration test correctly caught a failure in the test environment, but did not yet establish a product rewrite regression.
+- Inspection of the job log showed the Apache document root was the GitHub runner workspace under `/home/runner/work`; Apache could not traverse that parent path to serve ordinary assets. The harness now copies the checkout to `/tmp/sentryiq-apache-docroot`, grants read/traverse permissions to the disposable test copy, and points Apache at that isolated path.
+- Corrected harness commit: `1fdaa0c87775c88230b57e32ab75531d118dd815`. Re-run required. Until the new HTTP test passes, legacy rewrite compatibility remains unverified.
