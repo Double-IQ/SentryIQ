@@ -597,3 +597,11 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
 - Extended the real HTTP integration test to reject percent-encoded protected path variants, including encoded leading directory characters, encoded path separators, and encoded `.git` names. The assertions require a non-2xx response so Apache may legitimately reject encoded separators with 400/404 while still preventing access.
 - Added a query-suffixed `/docs?probe=1` denial assertion as well.
 - Test-only commit: `f9843adbbd17e3a3a018757720f1deba84ba0428`. CI must pass on this exact head before these additional cases are considered verified. If any encoded form returns 2xx, treat it as a real path-normalization finding and fix the access rule rather than weakening the test.
+
+
+### Encoded-path finding: remediation committed, verification pending
+
+- The expanded Apache integration test reproduced a real bypass: `/%61pp/Security/SecurityBootstrap.php` returned HTTP 200 even though the unencoded `/app/...` path returned 403. The existing guard inspected raw `THE_REQUEST`, so percent-encoded directory characters escaped its match.
+- Replaced the raw-request guard with a per-directory `RewriteRule` matching Apache's normalized path. To preserve the 22 legacy public endpoint rewrites into `app/`, those internal rewrite rules now use Apache 2.4's `[END]` flag so their targets are not reprocessed by the direct-request denial rule.
+- Updated `tests/deployment_hardening.test.php` to assert the normalized-path guard and all 22 [END] legacy application rewrites. The live Apache integration tests now cover encoded first characters, encoded separators, and encoded `.git` names.
+- Fix commit: `7e2bbe1073e31cedd42ec4a28c19bbfd3670d26f`; source-test commit: `0b9470227f26ab49ff2abf68a98add8e817e28c6`. Awaiting exact-head CI. Apache 2.4.8+ is required for [END]; confirm production host version before deployment.
