@@ -518,7 +518,7 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
   - [Release Attestation Verification](https://github.com/Double-IQ/SentryIQ/actions/runs/44455532403) — passed.
 - These are source/CI results only. Production runtime CSP, browser behavior, updater operation against a newly signed release, and deployment remain unverified and must be tested in a controlled deployment window.
 - This entry supersedes the earlier notes above stating that inline style attributes remained and that `style-src 'unsafe-inline'` had not yet been removed. Those statements described earlier commits and are no longer current.
-- PR #56 remains open and unmerged. No production deployment, DNS, credential, or live-host configuration changes were made.
+- PR #56 was merged on 2026-11-19; see the merge record above. No production deployment, DNS, credential, or live-host configuration changes were made.
 
 
 ### Follow-up: strict CSP and direct source-directory denial — latest CI verified
