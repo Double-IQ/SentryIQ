@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Updates/TufRootStore.php';
 
-use SentryIQ\\Updates\\TufRootStore;
+use SentryIQ\Updates\TufRootStore;
 
 if ($argc !== 3) {
-    fwrite(STDERR, "Usage: php tuf_root_store_process.php <write|read> <private-directory>\\n");
+    fwrite(STDERR, "Usage: php tuf_root_store_process.php <write|read> <private-directory>\n");
     exit(2);
 }
 [, $action, $directory] = $argv;
@@ -16,17 +16,17 @@ $store = new TufRootStore($directory);
 
 if ($action === 'write') {
     $store->storeVerifiedRoot($expected);
-    echo "writer process persisted root\\n";
+    echo "writer process persisted root\n";
     exit(0);
 }
 if ($action === 'read') {
     if ($store->load() !== $expected) {
-        fwrite(STDERR, "A fresh PHP process did not reload the exact persisted root.\\n");
+        fwrite(STDERR, "A fresh PHP process did not reload the exact persisted root.\n");
         exit(1);
     }
-    echo "fresh reader process reloaded exact root bytes\\n";
+    echo "fresh reader process reloaded exact root bytes\n";
     exit(0);
 }
-fwrite(STDERR, "Unknown action.\\n");
+fwrite(STDERR, "Unknown action.\n");
 exit(2);
 }
