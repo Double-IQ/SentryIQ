@@ -72,6 +72,7 @@ foreach ($iterator as $file) {
     }
     cspCheck(preg_match('/<[a-z][^>]*\\son[a-z]+\\s*=/i', $source) !== 1, 'Inline event handler remains in ' . $relativePath);
     cspCheck(preg_match('/<style\\b/i', $source) !== 1, 'Inline style block remains in ' . $relativePath);
+    cspCheck(preg_match('/<[a-z][^>]*\\sstyle\\s*=/i', $source) !== 1, 'Inline style attribute remains in ' . $relativePath);
 }
 $cspFiles = [
     'app/Security/SecurityBootstrap.php',
