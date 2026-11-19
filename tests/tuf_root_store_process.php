@@ -29,4 +29,3 @@ if ($action === 'read') {
 }
 fwrite(STDERR, "Unknown action.\n");
 exit(2);
-}
