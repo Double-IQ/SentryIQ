@@ -27,53 +27,29 @@ jobs:
           TAG="${GITHUB_REF_NAME#v}"
           VERSION="$(tr -d '\r\n' < VERSION)"
           test "$TAG" = "$VERSION"
-          # This workflow publishes stable releases only. The updater's
-          # latest-release path intentionally rejects prereleases.
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
 
-      - name: Build package and canonical inventory manifest
+      - name: Build release package and canonical inventory
         shell: bash
         run: |
           set -euo pipefail
           VERSION="$(tr -d '\r\n' < VERSION)"
-          PACKAGE="sentryiq-${VERSION}.zip"
-          WORK="release-root"
-          rm -rf "$WORK"
-          mkdir -p "$WORK"
-          git archive --format=tar.gz "$GITHUB_REF_NAME" | tar -xz -C "$WORK"
-          rm -rf "$WORK/private_data" "$WORK/.git" "$WORK/.github"
-          mkdir -p "$WORK/runtime"
-          cp private_data/vault_engine.php "$WORK/runtime/vault_engine.php"
-          cp private_data/email_template.php "$WORK/runtime/email_template.php"
-          cp private_data/vault_icon_cache.php "$WORK/runtime/vault_icon_cache.php"
-          cp private_data/VaultKdfPolicy.php "$WORK/runtime/VaultKdfPolicy.php"
-
-          python3 scripts/build-release-manifest.py \
-            --root "$WORK" \
-            --version "$VERSION" \
-            --commit "$GITHUB_SHA" \
-            --repository "$GITHUB_REPOSITORY" \
-            --repository-id "1345956206" \
-            --workflow-path ".github/workflows/release.yml" \
-            --output "$WORK/update-manifest.json"
-
-          cp "$WORK/update-manifest.json" release-manifest.json
-          (
-            cd "$WORK"
-            zip -qr "../$PACKAGE" .
-          )
-          sha256sum "$PACKAGE" > "$PACKAGE.sha256"
-          sha256sum release-manifest.json > release-manifest.json.sha256
+          bash scripts/build-release-package.sh \
+            "$VERSION" "$GITHUB_SHA" "$GITHUB_REPOSITORY" "1345956206" \
+            ".github/workflows/release.yml" "$GITHUB_REF_NAME" "release-output"
 
       - name: Test canonical release manifest builder
         run: python3 tests/build_release_manifest.test.py
+
+      - name: Validate complete release package
+        run: python3 tests/release_package.test.py --dist release-output --version "$(tr -d '\r\n' < VERSION)"
 
       - name: Attest release package and inventory manifest provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
-            sentryiq-*.zip
-            release-manifest.json
+            release-output/sentryiq-*.zip
+            release-output/release-manifest.json
 
       - name: Publish GitHub release
         env:
@@ -83,12 +59,9 @@ jobs:
           set -euo pipefail
           VERSION="$(tr -d '\r\n' < VERSION)"
           ASSETS=(
-            "sentryiq-${VERSION}.zip"
-            "sentryiq-${VERSION}.zip.sha256"
-            "release-manifest.json"
-            "release-manifest.json.sha256"
+            "release-output/sentryiq-${VERSION}.zip"
+            "release-output/sentryiq-${VERSION}.zip.sha256"
+            "release-output/release-manifest.json"
+            "release-output/release-manifest.json.sha256"
           )
-          # A release tag/version is single-use. Never replace assets on an
-          # existing release: doing so would invalidate previously verified
-          # checksums and attestations while retaining the same version tag.
           gh release create "v${VERSION}" "${ASSETS[@]}" --verify-tag --title "SentryIQ ${VERSION}" --generate-notes
