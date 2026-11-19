@@ -50,7 +50,6 @@ final class UpdateManager
             throw new RuntimeException('SentryIQ secure data directory must resolve outside the public web root.');
         }
         $this->attestationVerifier = $attestationVerifier;
-        $this->sigstoreAutoloadPath = null;
         if ($sigstoreAutoloadPath !== null && $sigstoreAutoloadPath !== '') {
             $realDataDirectory = realpath($this->dataDir);
             $realAutoloadPath = realpath($sigstoreAutoloadPath);
@@ -61,6 +60,8 @@ final class UpdateManager
                 throw new RuntimeException('Native Sigstore Composer dependencies must be a canonical file inside the private data directory.');
             }
             $this->sigstoreAutoloadPath = $realAutoloadPath;
+        } else {
+            $this->sigstoreAutoloadPath = null;
         }
         $this->httpJsonRunner = $httpJsonRunner;
         $this->downloadRunner = $downloadRunner;
@@ -595,7 +596,7 @@ final class UpdateManager
         }
         try {
             $data = json_decode($body, true, 64, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException $exception) {
+        } catch (\JsonException $exception) {
             throw new RuntimeException('GitHub returned invalid release JSON.', 0, $exception);
         }
         if (!is_array($data)) throw new RuntimeException('GitHub returned an invalid release response.');
