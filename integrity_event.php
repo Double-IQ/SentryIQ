@@ -36,14 +36,22 @@ function integrityEventRespond(int $status, array $body): never
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     integrityEventRespond(405, ['status' => 'error', 'message' => 'POST required.']);
 }
-if (empty($_SERVER['HTTPS']) || strtolower((string)$_SERVER['HTTPS']) === 'off') {
+if (!in_array(strtolower((string)($_SERVER['HTTPS'] ?? '')), ['on', '1', 'https'], true)) {
     integrityEventRespond(400, ['status' => 'error', 'message' => 'HTTPS is required.']);
+}
+$host = strtolower(trim((string)($_SERVER['HTTP_HOST'] ?? '')));
+if (!in_array($host, ['sentryiq.bichet.co.za', 'sentryiq.bichet.co.za:443'], true)) {
+    integrityEventRespond(400, ['status' => 'error', 'message' => 'Canonical Host header is required.']);
 }
 $contentType = strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''))[0]));
 if ($contentType !== 'application/json') {
     integrityEventRespond(415, ['status' => 'error', 'message' => 'application/json required.']);
 }
-$contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+$contentLengthRaw = (string)($_SERVER['CONTENT_LENGTH'] ?? '');
+if (!preg_match('/^[0-9]{1,5}$/', $contentLengthRaw)) {
+    integrityEventRespond(413, ['status' => 'error', 'message' => 'Request size is invalid.']);
+}
+$contentLength = (int)$contentLengthRaw;
 if ($contentLength < 1 || $contentLength > 32768) {
     integrityEventRespond(413, ['status' => 'error', 'message' => 'Request size is invalid.']);
 }
@@ -67,8 +75,8 @@ if (!is_array($eventConfig) || ($eventConfig['enabled'] ?? false) !== true
     integrityEventRespond(503, ['status' => 'error', 'message' => 'Node 4 event service is not configured.']);
 }
 
-$body = file_get_contents('php://input');
-if (!is_string($body) || strlen($body) !== $contentLength || $body === '') {
+$body = file_get_contents('php://input', false, null, 0, 32769);
+if (!is_string($body) || strlen($body) > 32768 || strlen($body) !== $contentLength || $body === '') {
     integrityEventRespond(400, ['status' => 'error', 'message' => 'Request body could not be read.']);
 }
 try {
@@ -134,8 +142,10 @@ try {
         $authenticated = false;
         $signedNodeId = null;
         if (is_string($envelope)) {
+            SentryIQ\\Updates\\IntegrityEventRequestDecoder::assertNoDuplicateObjectKeys($envelope);
             $outer = json_decode($envelope, true);
             $raw = is_array($outer) ? base64_decode((string)($outer['payload'] ?? ''), true) : false;
+            if (is_string($raw)) SentryIQ\\Updates\\IntegrityEventRequestDecoder::assertNoDuplicateObjectKeys($raw);
             $signedPayload = is_string($raw) ? json_decode($raw, true) : null;
             $signedNodeId = is_array($signedPayload) ? ($signedPayload['node_id'] ?? null) : null;
         }
