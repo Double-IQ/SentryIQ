@@ -35,9 +35,14 @@ final class NativeSigstoreReleaseVerifier implements ReleaseArtifactVerifier
     private const TUF_VERSION = '1.2.1';
 
     private readonly TufRootStore $rootStore;
+    private ?string $githubApiToken = null;
 
-    public function __construct(string $vendorAutoloadPath, string $privateDataDirectory)
+    public function __construct(string $vendorAutoloadPath, string $privateDataDirectory, ?string $githubApiToken = null)
     {
+        if ($githubApiToken !== null && preg_match('/^[A-Za-z0-9_]{20,255}$/', $githubApiToken) !== 1) {
+            throw new RuntimeException('Optional GitHub API token has an invalid format.');
+        }
+        $this->githubApiToken = $githubApiToken;
         if ($vendorAutoloadPath === '' || !str_starts_with($vendorAutoloadPath, '/')
             || is_link($vendorAutoloadPath) || !is_file($vendorAutoloadPath) || !is_readable($vendorAutoloadPath)) {
             throw new RuntimeException('A readable private Sigstore Composer autoload.php path is required.');
@@ -276,6 +281,12 @@ final class NativeSigstoreReleaseVerifier implements ReleaseArtifactVerifier
         $body = '';
         $ch = curl_init($url);
         if ($ch === false) throw new RuntimeException('Unable to initialize HTTPS attestation request.');
+        $headers = $hostType === 'api'
+            ? ['Accept: application/vnd.github+json', 'X-GitHub-Api-Version: 2026-03-10', 'User-Agent: SentryIQ-Updater/1.0']
+            : ['Accept: application/json', 'User-Agent: SentryIQ-Updater/1.0'];
+        if ($hostType === 'api' && $this->githubApiToken !== null) {
+            $headers[] = 'Authorization: Bearer ' . $this->githubApiToken;
+        }
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => false,
             CURLOPT_FOLLOWLOCATION => false,
@@ -285,9 +296,7 @@ final class NativeSigstoreReleaseVerifier implements ReleaseArtifactVerifier
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
-            CURLOPT_HTTPHEADER => $hostType === 'api'
-                ? ['Accept: application/vnd.github+json', 'X-GitHub-Api-Version: 2026-03-10', 'User-Agent: SentryIQ-Updater/1.0']
-                : ['Accept: application/json', 'User-Agent: SentryIQ-Updater/1.0'],
+            CURLOPT_HTTPHEADER => $headers,
             CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use (&$body, $maximumBytes): int {
                 if (strlen($body) + strlen($chunk) > $maximumBytes) {
                     return 0;
