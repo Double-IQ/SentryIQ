@@ -8,14 +8,14 @@ This handover separates repository remediation from operational acceptance. It i
 
 ## 0. Preconditions and change boundary
 
-- [ ] Review the consolidated security changes in [PR #56](https://github.com/Double-IQ/SentryIQ/pull/56).
-- [ ] Review the master tracker in [PR #54](https://github.com/Double-IQ/SentryIQ/pull/54).
-- [ ] Confirm the exact PR head and its required CI checks immediately before approval/merge; do not rely on an older run if the PR head changes.
+- [x] Consolidated security remediation [PR #56](https://github.com/Double-IQ/SentryIQ/pull/56) merged on 2026-11-19 as `b413b1ebf1204972e84a0994c19f05079c9efcde`.
+- [x] Master checklist and this handover [PR #54](https://github.com/Double-IQ/SentryIQ/pull/54) merged on 2026-11-19 as `fd4ff7a6236e60df6fb84e178693ed91bc1f695e`.
+- [x] Post-merge checks on `main` commit `fd4ff7a6236e60df6fb84e178693ed91bc1f695e`: PHP Syntax Check and Gallery Security Checks passed (runs `44466000329` and `44466000270`). Release Attestation Verification has not yet been confirmed on this exact merge commit.
 - [ ] Confirm a maintenance window and rollback contact before any production change.
 - [ ] Confirm the production administrator has a current, verified recovery path before changing the application or host.
 - [ ] Record approval for each production change in the normal change-management system.
 
-**Do not merge, deploy, publish a release, change DNS, rotate credentials, or alter production hosting solely because this handover exists.** PR #56 and PR #54 remain open pending review/approval.
+**Merge stage is complete. Do not deploy, publish a release, change DNS, rotate credentials, or alter production hosting solely because this handover exists.** The merges do not constitute production acceptance or deployment.
 
 ## 1. GitHub repository controls — repository administrator
 
@@ -25,7 +25,7 @@ This handover separates repository remediation from operational acceptance. It i
 - [ ] Require pull requests before merging.
 - [ ] Require at least one approving review and dismiss stale approvals when new commits are pushed.
 - [ ] Require Code Owner review.
-- [ ] Require the four current CI workflows/checks: PHP Syntax Check, Gallery Security Checks, Release Manifest Tests, and Release Attestation Verification. Confirm the exact check names exposed by GitHub on the current PR before selecting them.
+- [ ] Require these exact GitHub Actions job status checks (job/check names, not workflow display names): `php-lint`, `gallery-security`, `release-manifest`, and `Verify release attestation and dual-node report contract`. Reconfirm the names in GitHub's protection UI when configuring the rule.
 - [ ] Require branches to be up to date before merging, if compatible with the team's workflow.
 - [ ] Block force pushes and branch deletion.
 - [ ] Apply protections to administrators unless an explicitly documented emergency bypass is approved.
@@ -100,8 +100,10 @@ Complete only against the actual production host, with a maintenance/change reco
 
 ## 5. Release and updater readiness
 
+- [x] [PR #63](https://github.com/Double-IQ/SentryIQ/pull/63) merged as `894f05ac1f4063399ea17df23bc79ea32327bbbf`; it prevents overwriting existing release assets, rejects prerelease tags from the stable release workflow, and requires the existing tag. Post-merge PHP Syntax Check ([44467440693](https://github.com/Double-IQ/SentryIQ/actions/runs/44467440693)), Gallery Security Checks ([44467440690](https://github.com/Double-IQ/SentryIQ/actions/runs/44467440690)), and Release Manifest Tests ([44467440706](https://github.com/Double-IQ/SentryIQ/actions/runs/44467440706)) all passed.
+- [ ] Review/merge [PR #64](https://github.com/Double-IQ/SentryIQ/pull/64) to set `VERSION` to `0.1.3`; this only prepares the next release and does not publish it.
 - [ ] Do not use the previously published v0.1.2 release for the new updater path: it predates the required embedded canonical manifest and KDF runtime policy.
-- [ ] After PR #56 is reviewed and merged, generate a new release using the repository's updated release workflow.
+- [ ] Generate a new release from the merged `main` source using the updated release workflow; PR #56 is already merged.
 - [ ] Verify the new release ZIP checksum and genuine GitHub Sigstore attestation/provenance against the expected repository, workflow, ref, and commit.
 - [ ] Verify the embedded canonical manifest covers the expected release inventory.
 - [ ] Confirm release-tag immutability is active before publishing.
@@ -133,7 +135,7 @@ Keep this section free of secrets.
 | Off-host backup + restore | Production/storage administrator | Pending | | |
 | Production host acceptance | Hosting administrator | Pending | | |
 | B2 acceptance | Storage administrator | Pending | | |
-| New signed release + updater validation | Release/hosting administrator | Blocked pending merge and owner gates | | |
+| New signed release + updater validation | Release/hosting administrator | Blocked pending owner gates and new release | | |
 | Four-node deployment | Project owner/operations | Blocked pending all preceding gates | | |
 
 **Security rule:** never mark a gate passed based only on a configuration intention, source-code change, or CI run. Record the observed result and evidence reference.
