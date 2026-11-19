@@ -60,7 +60,7 @@ try {
         'A symlinked nonce lock file must be rejected.'
     );
 
-    echo "Private host attestation nonce store tests passed.\\n";
+    echo "Private host attestation nonce store tests passed.\n";
 } finally {
     if (is_link($statePath) || is_file($statePath)) @unlink($statePath);
     if (is_link($lockPath) || is_file($lockPath)) @unlink($lockPath);
