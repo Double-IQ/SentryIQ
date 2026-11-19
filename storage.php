@@ -384,13 +384,13 @@ $csrf = sentryiq_csrf_token();
         </form>
     </div>
 
-    <div style="width:100%;margin:16px 0;">
-        <a href="index.php?pane=settings" class="btn" style="text-decoration:none;">← System Settings</a>
+    <div class="storage-back-wrap">
+        <a href="index.php?pane=settings" class="btn storage-back-link">← System Settings</a>
     </div>
 
     <div class="form-box">
-        <h2 style="margin-top:0;">💾 Storage</h2>
-        <p style="margin-top:0;color:#697586;">Current SentryIQ storage usage together with the disk quota assigned to this cPanel account.</p>
+        <h2 class="storage-title">💾 Storage</h2>
+        <p class="storage-description">Current SentryIQ storage usage together with the disk quota assigned to this cPanel account.</p>
 
         <section class="storage-section">
             <h3>cPanel Account Quota</h3>
@@ -432,16 +432,14 @@ $csrf = sentryiq_csrf_token();
                 </div>
 
                 <?php if (!$quota['unlimited']): ?>
-                    <div class="storage-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?php echo htmlspecialchars(number_format((float)$quotaPercent, 1, '.', ''), ENT_QUOTES, 'UTF-8'); ?>" aria-label="cPanel storage usage">
-                        <div class="storage-progress-bar" style="width:<?php echo htmlspecialchars(number_format((float)$quotaPercent, 2, '.', ''), ENT_QUOTES, 'UTF-8'); ?>%;"></div>
-                    </div>
+                    <progress class="storage-progress" value="<?php echo htmlspecialchars(number_format((float)$quotaPercent, 2, '.', ''), ENT_QUOTES, 'UTF-8'); ?>" max="100" aria-label="cPanel storage usage"><?php echo htmlspecialchars(number_format((float)$quotaPercent, 1), ENT_QUOTES, 'UTF-8'); ?>%</progress>
                 <?php endif; ?>
             <?php endif; ?>
         </section>
 
         <section class="storage-section">
             <h3>SentryIQ Folder Usage</h3>
-            <p class="storage-muted" style="margin-top:0;">Folder sizes are calculated from files accessible to the SentryIQ account. Private vault data remains outside the public web root.</p>
+            <p class="storage-muted storage-folder-note">Folder sizes are calculated from files accessible to the SentryIQ account. Private vault data remains outside the public web root.</p>
 
             <div class="storage-list">
                 <div class="storage-row">
