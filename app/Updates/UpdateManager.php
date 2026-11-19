@@ -733,12 +733,60 @@ final class UpdateManager
         $zip = new ZipArchive();
         if ($zip->open($zipPath) !== true) throw new RuntimeException('Unable to open the SentryIQ update package.');
         try {
+            if ($zip->numFiles < 1 || $zip->numFiles > self::MAX_ARCHIVE_ENTRIES) {
+                throw new RuntimeException('The update package contains an invalid number of entries.');
+            }
+
+            $seen = [];
+            $totalUncompressedBytes = 0;
             for ($i = 0; $i < $zip->numFiles; $i++) {
                 $entry = $zip->getNameIndex($i);
-                if (!is_string($entry) || $entry === '' || str_starts_with($entry, '/') || str_contains(str_replace('\\', '/', $entry), '../')) {
-                    throw new RuntimeException('The update package contains an invalid path.');
+                $stat = $zip->statIndex($i);
+                if (!is_string($entry) || $entry === '' || strlen($entry) > 1024 || !is_array($stat)
+                    || !isset($stat['size']) || !is_int($stat['size']) || $stat['size'] < 0) {
+                    throw new RuntimeException('The update package contains an invalid entry.');
+                }
+
+                $normalized = str_replace('\\\\', '/', $entry);
+                $isDirectoryByName = str_ends_with($normalized, '/');
+                $trimmed = $isDirectoryByName ? rtrim($normalized, '/') : $normalized;
+                $segments = explode('/', $trimmed);
+                if ($trimmed === '' || str_starts_with($normalized, '/')
+                    || preg_match('/^[a-zA-Z]:/', $normalized)
+                    || preg_match('/[\\x00-\\x1f\\x7f]/', $normalized)
+                    || in_array('', $segments, true)
+                    || in_array('.', $segments, true)
+                    || in_array('..', $segments, true)
+                    || isset($seen[$trimmed])) {
+                    throw new RuntimeException('The update package contains an unsafe or duplicate path.');
+                }
+                $seen[$trimmed] = true;
+
+                $isDirectoryByMode = false;
+                $opsys = 0;
+                $attributes = 0;
+                if ($zip->getExternalAttributesIndex($i, $opsys, $attributes)) {
+                    $fileType = ($attributes >> 16) & 0170000;
+                    if ($fileType === 0120000 || ($fileType !== 0 && !in_array($fileType, [0100000, 0040000], true))) {
+                        throw new RuntimeException('The update package contains a symbolic link or special file.');
+                    }
+                    $isDirectoryByMode = $fileType === 0040000;
+                    if ($isDirectoryByName && $fileType === 0100000) {
+                        throw new RuntimeException('The update package contains an inconsistent directory entry.');
+                    }
+                }
+                $isDirectory = $isDirectoryByName || $isDirectoryByMode;
+                if (!$isDirectory) {
+                    $totalUncompressedBytes += $stat['size'];
+                    if ($totalUncompressedBytes > self::MAX_EXTRACTED_BYTES) {
+                        throw new RuntimeException('The update package exceeds the uncompressed size limit.');
+                    }
+                    if ($trimmed === 'update-manifest.json' && $stat['size'] > self::MAX_MANIFEST_BYTES) {
+                        throw new RuntimeException('The update manifest exceeds the configured size limit.');
+                    }
                 }
             }
+
             if (!$this->ensureDirectory($destination, 0700) || !$zip->extractTo($destination)) {
                 throw new RuntimeException('Unable to extract the SentryIQ update package.');
             }
@@ -746,7 +794,10 @@ final class UpdateManager
             $zip->close();
         }
         $manifestPath = $destination . '/update-manifest.json';
-        if (!is_file($manifestPath) || is_link($manifestPath)) throw new RuntimeException('The update manifest is missing.');
+        if (!is_file($manifestPath) || is_link($manifestPath)
+            || (int)@filesize($manifestPath) > self::MAX_MANIFEST_BYTES) {
+            throw new RuntimeException('The update manifest is missing or exceeds the configured size limit.');
+        }
         $manifest = json_decode((string)@file_get_contents($manifestPath), true);
         if (!is_array($manifest) || $this->normalizeVersion((string)($manifest['version'] ?? '')) !== $expectedVersion) {
             throw new RuntimeException('The update package version is invalid.');
