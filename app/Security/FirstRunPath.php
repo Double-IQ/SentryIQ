@@ -13,9 +13,9 @@ function sentryiq_first_run_configured_data_dir(?array $server = null, ?string $
     $server ??= $_SERVER;
     if ($environment === null) {
         $environment = getenv('SENTRYIQ_DATA_DIR');
-        if (!is_string($environment) || $environment === '') {
-            $environment = (string)($server['SENTRYIQ_DATA_DIR'] ?? '');
-        }
+    }
+    if (!is_string($environment) || $environment === '') {
+        $environment = (string)($server['SENTRYIQ_DATA_DIR'] ?? '');
     }
 
     $path = trim($environment);
