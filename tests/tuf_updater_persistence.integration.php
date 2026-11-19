@@ -5,12 +5,12 @@ declare(strict_types=1);
 require_once __DIR__ . '/../app/Updates/TufRootStore.php';
 require_once __DIR__ . '/../upstream-tuf/vendor/autoload.php';
 
-use K2gl\\Tuf\\Exception\\DownloadException;
-use K2gl\\Tuf\\Tests\\Support\\LocalFetcher;
-use K2gl\\Tuf\\Tests\\Support\\RepoBuilder;
-use K2gl\\Tuf\\Tests\\Support\\SigningKey;
-use K2gl\\Tuf\\Updater;
-use SentryIQ\\Updates\\TufRootStore;
+use K2gl\Tuf\Exception\DownloadException;
+use K2gl\Tuf\Tests\Support\LocalFetcher;
+use K2gl\Tuf\Tests\Support\RepoBuilder;
+use K2gl\Tuf\Tests\Support\SigningKey;
+use K2gl\Tuf\Updater;
+use SentryIQ\Updates\TufRootStore;
 
 const SENTRYIQ_TUF_META_URL = 'https://example.test/metadata';
 const SENTRYIQ_TUF_TARGET_URL = 'https://example.test/targets';
@@ -71,7 +71,7 @@ try {
     tufPersistenceAssert($failed, 'An incomplete TUF refresh must fail.');
     tufPersistenceAssert($store->load() === $rotatedRoot, 'Failed refresh must not replace the last trusted root.');
 
-    echo "TUF updater persistence integration tests passed.\\n";
+    echo "TUF updater persistence integration tests passed.\n";
 } finally {
     foreach (glob($private . '/*') ?: [] as $file) if (is_file($file) || is_link($file)) @unlink($file);
     @rmdir($private);
