@@ -36,12 +36,14 @@ final class IntegrityPublicAssetPolicy
             if (!is_array($publicFiles) || !array_is_list($publicFiles)) {
                 throw new RuntimeException('Release manifest public file inventory is invalid.');
             }
+            $publicFileSeen = [];
             foreach ($publicFiles as $publicPath) {
-                if (!is_string($publicPath) || !self::isSafePath($publicPath) || isset($publicFileSet[$publicPath])) {
-                    throw new RuntimeException('Release manifest contains an unsafe public file path.');
+                if (!is_string($publicPath) || !self::isSafePath($publicPath) || isset($publicFileSeen[$publicPath])) {
+                    throw new RuntimeException('Release manifest contains an unsafe or duplicate public file path.');
                 }
+                $publicFileSeen[$publicPath] = true;
             }
-            $publicFileSet = array_fill_keys($publicFiles, true);
+            $publicFileSet = $publicFileSeen;
         }
 
         $manifestPaths = $manifest['public_http_files'] ?? null;
