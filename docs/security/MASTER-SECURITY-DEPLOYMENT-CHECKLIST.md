@@ -692,3 +692,10 @@ Add one entry after each item is reviewed. Keep entries factual and link to comm
   - [PHP Syntax Check](https://github.com/Double-IQ/SentryIQ/actions/runs/44461293894) — passed.
   - [Release Manifest Tests](https://github.com/Double-IQ/SentryIQ/actions/runs/44461293798) — passed.
   - [Release Attestation Verification](https://github.com/Double-IQ/SentryIQ/actions/runs/44461293794) — passed.
+
+
+### Phase 1.6.4: server-side self-diagnostic test added
+
+- Added `tests/self_test_cli.test.php`, which executes the actual `diagnostics/self_test.php` in an isolated CLI context, extracts its structured JSON report, and fails CI if any server-side source/filesystem/configuration check fails.
+- Wired it into Gallery Security Checks. This covers the self-test's server-side checks without requiring production credentials or mutating runtime data. The diagnostic's browser URL checks still require an installed, authenticated deployment and are not claimed as verified by this CLI test.
+- Commit: `052c9eb4429fc338a9f7d299cf90f0af4022ce4a`; workflow wiring commit: `870e61ebbafa26f48b5e308422103308ee908fc7`. CI pending.
