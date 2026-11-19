@@ -22,6 +22,41 @@ if (!preg_match('~<script type="application/json" id="sentryiq-self-test-data">(
 }
 $report = json_decode($matches[1], true, 512, JSON_THROW_ON_ERROR);
 $checks = $report['serverChecks'] ?? null;
+$browserTests = $report['tests'] ?? null;
+if (!is_array($browserTests)) {
+    throw new RuntimeException('Self-test diagnostic returned no browser URL contracts.');
+}
+$indexTest = array_values(array_filter(
+    $browserTests,
+    static fn($test): bool => is_array($test)
+        && ($test['type'] ?? '') === 'page'
+        && ($test['label'] ?? '') === 'index.php'
+));
+if (count($indexTest) !== 1) {
+    throw new RuntimeException('Self-test browser contract for index.php is missing or duplicated.');
+}
+$requiredIndexScripts = ['assets/js/vault_folders.js', 'assets/js/vault_page.js', 'assets/js/vault_page_init.js'];
+$actualIndexScripts = array_values(array_filter(
+    $indexTest[0]['requiredHtmlRefs'] ?? [],
+    static fn($ref): bool => is_array($ref) && ($ref['tag'] ?? '') === 'script'
+));
+foreach ($requiredIndexScripts as $requiredScript) {
+    $found = false;
+    foreach ($actualIndexScripts as $ref) {
+        if (($ref['prefix'] ?? '') === $requiredScript || ($ref['value'] ?? '') === $requiredScript) {
+            $found = true;
+            break;
+        }
+    }
+    if (!$found) {
+        throw new RuntimeException('Self-test browser contract is missing current index script: ' . $requiredScript);
+    }
+}
+foreach ($actualIndexScripts as $ref) {
+    if (($ref['prefix'] ?? '') === 'assets/js/records_view.js') {
+        throw new RuntimeException('Self-test browser contract still expects the obsolete Records script in index.php.');
+    }
+}
 if (!is_array($checks) || $checks === []) {
     throw new RuntimeException('Self-test diagnostic returned no server-side checks.');
 }
