@@ -35,3 +35,28 @@ function sentryiq_first_run_configured_data_dir(?array $server = null, ?string $
 
     return $normalized;
 }
+
+/**
+ * Validate the configured target before creating it. The target must be a
+ * direct child of the cPanel account root (the parent of the subdomain
+ * document root), and neither that parent nor the target may be a symlink.
+ */
+function sentryiq_first_run_path_is_safe_candidate(string $path, ?string $documentRoot = null): bool
+{
+    if ($path === '' || !str_starts_with($path, '/') || is_link($path)) return false;
+    $parent = dirname($path);
+    $realParent = realpath($parent);
+    if ($realParent === false || rtrim($realParent, '/') !== rtrim($parent, '/')) return false;
+
+    $documentRoot ??= (string)($_SERVER['DOCUMENT_ROOT'] ?? '');
+    $realDocumentRoot = $documentRoot !== '' ? realpath($documentRoot) : false;
+    if ($realDocumentRoot === false || !is_dir($realDocumentRoot)) return false;
+
+    $accountRoot = dirname(rtrim($realDocumentRoot, '/'));
+    $candidate = rtrim($realParent, '/') . '/' . basename($path);
+    $accountPrefix = rtrim($accountRoot, '/') . '/';
+
+    return str_starts_with($candidate, $accountPrefix)
+        && $candidate !== rtrim($realDocumentRoot, '/')
+        && !str_starts_with($candidate, rtrim($realDocumentRoot, '/') . '/');
+}
