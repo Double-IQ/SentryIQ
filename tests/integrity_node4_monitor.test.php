@@ -7,10 +7,10 @@ require_once __DIR__ . '/../app/Updates/IntegrityIncidentCorrelator.php';
 require_once __DIR__ . '/../app/Updates/IntegrityAlertDispatcher.php';
 require_once __DIR__ . '/../app/Updates/IntegrityNode4Monitor.php';
 
-use SentryIQ\\Updates\\FileIntegrityEventStore;
-use SentryIQ\\Updates\\IntegrityAlertDispatcher;
-use SentryIQ\\Updates\\IntegrityIncidentCorrelator;
-use SentryIQ\\Updates\\IntegrityNode4Monitor;
+use SentryIQ\Updates\FileIntegrityEventStore;
+use SentryIQ\Updates\IntegrityAlertDispatcher;
+use SentryIQ\Updates\IntegrityIncidentCorrelator;
+use SentryIQ\Updates\IntegrityNode4Monitor;
 
 function monitorAssert(bool $condition, string $message): void
 {
@@ -68,4 +68,4 @@ try {
     rmdir($directory);
 }
 
-echo "Node 4 monitor pipeline tests passed.\\n";
+echo "Node 4 monitor pipeline tests passed.\n";
