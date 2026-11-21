@@ -27,6 +27,7 @@ if (!is_array($event) || ($event['enabled'] ?? false) !== true
     || !is_string($realDataDir) || !is_string($realStorageDir)
     || !str_starts_with($realStorageDir, rtrim($realDataDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)
     || is_link($storageDir) || !is_callable($sender) || !is_callable($ownerAlertSender)
+    || $ownerAlertSender === $sender
     || $targetOrigin !== 'https://sentryiq.bichet.co.za') {
     fwrite(STDERR, "Node 4 monitor is not fully configured.\n");
     exit(2);
