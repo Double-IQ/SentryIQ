@@ -95,20 +95,58 @@ Worker. The Worker needs a separately pinned JavaScript implementation based
 on the maintained Sigstore JavaScript client and its TUF support, or a
 reviewed Worker-compatible adapter around those maintained libraries.
 
-This is **not yet proven**, and source inspection has identified a concrete
-portability obstacle: the current upstream `@sigstore/tuf` client builds a
-filesystem cache using synchronous `fs.existsSync`, `mkdirSync`,
-`writeFileSync` and `copyFileSync`, and derives a cache path from
-`os.homedir()`/process environment. That is not a Durable Object storage
-adapter. Do not assume that enabling `nodejs_compat` makes this cache durable
-or compatible. The implementation must either provide a reviewed, maintained
-TUF storage/fetch adapter that persists all metadata and targets through
-Durable Object storage, or select another maintained Worker-compatible
-Sigstore/TUF implementation. For the PHP-container option, separately prove
+This is **not yet proven**, but the current compatibility picture is more
+specific than a blanket statement that Workers lacks filesystem APIs:
+
+- Cloudflare Workers provides `node:fs` with Node.js compatibility. For
+  compatibility dates on or after 2026-08-04, Node.js compatibility is enabled
+  by default. The Worker virtual filesystem supports synchronous filesystem
+  operations, but it is memory-backed: writable `/tmp` files are unique to
+  each request and are not shared with later or concurrent requests.
+- The virtual filesystem does not implement file permissions or ownership;
+  file timestamps are reported as the Unix epoch, and temporary files count
+  against the Worker memory limit. These semantics are unsuitable for treating
+  the filesystem as durable TUF state or for relying on POSIX permission
+  checks.
+- The current `@sigstore/tuf` package source uses `os.homedir()`,
+  `process.env`, `fs.existsSync`, `fs.mkdirSync`, `fs.copyFileSync`,
+  `fs.writeFileSync`, `fs.readFileSync` and `fs.createReadStream`.
+  Its TUF client seeds and stores root, timestamp, snapshot, targets and
+  downloaded target files in filesystem paths. The current package manifest
+  declares Node.js engines `^22.22.2 || ^24.15.0 || >=26.0.0`; Workers'
+  Node.js compatibility layer is not a promise of full Node runtime equivalence.
+- The public `@sigstore/tuf` options expose a filesystem `cachePath`,
+  `rootPath`, mirror/retry controls and cache flags, but no pluggable
+  persistent storage interface. Its `tuf-js` updater accepts metadata and
+  target directories plus an optional network fetcher; the fetcher does not
+  replace the filesystem persistence layer.
+
+Consequently, a smoke test may show that the package imports and executes in a
+Worker, but its stock cache cannot survive separate Worker requests. The
+implementation must provide a reviewed TUF metadata/target persistence layer
+backed by Durable Object storage (including verified sequential root rotation,
+timestamp/snapshot/targets, and crash-safe commit semantics), or select another
+maintained Worker-compatible Sigstore/TUF implementation. A custom network
+fetcher alone is insufficient. For the PHP-container option, separately prove
 that the existing PHP TUF library's filesystem operations can be backed by a
 durable store without changing its trust/atomicity guarantees; otherwise the
-container approach still needs a TUF storage adapter or must be rejected. Any fork/patch must be narrowly scoped, pinned,
-reviewed and covered by upstream-equivalence tests; bypassing TUF is prohibited.
+container approach still needs a TUF storage adapter or must be rejected. Any
+fork/patch must be narrowly scoped, pinned, reviewed and covered by
+upstream-equivalence tests; bypassing TUF is prohibited.
+
+**Verifier-side compatibility is a separate, more promising question.** The
+current Sigstore JavaScript `@sigstore/verify` package (source version 4.1.3)
+separates bundle/certificate/Rekor verification from TUF retrieval. Its verifier
+uses `@sigstore/core` for X.509 parsing and cryptographic operations; that core
+wraps Node's `crypto` module for public-key creation, hashing, signature
+verification and timing-safe equality. Cloudflare documents its `node:crypto`
+API as fully supported, and also supports the relevant Buffer, stream and
+`util` APIs. This makes the verifier package a credible Worker PoC candidate,
+not a verified production choice. The exact bundle parser, certificate/SCT
+checks, Rekor v1/v2 handling, and our repository-specific policy still require
+golden-fixture and adversarial tests in the Workers runtime. Most importantly,
+a working `@sigstore/verify` import does not solve the separate TUF bootstrap,
+rotation and persistent-cache problem described above.
 
 The upstream package manifests also declare modern Node.js engine ranges.
 Cloudflare's Node compatibility layer exposes a subset of Node APIs, not a
@@ -285,3 +323,23 @@ remain operationally independent of Node B and Node 4.
 - [Cloudflare Cron Triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/)
 - [Sigstore JavaScript client](https://github.com/sigstore/sigstore-js)
 - [Sigstore JavaScript client documentation](https://docs.sigstore.dev/language_clients/javascript/)
+
+
+### Initial Cloudflare workerd proof-of-concept results (2026-11-21)
+
+A dedicated, non-deploying workerd test harness has now established the following:
+
+- The pinned `@sigstore/verify@4.1.3` package imports in workerd and executes Ed25519 verification and SHA-256 operations.
+- An upstream Sigstore Rekor v2 certificate bundle and its upstream trusted-root fixture verify successfully inside workerd. This is a genuine verifier-path test, but it is not yet a SentryIQ release bundle and does not exercise our repository-specific release policy.
+- A SQLite-backed Durable Object proof implements immutable baseline initialization, monotonic release-pin compare-and-advance, same-version digest replacement rejection, downgrade rejection, durable run locking, and audit retention. The tests exercise persistence across separate Durable Object stubs.
+- The separate Durable Object filesystem prototype stages file writes, supports rollback/discard, and commits successful writes inside a SQLite storage transaction. It is **not wired into** the upstream TUF client.
+- The stock `@sigstore/tuf@5.0.1` client can bootstrap and read its root cache under writable `/tmp`, but a persistent cache path outside `/tmp` fails with the Workers filesystem permission restriction (`operation not permitted`). The `/tmp` cache is ephemeral and is not a durable trust store. The workerd test stops at an expected loopback network failure; it does not claim a successful live TUF refresh.
+
+**Current conclusion:** verifier feasibility is demonstrated at the upstream fixture level. Stock TUF can only use its ephemeral `/tmp` cache and is not yet backed by Durable Object storage. A reviewed adapter wired into the TUF verification path (or a maintained Worker-compatible alternative), genuine SentryIQ release-bundle verification, repository policy parity, and full adversarial/runtime acceptance remain mandatory.
+
+#### TUF storage extension-point review
+
+The generated dependency resolution for this PoC pinned `@sigstore/tuf@5.0.1`, `tuf-js@6.0.3`, and `@tufjs/models@5.0.3` (the generated lockfile is retained as a short-lived CI artifact pending repository commit). The Sigstore wrapper constructs `tuf-js`'s `Updater` with filesystem `metadataDir` and `targetDir` paths. Its options expose fetch retry/timeout and cache controls, but no storage adapter. The `Fetcher` interface changes transport only; the updater still reads/writes metadata and target files through Node filesystem APIs. The `TrustedMetadataStore` that implements root/timestamp/snapshot/targets validation is internal to `tuf-js` and is not exported from its public entry point.
+
+This means a custom fetcher alone cannot make TUF Durable Object-backed. The credible implementation paths are a carefully maintained fork/vendor of the upstream TUF updater with a transactional storage interface, or a separately maintained Worker-native TUF client using the same `@tufjs/models` validation semantics. Either path must preserve sequential root rotation, fixed update reference time, signature thresholds, expiry, timestamp/snapshot/targets version and hash checks, target length/hash verification, and crash-safe commit/rollback behavior. No simplified or fail-open TUF path is acceptable.
+ No Worker deployment, account binding, secret, Cron Trigger, production route, or production release has been created.
