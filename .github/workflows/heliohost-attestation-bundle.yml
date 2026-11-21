@@ -21,10 +21,10 @@ jobs:
       RELEASE_COMMIT: "9c639a4792cadd5421f01ed198ba2a9261c5145f"
     steps:
       - name: Check out verification harness
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up PHP and Composer
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: "8.5"
           extensions: openssl, sodium, curl
@@ -110,7 +110,7 @@ jobs:
           sha256sum "$ROOT/sentryiq-heliohost-v0.1.2-attestation.zip"
 
       - name: Upload temporary HelioHost verification bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: sentryiq-heliohost-v0.1.2-attestation
           path: sentryiq-heliohost-v0.1.2-attestation.zip
