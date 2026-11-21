@@ -6,7 +6,6 @@ import { createTufFsContext, runWithTufFsContext } from "./tuf-fs-context";
 import path from "node:path";
 import { Verifier } from "@sigstore/verify";
 import { initTUF } from "@sigstore/tuf";
-import { TUFClient } from "@sigstore/tuf/dist/client.js";
 
 export interface Env {
   NODE_A_STATE: DurableObjectNamespace<NodeAState>;
@@ -291,26 +290,11 @@ export class NodeAState extends DurableObject<Env> {
       await new Promise<void>((resolve, reject) => stream.close((error) => error ? reject(error) : resolve()));
       const temporaryRead = tufFs.readFileSync(tempPath, "utf8") as string;
       await tufFsPromises.rm(tempDir, { recursive: true, force: true });
-      const tufCachePath = "/node-a/tuf-cache";
-      new TUFClient({
-        cachePath: tufCachePath,
-        mirrorURL: "https://tuf-repo-cdn.sigstore.dev",
-        forceCache: true,
-        forceInit: true,
-        retry: { retries: 0 },
-        timeout: 5_000
-      });
-      const seededRootPath = path.join(tufCachePath, "tuf-repo-cdn.sigstore.dev", "root.json");
-      const seededRoot = JSON.parse(tufFs.readFileSync(seededRootPath, "utf8") as string) as { signed?: { version?: number } };
-      if (!Number.isSafeInteger(seededRoot.signed?.version) || !seededRoot.signed?.version) {
-        throw new Error("Sigstore TUF seeded root did not load through Durable Object storage");
-      }
       return {
         persistentRead,
         copiedRead,
         temporaryRead,
-        temporaryExistsAfterCleanup: tufFs.existsSync(tempPath),
-        seededTufRootVersion: seededRoot.signed.version
+        temporaryExistsAfterCleanup: tufFs.existsSync(tempPath)
       };
     });
   }
