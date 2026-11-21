@@ -12,6 +12,12 @@ declare(strict_types=1);
 
 use K2gl\Sigstore\TrustedRoot;
 
+if (PHP_SAPI !== 'cli') {
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('X-Content-Type-Options: nosniff');
+}
+
 // The bundle keeps Composer dependencies outside the public document root.
 // For CLI runs, retain the convenient local vendor/ fallback.
 $privateAutoload = dirname(__DIR__) . '/sentryiq-tuf-patched-private/vendor/autoload.php';
@@ -29,7 +35,17 @@ register_shutdown_function(static function (): void {
     }
 });
 if (!is_file($autoload)) {
-    fwrite(STDERR, "FAIL: Composer dependencies are not installed in this probe directory.\n");
+    $message = 'Composer dependencies are not installed in this probe directory.';
+    if (PHP_SAPI === 'cli') {
+        fwrite(STDERR, "FAIL: {$message}\\n");
+    } else {
+        http_response_code(500);
+        echo json_encode([
+            'probe' => 'sentryiq-heliohost-tuf-runtime',
+            'status' => 'failed',
+            'reason' => $message,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+    }
     exit(2);
 }
 require $autoload;

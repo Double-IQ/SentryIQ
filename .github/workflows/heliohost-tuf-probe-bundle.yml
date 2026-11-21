@@ -67,6 +67,27 @@ jobs:
           grep -q 'catch (NotFoundException)' vendor/k2gl/tuf/src/Updater.php
           grep -q 'NotFoundException' vendor/k2gl/tuf/src/HttpFetcher.php
 
+      - name: Test one-shot web endpoint fails safely when dependencies are absent
+        working-directory: tools/heliohost-tuf-probe
+        run: |
+          set -euo pipefail
+          TEST_ROOT="$RUNNER_TEMP/heliohost-probe-web-test"
+          mkdir -p "$TEST_ROOT/httpdocs"
+          cp probe.php "$TEST_ROOT/httpdocs/one-shot-random.php"
+          php -S 127.0.0.1:8765 -t "$TEST_ROOT/httpdocs" > "$TEST_ROOT/server.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          HTTP_STATUS=""
+          for attempt in $(seq 1 30); do
+            if HTTP_STATUS="$(curl --silent --show-error --output "$TEST_ROOT/response.json" --write-out '%{http_code}' http://127.0.0.1:8765/one-shot-random.php 2>/dev/null)"; then
+              break
+            fi
+            sleep 0.25
+          done
+          test "$HTTP_STATUS" = "500"
+          grep -q '"status": "failed"' "$TEST_ROOT/response.json"
+          grep -q 'Composer dependencies are not installed' "$TEST_ROOT/response.json"
+          test ! -e "$TEST_ROOT/httpdocs/one-shot-random.php"
       - name: Assemble private/public upload bundle
         env:
           SOURCE_COMMIT: ${{ github.sha }}
