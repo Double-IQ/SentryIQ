@@ -41,16 +41,27 @@ jobs:
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
       - name: Install from generated lockfile
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Run workerd integration tests
-        run: npm test
       - name: Download genuine v0.1.2 release asset
         run: |
           gh release download v0.1.2 --repo Double-IQ/SentryIQ --pattern sentryiq-0.1.2.zip --dir "$RUNNER_TEMP"
+          printf '%s  %s\n' '41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e' "$RUNNER_TEMP/sentryiq-0.1.2.zip" | sha256sum --check -
       - name: Download genuine GitHub attestation bundle
         run: |
           cd "$RUNNER_TEMP"
           gh attestation download "$RUNNER_TEMP/sentryiq-0.1.2.zip" --repo Double-IQ/SentryIQ --predicate-type https://slsa.dev/provenance/v1
           mv "$RUNNER_TEMP/sha256:41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e.jsonl" "$RUNNER_TEMP/sha256-41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e.jsonl"
+      - name: Inject genuine bundle into the workerd test module
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const path = process.env.RUNNER_TEMP + "/sha256-41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e.jsonl";
+          const bundle = fs.readFileSync(path, "utf8").trim().split(/\\r?\\n/)[0];
+          JSON.parse(bundle);
+          const source = "export const genuineV012BundleJson: string | null = " + JSON.stringify(bundle) + ";\\n";
+          fs.writeFileSync("test/fixtures/genuine-v012-bundle.ts", source);
+          NODE
+      - name: Run workerd integration tests
+        run: npm test
       - name: Export genuine v0.1.2 bundle for review
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
