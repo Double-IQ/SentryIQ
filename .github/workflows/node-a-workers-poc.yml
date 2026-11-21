@@ -55,9 +55,9 @@ jobs:
           node --input-type=module <<'NODE'
           import fs from "node:fs";
           const path = process.env.RUNNER_TEMP + "/sha256-41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e.jsonl";
-          const bundle = fs.readFileSync(path, "utf8").trim().split(/\\r?\\n/)[0];
+          const bundle = fs.readFileSync(path, "utf8").trim().split(String.fromCharCode(10))[0];
           JSON.parse(bundle);
-          const source = "export const genuineV012BundleJson: string | null = " + JSON.stringify(bundle) + ";\\n";
+          const source = "export const genuineV012BundleJson: string | null = " + JSON.stringify(bundle) + ";" + String.fromCharCode(10);
           fs.writeFileSync("test/fixtures/genuine-v012-bundle.ts", source);
           NODE
       - name: Run workerd integration tests
