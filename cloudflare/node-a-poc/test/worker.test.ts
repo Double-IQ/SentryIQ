@@ -1,5 +1,9 @@
 import { env } from "cloudflare:test";
 import { exports as workerExports } from "cloudflare:workers";
+import { bundleFromJSON } from "@sigstore/bundle";
+import { toSignedEntity, toTrustMaterial, Verifier } from "@sigstore/verify";
+import * as bundles from "./fixtures/bundles";
+import { trustedRoot } from "./fixtures/trust";
 import { describe, expect, it } from "vitest";
 
 async function expectRemoteRejection(promise: Promise<unknown>, message: string): Promise<void> {
@@ -30,6 +34,16 @@ describe("Node A Workers runtime proof", () => {
     expect(body.tufClientLoaded).toBe(true);
     expect(body.tufNetworkOrCacheInitialized).toBe(false);
     expect(body.productionReady).toBe(false);
+  });
+
+  it("verifies an upstream Sigstore Rekor v2 certificate bundle in workerd", () => {
+    const bundle = bundleFromJSON(bundles.V3.MESSAGE_SIGNATURE.TLOG_HASHEDREKORDV002);
+    const verifier = new Verifier(toTrustMaterial(trustedRoot), {
+      ctlogThreshold: 1,
+      tlogThreshold: 1,
+      timestampThreshold: 1
+    });
+    expect(() => verifier.verify(toSignedEntity(bundle, bundles.ARTIFACT))).not.toThrow();
   });
 
   it("requires an explicit immutable baseline before any release pin can advance", async () => {
