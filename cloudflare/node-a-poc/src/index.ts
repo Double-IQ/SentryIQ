@@ -270,7 +270,7 @@ export class NodeAState extends DurableObject<Env> {
     });
   }
 
-  async testUpstreamTufCacheBootstrap(rootBase64: string): Promise<{ rootVersion: number; cacheReadAfterBootstrap: boolean; expectedNetworkFailure: boolean; stagedPaths: string[] }> {
+  async testUpstreamTufCacheBootstrap(rootBase64: string): Promise<{ rootVersion: number; cacheReadAfterBootstrap: boolean; expectedNetworkFailure: boolean; stagedPaths: string[]; refreshError: string | null }> {
     const context = createTufFsContext(this.ctx.storage.sql);
     return runWithTufFsContext(context, async () => {
       const rootPath = "/node-a/tuf-fixtures/root.json";
@@ -279,6 +279,7 @@ export class NodeAState extends DurableObject<Env> {
       tufFs.writeFileSync(rootPath, Buffer.from(rootBase64, "base64"));
 
       let expectedNetworkFailure = false;
+      let refreshError: string | null = null;
       try {
         await initTUF({
           cachePath,
@@ -291,6 +292,7 @@ export class NodeAState extends DurableObject<Env> {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        refreshError = message;
         if (/EPERM|EACCES|ENOENT/.test(message)) {
           throw new Error("upstream TUF cache initialization did not use the Durable Object filesystem adapter: " + message);
         }
@@ -301,7 +303,7 @@ export class NodeAState extends DurableObject<Env> {
       const stagedPaths = [...context.stagedFiles.keys()];
       if (!tufFs.existsSync(cachedRootPath)) {
         discardTufFsContext(context);
-        return { rootVersion: 0, cacheReadAfterBootstrap: false, expectedNetworkFailure, stagedPaths };
+        return { rootVersion: 0, cacheReadAfterBootstrap: false, expectedNetworkFailure, stagedPaths, refreshError };
       }
       const cachedRoot = JSON.parse(tufFs.readFileSync(cachedRootPath, "utf8") as string) as { signed?: { version?: number } };
       if (!Number.isSafeInteger(cachedRoot.signed?.version) || !cachedRoot.signed?.version) {
@@ -312,7 +314,8 @@ export class NodeAState extends DurableObject<Env> {
         rootVersion: cachedRoot.signed.version,
         cacheReadAfterBootstrap: true,
         expectedNetworkFailure,
-        stagedPaths
+        stagedPaths,
+        refreshError
       };
     });
   }
