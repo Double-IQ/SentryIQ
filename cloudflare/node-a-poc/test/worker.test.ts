@@ -4,6 +4,7 @@ import { bundleFromJSON } from "@sigstore/bundle";
 import { toSignedEntity, toTrustMaterial, Verifier } from "@sigstore/verify";
 import * as bundles from "./fixtures/bundles";
 import { trustedRoot } from "./fixtures/trust";
+import { genuineV012BundleJson } from "./fixtures/genuine-v012-bundle";
 import { tufRootBase64 } from "./fixtures/tuf-root";
 import { describe, expect, it } from "vitest";
 
@@ -35,6 +36,45 @@ describe("Node A Workers runtime proof", () => {
     expect(body.tufClientLoaded).toBe(true);
     expect(body.tufNetworkOrCacheInitialized).toBe(false);
     expect(body.productionReady).toBe(false);
+  });
+
+  it("cryptographically verifies the genuine SentryIQ v0.1.2 release attestation in workerd", () => {
+    if (genuineV012BundleJson === null) {
+      throw new Error("CI must inject the genuine GitHub attestation bundle before running this suite");
+    }
+    const bundle = bundleFromJSON(JSON.parse(genuineV012BundleJson));
+    const verifier = new Verifier(toTrustMaterial(trustedRoot), {
+      ctlogThreshold: 1,
+      tlogThreshold: 1,
+      timestampThreshold: 1
+    });
+    const signer = verifier.verify(toSignedEntity(bundle));
+    const statement = JSON.parse(Buffer.from(bundle.content.dsseEnvelope.payload).toString("utf8")) as {
+      predicateType?: string;
+      subject?: Array<{ name?: string; digest?: { sha256?: string } }>;
+      predicate?: {
+        buildDefinition?: {
+          externalParameters?: { workflow?: { repository?: string; ref?: string; path?: string } };
+          resolvedDependencies?: Array<{ digest?: { gitCommit?: string } }>;
+        };
+      };
+    };
+
+    expect(signer.identity?.subjectAlternativeName).toBe(
+      "https://github.com/Double-IQ/SentryIQ/.github/workflows/release.yml@refs/tags/v0.1.2"
+    );
+    expect(statement.predicateType).toBe("https://slsa.dev/provenance/v1");
+    expect(statement.subject).toContainEqual({
+      name: "sentryiq-0.1.2.zip",
+      digest: { sha256: "41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e" }
+    });
+    expect(statement.predicate?.buildDefinition?.externalParameters?.workflow).toEqual({
+      repository: "https://github.com/Double-IQ/SentryIQ",
+      ref: "refs/tags/v0.1.2",
+      path: ".github/workflows/release.yml"
+    });
+    expect(statement.predicate?.buildDefinition?.resolvedDependencies?.[0]?.digest?.gitCommit)
+      .toBe("9c639a4792cadd5421f01ed198ba2a9261c5145f");
   });
 
   it("verifies an upstream Sigstore Rekor v2 certificate bundle in workerd", () => {
