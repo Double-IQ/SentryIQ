@@ -39,7 +39,7 @@ node-specific bearer token and its Ed25519 signature.
 
 The endpoint and CLI monitor first read the small `sentryiq_config.php` pointer in the application webroot, then use its `data_dir` to load the actual `<data_dir>/sentryiq_config.php` private configuration. Node 4 secrets (`integrity_event`, tokens, public keys, outbox sender and independent owner-alert sender) belong only in that private file; they must not be copied into the webroot pointer. `IntegrityNode4RuntimeConfig` enforces that the resolved data directory is outside the webroot with exact `0700` permissions and that the private config is a regular file inside it with exact `0600` permissions. Weak permissions are rejected, never repaired automatically.
 
-The following is a shape example only. Never commit actual values:
+The following is a shape example only. Never commit actual values. The independent callback must return `true` only after its provider confirms acceptance:
 
 ```php
 return [
@@ -53,8 +53,9 @@ return [
             return false;
         },
         // Separate direct owner-alert route; do not route through the Node 4 outbox.
-        'owner_alert_sender' => static function (string $nodeId, string $reason, array $context): void {
+        'owner_alert_sender' => static function (string $nodeId, string $reason, array $context): bool {
             // Connect this to an independent owner-alert transport and deduplicate recurring failures.
+            return false;
         },
         'storage_dir' => '/absolute/path/outside/httpdocs/sentryiq-data/integrity-events',
         'node_tokens' => [
@@ -173,7 +174,7 @@ Node 4's monitor requires two distinct notification responsibilities: `alert_sen
 delivers durable outbox incidents, while `owner_alert_sender` sends a direct
 owner alert if outbox delivery remains pending or the monitor itself fails.
 The latter must not depend on the Node 4 outbox; configure it through a separate
-provider/route and deduplicate repeated delivery-degraded alerts at the provider.
+provider/route, return `true` only after provider acceptance, and deduplicate repeated delivery-degraded alerts at the provider.
 The CLI refuses to start if either callable is missing. A/B direct alerts remain
 independent and must not be routed through Node 4.
 
