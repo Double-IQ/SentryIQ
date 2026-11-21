@@ -34,18 +34,67 @@ try {
             return $send;
         }
     );
-    $correlator = new IntegrityIncidentCorrelator(1800);
-    $monitor = new IntegrityNode4Monitor($store, $correlator, $dispatcher);
+    $directAlerts = [];
+    $monitor = new IntegrityNode4Monitor(
+        $store,
+        new IntegrityIncidentCorrelator(1800),
+        $dispatcher,
+        static function (string $nodeId, string $reason, array $context) use (&$directAlerts): bool {
+            $directAlerts[] = [$nodeId, $reason, $context];
+            return true;
+        }
+    );
 
     $first = $monitor->run('https://sentryiq.bichet.co.za');
     monitorAssert($first['evaluation']['status'] === 'incident', 'No A/B reports must produce an incident state.');
     monitorAssert($first['queued'] === 2, 'Missing A and B must each queue an alert.');
     monitorAssert($first['delivery']['remaining'] === 2, 'Failed notification transport must leave alerts pending.');
+    monitorAssert(count($directAlerts) === 1, 'Failed outbox delivery must trigger an independent owner alert.');
+    monitorAssert($directAlerts[0][0] === 'integrity-node4'
+        && $directAlerts[0][1] === 'node4_alert_delivery_degraded'
+        && ($directAlerts[0][2]['remaining'] ?? null) === 2,
+        'Independent alert must identify Node 4 and report the pending delivery backlog.');
 
     $send = true;
     $second = $monitor->run('https://sentryiq.bichet.co.za');
     monitorAssert($second['delivery']['delivered'] === 2, 'A later cron run must retry and deliver pending alerts.');
     monitorAssert($second['delivery']['remaining'] === 0, 'Successfully delivered alerts must leave the pending queue.');
+    monitorAssert(count($directAlerts) === 1, 'Successful retry must not send another delivery-degraded alert.');
+
+    $failingMonitor = new IntegrityNode4Monitor(
+        $store,
+        new IntegrityIncidentCorrelator(1800, static fn(): int => 0),
+        $dispatcher,
+        static function (string $nodeId, string $reason, array $context) use (&$directAlerts): bool {
+            $directAlerts[] = [$nodeId, $reason, $context];
+            return true;
+        }
+    );
+    $monitorFailureAlerted = false;
+    try {
+        $failingMonitor->run('https://sentryiq.bichet.co.za');
+    } catch (RuntimeException) {
+        $monitorFailureAlerted = true;
+    }
+    monitorAssert($monitorFailureAlerted, 'Monitor execution failure must fail visibly.');
+    monitorAssert(count($directAlerts) === 2
+        && $directAlerts[1][0] === 'integrity-node4'
+        && $directAlerts[1][1] === 'node4_monitor_execution_failed',
+        'Monitor execution failure must trigger the independent owner-alert path.');
+
+    $falseDeliveryRejected = false;
+    try {
+        $failingMonitor = new IntegrityNode4Monitor(
+            $store,
+            new IntegrityIncidentCorrelator(1800, static fn(): int => 0),
+            $dispatcher,
+            static fn(): bool => false
+        );
+        $failingMonitor->run('https://sentryiq.bichet.co.za');
+    } catch (RuntimeException $exception) {
+        $falseDeliveryRejected = str_contains($exception->getMessage(), 'owner alert');
+    }
+    monitorAssert($falseDeliveryRejected, 'A false owner-alert delivery result must fail visibly.');
 } finally {
     foreach (glob($directory . DIRECTORY_SEPARATOR . '*') ?: [] as $file) {
         if (is_file($file) && !is_link($file)) {
