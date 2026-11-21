@@ -41,7 +41,7 @@ try {
     $store = new SentryIQ\Updates\FileIntegrityEventStore($realStorageDir);
     $correlator = new SentryIQ\Updates\IntegrityIncidentCorrelator();
     $dispatcher = new SentryIQ\Updates\IntegrityAlertDispatcher($store, $sender);
-    $monitor = new SentryIQ\Updates\IntegrityNode4Monitor($store, $correlator, $dispatcher);
+    $monitor = new SentryIQ\Updates\IntegrityNode4Monitor($store, $correlator, $dispatcher, $ownerAlertSender);
     $result = $monitor->run($targetOrigin);
     fwrite(STDOUT, json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) . "\n");
     $healthy = ($result['evaluation']['status'] ?? null) === 'healthy'
