@@ -229,6 +229,15 @@ final class PrivateHostAttestationCollector
     /** @return array{result:string,observed_sha256:?string} */
     private function inspect(string $root, string $relative, string $expected, ?int $expectedMode = null): array
     {
+        $rootStat = @lstat($root);
+        if (!is_array($rootStat) || (($rootStat['mode'] ?? 0) & 0170000) !== 0040000) {
+            return ['result' => 'unreadable', 'observed_sha256' => null];
+        }
+        $directories = [[
+            'path' => $root,
+            'dev' => $rootStat['dev'] ?? null,
+            'ino' => $rootStat['ino'] ?? null,
+        ]];
         $current = $root;
         $parts = explode('/', $relative);
         foreach ($parts as $index => $part) {
@@ -239,8 +248,15 @@ final class PrivateHostAttestationCollector
             if (($stat['mode'] & 0170000) === 0120000) {
                 return ['result' => 'symlink', 'observed_sha256' => null];
             }
-            if ($index < count($parts) - 1 && ($stat['mode'] & 0170000) !== 0040000) {
-                return ['result' => 'unreadable', 'observed_sha256' => null];
+            if ($index < count($parts) - 1) {
+                if (($stat['mode'] & 0170000) !== 0040000) {
+                    return ['result' => 'unreadable', 'observed_sha256' => null];
+                }
+                $directories[] = [
+                    'path' => $current,
+                    'dev' => $stat['dev'] ?? null,
+                    'ino' => $stat['ino'] ?? null,
+                ];
             }
         }
 
@@ -257,7 +273,8 @@ final class PrivateHostAttestationCollector
                 || ($opened['mode'] & 0170000) !== 0100000
                 || ($pathStat['mode'] & 0170000) !== 0100000
                 || $opened['dev'] !== $pathStat['dev']
-                || $opened['ino'] !== $pathStat['ino']) {
+                || $opened['ino'] !== $pathStat['ino']
+                || !$this->directoriesUnchanged($directories)) {
                 return ['result' => 'symlink', 'observed_sha256' => null];
             }
             if (!is_readable($current)) return ['result' => 'unreadable', 'observed_sha256' => null];
@@ -275,7 +292,8 @@ final class PrivateHostAttestationCollector
                 || $after['size'] !== $opened['size'] || $after['mtime'] !== $opened['mtime']
                 || $after['ctime'] !== $opened['ctime']
                 || ($pathAfter['mode'] & 0170000) !== 0100000
-                || $pathAfter['dev'] !== $opened['dev'] || $pathAfter['ino'] !== $opened['ino']) {
+                || $pathAfter['dev'] !== $opened['dev'] || $pathAfter['ino'] !== $opened['ino']
+                || !$this->directoriesUnchanged($directories)) {
                 return ['result' => 'unreadable', 'observed_sha256' => null];
             }
             if (!hash_equals($expected, $digest)) {
@@ -290,6 +308,27 @@ final class PrivateHostAttestationCollector
         }
     }
 
+
+    /**
+     * Revalidate every directory inode after opening and hashing a target file.
+     * This catches ancestor-directory replacement/symlink swaps, not just a
+     * symlink at the final filename.
+     *
+     * @param list<array{path:string,dev:int|string|null,ino:int|string|null}> $directories
+     */
+    private function directoriesUnchanged(array $directories): bool
+    {
+        foreach ($directories as $directory) {
+            clearstatcache(true, $directory['path']);
+            $current = @lstat($directory['path']);
+            if (!is_array($current) || (($current['mode'] ?? 0) & 0170000) !== 0040000
+                || ($current['dev'] ?? null) !== $directory['dev']
+                || ($current['ino'] ?? null) !== $directory['ino']) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     /** @return list<string> */
     private function findUnexpectedFiles(): array
