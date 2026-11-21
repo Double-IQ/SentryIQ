@@ -16,7 +16,7 @@ use Throwable;
  */
 final class IntegrityNode4Monitor
 {
-    /** @var callable(string,string,array<string,mixed>):void */
+    /** @var callable(string,string,array<string,mixed>):bool */
     private $notifyFailure;
 
     public function __construct(
@@ -80,6 +80,8 @@ final class IntegrityNode4Monitor
     /** @param array<string,mixed> $context */
     private function alertOwner(string $reason, array $context): void
     {
-        ($this->notifyFailure)('integrity-node4', $reason, $context);
+        if (($this->notifyFailure)('integrity-node4', $reason, $context) !== true) {
+            throw new RuntimeException('Independent Node 4 owner-alert provider did not confirm delivery.');
+        }
     }
 }
