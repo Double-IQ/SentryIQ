@@ -81,7 +81,7 @@ try {
     $secretPointer = $public . '/secret-pointer.php';
     file_put_contents($secretPointer, '<?php return ' . var_export([
         'data_dir' => $private,
-        'integrity_event' => ['node_tokens' => ['integrity-a' => 'should-not-be-here']],
+        'integrity_event' => ['node_tokens' => ['integrity-a' => 'should-not-be-here'], 'owner_alert_sender' => 'secret callback'],
     ], true) . ';');
     $secretRejected = false;
     try {
