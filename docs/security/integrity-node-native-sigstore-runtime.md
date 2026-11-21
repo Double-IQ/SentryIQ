@@ -185,6 +185,8 @@ php /absolute/code-path/SentryIQ/bin/integrity-node-keygen.php integrity-a /abso
 
 Use `integrity-b` on Node B and `integrity-c` on Node C. The command refuses to overwrite an existing key, stores the raw private key as a mode-0600 file outside the webroot, and prints only the public key (base64) and file paths. It never prints or exports the private key. Keep each private key on its own node; transfer only A/B public keys to the Node 4 private configuration. Do not generate all three identities on the SentryIQ/Node 4 host.
 
+**Key-generation durability note:** `IntegrityNodeKeyGenerator` publishes the two key files with no-overwrite hard links, but does not `fsync()` the temporary key-file contents or synchronize the private directory after publication. A power loss during provisioning can therefore leave an incomplete keypair or lose a just-published directory entry; an interrupted run may also leave private temporary files behind. This is a one-time provisioning/availability boundary, not a demonstrated signature-forgery path. After generation, verify that the private key derives the printed public key, verify both files and directory permissions, securely back up the private key, and only then register the public key or accept the node. If the command is interrupted, inspect and securely reconcile the existing files; do not blindly rerun because overwrite protection is intentional.
+
 The protected node config reads the raw private key file and base64-encodes its bytes for the signer; it must never embed the key in the public pointer config or write it to logs:
 
 ```php

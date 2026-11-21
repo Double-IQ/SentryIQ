@@ -419,6 +419,7 @@ Phase 1 is complete only when every item above has evidence, all high-risk findi
 - [ ] **2.6** Configure Node 4 on the BTM-SA/SentryIQ host with a separate logical identity, private storage, A/B public keys, unique tokens, replay-safe state, and tested alert sender.
 - [ ] **2.7** Establish authenticated node-to-origin communication and verify TLS/origin restrictions.
 - [ ] **2.8** Implement and verify signed integrity reports and pinned trust-root validation.
+  - Node key provisioning is a one-time host operation: verify each private/public pair and exact file permissions, securely back up the private key, and reconcile interrupted key generation before registering the public key. The key generator does not establish power-loss durability.
 - [ ] **2.9** Implement cross-node comparison, stale/missed-check detection, disagreement alerts, and independent alert delivery.
   - Node 4 outbox delivery is at-least-once: production sender must enforce the stable idempotency key, acknowledge only provider acceptance, and use bounded timeouts. A/B/C direct callbacks are synchronous and not backed by that outbox; each host needs a separately tested provider with bounded retries or durable acceptance and real owner receipt. Node 4 is not a substitute.
 - [ ] **2.10** Test each node's normal operation, restart, missed schedule, unavailable target, invalid signature, replay, and recovery.
