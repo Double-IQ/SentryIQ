@@ -85,3 +85,15 @@ export function __removeTemporaryPath(path: string): void {
   }
   context.directories.delete(path);
 }
+
+const tufFs = {
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  mkdirSync,
+  copyFileSync,
+  createReadStream,
+  createWriteStream
+};
+
+export default tufFs;
