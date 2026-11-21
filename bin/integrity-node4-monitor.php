@@ -19,13 +19,15 @@ $dataDir = (string)($config['data_dir'] ?? '');
 $storageDir = is_array($event) ? (string)($event['storage_dir'] ?? '') : '';
 $targetOrigin = is_array($event) ? (string)($event['target_origin'] ?? '') : '';
 $sender = is_array($event) ? ($event['alert_sender'] ?? null) : null;
+$ownerAlertSender = is_array($event) ? ($event['owner_alert_sender'] ?? null) : null;
 
 $realDataDir = $dataDir !== '' ? realpath($dataDir) : false;
 $realStorageDir = $storageDir !== '' ? realpath($storageDir) : false;
 if (!is_array($event) || ($event['enabled'] ?? false) !== true
     || !is_string($realDataDir) || !is_string($realStorageDir)
     || !str_starts_with($realStorageDir, rtrim($realDataDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)
-    || is_link($storageDir) || !is_callable($sender)
+    || is_link($storageDir) || !is_callable($sender) || !is_callable($ownerAlertSender)
+    || $ownerAlertSender === $sender
     || $targetOrigin !== 'https://sentryiq.bichet.co.za') {
     fwrite(STDERR, "Node 4 monitor is not fully configured.\n");
     exit(2);
@@ -40,7 +42,7 @@ try {
     $store = new SentryIQ\Updates\FileIntegrityEventStore($realStorageDir);
     $correlator = new SentryIQ\Updates\IntegrityIncidentCorrelator();
     $dispatcher = new SentryIQ\Updates\IntegrityAlertDispatcher($store, $sender);
-    $monitor = new SentryIQ\Updates\IntegrityNode4Monitor($store, $correlator, $dispatcher);
+    $monitor = new SentryIQ\Updates\IntegrityNode4Monitor($store, $correlator, $dispatcher, $ownerAlertSender);
     $result = $monitor->run($targetOrigin);
     fwrite(STDOUT, json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) . "\n");
     $healthy = ($result['evaluation']['status'] ?? null) === 'healthy'
