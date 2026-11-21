@@ -50,8 +50,9 @@ final class IntegrityNodeScheduledRunner
         $parts = parse_url($targetOrigin);
         if (!is_array($parts) || ($parts['scheme'] ?? null) !== 'https'
             || strtolower((string)($parts['host'] ?? '')) !== 'sentryiq.bichet.co.za'
+            || $targetOrigin !== 'https://sentryiq.bichet.co.za'
             || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])) {
-            throw new RuntimeException('Scheduled runner target must be the canonical SentryIQ HTTPS origin.');
+            throw new RuntimeException('Scheduled runner target must be the exact canonical SentryIQ HTTPS origin without a port or path.');
         }
         if (!array_is_list($publicPaths)) {
             throw new RuntimeException('Scheduled runner public-path selection must be a list.');
