@@ -270,7 +270,7 @@ export class NodeAState extends DurableObject<Env> {
     });
   }
 
-  async testUpstreamTufCacheBootstrap(rootBase64: string): Promise<{ rootVersion: number; cacheReadAfterBootstrap: boolean; expectedNetworkFailure: boolean }> {
+  async testUpstreamTufCacheBootstrap(rootBase64: string): Promise<{ rootVersion: number; cacheReadAfterBootstrap: boolean; expectedNetworkFailure: boolean; stagedPaths: string[] }> {
     const context = createTufFsContext(this.ctx.storage.sql);
     return runWithTufFsContext(context, async () => {
       const rootPath = "/node-a/tuf-fixtures/root.json";
@@ -298,6 +298,11 @@ export class NodeAState extends DurableObject<Env> {
       }
 
       const cachedRootPath = path.join(cachePath, encodeURIComponent("127.0.0.1:1"), "root.json");
+      const stagedPaths = [...context.stagedFiles.keys()];
+      if (!tufFs.existsSync(cachedRootPath)) {
+        discardTufFsContext(context);
+        return { rootVersion: 0, cacheReadAfterBootstrap: false, expectedNetworkFailure, stagedPaths };
+      }
       const cachedRoot = JSON.parse(tufFs.readFileSync(cachedRootPath, "utf8") as string) as { signed?: { version?: number } };
       if (!Number.isSafeInteger(cachedRoot.signed?.version) || !cachedRoot.signed?.version) {
         throw new Error("upstream TUF client did not seed a readable root through Durable Object storage");
@@ -306,7 +311,8 @@ export class NodeAState extends DurableObject<Env> {
       return {
         rootVersion: cachedRoot.signed.version,
         cacheReadAfterBootstrap: true,
-        expectedNetworkFailure
+        expectedNetworkFailure,
+        stagedPaths
       };
     });
   }
