@@ -68,7 +68,7 @@ final class IntegrityEventRequestDecoder
             if ($inString) {
                 if ($escaped) {
                     $escaped = false;
-                } elseif ($char === '\\\\') {
+                } elseif ($char === '\\') {
                     $escaped = true;
                 } elseif ($char === '"') {
                     $inString = false;
