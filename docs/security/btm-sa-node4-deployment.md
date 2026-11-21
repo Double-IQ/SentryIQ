@@ -106,9 +106,14 @@ If the current shared cPanel account cannot provide a separate service identity 
 7. Reuse, expired challenges, cross-node tokens, wrong release bindings and
    invalid signatures fail closed.
 
-The store is deliberately bounded at 5,000 reports and 16 MiB. It refuses
-further writes when full rather than silently discarding evidence. Retention,
-export and alert-delivery jobs remain follow-on components.
+The store is deliberately bounded at 5,000 reports and 32 MiB. It retains
+reports for seven days, prunes expired challenges, and retains delivered alert
+records for thirty days; pending alerts are never pruned. It refuses further
+writes when a hard capacity limit is reached rather than silently discarding
+live evidence. `IntegrityNode4Monitor` performs retention, incident correlation,
+outbox enqueueing and pending-alert delivery when its separately configured
+CLI schedule runs. Evidence export and an external audit archive remain
+follow-on operational tasks.
 
 ## Shared-host limitation
 
@@ -130,8 +135,8 @@ production configuration or host files are changed by this pull request.
 
 The event store retains report evidence for seven days, prunes expired
 challenges, and retains delivered alert records for thirty days. Pending alerts
-are never removed by retention. The hard report cap is 5,000 records and the
-alert outbox cap is 2,000 records; exceeding either cap fails closed rather
+are never removed by retention. The serialized state-file limit is 32 MiB,
+the hard report cap is 5,000 records, and the alert outbox cap is 2,000 records; exceeding either cap fails closed rather
 than silently dropping live evidence or pending alerts. At a fifteen-minute
 schedule for both A and B, seven days produces about 1,344 reports, within the
 current report cap. Schedule each A/B node no more frequently than every
