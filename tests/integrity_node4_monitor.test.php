@@ -59,6 +59,26 @@ try {
     monitorAssert($second['delivery']['delivered'] === 2, 'A later cron run must retry and deliver pending alerts.');
     monitorAssert($second['delivery']['remaining'] === 0, 'Successfully delivered alerts must leave the pending queue.');
     monitorAssert(count($directAlerts) === 1, 'Successful retry must not send another delivery-degraded alert.');
+
+    $failingMonitor = new IntegrityNode4Monitor(
+        $store,
+        new IntegrityIncidentCorrelator(1800, static fn(): int => 0),
+        $dispatcher,
+        static function (string $nodeId, string $reason, array $context) use (&$directAlerts): void {
+            $directAlerts[] = [$nodeId, $reason, $context];
+        }
+    );
+    $monitorFailureAlerted = false;
+    try {
+        $failingMonitor->run('https://sentryiq.bichet.co.za');
+    } catch (RuntimeException) {
+        $monitorFailureAlerted = true;
+    }
+    monitorAssert($monitorFailureAlerted, 'Monitor execution failure must fail visibly.');
+    monitorAssert(count($directAlerts) === 2
+        && $directAlerts[1][0] === 'integrity-node4'
+        && $directAlerts[1][1] === 'node4_monitor_execution_failed',
+        'Monitor execution failure must trigger the independent owner-alert path.');
 } finally {
     foreach (glob($directory . DIRECTORY_SEPARATOR . '*') ?: [] as $file) {
         if (is_file($file) && !is_link($file)) {
