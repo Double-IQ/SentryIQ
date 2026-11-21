@@ -278,6 +278,8 @@ remain operationally independent of Node B and Node 4.
 
 - [Cloudflare Workers Node.js compatibility](https://developers.cloudflare.com/workers/runtime-apis/nodejs/)
 - [Cloudflare Workers Web Crypto](https://developers.cloudflare.com/workers/runtime-apis/web-crypto/)
+- [Cloudflare Containers overview and Workers integration](https://developers.cloudflare.com/containers/)
+- [Cloudflare Containers FAQ (ephemeral disk and lifecycle)](https://developers.cloudflare.com/containers/faq/)
 - [Cloudflare Durable Objects SQLite storage](https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/)
 - [Cloudflare Durable Objects limits](https://developers.cloudflare.com/durable-objects/platform/limits/)
 - [Cloudflare Cron Triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/)
