@@ -3,12 +3,19 @@
 **Document status:** Active execution tracker  
 **Baseline branch:** `main`  
 **Repository:** `Double-IQ/SentryIQ`  
-**Last updated:** 2026-11-19  
+**Last updated:** 2026-11-21  
 **Execution rule:** Phase 1 audit/remediation test tasks are complete (30/30). Do not restart or repeat them. Keep repository changes in review until explicitly approved; proceed with safe documentation and non-production verification. Production changes and changes to credentials, DNS, hosting configuration, repository protection, or release publication require the appropriate owner action and explicit approval.
 
 This document is the single working checklist for the reset security review and subsequent four-node deployment. It is intentionally separate from the broader historical security/migration roadmap. Where older planning documents describe a different sequence, follow this checklist for the current execution.
 
-## Current execution state — 2026-11-19
+## Current execution state — 2026-11-21
+
+**Integrity Node / Node 4 code integration (2026-11-21):** PR [#99](https://github.com/Double-IQ/SentryIQ/pull/99) is merged into `main` at `043988f723c3cdb77cab586cbddc805892be2710`. Its integrated code includes the Node 4 authenticated event plane, one-use node-bound challenges, strict signed-report verification, atomic challenge consumption/report persistence, incident correlation, durable alert outbox, bounded retention, A/B/C evidence paths, private-host attestation client/collector/verifier integration, native Sigstore verifier integration, and explicit monotonic release-baseline support. The follow-up JSON duplicate-key scanner escaped-quote fix and regression test are included in the merged commit.
+
+- Post-merge validation on the exact `main` commit `043988f723c3cdb77cab586cbddc805892be2710`: PHP Syntax Check [44871973581](https://github.com/Double-IQ/SentryIQ/actions/runs/44871973581), Gallery Security Checks [44871973563](https://github.com/Double-IQ/SentryIQ/actions/runs/44871973563), Release Manifest Tests [44871973626](https://github.com/Double-IQ/SentryIQ/actions/runs/44871973626), and Integrity Node Tests [44871974154](https://github.com/Double-IQ/SentryIQ/actions/runs/44871974154) all completed successfully. Integrity Node Tests passed on PHP 8.1, 8.2, 8.3, 8.4, and 8.5. The current post-merge run set does not include Native PHP Release Attestation or the Native Sigstore Integrity Node workflow; earlier successful runs on a prior feature head are not post-merge validation of those workflows.
+- This is **code/CI integration only**, not security sign-off or deployment. No production node credentials, collector signing key, independent OS/service identity, private storage, baseline initialization, cron schedule, alert destination, Node 4 listener/reverse-proxy, or monitoring runtime has been provisioned or verified. A/B remain fail-closed pending genuine independent-host attestation. BTM-SA/Node 4 shares the SentryIQ physical host and is not an independent failure domain.
+- Remaining work is the detailed post-merge security review, deployment/runbook reconciliation, independent-host and key-custody decisions, operator configuration, adversarial/runtime tests, and production acceptance. Do not mark four-node deployment complete based on merged code or CI.
+
 
 **Phase 1: 30/30 defined audit/remediation test tasks complete.** This is repository/code and isolated-test completion, not production operational acceptance.
 
