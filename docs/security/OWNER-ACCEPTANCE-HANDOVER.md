@@ -102,6 +102,8 @@ Complete only against the actual production host, with a maintenance/change reco
 
 - [x] [PR #63](https://github.com/Double-IQ/SentryIQ/pull/63) merged as `894f05ac1f4063399ea17df23bc79ea32327bbbf`; it prevents overwriting existing release assets, rejects prerelease tags from the stable release workflow, and requires the existing tag. Post-merge PHP Syntax Check ([44467440693](https://github.com/Double-IQ/SentryIQ/actions/runs/44467440693)), Gallery Security Checks ([44467440690](https://github.com/Double-IQ/SentryIQ/actions/runs/44467440690)), and Release Manifest Tests ([44467440706](https://github.com/Double-IQ/SentryIQ/actions/runs/44467440706)) all passed.
 - [x] [PR #65](https://github.com/Double-IQ/SentryIQ/pull/65) merged as `a8ed98977514fb99cb7c20f3be1410a1b1c2f4ce`, setting `VERSION` to `0.1.3`. PHP lint, Gallery Security, and Release Manifest Tests passed on its exact PR head; post-merge PHP lint and Gallery Security passed. No tag or release was created.
+- [x] Verify the existing v0.1.2 fixture's genuine GitHub attestation and pinned native verifier dependency installation in CI (run 44873385969). This validates the fixture only; v0.1.2 is not approved for the new updater path.
+- [x] Build and publish the private cPanel dependency artifact from main: `sentryiq-sigstore-vendor-php`, artifact ID `14695325067`, 854,727 bytes, archive SHA-256 `9d31edb67faaa8d125cce744e7e042f0b056c92e077176115b0b23cb3efa0d1c`, expiry 2026-12-21 05:59 UTC. Download from GitHub Actions run [44873385969](https://github.com/Double-IQ/SentryIQ/actions/runs/44873385969); verify the included `.sha256` file for the inner dependency ZIP before installation. The artifact has not been installed.
 - [ ] Do not use the previously published v0.1.2 release for the new updater path: it predates the required embedded canonical manifest and KDF runtime policy.
 - [ ] Generate a new release from the merged `main` source using the updated release workflow; PR #56 is already merged.
 - [ ] Verify the new release ZIP checksum and genuine GitHub Sigstore attestation/provenance against the expected repository, workflow, ref, and commit.
@@ -115,7 +117,7 @@ Complete only against the actual production host, with a maintenance/change reco
 
 Phase 2 is not authorised by completion of this checklist alone.
 
-**Code integration status (2026-11-21):** Node 4 event-plane and private-host attestation components are merged into `main` through [PR #99](https://github.com/Double-IQ/SentryIQ/pull/99), merge commit `043988f723c3cdb77cab586cbddc805892be2710`. PHP lint, Gallery Security, Release Manifest Tests, and Integrity Node Tests (PHP 8.1–8.5) passed on that exact commit. This validates repository code/tests only. It does not provision any node, key, token, private state directory, baseline, cron job, listener, alert destination, or production monitor.
+**Code/CI integration status (2026-11-21):** Node 4 event-plane and private-host attestation components are merged through [PR #99](https://github.com/Double-IQ/SentryIQ/pull/99). Native Sigstore Integrity Node Tests passed on main in [run 44873287657](https://github.com/Double-IQ/SentryIQ/actions/runs/44873287657), PHP 8.1–8.5. Native PHP Release Attestation passed on current main in [run 44873385969](https://github.com/Double-IQ/SentryIQ/actions/runs/44873385969), including the v0.1.2 end-to-end GitHub attestation check and private dependency packaging. The cPanel artifact is available as `sentryiq-sigstore-vendor-php` (artifact ID `14695325067`, expires 2026-12-21 05:59 UTC); it has not been installed. These results validate repository code and CI only. They do not provision any node, key, token, private state directory, baseline, cron job, listener, alert destination, or production monitor.
 
 - [ ] Confirm Node A provider/host assignment and independent failure domain; the current architecture record still does not identify a verified production host.
 - [ ] Verify Node B's Val Town assignment, deployed service/runtime, secrets custody, pinned trust material, private baseline/state, schedule, and direct owner-alert path. Hosting assignment is known; deployment/runtime acceptance is not.
@@ -127,23 +129,15 @@ Phase 2 is not authorised by completion of this checklist alone.
 - [ ] Complete failure-mode, replay, stale-report, disagreement, alert-delivery, retention, and recovery exercises for each genuinely independent failure domain.
 - [ ] Obtain explicit approval for the deployment plan and each production cutover.
 
-- [ ] Confirm Node A provider/host assignment and failure domain; it remains unconfirmed in the current architecture record.
-- [ ] Confirm Node B (Val Town) service ownership, endpoint, secrets custody, and health checks.
-- [ ] Confirm Node C (HelioHost) service ownership, endpoint, secrets custody, and health checks.
-- [ ] Confirm Node 4 (BTM-SA) is a logically separate service but shares a physical host with SentryIQ; do not count it as an independent infrastructure failure domain.
-- [ ] Define service-to-service authentication, network boundaries, timeouts, retry/idempotency behavior, monitoring, and incident ownership for each node.
-- [ ] Complete a failure-mode test and recovery exercise for each genuinely independent failure domain.
-- [ ] Obtain explicit approval for the deployment plan and each production cutover.
-
 ## Completion record
 
 Keep this section free of secrets.
 
 | Gate | Owner/role | Status (pending / passed / blocked) | Evidence reference | Date |
 |---|---|---|---|---|
-| GitHub main protection | Repository administrator | Pending | | |
-| Release tag protection | Repository administrator | Pending | | |
-| GitHub platform security | Repository administrator | Pending | | |
+| GitHub main protection | Repository administrator | Pending | Ruleset 27621562 active; 0 required approvals and Code Owner review disabled; see REPOSITORY-SECURITY-SETTINGS.md | 2026-11-21 |
+| Release tag protection | Repository administrator | Passed | Active ruleset 27621577 protects refs/tags/v* against update and deletion | 2026-11-21 |
+| GitHub platform security | Repository administrator | Pending | Owner-confirmed enabled; not independently API-verified | 2026-11-21 |
 | Off-host backup + restore | Production/storage administrator | Pending | | |
 | Production host acceptance | Hosting administrator | Pending | | |
 | B2 acceptance | Storage administrator | Pending | | |
