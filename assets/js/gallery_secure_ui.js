@@ -9,6 +9,8 @@
     const grid = byId('secure-gallery-grid');
     let viewerUrl = null;
     let photoCards = [];
+    let sessionGuard = null;
+    let workspaceGeneration = 0;
 
     function setStatus(id, message, type) {
         const node = byId(id);
@@ -17,12 +19,123 @@
         node.className = 'secure-gallery-status' + (type ? ' ' + type : '');
     }
 
+    function stopSessionGuard() {
+        if (sessionGuard) sessionGuard.stop();
+        sessionGuard = null;
+    }
+
+    function lockWorkspace(reason) {
+        workspaceGeneration++;
+        stopSessionGuard();
+        closeViewer();
+        SentryIQGalleryStorage.lock();
+        byId('secure-gallery-file').value = '';
+        byId('secure-gallery-album').value = '';
+        byId('secure-gallery-recovery-code').value = '';
+        byId('secure-gallery-recovery-input').value = '';
+        byId('secure-gallery-recovery-saved').checked = false;
+        byId('secure-gallery-finish-setup').disabled = true;
+        grid.replaceChildren();
+        photoCards = [];
+        updateAlbumFilter();
+        workspace.hidden = true;
+        setupPanel.hidden = true;
+        recoveryPanel.hidden = true;
+        unlockPanel.hidden = false;
+        const message = reason === 'idle'
+            ? 'Gallery locked after 15 minutes of inactivity.'
+            : reason === 'background'
+                ? 'Gallery locked after remaining in the background for 60 seconds.'
+                : 'Gallery locked. Decrypted browser object URLs were revoked.';
+        setStatus('secure-gallery-unlock-status', message, 'success');
+    }
+
+    window.addEventListener('pagehide', function () {
+        // This listener stays active even while Gallery is locked or a passkey
+        // prompt is still pending, when the idle/background guard may not yet
+        // have been started.
+        lockWorkspace('pagehide');
+    });
+
+    function startSessionGuard() {
+        stopSessionGuard();
+        try {
+            if (!window.SentryIQGallerySessionGuard) throw new Error('Gallery session protection is unavailable. Reload the page before unlocking.');
+            sessionGuard = window.SentryIQGallerySessionGuard.start(function (reason) {
+                sessionGuard = null;
+                lockWorkspace(reason);
+            });
+        } catch (error) {
+            SentryIQGalleryStorage.lock();
+            throw error;
+        }
+    }
+
+    async function refreshDevices() {
+        const container = byId('secure-gallery-devices');
+        if (!container) return;
+        container.textContent = 'Loading enrolled devices…';
+        try {
+            const response = await fetch('gallery_passkey.php?action=devices', {
+                method: 'GET',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: { Accept: 'application/json' }
+            });
+            const payload = await response.json();
+            if (!response.ok || !payload || payload.status !== 'ok' || !Array.isArray(payload.devices)) {
+                throw new Error(payload && payload.message ? payload.message : 'Unable to load enrolled devices.');
+            }
+            container.replaceChildren();
+            if (payload.devices.length === 0) {
+                container.textContent = 'No Gallery devices are enrolled.';
+                return;
+            }
+            payload.devices.forEach(function (device, index) {
+                const row = document.createElement('div');
+                row.className = 'secure-gallery-device';
+                const description = document.createElement('div');
+                const title = document.createElement('strong');
+                title.textContent = 'Gallery device ' + (index + 1);
+                const date = document.createElement('small');
+                date.textContent = device.createdAt > 0
+                    ? 'Enrolled ' + new Date(device.createdAt * 1000).toLocaleString()
+                    : 'Enrollment date unavailable';
+                description.append(title, date);
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.className = 'btn';
+                remove.textContent = 'Remove';
+                remove.addEventListener('click', async function () {
+                    if (!window.confirm('Remove this device from Secure Gallery? It will no longer be able to unlock Gallery. Its SentryIQ sign-in passkey will remain registered.')) return;
+                    remove.disabled = true;
+                    setStatus('secure-gallery-workspace-status', 'Confirm a different enrolled passkey to remove this device…');
+                    try {
+                        await SentryIQSecureGallery.removeEnrolledDevice(device.credentialId);
+                        setStatus('secure-gallery-workspace-status', 'Gallery device removed. Its SentryIQ sign-in passkey was not deleted.', 'success');
+                        await refreshDevices();
+                    } catch (error) {
+                        setStatus('secure-gallery-workspace-status', error.message || 'Unable to remove this Gallery device.', 'error');
+                        remove.disabled = false;
+                    }
+                });
+                row.append(description, remove);
+                container.appendChild(row);
+            });
+        } catch (error) {
+            container.textContent = error.message || 'Unable to load enrolled devices.';
+        }
+    }
+
     function showWorkspace() {
+        startSessionGuard();
         unlockPanel.hidden = true;
         setupPanel.hidden = true;
         recoveryPanel.hidden = true;
         workspace.hidden = false;
-        setStatus('secure-gallery-workspace-status', 'Gallery unlocked in this browser.', 'success');
+        refreshDevices();
+        refreshRotationControls();
+        setStatus('secure-gallery-workspace-status', 'Gallery unlocked in this browser. It will lock after 15 minutes of inactivity or 60 seconds in the background.', 'success');
     }
 
     function showRecovery(message) {
@@ -30,7 +143,70 @@
         setStatus('secure-gallery-recovery-status', message || 'Enter your saved recovery code.', 'error');
     }
 
+    async function refreshRotationControls() {
+        const select = byId('secure-gallery-rotation-target');
+        if (!select) return;
+        try {
+            const status = await SentryIQSecureGallery.getRotationStatus();
+            if (status.activeKeyId) {
+                await SentryIQSecureGallery.syncKeyringState(status.activeKeyId, status.keyIds, status.legacyKeyId);
+            }
+            const info = SentryIQSecureGallery.getKeyInfo();
+            const current = status.rotation;
+            select.replaceChildren();
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = 'Select an inactive key';
+            select.appendChild(placeholder);
+            info.keyIds.filter(function (keyId) {
+                return keyId !== status.activeKeyId || (current && ['running', 'ready_to_retire'].includes(current.status) && keyId === current.to_key_id);
+            }).forEach(function (keyId) {
+                const option = document.createElement('option');
+                option.value = keyId;
+                option.textContent = 'Key ' + keyId.slice(-8);
+                select.appendChild(option);
+            });
+            const abort = byId('secure-gallery-abort-rotation');
+            byId('secure-gallery-rotate').disabled = false;
+            const rotationActive = current && ['running', 'ready_to_retire'].includes(current.status);
+            select.disabled = !!rotationActive;
+            byId('secure-gallery-add-key').disabled = !!rotationActive;
+            if (current && current.status === 'running') {
+                select.value = current.to_key_id;
+                byId('secure-gallery-rotate').textContent = 'Resume rotation';
+                abort.disabled = false;
+                const remaining = Number(status.references && status.references[current.from_key_id] || 0);
+                setStatus('secure-gallery-rotation-status',
+                    'Rotation in progress. ' + remaining + ' object or pending-upload reference(s) still use the previous key.',
+                    'success');
+            } else if (current && current.status === 'ready_to_retire') {
+                select.value = current.to_key_id;
+                byId('secure-gallery-rotate').textContent = 'Finalize key retirement';
+                abort.disabled = false;
+                const retireAfter = new Date(current.retire_after * 1000).toLocaleString();
+                setStatus('secure-gallery-rotation-status',
+                    'All objects have migrated. The old key is retained for rollback until ' + retireAfter + '. You can abort during this period or finalize after it expires.',
+                    'success');
+            } else {
+                byId('secure-gallery-rotate').textContent = 'Start rotation';
+                abort.disabled = true;
+                if (current && current.status === 'completed') {
+                    setStatus('secure-gallery-rotation-status', 'Last key rotation completed. The previous key was retired after the server verified that no objects referenced it.', 'success');
+                } else if (current && current.status === 'aborted') {
+                    setStatus('secure-gallery-rotation-status', 'Last rotation was aborted. Both keys were retained and existing photos remain readable.', 'success');
+                } else if (info.keyIds.length < 2) {
+                    setStatus('secure-gallery-rotation-status', 'Add an inactive encryption key before starting rotation.');
+                } else {
+                    setStatus('secure-gallery-rotation-status', 'An inactive encryption key is ready for rotation.');
+                }
+            }
+        } catch (error) {
+            setStatus('secure-gallery-rotation-status', error.message || 'Unable to read Gallery rotation status.', 'error');
+        }
+    }
+
     async function refreshPhotos() {
+        const generation = workspaceGeneration;
         photoCards.forEach(function (item) { SentryIQGalleryStorage.revokeObjectUrl(item.thumbnailUrl); });
         grid.replaceChildren();
         photoCards = [];
@@ -43,10 +219,20 @@
         setStatus('secure-gallery-workspace-status', 'Loading encrypted photos…');
         try {
             const records = await SentryIQGalleryStorage.list();
+            if (generation !== workspaceGeneration || !SentryIQSecureGallery.isUnlocked()) return;
             const ids = Object.keys(records);
             const results = await Promise.allSettled(ids.map(function (id) {
                 return SentryIQGalleryStorage.loadPhoto(id);
             }));
+            if (generation !== workspaceGeneration || !SentryIQSecureGallery.isUnlocked()) {
+                results.forEach(function (result) {
+                    if (result.status === 'fulfilled') {
+                        SentryIQGalleryStorage.revokeObjectUrl(result.value.thumbnailUrl);
+                        SentryIQGalleryStorage.clearMetadata(result.value.metadata);
+                    }
+                });
+                return;
+            }
             results.forEach(function (result) {
                 if (result.status === 'fulfilled') addPhotoCard(result.value);
             });
@@ -85,45 +271,50 @@
     }
 
     function addPhotoCard(photo) {
-        const card = document.createElement('article');
-        card.className = 'secure-gallery-card';
-        const image = document.createElement('img');
-        image.src = photo.thumbnailUrl;
-        image.alt = photo.metadata.filename || 'Private photo';
-        image.loading = 'lazy';
-        image.addEventListener('click', function () { openViewer(photo.photoId); });
-        const title = document.createElement('strong');
-        title.textContent = photo.metadata.filename || 'Private photo';
-        const album = document.createElement('small');
-        album.textContent = photo.metadata.album || 'Unassigned';
-        const preview = document.createElement('button');
-        preview.type = 'button';
-        preview.className = 'btn';
-        preview.textContent = 'View';
-        preview.addEventListener('click', function () { openViewer(photo.photoId); });
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.className = 'btn';
-        remove.textContent = 'Delete';
-        remove.addEventListener('click', async function () {
-            if (!window.confirm('Permanently delete this encrypted photo and its B2 objects?')) return;
-            remove.disabled = true;
-            try {
-                await SentryIQGalleryStorage.deletePhoto(photo.photoId);
-                SentryIQGalleryStorage.revokeObjectUrl(photo.thumbnailUrl);
-                card.remove();
-                photoCards = photoCards.filter(function (item) { return item.card !== card; });
-                updateAlbumFilter();
-                setStatus('secure-gallery-workspace-status', 'Photo deleted.', 'success');
-            } catch (error) {
-                setStatus('secure-gallery-workspace-status', error.message || 'Unable to delete this photo.', 'error');
-                remove.disabled = false;
-            }
-        });
-        card.append(image, title, album, preview, remove);
-        grid.appendChild(card);
-        photoCards.push({ card: card, album: album.textContent, thumbnailUrl: photo.thumbnailUrl });
-        updateAlbumFilter();
+        const metadata = photo.metadata;
+        try {
+            const card = document.createElement('article');
+            card.className = 'secure-gallery-card';
+            const image = document.createElement('img');
+            image.src = photo.thumbnailUrl;
+            image.alt = metadata.filename || 'Private photo';
+            image.loading = 'lazy';
+            image.addEventListener('click', function () { openViewer(photo.photoId); });
+            const title = document.createElement('strong');
+            title.textContent = metadata.filename || 'Private photo';
+            const album = document.createElement('small');
+            album.textContent = metadata.album || 'Unassigned';
+            const preview = document.createElement('button');
+            preview.type = 'button';
+            preview.className = 'btn';
+            preview.textContent = 'View';
+            preview.addEventListener('click', function () { openViewer(photo.photoId); });
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'btn';
+            remove.textContent = 'Delete';
+            remove.addEventListener('click', async function () {
+                if (!window.confirm('Permanently delete this encrypted photo and its B2 objects?')) return;
+                remove.disabled = true;
+                try {
+                    await SentryIQGalleryStorage.deletePhoto(photo.photoId);
+                    SentryIQGalleryStorage.revokeObjectUrl(photo.thumbnailUrl);
+                    card.remove();
+                    photoCards = photoCards.filter(function (item) { return item.card !== card; });
+                    updateAlbumFilter();
+                    setStatus('secure-gallery-workspace-status', 'Photo deleted.', 'success');
+                } catch (error) {
+                    setStatus('secure-gallery-workspace-status', error.message || 'Unable to delete this photo.', 'error');
+                    remove.disabled = false;
+                }
+            });
+            card.append(image, title, album, preview, remove);
+            grid.appendChild(card);
+            photoCards.push({ card: card, album: album.textContent, thumbnailUrl: photo.thumbnailUrl });
+            updateAlbumFilter();
+        } finally {
+            SentryIQGalleryStorage.clearMetadata(metadata);
+        }
     }
 
     async function openViewer(photoId) {
@@ -144,12 +335,20 @@
         viewerUrl = null;
     }
 
+    document.querySelectorAll('[data-gallery-navigation]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            const destination = button.getAttribute('data-gallery-navigation');
+            if (destination) window.location.assign(destination);
+        });
+    });
+
     byId('secure-gallery-album-filter').addEventListener('change', filterCards);
 
     byId('secure-gallery-unlock').addEventListener('click', async function () {
         this.disabled = true;
         setStatus('secure-gallery-unlock-status', 'Waiting for passkey confirmation…');
         try {
+            startSessionGuard();
             const result = await SentryIQSecureGallery.unlock();
             if (result.status === 'uninitialized') {
                 const prepared = await SentryIQSecureGallery.prepareIdentity();
@@ -190,6 +389,7 @@
         this.disabled = true;
         setStatus('secure-gallery-setup-status', 'Creating your encrypted Gallery identity…');
         try {
+            startSessionGuard();
             await SentryIQSecureGallery.completeIdentitySetup();
             byId('secure-gallery-recovery-code').value = '';
             byId('secure-gallery-recovery-saved').checked = false;
@@ -205,6 +405,7 @@
         this.disabled = true;
         setStatus('secure-gallery-recovery-status', 'Unlocking with your recovery code…');
         try {
+            startSessionGuard();
             await SentryIQSecureGallery.unlockWithRecovery(byId('secure-gallery-recovery-input').value);
             byId('secure-gallery-recovery-input').value = '';
             showWorkspace();
@@ -226,6 +427,86 @@
             setStatus('secure-gallery-workspace-status', error.message || 'Unable to enroll this passkey.', 'error');
         } finally {
             this.disabled = false;
+        }
+    });
+
+    byId('secure-gallery-add-key').addEventListener('click', async function () {
+        if (!window.confirm('Add another inactive Gallery encryption key? Existing photos will remain encrypted with their current keys.')) return;
+        this.disabled = true;
+        setStatus('secure-gallery-workspace-status', 'Confirm an enrolled Gallery passkey to add an encryption key…');
+        try {
+            const result = await SentryIQSecureGallery.addWrappingKey();
+            setStatus('secure-gallery-workspace-status', 'A new inactive encryption key was added (' + result.keyId + '). Existing uploads continue using the current active key.', 'success');
+            await refreshRotationControls();
+        } catch (error) {
+            setStatus('secure-gallery-workspace-status', error.message || 'Unable to add an encryption key.', 'error');
+        } finally {
+            this.disabled = false;
+        }
+    });
+
+    byId('secure-gallery-rotate').addEventListener('click', async function () {
+        const targetKeyId = byId('secure-gallery-rotation-target').value;
+        if (!targetKeyId) {
+            setStatus('secure-gallery-rotation-status', 'Select an inactive encryption key first.', 'error');
+            return;
+        }
+        if (!window.confirm('Switch new uploads to this key and rewrap existing photo keys? Photos stay encrypted; this operation changes only their encrypted key envelopes.')) return;
+        this.disabled = true;
+        byId('secure-gallery-abort-rotation').disabled = true;
+        try {
+            const currentStatus = await SentryIQSecureGallery.getRotationStatus();
+            if (currentStatus.rotation && currentStatus.rotation.status === 'ready_to_retire') {
+                const finalized = await SentryIQSecureGallery.finalizeRotation();
+                setStatus('secure-gallery-rotation-status',
+                    finalized.status === 'completed'
+                        ? 'Key rotation completed. The old key was retired after its rollback period.'
+                        : 'Migration is complete. The old key remains available until the rollback period expires.',
+                    'success');
+                await refreshRotationControls();
+                return;
+            }
+            const rotation = await SentryIQSecureGallery.startRotation(targetKeyId);
+            setStatus('secure-gallery-rotation-status', 'Migrating encrypted photo-key envelopes…');
+            const result = await SentryIQGalleryStorage.migrateEnvelopesToKey(targetKeyId, function (progress) {
+                setStatus('secure-gallery-rotation-status',
+                    'Processed ' + (progress.updated + progress.skipped) + ' of ' + progress.total + ' photo-key envelope(s)…');
+            });
+            const remaining = Number(result.references && result.references[rotation.from_key_id] || 0);
+            if (remaining > 0) {
+                setStatus('secure-gallery-rotation-status',
+                    'Migration paused safely. ' + result.updated + ' envelope(s) updated; ' + remaining +
+                    ' reference(s) still use the old key, including any in-flight uploads. Press Resume after they finish or are cleaned up.',
+                    'success');
+            } else {
+                const finalized = await SentryIQSecureGallery.finalizeRotation();
+                setStatus('secure-gallery-rotation-status',
+                    finalized.status === 'completed'
+                        ? 'Key rotation completed. All photo envelopes use the new key and the old key was retired.'
+                        : 'All photo envelopes migrated. The old key is retained for a 24-hour rollback period.',
+                    'success');
+            }
+            await refreshRotationControls();
+        } catch (error) {
+            setStatus('secure-gallery-rotation-status', error.message || 'Key rotation stopped safely. You can resume it later.', 'error');
+            await refreshRotationControls();
+        } finally {
+            this.disabled = false;
+        }
+    });
+
+    byId('secure-gallery-abort-rotation').addEventListener('click', async function () {
+        if (!window.confirm('Abort this rotation? The previous key will become active again. Both keys will be kept, and already migrated photos will remain readable.')) return;
+        this.disabled = true;
+        byId('secure-gallery-rotate').disabled = true;
+        try {
+            await SentryIQSecureGallery.abortRotation();
+            setStatus('secure-gallery-rotation-status', 'Rotation aborted. The previous key is active again and both keys were retained.', 'success');
+            await refreshRotationControls();
+        } catch (error) {
+            setStatus('secure-gallery-rotation-status', error.message || 'Unable to abort key rotation.', 'error');
+        } finally {
+            await refreshRotationControls();
         }
     });
 
@@ -252,18 +533,7 @@
     });
 
     byId('secure-gallery-lock').addEventListener('click', function () {
-        closeViewer();
-        SentryIQGalleryStorage.lock();
-        byId('secure-gallery-file').value = '';
-        byId('secure-gallery-recovery-code').value = '';
-        byId('secure-gallery-recovery-input').value = '';
-        grid.replaceChildren();
-        photoCards = [];
-        workspace.hidden = true;
-        setupPanel.hidden = true;
-        recoveryPanel.hidden = true;
-        unlockPanel.hidden = false;
-        setStatus('secure-gallery-unlock-status', 'Gallery locked. Decrypted browser object URLs were revoked.', 'success');
+        lockWorkspace('manual');
     });
 
     byId('secure-gallery-viewer-close').addEventListener('click', closeViewer);
@@ -274,6 +544,7 @@
         if (event.key === 'Escape') closeViewer();
     });
     window.addEventListener('pagehide', function () {
+        stopSessionGuard();
         if (viewerUrl) SentryIQGalleryStorage.revokeObjectUrl(viewerUrl);
         byId('secure-gallery-file').value = '';
         byId('secure-gallery-recovery-code').value = '';
