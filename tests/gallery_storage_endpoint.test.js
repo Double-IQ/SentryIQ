@@ -100,10 +100,10 @@ test('WebAuthn registration, login and Gallery assertion challenges are one-time
     const loginStart = accountPasskey.indexOf("if ($action==='login')");
     const register = accountPasskey.slice(registerStart, loginStart);
     const login = accountPasskey.slice(loginStart);
-    assert.ok(register.indexOf("unset($_SESSION['pk_register_challenge']") > register.indexOf("$challenge=pk_unb64"));
-    assert.ok(register.indexOf("unset($_SESSION['pk_register_challenge']") < register.indexOf("pk_validate_client"));
-    assert.ok(login.indexOf("unset($_SESSION['pk_login_challenge'])") > login.indexOf("$challenge=pk_unb64"));
-    assert.ok(login.indexOf("unset($_SESSION['pk_login_challenge'])") < login.indexOf("pk_validate_client"));
+    assert.ok(register.indexOf("WebAuthnChallenge::consume($_SESSION,'register',time())") >= 0);
+    assert.ok(register.indexOf("WebAuthnChallenge::consume($_SESSION,'register',time())") < register.indexOf("pk_validate_client"));
+    assert.ok(login.indexOf("WebAuthnChallenge::consume($_SESSION,'login',time())") >= 0);
+    assert.ok(login.indexOf("WebAuthnChallenge::consume($_SESSION,'login',time())") < login.indexOf("pk_validate_client"));
 
     const galleryPasskey = fs.readFileSync(
         path.join(__dirname, '../app/Auth/GalleryPasskeyAuth.php'),
