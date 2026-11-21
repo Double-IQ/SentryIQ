@@ -38,3 +38,10 @@ test('Gallery device removal is not the global SentryIQ passkey deletion action'
     assert.doesNotMatch(endpoint, /PasskeyAuth\.php/);
     assert.doesNotMatch(endpoint, /action\s*===\s*'delete'/);
 });
+
+test('WebAuthn signature counter cannot roll back to zero after becoming monotonic', () => {
+    assert.match(endpoint, /if \(\$previousCounter !== 0 \|\| \$counter !== 0\)/);
+    assert.match(endpoint, /if \(\$counter <= \$previousCounter\)/);
+    assert.match(endpoint, /\$store\['credentials'\]\[\$index\]\['sign_count'\] = \$counter/);
+    assert.match(endpoint, /Once a nonzero counter has been observed, a reset/);
+});
