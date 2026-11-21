@@ -56,12 +56,8 @@ final class IntegrityNodeKeyGenerator
         $privateCreated = false;
         $publicCreated = false;
         try {
-            if (@file_put_contents($privateTemp, $secret, LOCK_EX) !== strlen($secret)
-                || !@chmod($privateTemp, 0600)
-                || @file_put_contents($publicTemp, $public, LOCK_EX) !== strlen($public)
-                || !@chmod($publicTemp, 0600)) {
-                throw new RuntimeException('Unable to write private temporary node key files.');
-            }
+            $this->writeTemporaryKeyFile($privateTemp, $secret);
+            $this->writeTemporaryKeyFile($publicTemp, $public);
             // Hard-link publication is atomic and refuses to replace an existing key.
             if (!@link($privateTemp, $privatePath)) {
                 throw new RuntimeException('Private node signing key already exists or could not be published.');
@@ -89,5 +85,51 @@ final class IntegrityNodeKeyGenerator
             'public_key_path' => $publicPath,
             'public_key_base64' => base64_encode($public),
         ];
+    }
+
+    /**
+     * Create a no-follow, exclusive temporary key file and flush its contents
+     * before it can be linked into the permanent key paths.
+     */
+    private function writeTemporaryKeyFile(string $path, string $contents): void
+    {
+        $handle = @fopen($path, 'x+b');
+        if ($handle === false) {
+            throw new RuntimeException('Unable to exclusively create temporary node key file.');
+        }
+
+        try {
+            if (!@chmod($path, 0600)) {
+                throw new RuntimeException('Unable to restrict temporary node key permissions.');
+            }
+            $offset = 0;
+            $length = strlen($contents);
+            while ($offset < $length) {
+                $written = @fwrite($handle, substr($contents, $offset));
+                if (!is_int($written) || $written < 1) {
+                    throw new RuntimeException('Unable to write complete temporary node key.');
+                }
+                $offset += $written;
+            }
+            if (!@fflush($handle) || !@fsync($handle)) {
+                throw new RuntimeException('Unable to flush temporary node key to storage.');
+            }
+
+            $opened = fstat($handle);
+            clearstatcache(true, $path);
+            $named = @lstat($path);
+            if (!is_array($opened) || !is_array($named)
+                || (($opened['mode'] ?? 0) & 0170000) !== 0100000
+                || (($opened['mode'] ?? 0) & 0777) !== 0600
+                || ($opened['dev'] ?? null) !== ($named['dev'] ?? null)
+                || ($opened['ino'] ?? null) !== ($named['ino'] ?? null)
+                || (($named['mode'] ?? 0) & 0170000) !== 0100000
+                || (($named['mode'] ?? 0) & 0777) !== 0600
+                || ($opened['size'] ?? null) !== $length) {
+                throw new RuntimeException('Temporary node key file has unsafe or incomplete metadata.');
+            }
+        } finally {
+            fclose($handle);
+        }
     }
 }
