@@ -19,13 +19,14 @@ $dataDir = (string)($config['data_dir'] ?? '');
 $storageDir = is_array($event) ? (string)($event['storage_dir'] ?? '') : '';
 $targetOrigin = is_array($event) ? (string)($event['target_origin'] ?? '') : '';
 $sender = is_array($event) ? ($event['alert_sender'] ?? null) : null;
+$ownerAlertSender = is_array($event) ? ($event['owner_alert_sender'] ?? null) : null;
 
 $realDataDir = $dataDir !== '' ? realpath($dataDir) : false;
 $realStorageDir = $storageDir !== '' ? realpath($storageDir) : false;
 if (!is_array($event) || ($event['enabled'] ?? false) !== true
     || !is_string($realDataDir) || !is_string($realStorageDir)
     || !str_starts_with($realStorageDir, rtrim($realDataDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)
-    || is_link($storageDir) || !is_callable($sender)
+    || is_link($storageDir) || !is_callable($sender) || !is_callable($ownerAlertSender)
     || $targetOrigin !== 'https://sentryiq.bichet.co.za') {
     fwrite(STDERR, "Node 4 monitor is not fully configured.\n");
     exit(2);
