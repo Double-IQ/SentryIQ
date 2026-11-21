@@ -7,6 +7,17 @@ sentryiq_security_bootstrap();
 sentryiq_require_auth();
 
 $csrf = sentryiq_csrf_token();
+$dataDirectory = sentryiq_data_dir();
+$b2Configured = false;
+if (is_string($dataDirectory) && $dataDirectory !== '') {
+    require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/BackblazeB2Signer.php';
+    try {
+        \\SentryIQCloud\\Gallery\\Storage\\BackblazeB2Signer::fromRuntimeDirectory($dataDirectory);
+        $b2Configured = true;
+    } catch (Throwable) {
+        $b2Configured = false;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -119,6 +130,7 @@ $csrf = sentryiq_csrf_token();
     <img id="secure-gallery-viewer-image" alt="Decrypted private photo">
 </div>
 
+<script src="assets/js/sentryiq_navigation.js" defer></script>
 <script src="assets/js/gallery_crypto.js"></script>
 <script src="assets/js/gallery_secure.js"></script>
 <script src="assets/js/gallery_storage.js"></script>
