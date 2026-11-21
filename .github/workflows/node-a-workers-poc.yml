@@ -34,7 +34,16 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24.15.0"
-      - name: Install pinned direct dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund --no-package-lock
+      - name: Generate exact dependency lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Install from generated lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run workerd integration tests
         run: npm test
+      - name: Export generated lockfile for review
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: node-a-poc-package-lock
+          path: cloudflare/node-a-poc/package-lock.json
+          if-no-files-found: error
+          retention-days: 3
