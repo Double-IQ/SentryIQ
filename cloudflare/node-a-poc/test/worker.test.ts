@@ -50,9 +50,10 @@ describe("Node A Workers runtime proof", () => {
   it("bootstraps the upstream Sigstore TUF cache through Durable Object SQLite", async () => {
     const id = env.NODE_A_STATE.idFromName("node-a-upstream-tuf-bootstrap-test");
     const stub = env.NODE_A_STATE.get(id);
-    const result = await stub.testUpstreamTufCacheBootstrap(tufRootBase64);
-    expect(result.rootVersion, JSON.stringify(result)).toBeGreaterThan(0);
-    expect(result.cacheReadAfterBootstrap).toBe(true);
+    const result = await stub.testUpstreamTufEphemeralCache(tufRootBase64);
+    expect(result.rootVersion).toBeGreaterThan(0);
+    expect(result.ephemeralCacheBootstrapped).toBe(true);
+    expect(result.persistentCacheRejected).toBe(true);
     expect(result.expectedNetworkFailure).toBe(true);
   });
 
