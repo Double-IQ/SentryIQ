@@ -1,0 +1,118 @@
+name: Build HelioHost v0.1.2 attestation verifier
+
+on:
+  pull_request:
+    paths:
+      - "tools/heliohost-attestation/**"
+      - ".github/workflows/heliohost-attestation-bundle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  attestations: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_VERSION: "0.1.2"
+      RELEASE_COMMIT: "9c639a4792cadd5421f01ed198ba2a9261c5145f"
+    steps:
+      - name: Check out verification harness
+        uses: actions/checkout@v4
+
+      - name: Set up PHP and Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.5"
+          extensions: openssl, sodium, curl
+          tools: composer:v2
+          coverage: none
+
+      - name: Install pinned verifier dependency
+        working-directory: tools/heliohost-attestation
+        run: |
+          set -euo pipefail
+          composer validate
+          composer install --no-interaction --no-progress --prefer-dist --no-dev --classmap-authoritative
+          composer check-platform-reqs --no-dev
+          php -l verify-release.php
+          php -l validate-native-php-sigstore.php
+
+      - name: Download the exact published release ZIP
+        run: |
+          set -euo pipefail
+          gh release download "v${RELEASE_VERSION}" \
+            --repo Double-IQ/SentryIQ \
+            --pattern "sentryiq-${RELEASE_VERSION}.zip"
+          test -s "sentryiq-${RELEASE_VERSION}.zip"
+
+      - name: Download the genuine GitHub Sigstore attestation bundle
+        id: attestation
+        run: |
+          set -euo pipefail
+          PACKAGE="sentryiq-${RELEASE_VERSION}.zip"
+          gh attestation download "$PACKAGE" \
+            --repo Double-IQ/SentryIQ \
+            --predicate-type https://slsa.dev/provenance/v1
+          PACKAGE_DIGEST="$(sha256sum "$PACKAGE" | awk '{print $1}')"
+          BUNDLE="sha256:${PACKAGE_DIGEST}.jsonl"
+          test -s "$BUNDLE"
+          echo "package_digest=$PACKAGE_DIGEST" >> "$GITHUB_OUTPUT"
+          echo "bundle_file=$BUNDLE" >> "$GITHUB_OUTPUT"
+
+      - name: Execute the same native PHP verifier against the genuine release
+        env:
+          SENTRYIQ_SIGSTORE_VENDOR: ${{ github.workspace }}/tools/heliohost-attestation/vendor
+        run: |
+          set -euo pipefail
+          PACKAGE="sentryiq-${RELEASE_VERSION}.zip"
+          php tools/heliohost-attestation/validate-native-php-sigstore.php \
+            "$PACKAGE" \
+            "${{ steps.attestation.outputs.bundle_file }}" \
+            "$RELEASE_VERSION" \
+            "$RELEASE_COMMIT"
+
+      - name: Assemble private/public HelioHost upload bundle
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+          PACKAGE_DIGEST: ${{ steps.attestation.outputs.package_digest }}
+          BUNDLE_FILE: ${{ steps.attestation.outputs.bundle_file }}
+        run: |
+          set -euo pipefail
+          ROOT="$PWD"
+          OUT="$ROOT/.heliohost-attestation-bundle"
+          rm -rf "$OUT"
+          mkdir -p "$OUT/httpdocs" "$OUT/private"
+
+          cp tools/heliohost-attestation/verify-release.php "$OUT/httpdocs/verify-release.php"
+          cp tools/heliohost-attestation/validate-native-php-sigstore.php "$OUT/private/"
+          cp "sentryiq-${RELEASE_VERSION}.zip" "$OUT/private/sentryiq-${RELEASE_VERSION}.zip"
+          cp "$BUNDLE_FILE" "$OUT/private/attestation-bundle.jsonl"
+          cp -a tools/heliohost-attestation/vendor "$OUT/private/vendor"
+
+          {
+            printf 'release_version=%s\n' "$RELEASE_VERSION"
+            printf 'release_commit=%s\n' "$RELEASE_COMMIT"
+            printf 'release_zip_sha256=%s\n' "$PACKAGE_DIGEST"
+            printf 'verifier_package=k2gl/sigstore-verify\n'
+            printf 'verifier_version=1.6.1\n'
+            printf 'harness_source_commit=%s\n' "$SOURCE_COMMIT"
+          } > "$OUT/BUILD-INFO.txt"
+
+          (
+            cd "$OUT"
+            find . -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+            zip -qr "$ROOT/sentryiq-heliohost-v0.1.2-attestation.zip" .
+          )
+          sha256sum "$ROOT/sentryiq-heliohost-v0.1.2-attestation.zip"
+
+      - name: Upload temporary HelioHost verification bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentryiq-heliohost-v0.1.2-attestation
+          path: sentryiq-heliohost-v0.1.2-attestation.zip
+          if-no-files-found: error
+          retention-days: 7
