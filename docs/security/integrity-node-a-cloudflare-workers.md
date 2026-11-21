@@ -95,20 +95,44 @@ Worker. The Worker needs a separately pinned JavaScript implementation based
 on the maintained Sigstore JavaScript client and its TUF support, or a
 reviewed Worker-compatible adapter around those maintained libraries.
 
-This is **not yet proven**, and source inspection has identified a concrete
-portability obstacle: the current upstream `@sigstore/tuf` client builds a
-filesystem cache using synchronous `fs.existsSync`, `mkdirSync`,
-`writeFileSync` and `copyFileSync`, and derives a cache path from
-`os.homedir()`/process environment. That is not a Durable Object storage
-adapter. Do not assume that enabling `nodejs_compat` makes this cache durable
-or compatible. The implementation must either provide a reviewed, maintained
-TUF storage/fetch adapter that persists all metadata and targets through
-Durable Object storage, or select another maintained Worker-compatible
-Sigstore/TUF implementation. For the PHP-container option, separately prove
+This is **not yet proven**, but the current compatibility picture is more
+specific than a blanket statement that Workers lacks filesystem APIs:
+
+- Cloudflare Workers provides `node:fs` with Node.js compatibility. For
+  compatibility dates on or after 2026-08-04, Node.js compatibility is enabled
+  by default. The Worker virtual filesystem supports synchronous filesystem
+  operations, but it is memory-backed: writable `/tmp` files are unique to
+  each request and are not shared with later or concurrent requests.
+- The virtual filesystem does not implement file permissions or ownership;
+  file timestamps are reported as the Unix epoch, and temporary files count
+  against the Worker memory limit. These semantics are unsuitable for treating
+  the filesystem as durable TUF state or for relying on POSIX permission
+  checks.
+- The current `@sigstore/tuf` package source uses `os.homedir()`,
+  `process.env`, `fs.existsSync`, `fs.mkdirSync`, `fs.copyFileSync`,
+  `fs.writeFileSync`, `fs.readFileSync` and `fs.createReadStream`.
+  Its TUF client seeds and stores root, timestamp, snapshot, targets and
+  downloaded target files in filesystem paths. The current package manifest
+  declares Node.js engines `^22.22.2 || ^24.15.0 || >=26.0.0`; Workers'
+  Node.js compatibility layer is not a promise of full Node runtime equivalence.
+- The public `@sigstore/tuf` options expose a filesystem `cachePath`,
+  `rootPath`, mirror/retry controls and cache flags, but no pluggable
+  persistent storage interface. Its `tuf-js` updater accepts metadata and
+  target directories plus an optional network fetcher; the fetcher does not
+  replace the filesystem persistence layer.
+
+Consequently, a smoke test may show that the package imports and executes in a
+Worker, but its stock cache cannot survive separate Worker requests. The
+implementation must provide a reviewed TUF metadata/target persistence layer
+backed by Durable Object storage (including verified sequential root rotation,
+timestamp/snapshot/targets, and crash-safe commit semantics), or select another
+maintained Worker-compatible Sigstore/TUF implementation. A custom network
+fetcher alone is insufficient. For the PHP-container option, separately prove
 that the existing PHP TUF library's filesystem operations can be backed by a
 durable store without changing its trust/atomicity guarantees; otherwise the
-container approach still needs a TUF storage adapter or must be rejected. Any fork/patch must be narrowly scoped, pinned,
-reviewed and covered by upstream-equivalence tests; bypassing TUF is prohibited.
+container approach still needs a TUF storage adapter or must be rejected. Any
+fork/patch must be narrowly scoped, pinned, reviewed and covered by
+upstream-equivalence tests; bypassing TUF is prohibited.
 
 The upstream package manifests also declare modern Node.js engine ranges.
 Cloudflare's Node compatibility layer exposes a subset of Node APIs, not a
