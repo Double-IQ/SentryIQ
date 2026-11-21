@@ -323,3 +323,16 @@ remain operationally independent of Node B and Node 4.
 - [Cloudflare Cron Triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/)
 - [Sigstore JavaScript client](https://github.com/sigstore/sigstore-js)
 - [Sigstore JavaScript client documentation](https://docs.sigstore.dev/language_clients/javascript/)
+
+
+### Initial Cloudflare workerd proof-of-concept results (2026-11-21)
+
+A dedicated, non-deploying workerd test harness has now established the following:
+
+- The pinned `@sigstore/verify@4.1.3` package imports in workerd and executes Ed25519 verification and SHA-256 operations.
+- An upstream Sigstore Rekor v2 certificate bundle and its upstream trusted-root fixture verify successfully inside workerd. This is a genuine verifier-path test, but it is not yet a SentryIQ release bundle and does not exercise our repository-specific release policy.
+- A SQLite-backed Durable Object proof implements immutable baseline initialization, monotonic release-pin compare-and-advance, same-version digest replacement rejection, downgrade rejection, durable run locking, and audit retention. The tests exercise persistence across separate Durable Object stubs.
+- A separate adapter prototype exercises SQLite-backed file reads/writes/copy and request-scoped temporary-file cleanup. It is not yet wired into the upstream Sigstore TUF client.
+- Calling the stock `@sigstore/tuf@5.0.1` client in workerd currently fails during cache initialization with `EPERM` at `fs.mkdirSync`. This confirms that package import compatibility is not equivalent to TUF cache compatibility. The attempted integration test was removed from the passing adapter test so the harness does not misrepresent that failure as success.
+
+**Current conclusion:** verifier feasibility is demonstrated at the upstream fixture level; stock TUF cache integration is blocked. A durable TUF adapter or a maintained Worker-compatible alternative, genuine SentryIQ release-bundle verification, repository policy parity, and full adversarial/runtime acceptance remain mandatory. No Worker deployment, account binding, secret, Cron Trigger, production route, or production release has been created.
