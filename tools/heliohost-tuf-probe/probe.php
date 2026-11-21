@@ -37,7 +37,7 @@ register_shutdown_function(static function (): void {
 if (!is_file($autoload)) {
     $message = 'Composer dependencies are not installed in this probe directory.';
     if (PHP_SAPI === 'cli') {
-        fwrite(STDERR, "FAIL: {$message}\\n");
+        fwrite(STDERR, "FAIL: {$message}" . PHP_EOL);
     } else {
         http_response_code(500);
         echo json_encode([
