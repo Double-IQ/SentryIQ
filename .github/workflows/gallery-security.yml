@@ -35,6 +35,7 @@ jobs:
           node --check assets/js/gallery_secure.js
           node --check assets/js/gallery_storage.js
           node --check assets/js/gallery_secure_ui.js
+          node --check assets/js/gallery_session_guard.js
           node --check assets/js/passkey_login.js
           node --check assets/js/passkey_setup.js
           node --check assets/js/welcome.js
@@ -49,9 +50,18 @@ jobs:
           node --check assets/js/passkeys.js
           node --check assets/js/copy_code.js
           node --check tests/gallery_crypto.test.js
+          node --check tests/gallery_session_guard.test.js
+          node --check tests/gallery_csp.test.js
+          node --check tests/gallery_memory.test.js
+          node --check tests/gallery_upload_boundary.test.js
+          node --check tests/gallery_device_management.test.js
+          node --check tests/gallery_recovery_flow.test.js
+          node --check tests/gallery_rotation_ui.test.js
+          node --check tests/gallery_rotation_flow.test.js
+          node --check tests/gallery_storage_endpoint.test.js
 
-      - name: Test browser-side Gallery cryptography
-        run: node --test tests/gallery_crypto.test.js
+      - name: Test browser-side Gallery security and recovery
+        run: node --test tests/gallery_crypto.test.js tests/gallery_session_guard.test.js tests/gallery_csp.test.js tests/gallery_memory.test.js tests/gallery_upload_boundary.test.js tests/gallery_device_management.test.js tests/gallery_recovery_flow.test.js tests/gallery_rotation_ui.test.js tests/gallery_rotation_flow.test.js tests/gallery_storage_endpoint.test.js
 
       - name: Set up PHP
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
@@ -77,6 +87,18 @@ jobs:
 
       - name: Test Gallery storage and authorization primitives
         run: php tests/gallery_storage.test.php
+
+      - name: Test Gallery keyring transition model
+        run: php tests/gallery_keyring.test.php
+
+      - name: Test persistent Gallery keyring storage
+        run: php tests/gallery_key_store_v2.test.php
+
+      - name: Test shared Gallery rotation lock
+        run: php tests/gallery_rotation_lock.test.php
+
+      - name: Test Gallery rotation journal
+        run: php tests/gallery_rotation_store.test.php
 
       - name: Test document metadata locking and path security
         run: php tests/document_store.test.php
