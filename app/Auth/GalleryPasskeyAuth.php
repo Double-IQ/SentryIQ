@@ -132,11 +132,17 @@ function gallery_passkey_save_counter(string $path, string $credentialId, int $c
             if (!is_array($record) || !is_string($record['credential_id'] ?? null)
                 || !hash_equals($record['credential_id'], $credentialId)) continue;
             $previousCounter = (int)($record['sign_count'] ?? 0);
-            if ($counter !== 0) {
-                if ($previousCounter !== 0 && $counter <= $previousCounter) {
+            if ($previousCounter < 0) {
+                throw new RuntimeException('Stored passkey signature counter is invalid.');
+            }
+            // WebAuthn permits zero only while the authenticator's counter is
+            // unsupported. Once a nonzero counter has been observed, a reset
+            // to zero is a rollback just like any other non-increasing value.
+            if ($previousCounter !== 0 || $counter !== 0) {
+                if ($counter <= $previousCounter) {
                     throw new RuntimeException('Passkey signature counter validation failed.');
                 }
-                $store['credentials'][$index]['sign_count'] = max($previousCounter, $counter);
+                $store['credentials'][$index]['sign_count'] = $counter;
             }
             $found = true;
             break;
