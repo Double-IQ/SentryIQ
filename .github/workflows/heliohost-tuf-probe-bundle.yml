@@ -120,4 +120,4 @@ jobs:
           name: sentryiq-heliohost-tuf-probe
           path: tools/heliohost-tuf-probe/sentryiq-heliohost-tuf-probe.zip
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30

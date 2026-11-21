@@ -115,4 +115,4 @@ jobs:
           name: sentryiq-heliohost-v0.1.2-attestation
           path: sentryiq-heliohost-v0.1.2-attestation.zip
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30
