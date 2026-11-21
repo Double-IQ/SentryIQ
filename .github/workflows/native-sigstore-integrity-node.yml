@@ -113,6 +113,23 @@ on:
       - 'tests/integrity_node_release_state.test.php'
       - 'tests/integrity_node_scheduled_runner.test.php'
       - '.github/workflows/native-sigstore-integrity-node.yml'
+      - 'docs/security/integrity-node-native-sigstore-runtime.md'
+      - 'docs/security/integrity-node-c-heliohost.md'
+      - 'docs/security/btm-sa-node4-deployment.md'
+      - 'docs/security/canonical-release-manifest.md'
+      - 'app/Updates/IntegrityNodeKeyGenerator.php'
+      - 'app/Updates/IntegrityNodeEvidenceStore.php'
+      - 'app/Updates/IntegrityPublicAssetPolicy.php'
+      - 'app/Updates/IntegrityOriginSecurityHeaderVerifier.php'
+      - 'tests/integrity_origin_security_header_verifier.test.php'
+      - 'scripts/build-release-manifest.py'
+      - 'tests/build_release_manifest.test.py'
+      - 'tests/integrity_public_asset_policy.test.php'
+      - 'app/Updates/IntegrityNodeScheduledRunner.php'
+      - 'app/Updates/IntegrityNodeVerifierBinding.php'
+      - 'bin/integrity-node-keygen.php'
+      - 'tests/integrity_node_key_generator.test.php'
+      - 'tests/integrity_node_evidence_store.test.php'
 
 permissions:
   contents: read
