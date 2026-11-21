@@ -153,12 +153,15 @@ jobs:
             "$RUNNER_TEMP/sentryiq-private-data/sigstore-vendor/vendor/autoload.php" \
             "$RUNNER_TEMP/sentryiq-0.1.2.zip" \
             "$RUNNER_TEMP/sentryiq-private-data"
-      - name: Package private Sigstore dependencies for cPanel installation
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Package and verify private Sigstore dependencies for cPanel installation
+        # Build and checksum-test on PRs too; only publishing is main-only.
         run: |
           cd "$RUNNER_TEMP/sentryiq-private-data"
           zip -qr "$RUNNER_TEMP/sentryiq-sigstore-vendor.zip" sigstore-vendor
-          sha256sum "$RUNNER_TEMP/sentryiq-sigstore-vendor.zip" > "$RUNNER_TEMP/sentryiq-sigstore-vendor.zip.sha256"
+          cd "$RUNNER_TEMP"
+          # Keep the sidecar portable so it verifies after download/extraction.
+          sha256sum sentryiq-sigstore-vendor.zip > sentryiq-sigstore-vendor.zip.sha256
+          sha256sum --check sentryiq-sigstore-vendor.zip.sha256
       - name: Publish private dependency package artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
