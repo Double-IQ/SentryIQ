@@ -1,5 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
 import { createHash, generateKeyPairSync, randomBytes, sign, verify } from "node:crypto";
+import * as tufFs from "fs";
+import * as tufFsPromises from "fs/promises";
+import { createTufFsContext, runWithTufFsContext } from "./tuf-fs-context";
+import path from "node:path";
 import { Verifier } from "@sigstore/verify";
 import { initTUF } from "@sigstore/tuf";
 
@@ -75,6 +79,11 @@ export class NodeAState extends DurableObject<Env> {
         singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
         token TEXT NOT NULL,
         expires_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS tuf_files (
+        path TEXT PRIMARY KEY,
+        data BLOB NOT NULL,
+        updated_at INTEGER NOT NULL
       );
       CREATE TABLE IF NOT EXISTS run_audit (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -258,6 +267,35 @@ export class NodeAState extends DurableObject<Env> {
         Date.now()
       );
       this.ctx.storage.sql.exec("DELETE FROM run_audit WHERE id NOT IN (SELECT id FROM run_audit ORDER BY id DESC LIMIT 200)");
+    });
+  }
+
+  async testTufFilesystemAdapter(): Promise<{ persistentRead: string; copiedRead: string; temporaryRead: string; temporaryExistsAfterCleanup: boolean }> {
+    const context = createTufFsContext(this.ctx.storage.sql);
+    return runWithTufFsContext(context, async () => {
+      const rootPath = "/node-a/tuf/repository/root.json";
+      const copiedPath = "/node-a/tuf/cache/root.json";
+      tufFs.mkdirSync("/node-a/tuf/repository", { recursive: true });
+      tufFs.mkdirSync("/node-a/tuf/cache", { recursive: true });
+      tufFs.writeFileSync(rootPath, Buffer.from("persistent-root-fixture"));
+      tufFs.copyFileSync(rootPath, copiedPath);
+      const persistentRead = tufFs.readFileSync(rootPath, "utf8") as string;
+      const copiedRead = tufFs.readFileSync(copiedPath, "utf8") as string;
+
+      const tempDir = await tufFsPromises.mkdtemp("/tmp/");
+      const tempPath = path.join(tempDir, "tempfile");
+      await tufFsPromises.open(tempPath, "a");
+      const stream = tufFs.createWriteStream(tempPath);
+      stream.write(Buffer.from("request-scoped-target"));
+      await new Promise<void>((resolve, reject) => stream.close((error) => error ? reject(error) : resolve()));
+      const temporaryRead = tufFs.readFileSync(tempPath, "utf8") as string;
+      await tufFsPromises.rm(tempDir, { recursive: true, force: true });
+      return {
+        persistentRead,
+        copiedRead,
+        temporaryRead,
+        temporaryExistsAfterCleanup: tufFs.existsSync(tempPath)
+      };
     });
   }
 
