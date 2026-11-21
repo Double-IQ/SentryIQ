@@ -12,7 +12,7 @@ $b2Configured = false;
 if (is_string($dataDirectory) && $dataDirectory !== '') {
     require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/BackblazeB2Signer.php';
     try {
-        $b2Signer = \SentryIQCloud\Gallery\Storage\BackblazeB2Signer::fromRuntimeDirectory($dataDirectory);
+        \SentryIQCloud\Gallery\Storage\BackblazeB2Signer::fromRuntimeDirectory($dataDirectory);
         $b2Configured = true;
     } catch (Throwable) {
         $b2Configured = false;
@@ -65,7 +65,7 @@ if (is_string($dataDirectory) && $dataDirectory !== '') {
             <h2>Save your Gallery recovery code</h2>
             <p>This recovery code is generated in your browser and is never sent to SentryIQ. Save it somewhere secure before continuing. If you lose every passkey and this code, your photos cannot be recovered.</p>
             <textarea id="secure-gallery-recovery-code" class="secure-gallery-recovery" readonly spellcheck="false"></textarea>
-            <div class="secure-gallery-actions" class="secure-gallery-inline-2">
+            <div class="secure-gallery-actions secure-gallery-inline-2">
                 <button id="secure-gallery-copy-recovery" class="btn" type="button">Copy recovery code</button>
                 <label><input id="secure-gallery-recovery-saved" type="checkbox"> I have saved this recovery code securely</label>
             </div>
@@ -82,14 +82,32 @@ if (is_string($dataDirectory) && $dataDirectory !== '') {
         </section>
 
         <section id="secure-gallery-workspace" class="secure-gallery-panel" hidden>
-            <div class="secure-gallery-row" class="secure-gallery-inline-3">
+            <div class="secure-gallery-row secure-gallery-inline-3">
                 <h2 class="secure-gallery-inline-4">Your private photos</h2>
                 <div class="secure-gallery-actions">
                     <button id="secure-gallery-add-passkey" class="btn" type="button">Add this passkey</button>
+                    <button id="secure-gallery-add-key" class="btn" type="button">Add encryption key</button>
                     <button id="secure-gallery-lock" class="btn" type="button">Lock Gallery</button>
                 </div>
             </div>
             <p>Image resizing, thumbnails, previews and encryption happen locally in your browser. Only encrypted objects are uploaded to Backblaze.</p>
+            <section class="secure-gallery-device-panel" aria-labelledby="secure-gallery-rotation-heading">
+                <h3 id="secure-gallery-rotation-heading">Encryption key rotation</h3>
+                <p>Add a new inactive key, then rotate existing photo envelopes. Photo ciphertext stays in Backblaze and is not re-uploaded. Keep this page open until migration finishes; an interrupted migration can be resumed after unlocking again.</p>
+                <div class="secure-gallery-row">
+                    <select id="secure-gallery-rotation-target" aria-label="Target encryption key">
+                        <option value="">Select an inactive key</option>
+                    </select>
+                    <button id="secure-gallery-rotate" class="btn" type="button">Start / resume rotation</button>
+                    <button id="secure-gallery-abort-rotation" class="btn" type="button" disabled>Abort rotation</button>
+                </div>
+                <div id="secure-gallery-rotation-status" class="secure-gallery-status" role="status" aria-live="polite"></div>
+            </section>
+            <section class="secure-gallery-device-panel" aria-labelledby="secure-gallery-devices-heading">
+                <h3 id="secure-gallery-devices-heading">Enrolled Gallery devices</h3>
+                <p>Remove a device's ability to unlock Gallery without deleting its SentryIQ sign-in passkey. Removal requires confirmation with a different enrolled passkey.</p>
+                <div id="secure-gallery-devices" class="secure-gallery-device-list" aria-live="polite">Loading enrolled devices…</div>
+            </section>
             <div id="secure-gallery-b2-warning" class="secure-gallery-status error" <?php if ($b2Configured) echo 'hidden'; ?>>Backblaze B2 is not configured. Follow docs/operations/backblaze-b2-gallery-setup.md to add the protected runtime credentials file before uploading photos.</div>
             <div class="secure-gallery-row">
                 <select id="secure-gallery-album-filter" aria-label="Filter by album">
@@ -116,6 +134,7 @@ if (is_string($dataDirectory) && $dataDirectory !== '') {
 <script src="assets/js/gallery_crypto.js"></script>
 <script src="assets/js/gallery_secure.js"></script>
 <script src="assets/js/gallery_storage.js"></script>
+<script src="assets/js/gallery_session_guard.js"></script>
 <script src="assets/js/gallery_secure_ui.js"></script>
 </body>
 </html>
