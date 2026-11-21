@@ -19,12 +19,6 @@ own independent owner-alert paths.
   including signed rejections.
 - `FileIntegrityEventStore`: uses an exclusive filesystem lock and atomic
   state-file replacement to consume each challenge once and retain evidence.
-
-### Crash-durability boundary
-
-The file-backed store flushes the complete temporary state file with `fflush()` and `fsync()` before publishing it with an atomic rename. The implementation does not synchronize the containing directory after the rename. Atomic visibility to concurrent processes is therefore provided, but persistence of the renamed directory entry across sudden power loss or kernel/filesystem failure is not independently guaranteed by this PHP adapter. A crash at that boundary could restore an older state snapshot, including an outstanding challenge that had already been consumed. This is a durability limitation, not evidence of an ordinary request-level race.
-
-Before production acceptance, the owner must establish the actual hosting filesystem's rename-durability guarantees and recovery behaviour. If that guarantee cannot be demonstrated, do not treat the file adapter as crash-durable replay protection: use a transactional persistence service with documented durable commits (for example, a suitably configured database) or keep Node 4 disabled. Do not claim this limitation is solved by the current atomic-rename tests; they do not simulate power loss.
 - A/B Ed25519 public keys and per-node bearer tokens are supplied only through
   the private runtime configuration.
 - `PrivateHostAttestationRequestHandler` is framework-neutral code for a separate
@@ -43,9 +37,9 @@ node-specific bearer token and its Ed25519 signature.
 
 ## Private runtime configuration
 
-The endpoint and CLI monitor first read the small `sentryiq_config.php` pointer in the application webroot, then use its `data_dir` to load the actual `<data_dir>/sentryiq_config.php` private configuration. Node 4 secrets (`integrity_event`, tokens, public keys and alert sender) belong only in that private file; they must not be copied into the webroot pointer. `IntegrityNode4RuntimeConfig` enforces that the resolved data directory is outside the webroot with exact `0700` permissions and that the private config is a regular file inside it with exact `0600` permissions. Weak permissions are rejected, never repaired automatically.
+The endpoint and CLI monitor first read the small `sentryiq_config.php` pointer in the application webroot, then use its `data_dir` to load the actual `<data_dir>/sentryiq_config.php` private configuration. Node 4 secrets (`integrity_event`, tokens, public keys, outbox sender and independent owner-alert sender) belong only in that private file; they must not be copied into the webroot pointer. `IntegrityNode4RuntimeConfig` enforces that the resolved data directory is outside the webroot with exact `0700` permissions and that the private config is a regular file inside it with exact `0600` permissions. Weak permissions are rejected, never repaired automatically.
 
-The following is a shape example only. Never commit actual values:
+The following is a shape example only. Never commit actual values. The independent callback must return `true` only after its provider confirms acceptance:
 
 ```php
 return [
@@ -53,9 +47,14 @@ return [
     'integrity_event' => [
         'enabled' => true,
         'target_origin' => 'https://sentryiq.bichet.co.za',
-        // A private callable that sends one incident and returns true only on success.
+        // Node 4 outbox sender: returns true only after durable provider acceptance.
         'alert_sender' => static function (array $incident, string $idempotencyKey): bool {
-            // Connect this to the host's configured mail or webhook transport.
+            // Connect this to the host's configured notification transport.
+            return false;
+        },
+        // Separate direct owner-alert route; do not route through the Node 4 outbox.
+        'owner_alert_sender' => static function (string $nodeId, string $reason, array $context): bool {
+            // Connect this to an independent owner-alert transport and deduplicate recurring failures.
             return false;
         },
         'storage_dir' => '/absolute/path/outside/httpdocs/sentryiq-data/integrity-events',
@@ -156,7 +155,7 @@ evaluation.
 
 ## Scheduled processing
 
-After a real `alert_sender` callable is configured, schedule the CLI monitor
+After both a real `alert_sender` and an independent `owner_alert_sender` callable are configured, schedule the CLI monitor
 under the SentryIQ account (for example, every five minutes; this is separate from the fifteen-minute A/B node schedule):
 
 ```sh
@@ -171,10 +170,13 @@ own independent schedules to call `IntegrityNodeEventRunner`; Node 4's cron
 does not replace those checks.
 
 
-### Node 4 alert delivery semantics
-
-The outbox is durable and retries pending alerts, but delivery is **at least once**, not exactly once. The dispatcher passes the stable alert record ID as the idempotency key on every retry and marks an alert delivered only when the configured sender returns `true`. A sender/provider must honour that key (or deduplicate it at the receiving endpoint); otherwise a crash after the provider accepts a notification but before the local delivered acknowledgement is persisted can produce a duplicate. The sender must return `true` only after the destination has accepted the message, and must return `false` or throw on failure. Configure bounded connection/response timeouts in the provider adapter so a hung transport cannot indefinitely block the monitor. The current injected callable is an integration point; it is not itself a configured or tested notification service.
-
+Node 4's monitor requires two distinct notification responsibilities: `alert_sender`
+delivers durable outbox incidents, while `owner_alert_sender` sends a direct
+owner alert if outbox delivery remains pending or the monitor itself fails.
+The latter must not depend on the Node 4 outbox; configure it through a separate
+provider/route, return `true` only after provider acceptance, and deduplicate repeated delivery-degraded alerts at the provider.
+The CLI refuses to start if either callable is missing. A/B direct alerts remain
+independent and must not be routed through Node 4.
 
 ## Independent direct alerts from Nodes A and B
 
@@ -205,8 +207,6 @@ $runnerB = new IntegrityNodeEventRunner($clientB, $nodeBOwnerAlert);
 ```
 
 This is an injection point, not a configured transport: no email/webhook provider, credentials, or recipient are fabricated by the code. A/B are not production-ready until each host supplies and tests its own direct transport. Node 4's own alert sender also remains a separate required configuration item.
-
-The direct A/B/C callbacks are synchronous and do not use Node 4's durable outbox. A callback failure fails the node run, but the repository does not persist or retry that callback independently. Each node's provider adapter must therefore implement bounded retries or durable provider-side acceptance, deduplicate repeated incidents where appropriate, and be tested for both successful delivery and outage behavior. Do not count a callback being present in PHP configuration as proof that the owner actually receives alerts.
 
 
 ## Independent release asset retrieval
