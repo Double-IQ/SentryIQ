@@ -28,6 +28,12 @@ on:
   push:
     branches: [main, security/native-php-release-attestation-current-main]
     paths:
+      - 'tests/update_archive_boundary.test.php'
+      - 'tests/release_trust_policy.test.php'
+      - 'tests/native_sigstore_integrity_adapter.test.php'
+      - 'app/Updates/ReleaseTrustPolicy.php'
+      - 'app/Updates/ReleaseArtifactVerifier.php'
+      - 'app/Updates/NativeSigstoreIntegrityAttestationVerifier.php'
       - 'app/Updates/NativeSigstoreReleaseVerifier.php'
       - 'app/Updates/FulcioCertificateClaims.php'
       - 'app/Updates/SnappyBlockDecoder.php'
