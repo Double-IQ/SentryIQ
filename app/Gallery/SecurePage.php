@@ -7,17 +7,6 @@ sentryiq_security_bootstrap();
 sentryiq_require_auth();
 
 $csrf = sentryiq_csrf_token();
-$dataDirectory = sentryiq_data_dir();
-$b2Configured = false;
-if (is_string($dataDirectory) && $dataDirectory !== '') {
-    require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/BackblazeB2Signer.php';
-    try {
-        $b2Signer = \SentryIQCloud\Gallery\Storage\BackblazeB2Signer::fromRuntimeDirectory($dataDirectory);
-        $b2Configured = true;
-    } catch (Throwable) {
-        $b2Configured = false;
-    }
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
