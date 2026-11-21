@@ -297,7 +297,7 @@ export class NodeAState extends DurableObject<Env> {
         expectedNetworkFailure = true;
       }
 
-      const cachedRootPath = path.join(cachePath, "127.0.0.1:1", "root.json");
+      const cachedRootPath = path.join(cachePath, encodeURIComponent("127.0.0.1:1"), "root.json");
       const cachedRoot = JSON.parse(tufFs.readFileSync(cachedRootPath, "utf8") as string) as { signed?: { version?: number } };
       if (!Number.isSafeInteger(cachedRoot.signed?.version) || !cachedRoot.signed?.version) {
         throw new Error("upstream TUF client did not seed a readable root through Durable Object storage");
