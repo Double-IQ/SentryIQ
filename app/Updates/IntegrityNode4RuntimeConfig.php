@@ -28,7 +28,7 @@ final class IntegrityNode4RuntimeConfig
         if (!is_array($pointer)) {
             throw new RuntimeException('SentryIQ public configuration pointer is invalid.');
         }
-        foreach (['integrity_event', 'node_tokens', 'node_public_keys', 'signing_key', 'private_key', 'alert_sender'] as $secretKey) {
+        foreach (['integrity_event', 'node_tokens', 'node_public_keys', 'signing_key', 'private_key', 'alert_sender', 'owner_alert_sender'] as $secretKey) {
             if (array_key_exists($secretKey, $pointer)) {
                 throw new RuntimeException('SentryIQ secrets must not be stored in the public configuration pointer.');
             }
