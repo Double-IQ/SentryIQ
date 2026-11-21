@@ -40,7 +40,6 @@ final class IntegrityNode4Monitor
             try {
                 $this->alertOwner('node4_monitor_execution_failed', [
                     'exception' => get_class($exception),
-                    'message' => substr($exception->getMessage(), 0, 300),
                 ]);
             } catch (Throwable $alertException) {
                 throw new RuntimeException(
