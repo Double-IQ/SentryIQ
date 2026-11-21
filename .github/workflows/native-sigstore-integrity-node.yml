@@ -65,7 +65,9 @@ on:
       - 'tests/integrity_node_scheduled_runner.test.php'
       - '.github/workflows/native-sigstore-integrity-node.yml'
   push:
-    branches: [feat/integrity-node-native-sigstore-runtime]
+    # Run the same security-sensitive integration suite after changes land on main,
+    # not only on the historical feature branch.
+    branches: [main, feat/integrity-node-native-sigstore-runtime]
     paths:
       - 'docs/security/private-host-attestation-contract.md'
       - 'app/Updates/PrivateHostAttestationCollector.php'
