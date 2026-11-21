@@ -335,13 +335,6 @@
         viewerUrl = null;
     }
 
-    document.querySelectorAll('[data-gallery-navigation]').forEach(function (button) {
-        button.addEventListener('click', function () {
-            const destination = button.getAttribute('data-gallery-navigation');
-            if (destination) window.location.assign(destination);
-        });
-    });
-
     byId('secure-gallery-album-filter').addEventListener('change', filterCards);
 
     byId('secure-gallery-unlock').addEventListener('click', async function () {
