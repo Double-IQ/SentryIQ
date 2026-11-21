@@ -6,6 +6,8 @@ namespace SentryIQ\Updates;
 
 use RuntimeException;
 
+require_once __DIR__ . '/IntegrityEventRequestDecoder.php';
+
 /**
  * Verifies a detached, nonce-bound attestation from the production-host
  * read-only collector. The collector key is pinned independently on A and B.
@@ -73,13 +75,14 @@ final class PrivateHostAttestationVerifier
             throw new RuntimeException('Private host attestation policy inventory is empty or exceeds its bounds.');
         }
 
+        IntegrityEventRequestDecoder::assertNoDuplicateObjectKeys($signedEnvelope);
         try {
             $envelope = json_decode($signedEnvelope, true, 8, JSON_THROW_ON_ERROR);
         } catch (\JsonException $exception) {
             throw new RuntimeException('Private host attestation envelope is not valid JSON.', 0, $exception);
         }
-        if (!is_array($envelope) || !is_string($envelope['payload'] ?? null)
-            || !is_string($envelope['signature'] ?? null)) {
+        if (!is_array($envelope) || array_is_list($envelope) || count($envelope) !== 2
+            || !is_string($envelope['payload'] ?? null) || !is_string($envelope['signature'] ?? null)) {
             throw new RuntimeException('Private host attestation envelope schema is invalid.');
         }
         $payloadBytes = base64_decode($envelope['payload'], true);
@@ -89,12 +92,22 @@ final class PrivateHostAttestationVerifier
             || !sodium_crypto_sign_verify_detached($signature, $payloadBytes, $this->publicKey)) {
             throw new RuntimeException('Private host attestation signature is invalid.');
         }
+        IntegrityEventRequestDecoder::assertNoDuplicateObjectKeys($payloadBytes);
         try {
             $payload = json_decode($payloadBytes, true, 32, JSON_THROW_ON_ERROR);
         } catch (\JsonException $exception) {
             throw new RuntimeException('Signed private host attestation payload is not valid JSON.', 0, $exception);
         }
-        if (!is_array($payload)
+        $expectedPayloadFields = [
+            'schema_version', 'collector_id', 'issued_at', 'expires_at', 'nonce',
+            'target_origin', 'repository', 'repository_id', 'release_version',
+            'tag', 'commit', 'manifest_sha256', 'artifact_sha256', 'files',
+            'private_config', 'decision',
+        ];
+        $actualPayloadFields = is_array($payload) ? array_keys($payload) : [];
+        sort($actualPayloadFields);
+        sort($expectedPayloadFields);
+        if (!is_array($payload) || $actualPayloadFields !== $expectedPayloadFields
             || ($payload['schema_version'] ?? null) !== 1
             || ($payload['collector_id'] ?? null) !== 'sentryiq-host-attestor'
             || !is_int($payload['issued_at'] ?? null) || $payload['issued_at'] < 1
