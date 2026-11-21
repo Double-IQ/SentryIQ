@@ -206,6 +206,8 @@ $runnerB = new IntegrityNodeEventRunner($clientB, $nodeBOwnerAlert);
 
 This is an injection point, not a configured transport: no email/webhook provider, credentials, or recipient are fabricated by the code. A/B are not production-ready until each host supplies and tests its own direct transport. Node 4's own alert sender also remains a separate required configuration item.
 
+The direct A/B/C callbacks are synchronous and do not use Node 4's durable outbox. A callback failure fails the node run, but the repository does not persist or retry that callback independently. Each node's provider adapter must therefore implement bounded retries or durable provider-side acceptance, deduplicate repeated incidents where appropriate, and be tested for both successful delivery and outage behavior. Do not count a callback being present in PHP configuration as proof that the owner actually receives alerts.
+
 
 ## Independent release asset retrieval
 

@@ -419,6 +419,7 @@ Phase 1 is complete only when every item above has evidence, all high-risk findi
 - [ ] **2.7** Establish authenticated node-to-origin communication and verify TLS/origin restrictions.
 - [ ] **2.8** Implement and verify signed integrity reports and pinned trust-root validation.
 - [ ] **2.9** Implement cross-node comparison, stale/missed-check detection, disagreement alerts, and independent alert delivery.
+  - A/B/C direct alert callbacks are synchronous, not backed by Node 4's outbox; verify each node's provider has durable/retry behavior, bounded timeouts and real owner receipt. Node 4's own outbox is at-least-once and requires provider idempotency.
   - Node 4 outbox delivery is at-least-once: production sender must enforce the stable idempotency key, acknowledge only provider acceptance, and use bounded timeouts. Each A/B/C direct owner-alert callback must be separately configured and tested from its own host; Node 4 is not a substitute.
 - [ ] **2.10** Test each node's normal operation, restart, missed schedule, unavailable target, invalid signature, replay, and recovery.
 - [ ] **2.11** Verify the complete four-node architecture and document common-mode risks.
