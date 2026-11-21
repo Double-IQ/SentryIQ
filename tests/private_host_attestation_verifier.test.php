@@ -101,6 +101,34 @@ privateHostReject(
     'A report for another challenge nonce must be rejected.'
 );
 privateHostReject(
+    fn() => $verifier->assertAttested(
+        $makeEnvelope(['unexpected_field' => 'must-not-be-ignored']),
+        $nonce, $version, $commit, $manifest, $artifact, $expectedFiles(), $expectedConfig()
+    ),
+    'A signed attestation with an unknown payload field must be rejected.'
+);
+$validEnvelope = json_decode($makeEnvelope(), true, 8, JSON_THROW_ON_ERROR);
+$validPayloadBytes = base64_decode($validEnvelope['payload'], true);
+$duplicatePayloadBytes = '{"schema_version":1,' . substr($validPayloadBytes, 1);
+$duplicatePayloadEnvelope = json_encode([
+    'payload' => base64_encode($duplicatePayloadBytes),
+    'signature' => base64_encode(sodium_crypto_sign_detached($duplicatePayloadBytes, $secret)),
+], JSON_THROW_ON_ERROR);
+privateHostReject(
+    fn() => $verifier->assertAttested(
+        $duplicatePayloadEnvelope, $nonce, $version, $commit, $manifest, $artifact, $expectedFiles(), $expectedConfig()
+    ),
+    'Duplicate keys in a signed private-host payload must be rejected even when the signature is valid.'
+);
+$duplicateOuterEnvelope = '{"payload":"' . $validEnvelope['payload'] . '","payload":"'
+    . $validEnvelope['payload'] . '","signature":"' . $validEnvelope['signature'] . '"}';
+privateHostReject(
+    fn() => $verifier->assertAttested(
+        $duplicateOuterEnvelope, $nonce, $version, $commit, $manifest, $artifact, $expectedFiles(), $expectedConfig()
+    ),
+    'Duplicate keys in a private-host envelope must be rejected.'
+);
+privateHostReject(
     fn() => $verifier->assertAttested($makeEnvelope(['artifact_sha256' => str_repeat('0', 64)]), $nonce, $version, $commit, $manifest, $artifact, $expectedFiles(), $expectedConfig()),
     'A report for a different release archive must be rejected.'
 );
