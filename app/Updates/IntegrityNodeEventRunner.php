@@ -48,8 +48,24 @@ final class IntegrityNodeEventRunner
         string $commit,
         string $targetOrigin
     ): array {
-        $manifest = $this->regularFile($manifestPath);
-        $artifact = $this->regularFile($artifactPath);
+        // Missing, unreadable, non-regular or symlinked evidence is itself an
+        // integrity incident. Do not let path validation bypass the direct
+        // owner-alert channel before the runner fails closed.
+        try {
+            $manifest = $this->regularFile($manifestPath);
+            $artifact = $this->regularFile($artifactPath);
+        } catch (\Throwable $exception) {
+            $this->alertFailure('local_evidence_unreadable', [
+                'phase' => 'prepare',
+                'exception' => get_class($exception),
+            ]);
+            throw new IntegrityNodeAlertedException(
+                'Local integrity evidence could not be prepared after independent owner alert delivery.',
+                0,
+                $exception
+            );
+        }
+
         $manifestDigest = hash_file('sha256', $manifest);
         $artifactDigest = hash_file('sha256', $artifact);
         if (!is_string($manifestDigest) || !is_string($artifactDigest)) {
@@ -115,7 +131,6 @@ final class IntegrityNodeEventRunner
             'event_acknowledgement' => $acknowledgement,
         ];
     }
-
 
     private function alertFailure(string $reason, array $context): void
     {
