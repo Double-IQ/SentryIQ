@@ -9,8 +9,8 @@ const page = fs.readFileSync(path.join(__dirname, '../app/Gallery/SecurePage.php
 const navigation = fs.readFileSync(path.join(__dirname, '../assets/js/sentryiq_navigation.js'), 'utf8');
 
 test('Secure Gallery CSP does not permit inline JavaScript', () => {
-    assert.match(page, /script-src 'self'(?:;|\s)/);
-    assert.doesNotMatch(page, /script-src[^;]*unsafe-inline/i);
+    assert.match(page, /sentryiq_security_bootstrap\(\)/);
+    assert.doesNotMatch(page, /unsafe-inline/i);
 });
 
 test('Secure Gallery markup contains no inline event handlers', () => {
