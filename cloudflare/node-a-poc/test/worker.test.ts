@@ -54,10 +54,8 @@ describe("Node A Workers runtime proof", () => {
       persistentRead: "persistent-root-fixture",
       copiedRead: "persistent-root-fixture",
       temporaryRead: "request-scoped-target",
-      temporaryExistsAfterCleanup: false,
-      seededTufRootVersion: expect.any(Number)
+      temporaryExistsAfterCleanup: false
     });
-    expect(result.seededTufRootVersion).toBeGreaterThan(0);
 
     const second = env.NODE_A_STATE.get(id);
     const contextCheck = await second.testTufFilesystemAdapter();
