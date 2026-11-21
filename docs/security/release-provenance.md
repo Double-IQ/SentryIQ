@@ -2,49 +2,33 @@
 
 ## What the release workflow produces
 
-For version tags matching `v*.*.*`, the release workflow builds the SentryIQ update ZIP and asks GitHub Actions to create a build-provenance attestation for that exact ZIP using the GitHub Actions OIDC identity.
+For version tags matching `v*.*.*`, the release workflow builds the SentryIQ update ZIP and asks GitHub Actions to create a build-provenance attestation for that exact ZIP using the GitHub Actions OIDC identity. The updater's native verifier also expects a separately attested `release-manifest.json` subject for Integrity Node A/B/C verification.
 
 The attestation provides cryptographic evidence about the repository and workflow identity associated with the build. It is stronger than relying only on a checksum file distributed beside the ZIP.
 
-## Verify a downloaded release
+## Current updater enforcement
 
-Install a current GitHub CLI with attestation support, download the ZIP from the SentryIQ GitHub release, then run:
+The implementation has progressed beyond the earlier prototype-only status:
 
-```sh
-gh attestation verify sentryiq-VERSION.zip --repo Double-IQ/SentryIQ
-```
+- `UpdateManager::applyLatest()` verifies the downloaded ZIP **before extraction**. It first resolves the release tag to its immutable commit through the GitHub Git-ref/tag API, then verifies the artifact and checks the embedded manifest against that resolved commit and every extracted file.
+- The native path is selected when an administrator supplies the private Composer autoload path (`sigstoreAutoloadPath`). It uses `NativeSigstoreReleaseVerifier`, which fetches the digest-matched GitHub attestation, refreshes Sigstore TUF metadata, verifies the Sigstore bundle and SLSA provenance, binds the authenticated source commit to the independently resolved tag commit, and applies `ReleaseTrustPolicy`.
+- An injected `GitHubCliAttestationVerifier` remains an alternate adapter path (principally useful for controlled integration/testing). If neither native dependencies nor an explicit verifier are configured, the updater fails closed and refuses installation.
+- The adjacent SHA-256 sidecar is only transport-integrity checking; it is not the trust anchor. The ZIP's verified subject digest binds the embedded canonical inventory, which is then checked against the extracted package.
 
-Replace `VERSION` with the actual release version. Verification must succeed before treating the provenance as valid. Review the verified source repository, workflow identity, source ref, and commit against the expected SentryIQ release. For the stricter verifier flags and certificate-extension checks used by the PHP prototype, see [GitHub CLI attestation verifier adapter](github-cli-attestation-verifier.md).
+The code therefore **does enforce attestation verification when correctly configured**; however, this does not mean the production installation is configured or accepted. The cPanel private vendor artifact has been built but not installed, the production `SENTRYIQ_GH_BINARY`/native verifier configuration has not been verified, and no new production release has been published through the current approved workflow. The v0.1.2 artifact remains a workflow fixture, not an acceptable new updater release.
 
-The SHA-256 sidecar remains useful for detecting accidental corruption, but it is not an independent trust anchor if an attacker can replace both the ZIP and checksum through the same release channel.
+## TUF root refresh and persistence
 
-## Current implementation status
+The native verifier loads the last persisted Sigstore TUF root, or the pinned bootstrap root on first use, then calls the TUF library's `TrustedRoot::fromTuf()` refresh path. It persists the resulting root only after that complete refresh returns successfully. The persistence integration test checks successful root rotation, reuse after process restart, and preservation of the last trusted root after an incomplete refresh. `TufRootStore` enforces monotonic root versions and owner-only files. Its temp-file contents are flushed/fsynced where supported before atomic rename; the containing-directory entry is not explicitly fsynced, so crash-durability remains the boundary recorded in the Node 4 durability review. This is distinct from whether HelioHost can execute the refresh path, which the owner has already investigated.
 
-The repository now contains:
+## Remaining production gates
 
-- `app/Updates/ReleaseTrustPolicy.php`: a normalized-claims policy gate for repository identity, tag/ref, expected source commit, workflow identity, event, artifact digest, and anti-rollback.
-- `app/Updates/GitHubCliAttestationVerifier.php`: an experimental adapter that delegates cryptographic verification to the maintained GitHub CLI, then checks the verified certificate extensions, timestamp evidence, provenance statement subject digest, and release policy.
-- Contract tests using synthetic CLI JSON output. These test parsing and policy handoff only; they are not cryptographic tests.
+1. Install and verify the pinned private native Sigstore/TUF dependencies on the intended production host, including actual web-SAPI execution and persistent TUF root refresh/reload.
+2. Confirm the host's PHP/cURL/runtime limits, private directory ownership and permissions, and GitHub API access. A configured optional API token must be kept private and have only the required read access.
+3. Publish a new release from the approved current source and validate its genuine ZIP and manifest attestations; do not reuse or retag v0.1.2.
+4. Confirm the production updater is configured to select the native verifier and that all invalid, unavailable, stale, wrong-identity, wrong-commit, digest-mismatched, and rollback cases fail before extraction or file replacement.
+5. Complete the separate release-authority design: independently controlled canonical release authorization and independently pinned trust roots for the Integrity Nodes. The current A/B/C observers share the GitHub/Sigstore trust roots and repository workflow identity; they are not three independent release-authority approvals.
 
-**The adapter is not connected to `UpdateManager`. Production updates still use the existing checksum flow.** Do not describe the updater as attestation-verified or signature-enforced.
+## What an attestation does not prove
 
-## Genuine-attestation validation still required
-
-The currently published releases `v0.1.0` and `v0.1.1` were published on 27 September 2026, before the provenance-attestation workflow change. They are not suitable evidence that the new workflow and PHP adapter work together.
-
-Before updater integration:
-
-1. Build a new release through the approved tag-push workflow and obtain its genuine ZIP and GitHub attestation. Do not retag or overwrite an existing release.
-2. Verify that artifact with a supported GitHub CLI in a controlled environment and capture the actual `--format json` result.
-3. Confirm the adapter accepts the genuine result and rejects mutations to repository ID, source ref/commit, signer/configuration identity, event, runner, timestamp evidence, and artifact digest.
-4. Resolve the expected tag commit independently of the attestation output.
-5. Confirm the target hosting environment can securely run and update the verifier binary and its trust material. Shared hosting may not support this.
-6. Prove that a rejected or unverifiable package cannot be extracted, installed, or modify application/runtime files.
-
-No new tag or release has been created as part of this work.
-
-## Remaining architecture requirements
-
-This prototype does not yet provide the complete SentryIQ release trust design. It does not replace the planned canonical signed manifest, independently pinned public trust roots on both Integrity Nodes, expiry policy, anti-rollback enforcement at the updater boundary, or independent Integrity Node verification.
-
-No production updater enforcement should be enabled until genuine-attestation validation, verifier runtime management, failure/recovery testing, and the independent trust design have been reviewed.
+A successful attestation establishes provenance under the GitHub Actions/Sigstore trust model. It does not prove the source code is benign, the workflow definition was independently reviewed, or that the artifact is safe to install. GitHub build provenance is one trust layer, not a substitute for separate release authorization and independent observer trust.

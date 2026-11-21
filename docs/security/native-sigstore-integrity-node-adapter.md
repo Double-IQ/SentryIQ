@@ -24,6 +24,11 @@ The manifest is not trusted merely because it was downloaded beside the ZIP.
 Its own attestation must pass before the node uses its file inventory. The ZIP
 is then independently attested and verified against the same release identity.
 
+
+## Shared release-authority boundary
+
+A, B and C execute on separate hosts and retain separate node-local signing keys, state, schedules and alert paths, but they currently consume the same GitHub/Sigstore trust roots and the same repository release workflow identity. This provides independent observations of the deployed origin; it does **not** provide three independent release-authority approvals. A compromise of the repository's release workflow, its authorized source/tag control, or the shared upstream provenance trust path can affect all three nodes' release decision. Treat GitHub/Sigstore provenance as the first provenance layer only. The separately controlled canonical release authorization and independently pinned trust roots called for in the security roadmap remain a production trust-model gate; do not describe A/B/C as independent release signers until that layer exists and is exercised.
+
 ## Anti-rollback policy
 
 The updater's default release policy remains strictly newer-than-installed.
