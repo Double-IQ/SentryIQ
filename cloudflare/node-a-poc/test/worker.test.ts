@@ -51,7 +51,7 @@ describe("Node A Workers runtime proof", () => {
     const id = env.NODE_A_STATE.idFromName("node-a-upstream-tuf-bootstrap-test");
     const stub = env.NODE_A_STATE.get(id);
     const result = await stub.testUpstreamTufCacheBootstrap(tufRootBase64);
-    expect(result.rootVersion).toBeGreaterThan(0);
+    expect(result.rootVersion, JSON.stringify(result)).toBeGreaterThan(0);
     expect(result.cacheReadAfterBootstrap).toBe(true);
     expect(result.expectedNetworkFailure).toBe(true);
   });
