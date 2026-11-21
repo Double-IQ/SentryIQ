@@ -156,7 +156,7 @@ final class FileIntegrityEventStore
             'expires_at' => $issuedAt + 600,
         ];
 
-        $this->transact(function (array &$state) use ($nonce, $challenge, $issuedAt): void {
+        $this->transact(function (array &$state) use ($nonce, $challenge, $issuedAt, $nodeId): void {
             $this->pruneState($state, $issuedAt);
             if (count($state['challenges']) >= 1000) {
                 throw new RuntimeException('Node 4 active challenge capacity has been reached.');
