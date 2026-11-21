@@ -3,7 +3,7 @@
 **Document status:** Active execution tracker  
 **Baseline branch:** `main`  
 **Repository:** `Double-IQ/SentryIQ`  
-**Last updated:** 2026-11-21 09:28 UTC (Phase 2 post-merge security-review reconciliation; PR #114)  
+**Last updated:** 2026-11-21 09:34 UTC (Phase 2 updater/provenance review; PR #114)  
 **Execution rule:** Phase 1 audit/remediation test tasks are complete (30/30). Do not restart or repeat them. Keep repository changes in review until explicitly approved; proceed with safe documentation and non-production verification. Production changes and changes to credentials, DNS, hosting configuration, repository protection, or release publication require the appropriate owner action and explicit approval.
 
 This document is the single working checklist for the reset security review and subsequent four-node deployment. It is intentionally separate from the broader historical security/migration roadmap. Where older planning documents describe a different sequence, follow this checklist for the current execution.
@@ -23,7 +23,6 @@ This document is the single working checklist for the reset security review and 
 The same qualification applies to `TufRootStore`: its root file is synchronized before atomic rename, but its containing directory is not synchronized afterwards. Process-reload tests do not establish power-loss durability for TUF root rotation. Node C production activation must verify filesystem rename durability or use storage with documented durable commits; see `docs/security/k2gl-tuf-1.2.1-root-rotation.md`.
 
 The per-node `IntegrityNodeReleaseStateStore` has the same publication pattern: it `fsync()`s the temporary monotonic release-pin file before rename, but does not synchronize the parent directory. Thus its version/commit/manifest/ZIP anti-rollback pin is protected against ordinary concurrent runs and tampering under the documented local permissions, but a sudden power-loss/filesystem rollback could restore an older pin. This is a crash-durability boundary, not a bypass in the normal version-comparison logic. Before production acceptance, establish durable directory-entry semantics for the node filesystem or use a store with documented durable commits; process-restart tests alone do not prove power-loss durability.
- No production node credentials, collector signing key, independent OS/service identity, private storage, baseline initialization, cron schedule, alert destination, Node 4 listener/reverse-proxy, or monitoring runtime has been provisioned or verified. A/B remain fail-closed pending genuine independent-host attestation. BTM-SA/Node 4 shares the SentryIQ physical host and is not an independent failure domain.
 - The existing v0.1.2 release was used only as the workflow's attestation fixture; it remains unsuitable as the new updater release. A new release must be generated from the current approved main source after the owner gates and release policy are satisfied.
 - Remaining work is the detailed post-merge security review, deployment/runbook reconciliation, independent-host and key-custody decisions, operator configuration, adversarial/runtime tests, and production acceptance. Do not mark four-node deployment complete based on merged code or CI.
 
