@@ -21,7 +21,39 @@ must not weaken checks merely to fit the platform.
 
 ## 2. Intended Worker composition
 
-Use a dedicated TypeScript Worker with:
+Use a Cloudflare Worker as the independent control plane. Two execution
+shapes are viable and must be compared in a small proof of concept before
+choosing the final one:
+
+### Option A — Worker + Cloudflare Container (preferred first PoC)
+
+A Worker Cron Trigger invokes a SQLite-backed Durable Object, which starts or
+routes to a Cloudflare Container running the existing PHP CLI verifier. This
+keeps the reviewed PHP `IntegrityNodeA`, Sigstore verifier, report signer,
+private-host gate and event client as the reference implementation instead of
+immediately rewriting all of their security-sensitive behavior in TypeScript.
+Cloudflare Containers can run PHP/Linux workloads, but they are available only
+on Workers Paid and container disk is ephemeral by default.
+
+The PHP container may use ephemeral disk only for disposable downloaded
+artifacts and temporary working files. It must not treat the container
+filesystem, process memory, a warm instance, or a container snapshot as the
+authoritative monotonic/TUF state. The Worker/ Durable Object control plane
+must provide a reviewed durable state adapter for release pins and TUF metadata,
+or another storage design whose atomicity and restart behavior are proven.
+The existing filesystem-based PHP stores cannot simply be pointed at an
+ephemeral container directory and called durable. A FUSE/R2 mount is not
+accepted for lock/rename/fsync-sensitive security state unless those exact
+semantics are adversarially tested.
+
+### Option B — Worker-native TypeScript
+
+A dedicated TypeScript Worker reimplements the scheduled-runner orchestration,
+Sigstore/TUF adapter, release policy, origin checks, private-host attestation
+and Node 4 exchange. Use this only if the complete maintained JavaScript
+Sigstore/TUF stack can be made Worker-compatible without weakening trust checks.
+
+Both options use:
 
 - **Cron Trigger** for an independent UTC schedule and a `scheduled()` entry
   point. The schedule must be distinct from Node B's schedule.
@@ -54,7 +86,7 @@ Use a dedicated TypeScript Worker with:
 The Worker is an independent observer, not an authority to rewrite the
 release policy or trust root.
 
-## 3. Sigstore/TUF is the critical feasibility gate
+## 3. Sigstore/TUF and persistent state are the critical feasibility gates
 
 The PHP native verifier currently uses pinned private Composer dependencies
 (`k2gl/sigstore-verify 1.6.1` and patched `k2gl/tuf 1.2.1`) and
@@ -72,7 +104,10 @@ adapter. Do not assume that enabling `nodejs_compat` makes this cache durable
 or compatible. The implementation must either provide a reviewed, maintained
 TUF storage/fetch adapter that persists all metadata and targets through
 Durable Object storage, or select another maintained Worker-compatible
-Sigstore/TUF implementation. Any fork/patch must be narrowly scoped, pinned,
+Sigstore/TUF implementation. For the PHP-container option, separately prove
+that the existing PHP TUF library's filesystem operations can be backed by a
+durable store without changing its trust/atomicity guarantees; otherwise the
+container approach still needs a TUF storage adapter or must be rejected. Any fork/patch must be narrowly scoped, pinned,
 reviewed and covered by upstream-equivalence tests; bypassing TUF is prohibited.
 
 The upstream package manifests also declare modern Node.js engine ranges.
@@ -198,13 +233,18 @@ to detect policy drift. A Node.js unit test alone is not runtime acceptance.
 Before production acceptance, record and verify:
 
 - Worker name, account/project, production environment and deployment version;
+- whether the account has Workers Paid and Cloudflare Containers entitlement if
+  Option A is selected; container instance type, vCPU/memory/disk sizing,
+  network egress and measured cold-start/runtime behavior;
 - account administrative access and separation from Node B and production-host
   administration;
 - Durable Object class/namespace and SQLite storage binding;
 - Cron Trigger schedule and evidence of successful scheduled invocations;
 - secret names/bindings and rotation procedure (never record secret values);
-- configured CPU/memory/request limits and measured worst-case verification
-  cost for the actual release artifact size;
+- configured Worker and (if used) Container CPU/memory/request limits and
+  measured worst-case verification cost for the actual release artifact size;
+- confirmation that container disk is treated as ephemeral; any state needed
+  after sleep/restart is committed to the Durable Object before success;
 - bounded fetch/response sizes and request/subrequest counts;
 - independent direct alert destination and successful delivery evidence;
 - Worker deployment rollback procedure that does not roll back durable trust
@@ -219,7 +259,14 @@ remain operationally independent of Node B and Node 4.
 
 - Cloudflare Workers is the confirmed Node A platform.
 - Existing PHP Node A code and tests define the reference behavior, but are
-  not a deployable Worker.
+  not directly deployable as a plain Worker. Cloudflare Containers may allow
+  the PHP runtime to be packaged under the Workers platform, subject to paid
+  plan entitlement and a proven durable-state/TUF adapter.
+- The first implementation task is a bounded A/B proof of concept: run the
+  exact PHP dependency set inside a Cloudflare Container and, independently,
+  run the maintained Sigstore JS/TUF stack in a plain Worker. Compare actual
+  compatibility, state durability, resource cost and golden attestation
+  results before committing to either implementation.
 - No Worker implementation, account binding, Durable Object, Cron Trigger,
   secret, TUF adapter, alert integration or production deployment is claimed
   by this document.
