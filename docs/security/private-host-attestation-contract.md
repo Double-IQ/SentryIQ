@@ -4,7 +4,7 @@
 - **Independent verifiers:** Integrity Nodes A and B.
 - **Shared failure domain:** BTM-SA / Node 4 shares the SentryIQ host.
 - **Separate host:** HelioHost is Node C only; it is not the SentryIQ application host.
-- **Implementation status:** Collector core, A/B HTTPS client, framework-neutral authenticated handler, durable nonce store, and regression tests exist in this branch. No host service, listener, keys, credentials, policy baselines, or production deployment have been provisioned.
+- **Implementation status (2026-11-21):** Collector core, A/B HTTPS client, framework-neutral authenticated handler, durable nonce store, and regression tests are merged into `main` via [PR #99](https://github.com/Double-IQ/SentryIQ/pull/99), merge commit `043988f723c3cdb77cab586cbddc805892be2710`. No host service, listener, keys, credentials, policy baselines, or production deployment have been provisioned.
 
 ## Security boundary
 

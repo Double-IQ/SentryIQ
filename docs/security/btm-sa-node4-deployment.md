@@ -1,5 +1,8 @@
 # BTM-SA / Node 4 deployment boundary
 
+**Implementation status (2026-11-21):** Node 4 event-plane and private-host attestation code are merged into `main` through [PR #99](https://github.com/Double-IQ/SentryIQ/pull/99), merge commit `043988f723c3cdb77cab586cbddc805892be2710`. Post-merge PHP lint, Gallery Security, Release Manifest Tests, and Integrity Node Tests (PHP 8.1–8.5) passed on that exact commit. This is not deployment or operational acceptance: private configuration, A/B keys/tokens, collector signing key, isolated service identity/listener, storage, cron, alert sender, baseline initialization, and live end-to-end tests remain unconfigured and unverified.
+
+
 Node 4 is the BTM-SA event and alert plane hosted on the same physical host as
 SentryIQ. It is a separate application trust domain, not a separate host or
 independent failure domain. A host outage or host-level compromise affects
