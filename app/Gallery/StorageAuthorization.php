@@ -12,10 +12,14 @@ header('X-Content-Type-Options: nosniff');
 require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/BackblazeB2Signer.php';
 require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryObjectStore.php';
 require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryKeyStore.php';
+require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryRotationLock.php';
+require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/GalleryRotationStore.php';
 
 use SentryIQCloud\Gallery\Storage\BackblazeB2Signer;
 use SentryIQCloud\Gallery\Storage\GalleryObjectStore;
 use SentryIQCloud\Gallery\Storage\GalleryKeyStore;
+use SentryIQCloud\Gallery\Storage\GalleryRotationLock;
+use SentryIQCloud\Gallery\Storage\GalleryRotationStore;
 
 function gallery_storage_json(array $payload, int $status = 200): never
 {
@@ -57,23 +61,21 @@ try {
     $dataDirectory = gallery_storage_data_directory();
     $objectStore = new GalleryObjectStore($dataDirectory . '/gallery_objects.json');
     $galleryKeys = new GalleryKeyStore($dataDirectory . '/gallery_keys.json');
+    $rotationJournal = new GalleryRotationStore($dataDirectory . '/gallery_rotation.json');
     $signer = BackblazeB2Signer::fromRuntimeDirectory($dataDirectory);
 
-    if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'cleanup_pending') {
-        $cleanup = [];
-        foreach ($objectStore->stalePending() as $photoId => $record) {
-            $deleteUrls = [];
-            foreach ((array)($record['objects'] ?? []) as $role => $object) {
-                if (!is_array($object) || !is_string($object['key'] ?? null)) continue;
-                $deleteUrls[$role] = $signer->presign('DELETE', $object['key'], 300);
-            }
-            $cleanup[$photoId] = $deleteUrls;
-        }
-        gallery_storage_json(['status' => 'ok', 'pending' => $cleanup]);
-    }
-
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && (string)($_GET['action'] ?? '') === 'list') {
-        gallery_storage_json(['status' => 'ok', 'photos' => $objectStore->all()]);
+        $photos = $objectStore->all();
+        foreach ($photos as &$photo) {
+            foreach (['original', 'thumbnail', 'preview', 'metadata'] as $role) {
+                $envelope = $photo['objects'][$role]['envelope'] ?? null;
+                if (is_array($envelope)) {
+                    $photo['objects'][$role]['envelope_hash'] = GalleryObjectStore::envelopeHash($envelope);
+                }
+            }
+        }
+        unset($photo);
+        gallery_storage_json(['status' => 'ok', 'photos' => $photos]);
     }
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -84,28 +86,59 @@ try {
     $request = gallery_storage_request();
     $action = (string)($request['action'] ?? '');
 
-    if ($action === 'allocate') {
-        if (!$galleryKeys->isInitialized()) gallery_storage_json(['status' => 'error', 'message' => 'Initialize secure Gallery before uploading photos.'], 409);
-        $photoId = bin2hex(random_bytes(16));
-        $objectKeys = [];
-        $uploadUrls = [];
-        foreach (['original', 'thumbnail', 'preview', 'metadata'] as $role) {
-            $objectKeys[$role] = BackblazeB2Signer::newObjectKey($role);
-        }
-        $objectStore->createPending($photoId, $objectKeys);
-        try {
-            foreach ($objectKeys as $role => $objectKey) {
-                $uploadUrls[$role] = $signer->presign('PUT', $objectKey, 300);
+    if ($action === 'cleanup_pending') {
+        $stale = GalleryRotationLock::synchronized($dataDirectory, function () use ($objectStore): array {
+            $marked = [];
+            foreach ($objectStore->stalePending() as $photoId => $record) {
+                $cancelling = $objectStore->markCancelling((string)$photoId);
+                if (is_array($cancelling)) $marked[$photoId] = $cancelling;
             }
-        } catch (Throwable $exception) {
-            $objectStore->remove($photoId);
-            throw $exception;
+            return $marked;
+        });
+        $cleanup = [];
+        foreach ($stale as $photoId => $record) {
+            $deleteUrls = [];
+            foreach ((array)($record['objects'] ?? []) as $role => $object) {
+                if (!is_array($object) || !is_string($object['key'] ?? null)) continue;
+                $deleteUrls[$role] = $signer->presign('DELETE', $object['key'], 300);
+            }
+            $cleanup[$photoId] = $deleteUrls;
         }
-        gallery_storage_json(['status' => 'ok', 'photoId' => $photoId, 'uploadUrls' => $uploadUrls, 'expiresIn' => 300]);
+        gallery_storage_json(['status' => 'ok', 'pending' => $cleanup]);
+    }
+
+    if ($action === 'allocate') {
+        $allocation = GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $objectStore, $signer): array {
+            if (!$galleryKeys->isInitialized()) throw new RuntimeException('Initialize secure Gallery before uploading photos.');
+            $activeKeyId = $galleryKeys->activeKeyId();
+            if ($activeKeyId === null) {
+                $activeKeyId = 'gk_' . bin2hex(random_bytes(16));
+                $galleryKeys->migrateToKeyring($activeKeyId);
+                // Another concurrent allocator may have completed migration first.
+                $activeKeyId = $galleryKeys->activeKeyId();
+                if ($activeKeyId === null) throw new RuntimeException('Gallery active encryption key is unavailable.');
+            }
+            $photoId = bin2hex(random_bytes(16));
+            $objectKeys = [];
+            $uploadUrls = [];
+            foreach (['original', 'thumbnail', 'preview', 'metadata'] as $role) {
+                $objectKeys[$role] = BackblazeB2Signer::newObjectKey($role);
+            }
+            $objectStore->createPending($photoId, $objectKeys, $activeKeyId);
+            try {
+                foreach ($objectKeys as $role => $objectKey) {
+                    $uploadUrls[$role] = $signer->presign('PUT', $objectKey, 300);
+                }
+            } catch (Throwable $exception) {
+                $objectStore->remove($photoId);
+                throw $exception;
+            }
+            return ['photoId' => $photoId, 'uploadUrls' => $uploadUrls, 'activeKeyId' => $activeKeyId];
+        });
+        gallery_storage_json(['status' => 'ok'] + $allocation + ['expiresIn' => 300]);
     }
 
     if ($action === 'commit') {
-        if (!$galleryKeys->isInitialized()) gallery_storage_json(['status' => 'error', 'message' => 'Secure Gallery identity is unavailable.'], 409);
         $photoId = (string)($request['photoId'] ?? '');
         $envelopes = is_array($request['envelopes'] ?? null) ? $request['envelopes'] : [];
         $sizes = is_array($request['sizes'] ?? null) ? $request['sizes'] : [];
@@ -125,7 +158,11 @@ try {
             }
             $signer->assertObjectSize($objectKey, $expectedSize);
         }
-        $objectStore->commit($photoId, $envelopes, $sizes);
+        GalleryRotationLock::synchronized($dataDirectory, function () use ($galleryKeys, $objectStore, $photoId, $envelopes, $sizes): void {
+            if (!$galleryKeys->isInitialized()) throw new RuntimeException('Secure Gallery identity is unavailable.');
+            $activeKeyId = $galleryKeys->activeKeyId();
+            $objectStore->commit($photoId, $envelopes, $sizes, $galleryKeys->keyIds(), $activeKeyId !== null);
+        });
         gallery_storage_json(['status' => 'ok', 'photoId' => $photoId]);
     }
 
@@ -144,8 +181,40 @@ try {
             'status' => 'ok',
             'url' => $url,
             'envelope' => $record['objects'][$role]['envelope'],
+            'envelopeHash' => GalleryObjectStore::envelopeHash($record['objects'][$role]['envelope']),
             'expiresIn' => 300,
         ]);
+    }
+
+    if ($action === 'replace_envelope') {
+        $photoId = (string)($request['photoId'] ?? '');
+        $role = (string)($request['role'] ?? '');
+        $expectedHash = (string)($request['expectedEnvelopeHash'] ?? '');
+        $envelope = is_array($request['envelope'] ?? null) ? $request['envelope'] : [];
+        $updatedHash = GalleryRotationLock::synchronized($dataDirectory, function () use ($objectStore, $galleryKeys, $rotationJournal, $photoId, $role, $expectedHash, $envelope): string {
+            $rotation = $rotationJournal->current();
+            if (!is_array($rotation)
+                || !in_array(($rotation['status'] ?? ''), ['running', 'ready_to_retire'], true)
+                || !is_string($rotation['to_key_id'] ?? null)
+                || ($envelope['keyId'] ?? null) !== $rotation['to_key_id']) {
+                throw new RuntimeException('Gallery object envelopes may only be replaced as part of the active key rotation.');
+            }
+            return $objectStore->replaceEnvelope(
+                $photoId,
+                $role,
+                $expectedHash,
+                $envelope,
+                $galleryKeys->keyIds()
+            );
+        });
+        gallery_storage_json(['status' => 'ok', 'envelopeHash' => $updatedHash]);
+    }
+
+    if ($action === 'key_inventory') {
+        $references = GalleryRotationLock::synchronized($dataDirectory, fn(): array =>
+            $objectStore->keyReferenceInventory($galleryKeys->legacyKeyId())
+        );
+        gallery_storage_json(['status' => 'ok', 'references' => $references, 'complete' => true]);
     }
 
     if ($action === 'delete_urls') {
@@ -164,17 +233,15 @@ try {
 
     if ($action === 'confirm_delete') {
         $photoId = (string)($request['photoId'] ?? '');
-        $record = $objectStore->remove($photoId);
+        $record = GalleryRotationLock::synchronized($dataDirectory, fn(): ?array => $objectStore->remove($photoId));
         if ($record === null) gallery_storage_json(['status' => 'error', 'message' => 'Gallery photo not found.'], 404);
         gallery_storage_json(['status' => 'ok', 'photoId' => $photoId]);
     }
 
     if ($action === 'cancel') {
         $photoId = (string)($request['photoId'] ?? '');
-        $record = $objectStore->find($photoId);
-        if (!is_array($record) || ($record['status'] ?? '') !== 'pending') {
-            gallery_storage_json(['status' => 'ok', 'deleteUrls' => []]);
-        }
+        $record = GalleryRotationLock::synchronized($dataDirectory, fn(): ?array => $objectStore->markCancelling($photoId));
+        if (!is_array($record)) gallery_storage_json(['status' => 'ok', 'deleteUrls' => []]);
         $deleteUrls = [];
         foreach ((array)($record['objects'] ?? []) as $role => $object) {
             if (!is_array($object) || !is_string($object['key'] ?? null)) continue;
@@ -185,8 +252,12 @@ try {
 
     if ($action === 'confirm_cancel') {
         $photoId = (string)($request['photoId'] ?? '');
-        $record = $objectStore->find($photoId);
-        if (is_array($record) && ($record['status'] ?? '') === 'pending') $objectStore->remove($photoId);
+        GalleryRotationLock::synchronized($dataDirectory, function () use ($objectStore, $photoId): void {
+            $record = $objectStore->find($photoId);
+            if (is_array($record) && ($record['status'] ?? '') === 'cancelling') {
+                $objectStore->remove($photoId);
+            }
+        });
         gallery_storage_json(['status' => 'ok']);
     }
 
