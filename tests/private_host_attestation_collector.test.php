@@ -162,6 +162,25 @@ try {
         'A symlinked ancestor must fail the monitored directory policy without traversing its target.');
     unlink($web . '/app/redirect');
 
+    // Regression for an ancestor directory swapped to a symlink after the
+    // initial path walk but before the file hash completes.
+    $rootStat = lstat($web);
+    $appStat = lstat($web . '/app');
+    $directoryGuard = new ReflectionMethod(PrivateHostAttestationCollector::class, 'directoriesUnchanged');
+    $directoryGuard->setAccessible(true);
+    $capturedDirectories = [
+        ['path' => $web, 'dev' => $rootStat['dev'], 'ino' => $rootStat['ino']],
+        ['path' => $web . '/app', 'dev' => $appStat['dev'], 'ino' => $appStat['ino']],
+    ];
+    rename($web . '/app', $web . '/app-original');
+    symlink($web . '/app-original', $web . '/app');
+    collectorAssert(
+        $directoryGuard->invoke($collector, $capturedDirectories) === false,
+        'Collector must detect an ancestor directory replaced by a symlink after path validation.'
+    );
+    unlink($web . '/app');
+    rename($web . '/app-original', $web . '/app');
+
     collectorReject(
         fn() => new PrivateHostAttestationCollector(
             'sentryiq-host-attestor', $web, $web, $keyPath,
