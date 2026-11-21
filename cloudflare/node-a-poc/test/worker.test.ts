@@ -46,6 +46,22 @@ describe("Node A Workers runtime proof", () => {
     expect(() => verifier.verify(toSignedEntity(bundle, bundles.ARTIFACT))).not.toThrow();
   });
 
+  it("uses Durable Object SQLite for persistent TUF files and request-local temporary files", async () => {
+    const id = env.NODE_A_STATE.idFromName("node-a-tuf-fs-adapter-test");
+    const first = env.NODE_A_STATE.get(id);
+    const result = await first.testTufFilesystemAdapter();
+    expect(result).toEqual({
+      persistentRead: "persistent-root-fixture",
+      copiedRead: "persistent-root-fixture",
+      temporaryRead: "request-scoped-target",
+      temporaryExistsAfterCleanup: false
+    });
+
+    const second = env.NODE_A_STATE.get(id);
+    const contextCheck = await second.testTufFilesystemAdapter();
+    expect(contextCheck.persistentRead).toBe("persistent-root-fixture");
+  });
+
   it("requires an explicit immutable baseline before any release pin can advance", async () => {
     const id = env.NODE_A_STATE.idFromName("node-a-baseline-test");
     const stub = env.NODE_A_STATE.get(id);
