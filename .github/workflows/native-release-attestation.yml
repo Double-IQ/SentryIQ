@@ -153,8 +153,8 @@ jobs:
             "$RUNNER_TEMP/sentryiq-private-data/sigstore-vendor/vendor/autoload.php" \
             "$RUNNER_TEMP/sentryiq-0.1.2.zip" \
             "$RUNNER_TEMP/sentryiq-private-data"
-      - name: Package private Sigstore dependencies for cPanel installation
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Package and verify private Sigstore dependencies for cPanel installation
+        # Build and checksum-test on PRs too; only publishing is main-only.
         run: |
           cd "$RUNNER_TEMP/sentryiq-private-data"
           zip -qr "$RUNNER_TEMP/sentryiq-sigstore-vendor.zip" sigstore-vendor
