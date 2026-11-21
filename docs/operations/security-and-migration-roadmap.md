@@ -1,7 +1,7 @@
 # SentryIQ Security and Migration Roadmap
 
 **Status:** Active planning document  
-**Last reviewed:** 2026-11-19  
+**Last reviewed:** 2026-11-21  
 **Canonical target origin:** `https://sentryiq.bichet.co.za`  
 **Current production origin:** `https://bichet.co.za/SentryIQ`
 
@@ -27,10 +27,10 @@ This document is the project-level execution plan for security hardening, zero-k
 | Gallery encryption design | PR #11 merged; end-to-end acceptance testing pending |
 | Zero-knowledge password vault and documents | Not complete; PHP currently handles the master key and document crypto |
 | Release packaging | Exact release ZIP, runtime-template inventory, manifest and checksums are built and validated in CI (PR #75); no release tag or published release yet |
-| Signed release verification | Native Sigstore/SLSA verifier and scheduled-node integration remain in open stacked PRs #48/#50; durable TUF root storage boundary is merged in PR #91 but not wired into production updater runtime; nothing deployed |
-| Integrity Nodes A and B | Verifier/runtime prototypes implemented on PR #50; separate provider/host provisioning, keys, schedules, baselines and direct alerts not verified |
-| Integrity Node C (HelioHost) | Compatibility prototype and tests exist; HelioHost provisioning, native runtime configuration, key and schedule not verified |
-| Node 4 (BTM-SA) | Event receiver/incident pipeline implemented on PR #50; shares the SentryIQ host and is not an independent failure domain; runtime configuration and alert transport not deployed |
+| Signed release verification | Native Sigstore verifier and Integrity Node scheduled-runtime integration are merged in PR #99; TUF durable root storage boundary is merged in PR #91; production updater wiring, key custody, signed release and deployment validation remain pending |
+| Integrity Nodes A and B | Verifier/runtime, private-host attestation client and Node 4 event-exchange code are merged in PR #99; independent provider/runtime provisioning, credentials, schedules, baselines and direct alerts not verified |
+| Integrity Node C (HelioHost) | Node C evidence-retention and scheduled verification path are integrated in PR #99; HelioHost provisioning, native runtime configuration, key, private storage and schedule not verified |
+| Node 4 (BTM-SA) | Authenticated event receiver, replay-safe report store, incident correlation, alert outbox and runtime configuration checks are merged in PR #99; shares the SentryIQ host and is not an independent failure domain; runtime configuration and alert transport not deployed |
 | Production subdomain cutover | Not approved or performed; no production deployment or release tag exists |
 
 ## Guardrails
@@ -117,7 +117,7 @@ The server cannot decrypt vault or document content using its database, runtime 
 ## Workstream 4 — Signed releases and independent Integrity Nodes
 
 **Tracking:** [Integrity Nodes and signed releases issue #13](https://github.com/Double-IQ/SentryIQ/issues/13)  
-**Status:** Substantial prototype implementation exists in stacked PRs #48 and #50; no release-trust or node deployment is yet verified.
+**Status:** Core verifier, scheduled-node, private-host attestation, and Node 4 event-plane code is merged in PR #99; no production node deployment, trust provisioning, or runtime acceptance is yet verified.
 
 ### Release trust chain
 
@@ -138,17 +138,17 @@ The server cannot decrypt vault or document content using its database, runtime 
 
 ### Independent verifiers
 
-- [x] Implement verifier/runtime prototypes for Integrity Nodes A and B (included in stacked PR #50); these are code prototypes, not deployed nodes.
+- [x] Integrate verifier/runtime for Integrity Nodes A and B, private-host attestation client/verifier, and authenticated Node 4 event exchange (PR #99); code integration is not deployment or host acceptance.
 - [ ] Select and verify the actual independent hosting/provider and administrative boundary for Node A.
 - [x] Hosting assignment confirmed: Integrity Node B is hosted on Val Town. [ ] Verify the deployed Val Town app/runtime, independent administrative boundary, private secrets/configuration, pinned trust roots, unique credentials, independent schedule, private state/baseline, and direct owner-alert transport.
 - [ ] Provision A and B separately with pinned public trust roots, unique signing keys, unique credentials, independent schedules, private state/baselines, and direct owner-alert transports. Neither node may trust the other's verdict.
 - [x] Implement a HelioHost-compatible Node C prototype; production provisioning and its native verification runtime remain pending.
 - [x] Add fail-closed Node C regression tests proving manifest/artifact attestation failures abort before origin fetch and origin network failures never approve (PR #87; tests only, no native adapter or production behaviour change).
-- [ ] Implement the BTM-SA / Node 4 event receiver and incident pipeline (still in open draft PR #50); BTM-SA shares the SentryIQ host and is not a third independent verifier or independent failure domain.
-- [x] Specify the Node 4 signed-report v2 ingestion contract, including exact-byte Ed25519 verification, short-lived one-use node-bound challenges, atomic nonce consumption/report persistence, replay rejection, evidence retention, and incident correlation (PR #82). This is a documented contract, not a deployed implementation.
+- [x] Implement the BTM-SA / Node 4 event receiver, replay-safe report storage, incident correlation, and durable alert outbox (PR #99); BTM-SA shares the SentryIQ host and is not a third independent verifier or independent failure domain. Runtime configuration and alert delivery remain pending.
+- [x] Specify and implement the Node 4 signed-report v2 ingestion contract, including exact-byte Ed25519 verification, short-lived one-use node-bound challenges, atomic nonce consumption/report persistence, replay rejection, evidence retention, and incident correlation (contract PR #82; implementation PR #99). Not deployed.
 - [ ] Provision Node 4 with separate logical service identity, private storage, A/B public keys and unique tokens, replay-safe state, and a tested alert sender. Host-level isolation remains limited by the shared SentryIQ host.
 - [ ] Verify the signed manifest and deployed public resources, including HTML, JavaScript, CSS, service worker/manifest if introduced, redirects, TLS, response headers, and unexpected external scripts/domains.
-- [x] Implement the private-host attestation collector core, authenticated request-handler/nonce-store prototype, and A/B HTTPS client/verifier integration in PR #50. Production deployment remains pending: dedicated OS identity, read-only filesystem isolation, listener/reverse-proxy wiring, deployment-derived approved baselines, protected signing-key provisioning, and independent host-side verification are not yet in place. Public HTTP scanning alone cannot prove private PHP/configuration integrity.
+- [x] Integrate the private-host attestation collector core, authenticated request-handler/nonce-store, and A/B HTTPS client/verifier path (PR #99). Production deployment remains pending: dedicated OS identity, read-only filesystem isolation, listener/reverse-proxy wiring, deployment-derived approved baselines, protected signing-key provisioning, and independent host-side verification are not yet in place. Public HTTP scanning alone cannot prove private PHP/configuration integrity.
 - [ ] Compare signed node reports and alert on disagreement, stale checks, missed checks, target unavailability, or verifier failure.
 - [ ] Keep alert destinations and verifier credentials outside production control.
 - [ ] Document common-mode risks: source-control compromise, signing-key compromise, DNS/account compromise, and malicious same-origin JavaScript.
@@ -200,11 +200,11 @@ Update this section whenever a phase changes. Link the PR, workflow run, test ev
 | Client crypto/key foundation | Pending | Design review, test vectors, cross-browser results |
 | Zero-knowledge vault/documents | Pending | Migration and no-plaintext/no-key-leak test evidence |
 | Release package/CI | Exact package builder and validation merged (PR #75); installer runtime path corrected (PR #76) | CI evidence on main; tag/release publication and production verification remain pending |
-| Signed release verification/updater | Native Sigstore/TUF integration remains in open stacked PRs #48/#50; TUF patch hardening, rotation rejection tests, and durable root-store component are merged (PRs #85, #90, #91); no production updater wiring | Merge/review, approved key custody, HelioHost web-SAPI validation, signed production release and updater verification |
-| Integrity Node A | Code prototype; host/provider not confirmed or deployed | Independent host inspection, private config/key/baseline, schedule, signed report and direct-alert test |
-| Integrity Node B (Val Town) | Hosting assignment confirmed; deployment/runtime not verified | Val Town app/runtime, private secrets/configuration, pinned trust roots, independent schedule/state, signed report and direct-alert test |
-| Integrity Node C (HelioHost) | Compatibility prototype plus fail-closed regression tests (PR #87); native adapter and deployment not verified | HelioHost account/runtime, native verifier, key, private evidence store, schedule and direct-alert test |
-| Node 4 (BTM-SA) | Signed-report contract documented (PR #82); event receiver/runtime remains in open draft PR #50; same host as SentryIQ, not deployed | Separate logical service/runtime, A/B trust config, replay store, alert transport and host-isolation checks |
+| Signed release verification/updater | Native Sigstore verifier and scheduled-node integration merged (PR #99); TUF patch hardening, rotation rejection tests, and durable root-store component merged (PRs #85, #90, #91); production updater wiring remains unverified | Approved key custody, HelioHost web-SAPI validation, signed production release and updater verification |
+| Integrity Node A | Runtime and private-host attestation integration merged (PR #99); host/provider and deployment not verified | Independent host inspection, private config/key/baseline, schedule, signed report and direct-alert test |
+| Integrity Node B (Val Town) | Runtime and private-host attestation integration merged (PR #99); hosting assignment noted, deployment/runtime not verified | Val Town app/runtime, private secrets/configuration, pinned trust roots, independent schedule/state, signed report and direct-alert test |
+| Integrity Node C (HelioHost) | Scheduled evidence-retention path integrated (PR #99); native host adapter and deployment not verified | HelioHost account/runtime, native verifier, key, private evidence store, schedule and direct-alert test |
+| Node 4 (BTM-SA) | Signed-report contract and event receiver/runtime merged (PR #99); same host as SentryIQ, not deployed and not an independent failure domain | Separate logical service/runtime, A/B trust config, replay store, alert transport and host-isolation checks |
 | Origin hardening/incident exercise | Pending | Security test report and exercise record |
 | New-origin deployment/cutover | Pending; no production files changed | PHP web-SAPI preflight for both environment variables, private storage test, full acceptance checklist, restore/rollback evidence, explicit approval |
 
