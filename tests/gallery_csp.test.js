@@ -15,8 +15,8 @@ test('Secure Gallery CSP does not permit inline JavaScript', () => {
 
 test('Secure Gallery markup contains no inline event handlers', () => {
     assert.doesNotMatch(page, /\son[a-z]+\s*=/i);
-    assert.match(page, /data-gallery-navigation="index\.php\?pane=view"/);
-    assert.match(page, /data-gallery-navigation="documents\.php"/);
+    assert.match(page, /data-sentryiq-nav="index\\.php\\?pane=view"/);
+    assert.match(page, /data-sentryiq-nav="documents\\.php"/);
     assert.match(page, /data-gallery-navigation="index\.php\?pane=settings"/);
     assert.match(script, /querySelectorAll\('\[data-gallery-navigation\]'\)/);
 });
