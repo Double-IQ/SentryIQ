@@ -59,6 +59,13 @@
         if (!['original', 'thumbnail', 'preview', 'metadata'].includes(role)) throw new Error('Invalid Gallery object role.');
     }
 
+    function validateKeyId(keyId) {
+        if (typeof keyId !== 'string' || !/^[A-Za-z0-9_-]{8,64}$/.test(keyId)) {
+            throw new Error('Invalid Gallery encryption key identifier.');
+        }
+        return keyId;
+    }
+
     async function derivePrfWrappingKey(prfOutput, salt, credentialId) {
         const subtle = requireCrypto().subtle;
         const prf = bytes(prfOutput);
@@ -135,19 +142,32 @@
         const ciphertext = fromBase64Url(envelope.ciphertext);
         if (iv.byteLength !== 12 || ciphertext.byteLength < 17) throw new Error('Invalid Gallery private-key envelope.');
         const key = await subtle.importKey('raw', bytes(rootKey), { name: 'AES-GCM' }, false, ['decrypt']);
-        let plaintext;
+        let plaintext = null;
+        let serializedJwk = '';
+        let jwk = null;
         try {
-            plaintext = await subtle.decrypt({ name: 'AES-GCM', iv, additionalData: encoder.encode(PRIVATE_KEY_INFO), tagLength: 128 }, key, ciphertext);
-        } catch (_) {
-            throw new Error('Unable to unlock the Gallery private key.');
+            try {
+                plaintext = await subtle.decrypt({ name: 'AES-GCM', iv, additionalData: encoder.encode(PRIVATE_KEY_INFO), tagLength: 128 }, key, ciphertext);
+            } catch (_) {
+                throw new Error('Unable to unlock the Gallery private key.');
+            }
+            try {
+                serializedJwk = new TextDecoder().decode(plaintext);
+                jwk = JSON.parse(serializedJwk);
+            } catch (_) {
+                throw new Error('The Gallery private-key envelope is invalid.');
+            }
+            return await subtle.importKey('jwk', jwk, { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['decrypt']);
+        } finally {
+            if (plaintext) new Uint8Array(plaintext).fill(0);
+            serializedJwk = '';
+            if (jwk && typeof jwk === 'object') {
+                for (const field of Object.keys(jwk)) {
+                    if (Array.isArray(jwk[field])) jwk[field].fill('');
+                    delete jwk[field];
+                }
+            }
         }
-        let jwk;
-        try {
-            jwk = JSON.parse(new TextDecoder().decode(plaintext));
-        } catch (_) {
-            throw new Error('The Gallery private-key envelope is invalid.');
-        }
-        return subtle.importKey('jwk', jwk, { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['decrypt']);
     }
 
     async function createIdentity(prfOutput, accountSalt, credentialId) {
@@ -169,6 +189,89 @@
         try {
             const privateKey = await decryptPrivateKey(privateKeyEnvelope, rootKey);
             return { privateKey, rootKey };
+        } catch (error) {
+            rootKey.fill(0);
+            throw error;
+        }
+    }
+
+    async function createAdditionalWrappingKey(rootKey) {
+        const subtle = requireCrypto().subtle;
+        const pair = await subtle.generateKey(RSA_ALGORITHM, true, ['encrypt', 'decrypt']);
+        const publicKey = await subtle.exportKey('jwk', pair.publicKey);
+        const privateKeyJwk = await subtle.exportKey('jwk', pair.privateKey);
+        const privateKeyEnvelope = await encryptPrivateKey(privateKeyJwk, rootKey);
+        return { publicKey, privateKeyEnvelope };
+    }
+
+    async function unlockKeyringWithRoot(keyring, rootKey) {
+        if (!keyring || keyring.version !== 2 || !keyring.keys || typeof keyring.keys !== 'object'
+            || !keyring.active_key_id || !Object.prototype.hasOwnProperty.call(keyring.keys, keyring.active_key_id)) {
+            throw new Error('The Gallery encryption keyring is invalid.');
+        }
+        if (bytes(rootKey).byteLength !== 32) throw new Error('The unlocked Gallery root key is invalid.');
+        if (keyring.legacy_key_id !== undefined && keyring.legacy_key_id !== null) validateKeyId(keyring.legacy_key_id);
+        const privateKeys = Object.create(null);
+        const publicKeys = Object.create(null);
+        for (const keyId of Object.keys(keyring.keys)) {
+            validateKeyId(keyId);
+            const entry = keyring.keys[keyId];
+            if (!entry || !entry.public_key || !entry.private_key_envelope) {
+                throw new Error('The Gallery encryption keyring entry is invalid.');
+            }
+            publicKeys[keyId] = entry.public_key;
+            privateKeys[keyId] = await decryptPrivateKey(entry.private_key_envelope, rootKey);
+        }
+        return {
+            privateKeys,
+            publicKeys,
+            activeKeyId: keyring.active_key_id,
+            legacyKeyId: keyring.legacy_key_id || null
+        };
+    }
+
+    async function unlockKeyringIdentity(keyring, credentialEnvelope, prfOutput, credentialId) {
+        if (!keyring || keyring.version !== 2 || !keyring.keys || typeof keyring.keys !== 'object'
+            || !keyring.active_key_id || !Object.prototype.hasOwnProperty.call(keyring.keys, keyring.active_key_id)) {
+            throw new Error('The Gallery encryption keyring is invalid.');
+        }
+        if (keyring.legacy_key_id !== undefined && keyring.legacy_key_id !== null) validateKeyId(keyring.legacy_key_id);
+        const rootKey = await unwrapRootKeyFromPasskey(credentialEnvelope, prfOutput, credentialId);
+        const privateKeys = Object.create(null);
+        const publicKeys = Object.create(null);
+        try {
+            for (const keyId of Object.keys(keyring.keys)) {
+                validateKeyId(keyId);
+                const entry = keyring.keys[keyId];
+                if (!entry || !entry.public_key || !entry.private_key_envelope) throw new Error('The Gallery encryption keyring entry is invalid.');
+                privateKeys[keyId] = await decryptPrivateKey(entry.private_key_envelope, rootKey);
+                publicKeys[keyId] = entry.public_key;
+            }
+            return { privateKeys, publicKeys, activeKeyId: keyring.active_key_id, legacyKeyId: keyring.legacy_key_id || null, rootKey };
+        } catch (error) {
+            rootKey.fill(0);
+            throw error;
+        }
+    }
+
+    async function unlockKeyringIdentityWithRecovery(keyring, recoveryEnvelope, recoveryKey) {
+        if (!keyring || keyring.version !== 2 || !keyring.keys || typeof keyring.keys !== 'object'
+            || !keyring.active_key_id || !Object.prototype.hasOwnProperty.call(keyring.keys, keyring.active_key_id)) {
+            throw new Error('The Gallery encryption keyring is invalid.');
+        }
+        if (keyring.legacy_key_id !== undefined && keyring.legacy_key_id !== null) validateKeyId(keyring.legacy_key_id);
+        const rootKey = await unwrapRootKeyFromRecovery(recoveryEnvelope, recoveryKey);
+        const privateKeys = Object.create(null);
+        const publicKeys = Object.create(null);
+        try {
+            for (const keyId of Object.keys(keyring.keys)) {
+                validateKeyId(keyId);
+                const entry = keyring.keys[keyId];
+                if (!entry || !entry.public_key || !entry.private_key_envelope) throw new Error('The Gallery encryption keyring entry is invalid.');
+                privateKeys[keyId] = await decryptPrivateKey(entry.private_key_envelope, rootKey);
+                publicKeys[keyId] = entry.public_key;
+            }
+            return { privateKeys, publicKeys, activeKeyId: keyring.active_key_id, legacyKeyId: keyring.legacy_key_id || null, rootKey };
         } catch (error) {
             rootKey.fill(0);
             throw error;
@@ -243,7 +346,7 @@
         return encoder.encode(OBJECT_INFO + '|' + photoId + '|' + role);
     }
 
-    async function encryptObject(plaintext, publicKeyJwk, photoId, role) {
+    async function encryptObject(plaintext, publicKeyJwk, photoId, role, keyId) {
         const subtle = requireCrypto().subtle;
         const publicKey = await importGalleryPublicKey(publicKeyJwk);
         const aad = objectAad(photoId, role);
@@ -262,7 +365,8 @@
                     nonce: toBase64Url(nonce),
                     wrappedDek: toBase64Url(wrappedDek),
                     photoId: photoId,
-                    role: role
+                    role: role,
+                    ...(keyId === undefined || keyId === null ? {} : { keyId: validateKeyId(keyId) })
                 }
             };
         } finally {
@@ -270,16 +374,71 @@
         }
     }
 
-    async function decryptObject(ciphertext, envelope, privateKey, expectedPhotoId, expectedRole) {
+    async function rewrapObjectEnvelope(envelope, privateKeyOrMap, newPublicKeyJwk, newKeyId, expectedPhotoId, expectedRole, legacyKeyId) {
+        const subtle = requireCrypto().subtle;
+        if (!envelope || envelope.version !== VERSION || envelope.algorithm !== 'A256GCM' || envelope.keyWrap !== 'RSA-OAEP-256') {
+            throw new Error('Unsupported Gallery object envelope.');
+        }
+        if (envelope.photoId !== expectedPhotoId || envelope.role !== expectedRole) {
+            throw new Error('Gallery object metadata does not match the requested object.');
+        }
+        if (envelope.keyId !== undefined) validateKeyId(envelope.keyId);
+        validateKeyId(newKeyId);
+        const oldKeyId = envelope.keyId || legacyKeyId;
+        const oldPrivateKey = oldKeyId && privateKeyOrMap && Object.prototype.hasOwnProperty.call(privateKeyOrMap, oldKeyId)
+            ? privateKeyOrMap[oldKeyId]
+            : (privateKeyOrMap && privateKeyOrMap.type === 'private' ? privateKeyOrMap : null);
+        if (!oldPrivateKey) throw new Error('No Gallery private key is available to rewrap this object.');
+        const nonce = fromBase64Url(envelope.nonce);
+        const wrappedDek = fromBase64Url(envelope.wrappedDek);
+        if (nonce.byteLength !== 12 || wrappedDek.byteLength !== 384) throw new Error('Invalid Gallery object envelope.');
+        const newPublicKey = await importGalleryPublicKey(newPublicKeyJwk);
+        let dekRaw;
+        try {
+            dekRaw = await subtle.decrypt({ name: 'RSA-OAEP' }, oldPrivateKey, wrappedDek);
+        } catch (_) {
+            throw new Error('Unable to unlock this Gallery object for key migration.');
+        }
+        if (dekRaw.byteLength !== 32) {
+            new Uint8Array(dekRaw).fill(0);
+            throw new Error('Invalid Gallery object key.');
+        }
+        try {
+            const newWrappedDek = await subtle.encrypt({ name: 'RSA-OAEP' }, newPublicKey, dekRaw);
+            return {
+                ...envelope,
+                keyId: newKeyId,
+                wrappedDek: toBase64Url(newWrappedDek)
+            };
+        } finally {
+            new Uint8Array(dekRaw).fill(0);
+        }
+    }
+
+    async function decryptObject(ciphertext, envelope, privateKeyOrMap, expectedPhotoId, expectedRole, legacyKeyId) {
         const subtle = requireCrypto().subtle;
         if (!envelope || envelope.version !== VERSION || envelope.algorithm !== 'A256GCM' || envelope.keyWrap !== 'RSA-OAEP-256') {
             throw new Error('Unsupported Gallery object envelope.');
         }
         if (envelope.photoId !== expectedPhotoId || envelope.role !== expectedRole) throw new Error('Gallery object metadata does not match the requested object.');
+        if (envelope.keyId !== undefined) validateKeyId(envelope.keyId);
         const aad = objectAad(expectedPhotoId, expectedRole);
         const nonce = fromBase64Url(envelope.nonce);
         const wrappedDek = fromBase64Url(envelope.wrappedDek);
         if (nonce.byteLength !== 12 || wrappedDek.byteLength !== 384) throw new Error('Invalid Gallery object envelope.');
+        const objectKeyId = envelope.keyId || legacyKeyId;
+        let privateKey;
+        if (objectKeyId && privateKeyOrMap && Object.prototype.hasOwnProperty.call(privateKeyOrMap, objectKeyId)) {
+            privateKey = privateKeyOrMap[objectKeyId];
+        } else if (privateKeyOrMap && privateKeyOrMap.type === 'private') {
+            privateKey = privateKeyOrMap;
+        } else if (objectKeyId) {
+            throw new Error('No Gallery private key is available for this encrypted object.');
+        } else if (privateKeyOrMap && typeof privateKeyOrMap.type === 'undefined') {
+            throw new Error('The legacy Gallery private key is unavailable for this object.');
+        } else {
+            privateKey = privateKeyOrMap;
+        }
         let dekRaw;
         try {
             dekRaw = await subtle.decrypt({ name: 'RSA-OAEP' }, privateKey, wrappedDek);
@@ -304,12 +463,17 @@
         createRecoveryKey: createRecoveryKey,
         createIdentity: createIdentity,
         unlockIdentity: unlockIdentity,
+        createAdditionalWrappingKey: createAdditionalWrappingKey,
+        unlockKeyringIdentity: unlockKeyringIdentity,
+        unlockKeyringWithRoot: unlockKeyringWithRoot,
+        unlockKeyringIdentityWithRecovery: unlockKeyringIdentityWithRecovery,
         wrapRootKeyForPasskey: wrapRootKeyForPasskey,
         wrapRootKeyForRecovery: wrapRootKeyForRecovery,
         unlockIdentityWithRecovery: unlockIdentityWithRecovery,
         clearSecret: function (secret) { if (secret instanceof Uint8Array) secret.fill(0); },
         encryptObject: encryptObject,
         decryptObject: decryptObject,
+        rewrapObjectEnvelope: rewrapObjectEnvelope,
         toBase64Url: toBase64Url,
         fromBase64Url: fromBase64Url
     });

@@ -5,7 +5,11 @@ const assert = require('node:assert/strict');
 
 const roles = ['original', 'thumbnail', 'preview', 'metadata'];
 const photoId = 'a'.repeat(32);
-const originalEnvelope = Object.fromEntries(roles.map((role) => [role, {
+const revision = 'a'.repeat(64);
+const replacements = [];
+let simulateInterruption = true;
+const envelopeHashes = Object.fromEntries(roles.map((role) => [role, []]));
+const envelopes = Object.fromEntries(roles.map((role) => [role, {
     version: 1,
     algorithm: 'A256GCM',
     keyWrap: 'RSA-OAEP-256',
@@ -14,8 +18,6 @@ const originalEnvelope = Object.fromEntries(roles.map((role) => [role, {
     photoId,
     role
 }]));
-const revision = 'a'.repeat(64);
-const replacements = [];
 
 globalThis.window = globalThis;
 globalThis.document = {
@@ -32,10 +34,11 @@ globalThis.SentryIQSecureGallery = {
     }
 };
 globalThis.fetch = async (url, options = {}) => {
-    if (url === 'gallery_storage.php?action=cleanup_pending') {
+    const requestUrl = String(url);
+    if (requestUrl.includes('action=cleanup_pending')) {
         return { ok: true, json: async () => ({ status: 'ok', pending: {} }) };
     }
-    if (url === 'gallery_storage.php?action=list') {
+    if (requestUrl.includes('action=list')) {
         return {
             ok: true,
             json: async () => ({
@@ -43,19 +46,43 @@ globalThis.fetch = async (url, options = {}) => {
                 photos: {
                     [photoId]: {
                         objects: Object.fromEntries(roles.map((role) => [role, {
-                            envelope: originalEnvelope[role],
-                            envelope_hash: revision
+                            envelope: envelopes[role],
+                            envelope_hash: envelopeHashes[role][envelopeHashes[role].length - 1] || revision
                         }]))
                     }
                 }
             })
         };
     }
-    if (url === 'gallery_storage.php') {
+    if (requestUrl === 'gallery_storage.php') {
         const body = JSON.parse(options.body);
+        if (body.action === 'cleanup_pending') {
+            return { ok: true, json: async () => ({ status: 'ok', pending: {} }) };
+        }
         if (body.action === 'replace_envelope') {
+            if (body.role === 'preview' && simulateInterruption) {
+                throw new Error('simulated network interruption');
+            }
             replacements.push(body);
-            return { ok: true, json: async () => ({ status: 'ok', envelopeHash: 'b'.repeat(64) }) };
+            envelopes[body.role] = body.envelope;
+            const nextHash = String.fromCharCode(97 + envelopeHashes[body.role].length + 1).repeat(64);
+            envelopeHashes[body.role].push(nextHash);
+            return { ok: true, json: async () => ({ status: 'ok', envelopeHash: nextHash }) };
+        }
+        if (body.action === 'download') {
+            if (simulateInterruption) {
+                simulateInterruption = false;
+                throw new Error('simulated browser interruption');
+            }
+            return {
+                ok: true,
+                json: async () => ({
+                    status: 'ok',
+                    envelope: envelopes[body.role],
+                    envelopeHash: envelopeHashes[body.role].at(-1) || revision,
+                    url: 'https://example.invalid/not-used'
+                })
+            };
         }
         if (body.action === 'key_inventory') {
             return { ok: true, json: async () => ({ status: 'ok', complete: true, references: { gk_target01: 4 } }) };
@@ -67,18 +94,36 @@ globalThis.fetch = async (url, options = {}) => {
 
 require('../assets/js/gallery_storage.js');
 
-test('Gallery rotation rewraps every object envelope without uploading photo ciphertext', async () => {
-    const result = await globalThis.SentryIQGalleryStorage.migrateEnvelopesToKey('gk_target01');
+test('Gallery rotation resumes safely after an interrupted envelope migration', async () => {
+    await assert.rejects(
+        globalThis.SentryIQGalleryStorage.migrateEnvelopesToKey('gk_target01'),
+        /simulated browser interruption/
+    );
+    assert.equal(replacements.length, 2, 'The first run should have committed two envelopes before interruption.');
+    assert.equal(envelopes.original.keyId, 'gk_target01');
+    assert.equal(envelopes.thumbnail.keyId, 'gk_target01');
+    assert.equal(envelopes.preview.keyId, undefined);
+    assert.equal(envelopes.metadata.keyId, undefined);
 
-    assert.equal(result.updated, 4);
-    assert.equal(result.skipped, 0);
-    assert.equal(result.total, 4);
+    const progress = [];
+    const resumed = await globalThis.SentryIQGalleryStorage.migrateEnvelopesToKey('gk_target01', (state) => progress.push(state));
+    assert.equal(progress.at(-1).updated + progress.at(-1).skipped, 4, 'Resume progress must include envelopes already migrated by the earlier run.');
+    assert.equal(resumed.updated, 2);
+    assert.equal(resumed.skipped, 2);
+    assert.equal(resumed.total, 4);
     assert.equal(replacements.length, 4);
     for (const item of replacements) {
         assert.equal(item.action, 'replace_envelope');
         assert.equal(item.photoId, photoId);
-        assert.equal(item.expectedEnvelopeHash, revision);
         assert.equal(item.envelope.keyId, 'gk_target01');
-        assert.equal(item.envelope.nonce, originalEnvelope[item.role].nonce);
+        assert.equal(item.envelope.nonce, 'N'.repeat(16));
     }
+
+    // A subsequent reload must recognise all four target-key envelopes and
+    // perform no additional writes.
+    const repeated = await globalThis.SentryIQGalleryStorage.migrateEnvelopesToKey('gk_target01');
+    assert.equal(repeated.updated, 0);
+    assert.equal(repeated.skipped, 4);
+    assert.equal(replacements.length, 4);
+    assert.ok(roles.every((role) => envelopes[role].keyId === 'gk_target01'));
 });

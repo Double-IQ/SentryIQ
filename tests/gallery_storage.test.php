@@ -72,6 +72,24 @@ check(($putQuery['X-Amz-SignedHeaders'] ?? '') === 'content-type;host', 'B2 PUT 
 check(preg_match('/^[a-f0-9]{64}$/', (string)($putQuery['X-Amz-Signature'] ?? '')) === 1, 'B2 URL must contain a SigV4 signature.');
 check(!str_contains($putUrl, 'test-application-secret'), 'B2 URL must not disclose the application key.');
 check($putUrl !== $getUrl, 'PUT and GET authorizations must be method-scoped.');
+$headUrl = $signer->presign('HEAD', $objectKey, 60, $now);
+$deleteUrl = $signer->presign('DELETE', $objectKey, 60, $now);
+check($headUrl !== $getUrl && $deleteUrl !== $getUrl, 'HEAD and DELETE authorizations must be method-scoped.');
+foreach ([$headUrl, $deleteUrl] as $methodUrl) {
+    $parts = parse_url($methodUrl);
+    parse_str((string)($parts['query'] ?? ''), $query);
+    check(($query['X-Amz-Expires'] ?? '') === '60', 'Every signed operation must use the requested short expiry.');
+    check(($query['X-Amz-SignedHeaders'] ?? '') === 'host', 'Non-upload operations must not inherit upload content-type signing.');
+}
+expectFailure(fn() => $signer->presign('POST', $objectKey, 60, $now), 'Signer must reject unsupported HTTP methods.');
+expectFailure(fn() => $signer->presign('GET', 'gallery/v1/' . str_repeat('a', 64) . '/unknown', 60, $now), 'Signer must reject unknown object roles.');
+expectFailure(fn() => $signer->presign('GET', $objectKey, 0, $now), 'Signer must reject zero-length authorizations.');
+expectFailure(fn() => new BackblazeB2Signer([
+    'bucket' => 'sentryiq-test-bucket',
+    'region' => 'us-west-004',
+    'key_id' => '',
+    'application_key' => 'test-application-secret',
+]), 'Signer must reject incomplete credentials.');
 expectFailure(fn() => $signer->presign('PUT', '../private/photo.webp'), 'Signer must reject arbitrary object paths.');
 expectFailure(fn() => $signer->presign('PUT', $objectKey, 601, $now), 'Signer must reject long-lived URLs.');
 
@@ -114,8 +132,10 @@ try {
         'Additional passkeys must use the same dedicated Gallery PRF input salt.'
     );
     check($store->credentialEnvelope($credentialTwo) !== null, 'Additional passkey envelope should be stored.');
+    check($store->enrolledCredentialIds() === [$credentialOne, $credentialTwo], 'Device inventory must list only Gallery-enrolled credentials.');
     $store->removeCredentialEnvelope($credentialOne);
     check($store->credentialEnvelope($credentialOne) === null, 'Removed passkey envelope should no longer be available.');
+    check($store->enrolledCredentialIds() === [$credentialTwo], 'Removing a device must remove only its Gallery enrollment.');
     expectFailure(
         fn() => $store->removeCredentialEnvelope($credentialTwo),
         'The final Gallery passkey envelope must not be removable.'
@@ -167,6 +187,122 @@ try {
     check(($objectStore->find($photoId)['status'] ?? '') === 'active', 'Committed ciphertext objects must be active.');
     check(count($objectStore->all()) === 1, 'Active Gallery objects must be listed.');
     check(isset($objectStore->find($photoId)['objects']['metadata']['envelope']), 'Encrypted metadata envelope must be stored.');
+    $listedPhoto = $objectStore->all()[$photoId] ?? null;
+    check(is_array($listedPhoto), 'Active Gallery objects should be included in the browser migration listing.');
+    foreach (['original', 'thumbnail', 'preview', 'metadata'] as $role) {
+        $listedEnvelope = $listedPhoto['objects'][$role]['envelope'] ?? null;
+        $listedHash = $listedPhoto['objects'][$role]['envelope_hash'] ?? '';
+        check(is_array($listedEnvelope) && hash_equals(GalleryObjectStore::envelopeHash($listedEnvelope), $listedHash),
+            'Every listed Gallery envelope must include its deterministic compare-and-swap revision hash.');
+    }
+
+    $legacyPendingPhotoId = bin2hex(random_bytes(16));
+    $legacyPendingKeys = [];
+    $legacyPendingEnvelopes = $envelopes;
+    foreach (['original', 'thumbnail', 'preview', 'metadata'] as $role) {
+        $legacyPendingKeys[$role] = BackblazeB2Signer::newObjectKey($role);
+        $legacyPendingEnvelopes[$role]['photoId'] = $legacyPendingPhotoId;
+    }
+    $objectStore->createPending($legacyPendingPhotoId, $legacyPendingKeys);
+    $objectStore->commit($legacyPendingPhotoId, $legacyPendingEnvelopes, $sizes, ['gk_legacy01'], true);
+    check(($objectStore->find($legacyPendingPhotoId)['status'] ?? '') === 'active',
+        'A pre-migration reservation must be allowed to finish with legacy untagged envelopes.');
+    $objectStore->remove($legacyPendingPhotoId);
+
+    $keyedPhotoId = bin2hex(random_bytes(16));
+    $keyedObjectKeys = [];
+    $keyedEnvelopes = $envelopes;
+    foreach (['original', 'thumbnail', 'preview', 'metadata'] as $role) {
+        $keyedObjectKeys[$role] = BackblazeB2Signer::newObjectKey($role);
+        $keyedEnvelopes[$role]['photoId'] = $keyedPhotoId;
+        $keyedEnvelopes[$role]['keyId'] = 'gk_testkey01';
+    }
+    $objectStore->createPending($keyedPhotoId, $keyedObjectKeys, 'gk_testkey01');
+    expectFailure(
+        fn() => $objectStore->commit($keyedPhotoId, $keyedEnvelopes, $sizes, ['gk_otherkey01'], true),
+        'The object store must reject envelopes referencing a key outside the persisted keyring.'
+    );
+    check(($objectStore->find($keyedPhotoId)['status'] ?? '') === 'pending', 'Rejected key references must leave uploads pending.');
+    $wrongReservationKey = $keyedEnvelopes;
+    foreach (['original', 'thumbnail', 'preview', 'metadata'] as $role) {
+        $wrongReservationKey[$role]['keyId'] = 'gk_otherkey01';
+    }
+    expectFailure(
+        fn() => $objectStore->commit($keyedPhotoId, $wrongReservationKey, $sizes, ['gk_testkey01', 'gk_otherkey01'], true),
+        'A valid keyring entry must still be rejected when it differs from the key bound to the upload reservation.'
+    );
+    check(($objectStore->find($keyedPhotoId)['status'] ?? '') === 'pending', 'A mismatched reservation key must not activate the upload.');
+    $objectStore->commit($keyedPhotoId, $keyedEnvelopes, $sizes, ['gk_testkey01'], true);
+    check(($objectStore->find($keyedPhotoId)['objects']['original']['envelope']['keyId'] ?? '') === 'gk_testkey01',
+        'The object store must persist an authorized key identifier with each encrypted object.');
+
+    $inventory = $objectStore->keyReferenceInventory('gk_legacy01');
+    check(($inventory['gk_legacy01'] ?? 0) === 4, 'Legacy objects without key IDs must be attributed to the migrated legacy key.');
+    check(($inventory['gk_testkey01'] ?? 0) === 4, 'Key-aware object references must be counted.');
+
+    $legacyEnvelope = $objectStore->find($photoId)['objects']['original']['envelope'];
+    $legacyHash = GalleryObjectStore::envelopeHash($legacyEnvelope);
+    $replacementEnvelope = $legacyEnvelope;
+    $replacementEnvelope['keyId'] = 'gk_testkey01';
+    $replacementEnvelope['wrappedDek'] = str_repeat('Z', 512);
+    $badNonceEnvelope = $replacementEnvelope;
+    $badNonceEnvelope['nonce'] = str_repeat('P', 16);
+    expectFailure(
+        fn() => $objectStore->replaceEnvelope($photoId, 'original', $legacyHash, $badNonceEnvelope, ['gk_testkey01']),
+        'Envelope replacement must not change the AES-GCM nonce when only rewrapping a DEK.'
+    );
+    expectFailure(
+        fn() => $objectStore->replaceEnvelope($photoId, 'original', str_repeat('0', 64), $replacementEnvelope, ['gk_testkey01']),
+        'Envelope replacement must reject a stale compare-and-swap hash.'
+    );
+    $updatedHash = $objectStore->replaceEnvelope($photoId, 'original', $legacyHash, $replacementEnvelope, ['gk_testkey01']);
+    check(hash_equals($updatedHash, GalleryObjectStore::envelopeHash($replacementEnvelope)),
+        'Envelope replacement must return the new revision hash.');
+    expectFailure(
+        fn() => $objectStore->replaceEnvelope($photoId, 'original', $updatedHash, $legacyEnvelope + ['keyId' => 'gk_unknown01'], ['gk_testkey01']),
+        'Envelope replacement must reject a key outside the keyring.'
+    );
+    // Unknown object roles must fail closed rather than being omitted from the
+    // authoritative inventory used to authorize irreversible key retirement.
+    $records = json_decode((string)file_get_contents($directory . '/gallery_objects.json'), true, 32, JSON_THROW_ON_ERROR);
+    $records[$photoId]['objects']['unexpected'] = $records[$photoId]['objects']['original'];
+    file_put_contents($directory . '/gallery_objects.json', json_encode($records, JSON_THROW_ON_ERROR));
+    @chmod($directory . '/gallery_objects.json', 0600);
+    expectFailure(
+        fn() => $objectStore->keyReferenceInventory('gk_legacy01'),
+        'Key retirement inventory must reject active objects containing unrecognized roles.'
+    );
+    unset($records[$photoId]['objects']['unexpected']);
+    file_put_contents($directory . '/gallery_objects.json', json_encode($records, JSON_THROW_ON_ERROR));
+    @chmod($directory . '/gallery_objects.json', 0600);
+
+    $inventory = $objectStore->keyReferenceInventory('gk_legacy01');
+    check(($inventory['gk_legacy01'] ?? 0) === 3, 'Successfully rewrapped objects must stop referencing the legacy key.');
+    check(($inventory['gk_testkey01'] ?? 0) === 5, 'Rewrapped objects must reference their replacement key.');
+
+    $pendingPhotoId = bin2hex(random_bytes(16));
+    $pendingKeys = [];
+    foreach (['original', 'thumbnail', 'preview', 'metadata'] as $role) {
+        $pendingKeys[$role] = BackblazeB2Signer::newObjectKey($role);
+    }
+    $objectStore->createPending($pendingPhotoId, $pendingKeys, 'gk_testkey01');
+    $inventory = $objectStore->keyReferenceInventory('gk_legacy01');
+    check(($inventory['gk_testkey01'] ?? 0) === 6, 'In-flight upload reservations must count against key retirement.');
+    $cancelling = $objectStore->markCancelling($pendingPhotoId);
+    check(($cancelling['status'] ?? '') === 'cancelling', 'Cancellation must atomically close the pending reservation.');
+    check(isset($objectStore->stalePending()[$pendingPhotoId]), 'Interrupted cancellation must remain discoverable for cleanup retry.');
+    $lateCommit = $keyedEnvelopes;
+    foreach (['original', 'thumbnail', 'preview', 'metadata'] as $role) $lateCommit[$role]['photoId'] = $pendingPhotoId;
+    expectFailure(
+        fn() => $objectStore->commit($pendingPhotoId, $lateCommit, $sizes, ['gk_testkey01'], true),
+        'A late upload commit must not activate a reservation already marked for cancellation.'
+    );
+    check(($objectStore->find($pendingPhotoId)['status'] ?? '') === 'cancelling', 'A rejected late commit must leave the reservation cancelling.');
+    check(($objectStore->keyReferenceInventory('gk_legacy01')['gk_testkey01'] ?? 0) === 6,
+        'Cancelling reservations must remain in the inventory until B2 cleanup is confirmed.');
+
+    check($objectStore->remove($pendingPhotoId) !== null, 'Pending Gallery reservation should be removable.');
+    check($objectStore->remove($keyedPhotoId) !== null, 'Keyed Gallery object record should be removable.');
     check($objectStore->remove($photoId) !== null, 'Gallery object record should be removable.');
     check($objectStore->all() === [], 'Removed Gallery object must no longer be listed.');
 } finally {

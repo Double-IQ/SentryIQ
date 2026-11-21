@@ -121,6 +121,81 @@ test('photo objects decrypt only with the correct key and authenticated context'
     const decrypted = await gallery.decryptObject(encrypted.ciphertext, encrypted.envelope, unlocked.privateKey, photoId, 'original');
     assert.deepEqual(new Uint8Array(decrypted), plaintext);
 
+    const keyed = await gallery.encryptObject(plaintext, identity.publicKey, photoId, 'original', 'gk_testkey01');
+    assert.equal(keyed.envelope.keyId, 'gk_testkey01');
+    const keyedDecrypted = await gallery.decryptObject(keyed.ciphertext, keyed.envelope, unlocked.privateKey, photoId, 'original');
+    assert.deepEqual(new Uint8Array(keyedDecrypted), plaintext);
+
+    const secondWrappingKey = await gallery.createAdditionalWrappingKey(unlocked.rootKey);
+    const keyring = {
+        version: 2,
+        active_key_id: 'gk_second02',
+        legacy_key_id: 'gk_first01',
+        keys: {
+            gk_first01: { public_key: identity.publicKey, private_key_envelope: identity.privateKeyEnvelope },
+            gk_second02: { public_key: secondWrappingKey.publicKey, private_key_envelope: secondWrappingKey.privateKeyEnvelope }
+        }
+    };
+    const multiKeyUnlock = await gallery.unlockKeyringIdentity(
+        keyring, identity.credentialEnvelope, prf, credentialId
+    );
+    assert.equal(multiKeyUnlock.activeKeyId, 'gk_second02');
+    const refreshedKeyring = await gallery.unlockKeyringWithRoot(keyring, unlocked.rootKey);
+    assert.equal(refreshedKeyring.activeKeyId, 'gk_second02');
+    assert.ok(refreshedKeyring.privateKeys.gk_second02);
+    assert.equal(refreshedKeyring.legacyKeyId, 'gk_first01');
+    const legacyObjectAfterMigration = await gallery.decryptObject(
+        encrypted.ciphertext, encrypted.envelope, multiKeyUnlock.privateKeys,
+        photoId, 'original', multiKeyUnlock.legacyKeyId
+    );
+    assert.deepEqual(new Uint8Array(legacyObjectAfterMigration), plaintext);
+    await assert.rejects(
+        gallery.decryptObject(encrypted.ciphertext, encrypted.envelope, multiKeyUnlock.privateKeys, photoId, 'original', null),
+        /legacy Gallery private key is unavailable/
+    );
+    const secondKeyObject = await gallery.encryptObject(
+        plaintext, multiKeyUnlock.publicKeys.gk_second02, photoId, 'preview', 'gk_second02'
+    );
+    const secondKeyPlaintext = await gallery.decryptObject(
+        secondKeyObject.ciphertext, secondKeyObject.envelope, multiKeyUnlock.privateKeys, photoId, 'preview'
+    );
+    assert.deepEqual(new Uint8Array(secondKeyPlaintext), plaintext);
+
+    const rewrappedLegacyEnvelope = await gallery.rewrapObjectEnvelope(
+        encrypted.envelope, unlocked.privateKey, secondWrappingKey.publicKey, 'gk_second02', photoId, 'original'
+    );
+    const rewrappedFromKeyring = await gallery.rewrapObjectEnvelope(
+        encrypted.envelope, multiKeyUnlock.privateKeys, secondWrappingKey.publicKey,
+        'gk_second02', photoId, 'original', multiKeyUnlock.legacyKeyId
+    );
+    assert.equal(rewrappedFromKeyring.keyId, 'gk_second02');
+    assert.equal(rewrappedLegacyEnvelope.keyId, 'gk_second02');
+    assert.equal(rewrappedLegacyEnvelope.nonce, encrypted.envelope.nonce, 'Rewrapping must not alter the AES-GCM nonce or ciphertext.');
+    const legacyCiphertextStillDecrypts = await gallery.decryptObject(
+        encrypted.ciphertext, rewrappedLegacyEnvelope, multiKeyUnlock.privateKeys, photoId, 'original'
+    );
+    assert.deepEqual(new Uint8Array(legacyCiphertextStillDecrypts), plaintext);
+
+    const recoveryKey = await gallery.createRecoveryKey();
+    const recoverySalt = gallery.createAccountSalt();
+    const recoveryEnvelope = await gallery.wrapRootKeyForRecovery(unlocked.rootKey, recoveryKey, recoverySalt);
+    const recoveredKeyring = await gallery.unlockKeyringIdentityWithRecovery(keyring, recoveryEnvelope, recoveryKey);
+    const recoveredPlaintext = await gallery.decryptObject(
+        secondKeyObject.ciphertext, secondKeyObject.envelope, recoveredKeyring.privateKeys, photoId, 'preview'
+    );
+    assert.deepEqual(new Uint8Array(recoveredPlaintext), plaintext);
+    gallery.clearSecret(multiKeyUnlock.rootKey);
+    gallery.clearSecret(recoveredKeyring.rootKey);
+    gallery.clearSecret(recoveryKey);
+    await assert.rejects(
+        gallery.encryptObject(plaintext, identity.publicKey, photoId, 'original', 'bad'),
+        /Invalid Gallery encryption key identifier/
+    );
+    await assert.rejects(
+        gallery.decryptObject(keyed.ciphertext, { ...keyed.envelope, keyId: 'bad' }, unlocked.privateKey, photoId, 'original'),
+        /Invalid Gallery encryption key identifier/
+    );
+
     const tampered = encrypted.ciphertext.slice();
     tampered[0] ^= 1;
     await assert.rejects(
