@@ -316,6 +316,20 @@ final class FileIntegrityEventStore
         });
     }
 
+    /** Return the exact number of pending outbox records without a capped page read. */
+    public function countPendingAlerts(): int
+    {
+        return $this->transact(static function (array &$state): int {
+            $count = 0;
+            foreach ($state['alerts'] as $alert) {
+                if (is_array($alert) && ($alert['status'] ?? null) === 'pending') {
+                    $count++;
+                }
+            }
+            return $count;
+        }, false);
+    }
+
     /** @return array<string,mixed> */
     public function snapshot(): array
     {
