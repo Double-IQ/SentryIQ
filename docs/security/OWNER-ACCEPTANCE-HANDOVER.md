@@ -21,31 +21,31 @@ This handover separates repository remediation from operational acceptance. It i
 
 ### 1.1 Protect `main`
 
-- [ ] Enable a branch protection rule or repository ruleset targeting `main`.
-- [ ] Require pull requests before merging.
-- [ ] Require at least one approving review and dismiss stale approvals when new commits are pushed.
-- [ ] Require Code Owner review.
-- [ ] Require these exact GitHub Actions job status checks (job/check names, not workflow display names): `php-lint`, `gallery-security`, `release-manifest`, and `Verify release attestation and dual-node report contract`. Reconfirm the names in GitHub's protection UI when configuring the rule.
-- [ ] Require branches to be up to date before merging, if compatible with the team's workflow.
-- [ ] Block force pushes and branch deletion.
-- [ ] Apply protections to administrators unless an explicitly documented emergency bypass is approved.
+- [x] Enable and verify the active `SentryIQ - Protect main` repository ruleset targeting `main` (ruleset ID `27621562`; see `REPOSITORY-SECURITY-SETTINGS.md`).
+- [x] Require pull requests before merging.
+- [ ] Confirm required approving-review count and stale-approval dismissal in the active ruleset; the current read-back does not establish both.
+- [ ] Confirm Code Owner review is enabled; not established by the current ruleset read-back.
+- [x] Require the observed job checks `php-lint` and `gallery-security` (active ruleset read-back). `release-manifest` and `Verify release attestation and dual-node report contract` are not currently required by the ruleset; assess adding them only after verifying stable successful runs and dependencies.
+- [x] Require branches to be up to date with required checks.
+- [x] Block force pushes and branch deletion.
+- [x] No bypass actors are configured; API read-back reports the connected user cannot bypass.
 
-**Evidence to record:** ruleset/protection name and ID, target branch, selected required checks, review requirements, bypass policy, administrator who configured it, and date verified. Do not include tokens or private account data.
+**Evidence:** active ruleset names/IDs, target refs, required checks, up-to-date requirement, force-push/deletion restrictions, and bypass state are recorded in `REPOSITORY-SECURITY-SETTINGS.md` from the 2026-11-19 API read-back. Approval-count, stale-approval, and Code Owner requirements remain unverified; do not mark those complete.
 
 ### 1.2 Protect release tags
 
-- [ ] Create a tag ruleset targeting `v*`.
-- [ ] Prevent updates and deletion of published release tags.
-- [ ] Verify the rule with a non-production test tag or read-only ruleset inspection before relying on it for a release.
+- [x] Create and verify active `SentryIQ - Protect release tags` ruleset targeting `v*` (ruleset ID `27621577`).
+- [x] Prevent updates and deletion of published release tags (active ruleset read-back).
+- [x] Read-only ruleset inspection completed; no test tag was created.
 
 **Evidence to record:** ruleset name/ID, tag pattern, enforcement status, and date verified.
 
 ### 1.3 Platform security settings
 
-- [ ] Verify secret scanning is enabled where available for this repository/plan.
-- [ ] Verify push protection is enabled where available.
-- [ ] Verify Dependabot alerts and security updates are enabled.
-- [ ] Verify private vulnerability reporting is enabled.
+- [x] Owner-confirmed enabled (2026-11-19); not independently API-verified.
+- [x] Owner-confirmed enabled (2026-11-19); not independently API-verified.
+- [x] Owner-confirmed enabled (2026-11-19); not independently API-verified.
+- [x] Owner-confirmed enabled (2026-11-19); not independently API-verified.
 - [ ] Review repository write/admin collaborators and remove stale access through the normal access-review process.
 - [ ] Confirm Actions' default token permissions are read-only and review any workflow-specific write permissions.
 
