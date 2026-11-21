@@ -48,6 +48,17 @@ try {
     alertAssert($sent['delivered'] === 2 && $sent['remaining'] === 0, 'Successful transport should acknowledge both alerts.');
     alertAssert(count($attempts) === 4, 'Each alert should be retried once after the initial failed attempt.');
     alertAssert($attempts[0][1] === $attempts[2][1] && $attempts[1][1] === $attempts[3][1], 'Retries must reuse stable idempotency keys.');
+    // The backlog count must not silently cap at the maximum fetch page size.
+    $backlog = [];
+    for ($index = 0; $index < 101; $index++) {
+        $backlog[] = ['code' => 'synthetic_backlog_' . $index, 'message' => 'Pending test alert ' . $index];
+    }
+    alertAssert($dispatcher->enqueueEvaluation(['incidents' => $backlog]) === 101, 'All backlog incidents should be enqueued.');
+    $backlogResult = $dispatcher->dispatchPending(1);
+    alertAssert(
+        $backlogResult['delivered'] === 0 && $backlogResult['remaining'] === 101,
+        'Remaining backlog must report the exact count even when it exceeds the 100-record fetch page.'
+    );
 } finally {
     foreach (glob($directory . DIRECTORY_SEPARATOR . '*') ?: [] as $file) {
         if (is_file($file) && !is_link($file)) {
