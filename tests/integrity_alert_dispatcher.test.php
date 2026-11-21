@@ -49,6 +49,7 @@ try {
     alertAssert(count($attempts) === 4, 'Each alert should be retried once after the initial failed attempt.');
     alertAssert($attempts[0][1] === $attempts[2][1] && $attempts[1][1] === $attempts[3][1], 'Retries must reuse stable idempotency keys.');
     // The backlog count must not silently cap at the maximum fetch page size.
+    $shouldSend = false;
     $backlog = [];
     for ($index = 0; $index < 101; $index++) {
         $backlog[] = ['code' => 'synthetic_backlog_' . $index, 'message' => 'Pending test alert ' . $index];
