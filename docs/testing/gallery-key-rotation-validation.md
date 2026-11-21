@@ -54,7 +54,6 @@ Run this checklist only in a dedicated staging account and staging Backblaze buc
 - [ ] Leave Safari/PWA backgrounded for more than 60 seconds, then return; confirm Gallery is locked even if iOS suspended its JavaScript timers.
 - [ ] Navigate away from Gallery and restore it with Safari's back navigation; confirm the restored page is locked, requires a fresh unlock, and shows no decrypted object URLs.
 - [ ] Begin loading a large photo, lock Gallery before decryption finishes, and confirm the late result is discarded and no image/object URL appears after the lock.
-- [ ] Begin loading a large photo, lock Gallery before decryption finishes, and confirm the late result is discarded and no image/object URL appears after the lock.
 - [ ] Confirm recovery unlock works on a second enrolled device.
 - [ ] Confirm a device without the required PRF capability fails safely without modifying the keyring.
 
