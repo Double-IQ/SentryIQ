@@ -139,9 +139,11 @@ export class NodeAState extends DurableObject<Env> {
     });
   }
 
-  advancePin(candidate: PinCandidate): ReleasePin {
+  advancePin(candidate: PinCandidate, lockToken: string): ReleasePin {
     validatePin(candidate);
+    if (!/^[a-f0-9]{64}$/.test(lockToken)) throw new Error("run lock token is invalid");
     return this.ctx.storage.transactionSync(() => {
+      this.assertRunLock(lockToken);
       const baseline = this.ctx.storage.sql
         .exec<{ version: string; commit_sha: string; manifest_sha256: string; zip_sha256: string }>(
           "SELECT version, commit_sha, manifest_sha256, zip_sha256 FROM release_baseline WHERE singleton = 1"
@@ -213,6 +215,29 @@ export class NodeAState extends DurableObject<Env> {
     });
   }
 
+  renewRunLock(token: string, leaseMs: number): RunLock {
+    if (!/^[a-f0-9]{64}$/.test(token) || !Number.isSafeInteger(leaseMs)
+        || leaseMs < 1_000 || leaseMs > 15 * 60_000) {
+      throw new Error("invalid run lock token or lease");
+    }
+    return this.ctx.storage.transactionSync(() => {
+      const now = Date.now();
+      this.assertRunLock(token);
+      const lock = { token, expiresAt: now + leaseMs };
+      this.ctx.storage.sql.exec("UPDATE run_lock SET expires_at = ? WHERE singleton = 1", lock.expiresAt);
+      return lock;
+    });
+  }
+
+  private assertRunLock(token: string): void {
+    const current = this.ctx.storage.sql
+      .exec<{ token: string; expires_at: number }>("SELECT token, expires_at FROM run_lock WHERE singleton = 1")
+      .toArray()[0];
+    if (!current || current.token !== token || current.expires_at <= Date.now()) {
+      throw new Error("valid active Node A run lock required");
+    }
+  }
+
   releaseRunLock(token: string): void {
     this.ctx.storage.transactionSync(() => {
       const current = this.ctx.storage.sql
@@ -225,13 +250,15 @@ export class NodeAState extends DurableObject<Env> {
 
   recordOutcome(outcome: "started" | "approved" | "rejected" | "failed", version: string | null): void {
     if (version !== null) parseVersion(version);
-    this.ctx.storage.sql.exec(
-      "INSERT INTO run_audit (outcome, release_version, recorded_at) VALUES (?, ?, ?)",
-      outcome,
-      version,
-      Date.now()
-    );
-    this.ctx.storage.sql.exec("DELETE FROM run_audit WHERE id NOT IN (SELECT id FROM run_audit ORDER BY id DESC LIMIT 200)");
+    this.ctx.storage.transactionSync(() => {
+      this.ctx.storage.sql.exec(
+        "INSERT INTO run_audit (outcome, release_version, recorded_at) VALUES (?, ?, ?)",
+        outcome,
+        version,
+        Date.now()
+      );
+      this.ctx.storage.sql.exec("DELETE FROM run_audit WHERE id NOT IN (SELECT id FROM run_audit ORDER BY id DESC LIMIT 200)");
+    });
   }
 
   getRecentOutcomes(): Array<{ outcome: string; releaseVersion: string | null; recordedAt: number }> {
