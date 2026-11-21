@@ -19,6 +19,12 @@ own independent owner-alert paths.
   including signed rejections.
 - `FileIntegrityEventStore`: uses an exclusive filesystem lock and atomic
   state-file replacement to consume each challenge once and retain evidence.
+
+### Crash-durability boundary
+
+The file-backed store flushes the complete temporary state file with `fflush()` and `fsync()` before publishing it with an atomic rename. The implementation does not synchronize the containing directory after the rename. Atomic visibility to concurrent processes is therefore provided, but persistence of the renamed directory entry across sudden power loss or kernel/filesystem failure is not independently guaranteed by this PHP adapter. A crash at that boundary could restore an older state snapshot, including an outstanding challenge that had already been consumed. This is a durability limitation, not evidence of an ordinary request-level race.
+
+Before production acceptance, the owner must establish the actual hosting filesystem's rename-durability guarantees and recovery behaviour. If that guarantee cannot be demonstrated, do not treat the file adapter as crash-durable replay protection: use a transactional persistence service with documented durable commits (for example, a suitably configured database) or keep Node 4 disabled. Do not claim this limitation is solved by the current atomic-rename tests; they do not simulate power loss.
 - A/B Ed25519 public keys and per-node bearer tokens are supplied only through
   the private runtime configuration.
 - `PrivateHostAttestationRequestHandler` is framework-neutral code for a separate
