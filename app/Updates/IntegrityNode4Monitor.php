@@ -36,17 +36,6 @@ final class IntegrityNode4Monitor
             $evaluation = $this->correlator->evaluate($this->store->snapshot(), $expectedOrigin);
             $queued = $this->dispatcher->enqueueEvaluation($evaluation);
             $delivery = $this->dispatcher->dispatchPending($deliveryBatch);
-            if ($delivery['remaining'] > 0) {
-                $this->alertOwner('node4_alert_delivery_degraded', [
-                    'delivered' => $delivery['delivered'],
-                    'remaining' => $delivery['remaining'],
-                ]);
-            }
-            return [
-                'evaluation' => $evaluation,
-                'queued' => $queued,
-                'delivery' => $delivery,
-            ];
         } catch (Throwable $exception) {
             try {
                 $this->alertOwner('node4_monitor_execution_failed', [
@@ -66,6 +55,27 @@ final class IntegrityNode4Monitor
                 $exception
             );
         }
+
+        if ($delivery['remaining'] > 0) {
+            try {
+                $this->alertOwner('node4_alert_delivery_degraded', [
+                    'delivered' => $delivery['delivered'],
+                    'remaining' => $delivery['remaining'],
+                ]);
+            } catch (Throwable $alertException) {
+                throw new RuntimeException(
+                    'Node 4 alert delivery is degraded and its independent owner alert failed.',
+                    0,
+                    $alertException
+                );
+            }
+        }
+
+        return [
+            'evaluation' => $evaluation,
+            'queued' => $queued,
+            'delivery' => $delivery,
+        ];
     }
 
     /** @param array<string,mixed> $context */
