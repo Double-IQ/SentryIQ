@@ -23,14 +23,14 @@ This handover separates repository remediation from operational acceptance. It i
 
 - [x] Enable and verify the active `SentryIQ - Protect main` repository ruleset targeting `main` (ruleset ID `27621562`; see `REPOSITORY-SECURITY-SETTINGS.md`).
 - [x] Require pull requests before merging.
-- [ ] Confirm required approving-review count and stale-approval dismissal in the active ruleset; the current read-back does not establish both.
-- [ ] Confirm Code Owner review is enabled; not established by the current ruleset read-back.
+- [ ] Configure and verify at least one required approving review. The active ruleset read-back explicitly reports `required_approving_review_count: 0`; stale approvals are dismissed on new commits.
+- [ ] Decide whether Code Owner review is required and enable it if appropriate. The active ruleset explicitly reports `require_code_owner_review: false`.
 - [x] Require the observed job checks `php-lint` and `gallery-security` (active ruleset read-back). `release-manifest` and `Verify release attestation and dual-node report contract` are not currently required by the ruleset; assess adding them only after verifying stable successful runs and dependencies.
 - [x] Require branches to be up to date with required checks.
 - [x] Block force pushes and branch deletion.
 - [x] No bypass actors are configured; API read-back reports the connected user cannot bypass.
 
-**Evidence:** active ruleset names/IDs, target refs, required checks, up-to-date requirement, force-push/deletion restrictions, and bypass state are recorded in `REPOSITORY-SECURITY-SETTINGS.md` from the 2026-11-19 API read-back. Approval-count, stale-approval, and Code Owner requirements remain unverified; do not mark those complete.
+**Evidence:** active ruleset names/IDs, target refs, required checks, up-to-date requirement, force-push/deletion restrictions, and bypass state are recorded in `REPOSITORY-SECURITY-SETTINGS.md` from the 2026-11-19 API read-back. The active ruleset currently requires **zero** approving reviews and does **not** require Code Owner review; stale approvals are dismissed on new commits. These are explicit configuration gaps, not unknowns. Required review-thread resolution is enabled.
 
 ### 1.2 Protect release tags
 
