@@ -3,7 +3,7 @@
 **Document status:** Active execution tracker  
 **Baseline branch:** `main`  
 **Repository:** `Double-IQ/SentryIQ`  
-**Last updated:** 2026-11-21  
+**Last updated:** 2026-11-21 06:14 UTC (reconciled against `main` at `711516902b45c7f533ba0f3b6adaa11856708b4c`)  
 **Execution rule:** Phase 1 audit/remediation test tasks are complete (30/30). Do not restart or repeat them. Keep repository changes in review until explicitly approved; proceed with safe documentation and non-production verification. Production changes and changes to credentials, DNS, hosting configuration, repository protection, or release publication require the appropriate owner action and explicit approval.
 
 This document is the single working checklist for the reset security review and subsequent four-node deployment. It is intentionally separate from the broader historical security/migration roadmap. Where older planning documents describe a different sequence, follow this checklist for the current execution.
@@ -12,7 +12,7 @@ This document is the single working checklist for the reset security review and 
 
 **Integrity Node / Node 4 code integration (2026-11-21):** PR [#99](https://github.com/Double-IQ/SentryIQ/pull/99) is merged into `main` at `043988f723c3cdb77cab586cbddc805892be2710`. Its integrated code includes the Node 4 authenticated event plane, one-use node-bound challenges, strict signed-report verification, atomic challenge consumption/report persistence, incident correlation, durable alert outbox, bounded retention, A/B/C evidence paths, private-host attestation client/collector/verifier integration, native Sigstore verifier integration, and explicit monotonic release-baseline support. The follow-up JSON duplicate-key scanner escaped-quote fix and regression test are included in the merged commit.
 
-- **Current main:** `6ba2d6480f34147292cdaa34f3bb0f9f9e4293d7` (2026-11-21). Post-merge PHP Syntax Check, Gallery Security Checks, and Release Manifest Tests all passed on this exact commit (runs [44873385992](https://github.com/Double-IQ/SentryIQ/actions/runs/44873385992), [44873386005](https://github.com/Double-IQ/SentryIQ/actions/runs/44873386005), and [44873385939](https://github.com/Double-IQ/SentryIQ/actions/runs/44873385939)).
+- **Current main:** `711516902b45c7f533ba0f3b6adaa11856708b4c` (2026-11-21 06:14 UTC). This is the documentation-only merge of PR [#111](https://github.com/Double-IQ/SentryIQ/pull/111), which updated the security tracker, owner handover, and native attestation guide for the portable cPanel dependency artifact and explicitly did **not** authorize installation. No workflow runs were triggered on this docs-only merge. The immediately preceding application/workflow baseline `f1d68448cf83965dd14efebbb261b555f653550b` passed PHP Syntax Check [44874394116](https://github.com/Double-IQ/SentryIQ/actions/runs/44874394116), Native PHP Release Attestation [44874394130](https://github.com/Double-IQ/SentryIQ/actions/runs/44874394130), Release Manifest Tests [44874394123](https://github.com/Double-IQ/SentryIQ/actions/runs/44874394123), and Gallery Security Checks [44874394118](https://github.com/Double-IQ/SentryIQ/actions/runs/44874394118). PR [#110](https://github.com/Double-IQ/SentryIQ/pull/110) is included in that baseline; PR #111 changed documentation only.
 - **Native Sigstore Integrity Node:** post-merge workflow [44873287657](https://github.com/Double-IQ/SentryIQ/actions/runs/44873287657) passed all five PHP versions (8.1–8.5) on main commit `35b124a5bf79bcafc66d4290ea645b7e38dcfb86`. The subsequent main commits changed documentation/workflow triggers, not verifier implementation.
 - **Native PHP Release Attestation:** workflow [44874394130](https://github.com/Double-IQ/SentryIQ/actions/runs/44874394130) passed all five PHP policy jobs and the v0.1.2 end-to-end attestation integration on main commit `f1d68448cf83965dd14efebbb261b555f653550b`. It also packaged and published the private cPanel dependency artifact `sentryiq-sigstore-vendor-php` (artifact ID `14695700420`, 854,394 bytes, archive SHA-256 `971213245f12dfa2f583be23aa943252b73db10864373a82b2cfdfd39f0bf121`, expires 2026-12-21 06:12 UTC). PR [#110](https://github.com/Double-IQ/SentryIQ/pull/110) made the inner ZIP checksum portable and verified it in CI with `sha256sum --check`; this is separate from the outer Actions artifact digest. The artifact has not been installed on cPanel.
 - **CI trigger corrections:** PR [#105](https://github.com/Double-IQ/SentryIQ/pull/105) makes the Native Sigstore Integrity Node matrix run on main pushes; PR [#106](https://github.com/Double-IQ/SentryIQ/pull/106) aligns the Native PHP Release Attestation main-push path filters with its trust-critical PR paths. Both are merged.
@@ -52,6 +52,8 @@ This document is the single working checklist for the reset security review and 
 **Phase 2 four-node deployment remains blocked** until the required operational acceptance gates are completed. Node 4 (BTM-SA) shares a physical host with SentryIQ and is not an independent infrastructure failure domain.
 
 The detailed chronological entries below are retained as audit history. Earlier interim statements that a task or test was pending are superseded by the later exact-head evidence recorded in this document.
+
+**Reconciliation note (2026-11-21):** The current-state summary above is maintained against the live `main` ref. Older commit SHAs, branch-protection observations, and pending-test statements in the dated Phase 1 audit narrative below describe the state at the time they were recorded; they are historical evidence, not assertions about today's repository state. For current repository controls, use the verified 2026-11-19 ruleset entry above. For current code/CI state, use the exact-main entry above. For owner-run host checks, preserve the owner's completed work and record its existing evidence rather than treating it as unperformed.
 
 ## How status is recorded
 
@@ -396,7 +398,7 @@ Phase 1 is complete only when every item above has evidence, all high-risk findi
 |---|---|---|---|
 | Node A | Independent security host | Provider/host assignment not confirmed in this tracker | Confirm host and independent administrative/failure boundary, then deploy and verify |
 | Node B | Val Town | Hosting assignment confirmed; live app/runtime not verified | Deploy/configure and verify |
-| Node C | HelioHost | Intended host; live provisioning/runtime not verified | Deploy/configure and verify |
+| Node C | HelioHost | Owner reports the HelioHost runtime probe has been run; its exact result is not recorded in this tracker. Full Node C provisioning/configuration and scheduled signed-report operation are not verified. Do not ask the owner to rerun the probe by default. | Record the existing probe result/evidence, then complete deployment/configuration and fresh signed-report acceptance |
 | Node 4 | BTM-SA, on the same host as SentryIQ | Shared host; not an independent infrastructure failure domain | Deploy as a separately identified and isolated logical service |
 
 ## Node-by-node deployment
@@ -406,6 +408,7 @@ Phase 1 is complete only when every item above has evidence, all high-risk findi
 - [ ] **2.3** Inspect and provision Node A; configure private secrets, pinned trust roots, unique credentials, schedule, private state/baseline, and direct owner alerts.
 - [ ] **2.4** Inspect and provision Node B on Val Town; configure private secrets, pinned trust roots, unique credentials, independent schedule, private state/baseline, and direct owner alerts.
 - [ ] **2.5** Inspect and provision Node C on HelioHost; confirm supported runtime and configure its verifier, keys, private evidence storage, schedule, and direct owner alerts.
+  - **Owner-reported work already performed:** the HelioHost runtime probe was run by the owner. Its exact output/result is not captured in this checklist, so this is not marked accepted or failed. Preserve and record the existing result; do not request a repeat run unless the evidence is unavailable or a specific technical reason requires it. Probe execution alone does not establish full Node C deployment or scheduled signed-report acceptance.
 - [ ] **2.6** Configure Node 4 on the BTM-SA/SentryIQ host with a separate logical identity, private storage, A/B public keys, unique tokens, replay-safe state, and tested alert sender.
 - [ ] **2.7** Establish authenticated node-to-origin communication and verify TLS/origin restrictions.
 - [ ] **2.8** Implement and verify signed integrity reports and pinned trust-root validation.
