@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { createHash, generateKeyPairSync, sign, verify } from "node:crypto";
+import { createHash, generateKeyPairSync, randomBytes, sign, verify } from "node:crypto";
 import { Verifier } from "@sigstore/verify";
 import { initTUF } from "@sigstore/tuf";
 
@@ -27,6 +27,7 @@ function parseVersion(version: string): [number, number, number] {
     throw new Error("release version must be canonical MAJOR.MINOR.PATCH");
   }
   const parts = version.split(".").map(Number);
+  if (!parts.every(Number.isSafeInteger)) throw new Error("release version component is too large");
   return [parts[0], parts[1], parts[2]];
 }
 
@@ -54,6 +55,14 @@ export class NodeAState extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     ctx.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS release_baseline (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        version TEXT NOT NULL,
+        commit_sha TEXT NOT NULL,
+        manifest_sha256 TEXT NOT NULL,
+        zip_sha256 TEXT NOT NULL,
+        initialized_at INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS release_pin (
         singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
         version TEXT NOT NULL,
@@ -96,11 +105,51 @@ export class NodeAState extends DurableObject<Env> {
     };
   }
 
-  advancePin(candidate: PinCandidate, now = Date.now()): ReleasePin {
+  initializeBaseline(candidate: PinCandidate): ReleasePin {
     validatePin(candidate);
-    if (!Number.isSafeInteger(now) || now < 0) throw new Error("invalid timestamp");
-
     return this.ctx.storage.transactionSync(() => {
+      const existing = this.ctx.storage.sql
+        .exec<{ version: string; commit_sha: string; manifest_sha256: string; zip_sha256: string }>(
+          "SELECT version, commit_sha, manifest_sha256, zip_sha256 FROM release_baseline WHERE singleton = 1"
+        ).toArray()[0];
+      if (existing) {
+        if (existing.version !== candidate.version || existing.commit_sha !== candidate.commit
+            || existing.manifest_sha256 !== candidate.manifestSha256 || existing.zip_sha256 !== candidate.zipSha256) {
+          throw new Error("independently initialized baseline is immutable");
+        }
+        const current = this.getPin();
+        if (!current) throw new Error("baseline exists but release pin is missing");
+        return current;
+      }
+      const now = Date.now();
+      this.ctx.storage.sql.exec(
+        "INSERT INTO release_baseline (singleton, version, commit_sha, manifest_sha256, zip_sha256, initialized_at) VALUES (1, ?, ?, ?, ?, ?)",
+        candidate.version, candidate.commit, candidate.manifestSha256, candidate.zipSha256, now
+      );
+      this.ctx.storage.sql.exec(
+        "INSERT INTO release_pin (singleton, version, commit_sha, manifest_sha256, zip_sha256, updated_at) VALUES (1, ?, ?, ?, ?, ?)",
+        candidate.version, candidate.commit, candidate.manifestSha256, candidate.zipSha256, now
+      );
+      const saved = this.getPin();
+      if (!saved || saved.version !== candidate.version || saved.commit !== candidate.commit
+          || saved.manifestSha256 !== candidate.manifestSha256 || saved.zipSha256 !== candidate.zipSha256) {
+        throw new Error("baseline initialization transaction did not persist the requested identity");
+      }
+      return saved;
+    });
+  }
+
+  advancePin(candidate: PinCandidate): ReleasePin {
+    validatePin(candidate);
+    return this.ctx.storage.transactionSync(() => {
+      const baseline = this.ctx.storage.sql
+        .exec<{ version: string; commit_sha: string; manifest_sha256: string; zip_sha256: string }>(
+          "SELECT version, commit_sha, manifest_sha256, zip_sha256 FROM release_baseline WHERE singleton = 1"
+        ).toArray()[0];
+      if (!baseline) throw new Error("independent release baseline has not been initialized");
+      if (compareVersions(candidate.version, baseline.version) < 0) {
+        throw new Error("release is older than independently initialized baseline");
+      }
       const current = this.getPin();
       if (current) {
         const order = compareVersions(candidate.version, current.version);
@@ -128,7 +177,7 @@ export class NodeAState extends DurableObject<Env> {
         candidate.commit,
         candidate.manifestSha256,
         candidate.zipSha256,
-        now
+        Date.now()
       );
       const saved = this.getPin();
       if (!saved || saved.version !== candidate.version || saved.commit !== candidate.commit
@@ -139,13 +188,13 @@ export class NodeAState extends DurableObject<Env> {
     });
   }
 
-  acquireRunLock(token: string, now: number, leaseMs: number): RunLock {
-    if (!/^[a-f0-9]{64}$/.test(token)) throw new Error("run lock token must be 32-byte lowercase hex");
-    if (!Number.isSafeInteger(now) || now < 0 || !Number.isSafeInteger(leaseMs)
-        || leaseMs < 1_000 || leaseMs > 15 * 60_000) {
+  acquireRunLock(leaseMs: number): RunLock {
+    if (!Number.isSafeInteger(leaseMs) || leaseMs < 1_000 || leaseMs > 15 * 60_000) {
       throw new Error("invalid run lock time or lease");
     }
     return this.ctx.storage.transactionSync(() => {
+      const now = Date.now();
+      const token = randomBytes(32).toString("hex");
       const current = this.ctx.storage.sql
         .exec<{ token: string; expires_at: number }>(
           "SELECT token, expires_at FROM run_lock WHERE singleton = 1"
@@ -174,14 +223,13 @@ export class NodeAState extends DurableObject<Env> {
     });
   }
 
-  recordOutcome(outcome: "started" | "approved" | "rejected" | "failed", version: string | null, now = Date.now()): void {
+  recordOutcome(outcome: "started" | "approved" | "rejected" | "failed", version: string | null): void {
     if (version !== null) parseVersion(version);
-    if (!Number.isSafeInteger(now) || now < 0) throw new Error("invalid timestamp");
     this.ctx.storage.sql.exec(
       "INSERT INTO run_audit (outcome, release_version, recorded_at) VALUES (?, ?, ?)",
       outcome,
       version,
-      now
+      Date.now()
     );
     this.ctx.storage.sql.exec("DELETE FROM run_audit WHERE id NOT IN (SELECT id FROM run_audit ORDER BY id DESC LIMIT 200)");
   }
