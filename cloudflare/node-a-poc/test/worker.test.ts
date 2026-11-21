@@ -72,7 +72,4 @@ describe("Node A Workers runtime proof", () => {
     expect(next.token).toMatch(/^[a-f0-9]{64}$/);
     expect(next.token).not.toBe(lock.token);
   });
-
-
-  });
 });
