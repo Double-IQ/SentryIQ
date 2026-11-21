@@ -65,8 +65,9 @@ try {
         $store,
         new IntegrityIncidentCorrelator(1800, static fn(): int => 0),
         $dispatcher,
-        static function (string $nodeId, string $reason, array $context) use (&$directAlerts): void {
+        static function (string $nodeId, string $reason, array $context) use (&$directAlerts): bool {
             $directAlerts[] = [$nodeId, $reason, $context];
+            return true;
         }
     );
     $monitorFailureAlerted = false;
