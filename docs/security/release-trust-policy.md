@@ -1,6 +1,6 @@
 # Release trust policy and repository controls
 
-**Status:** Proposed; no updater enforcement is enabled by this document.
+**Status:** Implemented in the updater's native Sigstore path when the private verifier dependencies are configured; production-host activation and the separate independent release-authorization layer remain pending.
 
 ## Repository identity
 
@@ -37,11 +37,11 @@ The observed `main` branch metadata reports `protected: false`. Before relying o
 
 The current repository metadata showed branch protection disabled at the time of this review. The GitHub integration used for this repository could read the branch metadata but could not configure administrative branch-protection settings. An authorized repository administrator must apply and verify these controls in GitHub.
 
-## Updater enforcement prerequisites
+## Updater enforcement and remaining prerequisites
 
-Do not make the updater accept an artifact solely because a GitHub attestation exists. Before enforcing verification in `UpdateManager`, implement and test a verifier that binds the artifact digest to the approved repository, tag/ref, commit, and workflow identity. Verification must happen before extraction or installation.
+`UpdateManager` now enforces the native Sigstore verifier before extraction when its administrator-controlled private Composer autoload path is configured, and fails closed when no verifier is configured. The verifier binds the artifact digest to the approved repository, tag/ref, commit, workflow identity and TUF/Sigstore trust chain; the updater then validates the ZIP-bound manifest against the resolved release commit and extracted file inventory. This code-level enforcement does not establish that production hosting has been configured or that the current production installation is using it.
 
-The production policy must also define:
+Production activation and the complete release trust model must also establish:
 
 - A monotonic release sequence or equivalent anti-rollback rule, including recovery from an intentionally approved rollback.
 - A maximum attestation age or release freshness policy, if applicable.
@@ -50,4 +50,4 @@ The production policy must also define:
 - Safe handling of GitHub API/network outages without silently treating an unverifiable package as trusted.
 - Tests proving rejected packages cannot modify application or runtime files.
 
-GitHub build provenance is the first provenance layer. The separately approved signed canonical manifest and two independently pinned Integrity Node trust roots remain required by the SentryIQ security roadmap. Do not store a long-lived release-signing private key on the production host or in this repository.
+GitHub build provenance is the first provenance layer. The separately controlled release authorization and independently pinned Integrity Node trust roots remain required by the SentryIQ security roadmap. The current A/B/C observers share GitHub/Sigstore trust roots and the repository release workflow identity, so they are not independent release-authority approvals. Do not store a long-lived release-signing private key on the production host or in this repository.
