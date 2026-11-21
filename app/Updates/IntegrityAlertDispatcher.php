@@ -60,6 +60,6 @@ final class IntegrityAlertDispatcher
                 $delivered++;
             }
         }
-        return ['delivered' => $delivered, 'remaining' => count($this->store->pendingAlerts(100))];
+        return ['delivered' => $delivered, 'remaining' => $this->store->countPendingAlerts()];
     }
 }
