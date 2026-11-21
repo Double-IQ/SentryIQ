@@ -2,7 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 import { createHash, generateKeyPairSync, randomBytes, sign, verify } from "node:crypto";
 import * as tufFs from "fs";
 import * as tufFsPromises from "fs/promises";
-import { createTufFsContext, runWithTufFsContext } from "./tuf-fs-context";
+import { commitTufFsContext, createTufFsContext, discardTufFsContext, runWithTufFsContext } from "./tuf-fs-context";
 import path from "node:path";
 import { Verifier } from "@sigstore/verify";
 import { initTUF } from "@sigstore/tuf";
@@ -302,6 +302,7 @@ export class NodeAState extends DurableObject<Env> {
       if (!Number.isSafeInteger(cachedRoot.signed?.version) || !cachedRoot.signed?.version) {
         throw new Error("upstream TUF client did not seed a readable root through Durable Object storage");
       }
+      discardTufFsContext(context);
       return {
         rootVersion: cachedRoot.signed.version,
         cacheReadAfterBootstrap: true,
@@ -330,6 +331,7 @@ export class NodeAState extends DurableObject<Env> {
       await new Promise<void>((resolve, reject) => stream.close((error) => error ? reject(error) : resolve()));
       const temporaryRead = tufFs.readFileSync(tempPath, "utf8") as string;
       await tufFsPromises.rm(tempDir, { recursive: true, force: true });
+      this.ctx.storage.transactionSync(() => commitTufFsContext(context));
       return {
         persistentRead,
         copiedRead,
