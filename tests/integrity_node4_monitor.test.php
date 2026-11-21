@@ -39,8 +39,9 @@ try {
         $store,
         new IntegrityIncidentCorrelator(1800),
         $dispatcher,
-        static function (string $nodeId, string $reason, array $context) use (&$directAlerts): void {
+        static function (string $nodeId, string $reason, array $context) use (&$directAlerts): bool {
             $directAlerts[] = [$nodeId, $reason, $context];
+            return true;
         }
     );
 
@@ -79,6 +80,20 @@ try {
         && $directAlerts[1][0] === 'integrity-node4'
         && $directAlerts[1][1] === 'node4_monitor_execution_failed',
         'Monitor execution failure must trigger the independent owner-alert path.');
+
+    $falseDeliveryRejected = false;
+    try {
+        $failingMonitor = new IntegrityNode4Monitor(
+            $store,
+            new IntegrityIncidentCorrelator(1800, static fn(): int => 0),
+            $dispatcher,
+            static fn(): bool => false
+        );
+        $failingMonitor->run('https://sentryiq.bichet.co.za');
+    } catch (RuntimeException $exception) {
+        $falseDeliveryRejected = str_contains($exception->getMessage(), 'owner alert');
+    }
+    monitorAssert($falseDeliveryRejected, 'A false owner-alert delivery result must fail visibly.');
 } finally {
     foreach (glob($directory . DIRECTORY_SEPARATOR . '*') ?: [] as $file) {
         if (is_file($file) && !is_link($file)) {
