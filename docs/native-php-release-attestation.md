@@ -44,6 +44,20 @@ directory. The required final path is:
 
 SENTRYIQ_DATA_DIR/sigstore-vendor/vendor/autoload.php
 
+### Current verified artifact (2026-11-21)
+
+The main-branch run [44874394130](https://github.com/Double-IQ/SentryIQ/actions/runs/44874394130) published artifact `sentryiq-sigstore-vendor-php` (artifact ID `14695700420`, 854,394 bytes, outer artifact SHA-256 `971213245f12dfa2f583be23aa943252b73db10864373a82b2cfdfd39f0bf121`). It expires on 2026-12-21 06:12 UTC. PR #110 changed the inner dependency ZIP checksum sidecar to use a portable basename and added a CI `sha256sum --check` validation before publishing.
+
+For the eventual cPanel install, after the hosting acceptance and explicit deployment approval:
+
+1. Download the `sentryiq-sigstore-vendor-php` artifact from the Actions run above and verify the downloaded outer ZIP against the GitHub artifact SHA-256.
+2. Extract the outer Actions ZIP locally. It contains `sentryiq-sigstore-vendor.zip` and `sentryiq-sigstore-vendor.zip.sha256`.
+3. Verify the inner package using `sha256sum --check sentryiq-sigstore-vendor.zip.sha256` on Linux/macOS, or compare its recorded digest with `Get-FileHash .\\sentryiq-sigstore-vendor.zip -Algorithm SHA256` on Windows.
+4. In cPanel File Manager, re-confirm the protected directory (currently expected to be `/home/bicheveb/sentryiq-private`), upload only the inner dependency ZIP there, and extract it there. Do not upload either archive or the vendor directory into the public document root.
+5. Confirm the final autoloader path is `/home/bicheveb/sentryiq-private/sigstore-vendor/vendor/autoload.php`. Remove the uploaded inner ZIP after successful extraction.
+
+Do not perform these steps until the private data directory, PHP web-SAPI access, required extensions, and host acceptance have been verified and the owner has approved the installation. This artifact is a dependency package, not a SentryIQ application release.
+
 For the current hosting layout this will resolve to
 /home/bicheveb/sentryiq-private/sigstore-vendor/vendor/autoload.php.
 Use cPanel File Manager to upload and extract the artifact; no server shell or
