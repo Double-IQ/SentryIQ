@@ -328,7 +328,7 @@ export class NodeAState extends DurableObject<Env> {
     };
   }
 
-  async testTufFilesystemAdapter(): Promise<{ persistentRead: string; copiedRead: string; temporaryRead: string; temporaryExistsAfterCleanup: boolean; seededTufRootVersion: number }> {
+  async testTufFilesystemAdapter(): Promise<{ persistentRead: string; copiedRead: string; temporaryRead: string; temporaryExistsAfterCleanup: boolean; seededTufRootVersion: number; stagedWriteVisibleBeforeCommit: boolean; discardedWriteAbsentAfterRollback: boolean }> {
     const context = createTufFsContext(this.ctx.storage.sql);
     return runWithTufFsContext(context, async () => {
       const rootPath = "/node-a/tuf/repository/root.json";
@@ -339,6 +339,13 @@ export class NodeAState extends DurableObject<Env> {
       tufFs.copyFileSync(rootPath, copiedPath);
       const persistentRead = tufFs.readFileSync(rootPath, "utf8") as string;
       const copiedRead = tufFs.readFileSync(copiedPath, "utf8") as string;
+      const discardedPath = "/node-a/tuf/cache/uncommitted.json";
+      tufFs.writeFileSync(discardedPath, "must-not-persist");
+      const stagedWriteVisibleBeforeCommit = tufFs.existsSync(discardedPath);
+      discardTufFsContext(context);
+      const discardedWriteAbsentAfterRollback = !tufFs.existsSync(discardedPath);
+      tufFs.writeFileSync(rootPath, Buffer.from("persistent-root-fixture"));
+      tufFs.copyFileSync(rootPath, copiedPath);
 
       const tempDir = await tufFsPromises.mkdtemp("/tmp/");
       const tempPath = path.join(tempDir, "tempfile");
@@ -353,7 +360,9 @@ export class NodeAState extends DurableObject<Env> {
         persistentRead,
         copiedRead,
         temporaryRead,
-        temporaryExistsAfterCleanup: tufFs.existsSync(tempPath)
+        temporaryExistsAfterCleanup: tufFs.existsSync(tempPath),
+        stagedWriteVisibleBeforeCommit,
+        discardedWriteAbsentAfterRollback
       };
     });
   }
