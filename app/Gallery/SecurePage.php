@@ -12,7 +12,7 @@ $b2Configured = false;
 if (is_string($dataDirectory) && $dataDirectory !== '') {
     require_once dirname(__DIR__, 2) . '/cloud/Gallery/Storage/BackblazeB2Signer.php';
     try {
-        \\SentryIQCloud\\Gallery\\Storage\\BackblazeB2Signer::fromRuntimeDirectory($dataDirectory);
+        \SentryIQCloud\Gallery\Storage\BackblazeB2Signer::fromRuntimeDirectory($dataDirectory);
         $b2Configured = true;
     } catch (Throwable) {
         $b2Configured = false;
