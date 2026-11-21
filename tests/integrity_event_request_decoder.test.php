@@ -11,17 +11,7 @@ function eventDecoderAssert(bool $condition, string $message): void
     if (!$condition) throw new RuntimeException($message);
 }
 
-function 
-$escapedQuoteValue = '{"action":"challenge","note":"quoted \\" text"}';
-$escapedQuoteDecoded = IntegrityEventRequestDecoder::decode($escapedQuoteValue);
-eventDecoderAssert(($escapedQuoteDecoded['note'] ?? null) === 'quoted " text',
-    'A valid escaped quote inside a JSON string must not confuse duplicate-key scanning.');
-eventDecoderReject(
-    fn() => IntegrityEventRequestDecoder::decode('{"action":"challenge","note":"quoted \\" text","action":"report"}'),
-    'Duplicate fields after a JSON string containing an escaped quote must still be rejected.'
-);
-
-eventDecoderReject(callable $operation, string $message): void
+function eventDecoderReject(callable $operation, string $message): void
 {
     try { $operation(); } catch (Throwable) { return; }
     throw new RuntimeException($message);
@@ -32,6 +22,15 @@ $decoded = IntegrityEventRequestDecoder::decode($challenge);
 eventDecoderAssert(($decoded['action'] ?? null) === 'challenge'
     && ($decoded['node_id'] ?? null) === 'integrity-a',
     'A valid Node 4 challenge object must decode.');
+
+$escapedQuoteValue = '{"action":"challenge","note":"quoted \\" text"}';
+$escapedQuoteDecoded = IntegrityEventRequestDecoder::decode($escapedQuoteValue);
+eventDecoderAssert(($escapedQuoteDecoded['note'] ?? null) === 'quoted " text',
+    'A valid escaped quote inside a JSON string must not confuse duplicate-key scanning.');
+eventDecoderReject(
+    fn() => IntegrityEventRequestDecoder::decode('{"action":"challenge","note":"quoted \\" text","action":"report"}'),
+    'Duplicate fields after a JSON string containing an escaped quote must still be rejected.'
+);
 
 eventDecoderReject(
     fn() => IntegrityEventRequestDecoder::decode('{"action":"challenge","action":"report"}'),
