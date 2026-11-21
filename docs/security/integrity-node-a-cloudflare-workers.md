@@ -63,8 +63,25 @@ Worker. The Worker needs a separately pinned JavaScript implementation based
 on the maintained Sigstore JavaScript client and its TUF support, or a
 reviewed Worker-compatible adapter around those maintained libraries.
 
-This is **not yet proven**. In particular, verify in a real Cloudflare Worker
-runtime—not just Node.js locally—that the selected package versions support:
+This is **not yet proven**, and source inspection has identified a concrete
+portability obstacle: the current upstream `@sigstore/tuf` client builds a
+filesystem cache using synchronous `fs.existsSync`, `mkdirSync`,
+`writeFileSync` and `copyFileSync`, and derives a cache path from
+`os.homedir()`/process environment. That is not a Durable Object storage
+adapter. Do not assume that enabling `nodejs_compat` makes this cache durable
+or compatible. The implementation must either provide a reviewed, maintained
+TUF storage/fetch adapter that persists all metadata and targets through
+Durable Object storage, or select another maintained Worker-compatible
+Sigstore/TUF implementation. Any fork/patch must be narrowly scoped, pinned,
+reviewed and covered by upstream-equivalence tests; bypassing TUF is prohibited.
+
+The upstream package manifests also declare modern Node.js engine ranges.
+Cloudflare's Node compatibility layer exposes a subset of Node APIs, not a
+promise of full Node.js runtime equivalence. Prove the exact locked package
+graph in a real Worker deployment, including every imported API and the
+persistent cache adapter.
+
+In particular, verify in a real Cloudflare Worker runtime—not just Node.js locally—that the selected package versions support:
 
 1. The exact GitHub attestation bundle format and Rekor entry types emitted by
    this repository's release workflow.
