@@ -17,6 +17,19 @@ export function readFileSync(path: string, options?: string | { encoding?: Buffe
   return encoding ? data.toString(encoding) : Buffer.from(data);
 }
 
+export function readFile(path: string, options: string | { encoding?: BufferEncoding } | ((error: NodeJS.ErrnoException | null, data: Buffer) => void), callback?: (error: NodeJS.ErrnoException | null, data: Buffer | string) => void): void {
+  const encoding = typeof options === "string" ? options : typeof options === "function" ? undefined : options.encoding;
+  const done = typeof options === "function" ? options : callback;
+  queueMicrotask(() => {
+    try {
+      const data = readFileSync(path, encoding) as Buffer | string;
+      done?.(null, data);
+    } catch (error) {
+      done?.(error as NodeJS.ErrnoException, Buffer.alloc(0));
+    }
+  });
+}
+
 export function writeFileSync(path: string, data: string | ArrayBufferView): void {
   const context = currentTufFsContext();
   const bytes = typeof data === "string" ? Buffer.from(data) : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
@@ -87,6 +100,7 @@ export function __removeTemporaryPath(path: string): void {
 }
 
 const tufFs = {
+  readFile,
   readFileSync,
   writeFileSync,
   existsSync,
