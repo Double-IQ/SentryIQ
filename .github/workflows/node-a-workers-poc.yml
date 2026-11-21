@@ -50,15 +50,21 @@ jobs:
           cd "$RUNNER_TEMP"
           gh attestation download "$RUNNER_TEMP/sentryiq-0.1.2.zip" --repo Double-IQ/SentryIQ --predicate-type https://slsa.dev/provenance/v1
           mv "$RUNNER_TEMP/sha256:41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e.jsonl" "$RUNNER_TEMP/sha256-41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e.jsonl"
-      - name: Inject genuine bundle into the workerd test module
+          gh attestation trusted-root > "$RUNNER_TEMP/trusted_root.jsonl"
+      - name: Inject genuine bundle and current trusted root into workerd test modules
         run: |
           node --input-type=module <<'NODE'
           import fs from "node:fs";
-          const path = process.env.RUNNER_TEMP + "/sha256-41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e.jsonl";
-          const bundle = fs.readFileSync(path, "utf8").trim().split(String.fromCharCode(10))[0];
+          const bundlePath = process.env.RUNNER_TEMP + "/sha256-41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e.jsonl";
+          const rootPath = process.env.RUNNER_TEMP + "/trusted_root.jsonl";
+          const bundle = fs.readFileSync(bundlePath, "utf8").trim().split(String.fromCharCode(10))[0];
+          const trustedRoot = fs.readFileSync(rootPath, "utf8").trim().split(String.fromCharCode(10))[0];
           JSON.parse(bundle);
-          const source = "export const genuineV012BundleJson: string | null = " + JSON.stringify(bundle) + ";" + String.fromCharCode(10);
-          fs.writeFileSync("test/fixtures/genuine-v012-bundle.ts", source);
+          JSON.parse(trustedRoot);
+          const bundleSource = "export const genuineV012BundleJson: string | null = " + JSON.stringify(bundle) + ";" + String.fromCharCode(10);
+          const rootSource = "export const genuineV012TrustedRootJson: string | null = " + JSON.stringify(trustedRoot) + ";" + String.fromCharCode(10);
+          fs.writeFileSync("test/fixtures/genuine-v012-bundle.ts", bundleSource);
+          fs.writeFileSync("test/fixtures/genuine-v012-trusted-root.ts", rootSource);
           NODE
       - name: Run workerd integration tests
         run: npm test
