@@ -199,6 +199,29 @@ try {
     $cooldownDuplicate = $store->queueAlert($incident);
     storeAssert($cooldownDuplicate['created'] === false, 'Recently delivered incidents must be suppressed during the alert cooldown.');
 
+    // Each independent node may hold at most five outstanding challenges.
+    for ($index = 0; $index < 5; $index++) {
+        $store->issueChallenge(
+            'integrity-b',
+            $origin,
+            $version,
+            $commit,
+            $artifact,
+            $manifest
+        );
+    }
+    storeReject(
+        static fn() => $store->issueChallenge(
+            'integrity-b',
+            $origin,
+            $version,
+            $commit,
+            $artifact,
+            $manifest
+        ),
+        'Node 4 must enforce the per-node active challenge cap.'
+    );
+
     $statePath = $directory . DIRECTORY_SEPARATOR . 'integrity-events.json';
     $retentionState = $store->snapshot();
     $retentionNow = time();
