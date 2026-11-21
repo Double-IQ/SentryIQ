@@ -134,6 +134,20 @@ container approach still needs a TUF storage adapter or must be rejected. Any
 fork/patch must be narrowly scoped, pinned, reviewed and covered by
 upstream-equivalence tests; bypassing TUF is prohibited.
 
+**Verifier-side compatibility is a separate, more promising question.** The
+current Sigstore JavaScript `@sigstore/verify` package (source version 4.1.3)
+separates bundle/certificate/Rekor verification from TUF retrieval. Its verifier
+uses `@sigstore/core` for X.509 parsing and cryptographic operations; that core
+wraps Node's `crypto` module for public-key creation, hashing, signature
+verification and timing-safe equality. Cloudflare documents its `node:crypto`
+API as fully supported, and also supports the relevant Buffer, stream and
+`util` APIs. This makes the verifier package a credible Worker PoC candidate,
+not a verified production choice. The exact bundle parser, certificate/SCT
+checks, Rekor v1/v2 handling, and our repository-specific policy still require
+golden-fixture and adversarial tests in the Workers runtime. Most importantly,
+a working `@sigstore/verify` import does not solve the separate TUF bootstrap,
+rotation and persistent-cache problem described above.
+
 The upstream package manifests also declare modern Node.js engine ranges.
 Cloudflare's Node compatibility layer exposes a subset of Node APIs, not a
 promise of full Node.js runtime equivalence. Prove the exact locked package
