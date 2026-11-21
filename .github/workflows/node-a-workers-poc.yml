@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: read
+  attestations: read
 
 concurrency:
   group: node-a-workers-poc-${{ github.ref }}
@@ -24,6 +25,8 @@ jobs:
     name: Workers runtime and Durable Object tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
     defaults:
       run:
         working-directory: cloudflare/node-a-poc
@@ -40,6 +43,20 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run workerd integration tests
         run: npm test
+      - name: Download genuine v0.1.2 release asset
+        run: |
+          gh release download v0.1.2 --repo Double-IQ/SentryIQ --pattern sentryiq-0.1.2.zip --dir "$RUNNER_TEMP"
+      - name: Download genuine GitHub attestation bundle
+        run: |
+          cd "$RUNNER_TEMP"
+          gh attestation download "$RUNNER_TEMP/sentryiq-0.1.2.zip" --repo Double-IQ/SentryIQ --predicate-type https://slsa.dev/provenance/v1
+      - name: Export genuine v0.1.2 bundle for review
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: node-a-v012-genuine-attestation-bundle
+          path: ${{ runner.temp }}/sha256:41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e.jsonl
+          if-no-files-found: error
+          retention-days: 3
       - name: Export generated lockfile for review
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
