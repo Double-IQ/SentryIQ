@@ -270,6 +270,46 @@ export class NodeAState extends DurableObject<Env> {
     });
   }
 
+  async testUpstreamTufCacheBootstrap(rootBase64: string): Promise<{ rootVersion: number; cacheReadAfterBootstrap: boolean; expectedNetworkFailure: boolean }> {
+    const context = createTufFsContext(this.ctx.storage.sql);
+    return runWithTufFsContext(context, async () => {
+      const rootPath = "/node-a/tuf-fixtures/root.json";
+      const cachePath = "/node-a/tuf-upstream-cache";
+      tufFs.mkdirSync("/node-a/tuf-fixtures", { recursive: true });
+      tufFs.writeFileSync(rootPath, Buffer.from(rootBase64, "base64"));
+
+      let expectedNetworkFailure = false;
+      try {
+        await initTUF({
+          cachePath,
+          rootPath,
+          mirrorURL: "https://127.0.0.1:1",
+          forceCache: false,
+          forceInit: true,
+          retry: { retries: 0 },
+          timeout: 250
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (/EPERM|EACCES|ENOENT/.test(message)) {
+          throw new Error("upstream TUF cache initialization did not use the Durable Object filesystem adapter: " + message);
+        }
+        expectedNetworkFailure = true;
+      }
+
+      const cachedRootPath = path.join(cachePath, "127.0.0.1:1", "root.json");
+      const cachedRoot = JSON.parse(tufFs.readFileSync(cachedRootPath, "utf8") as string) as { signed?: { version?: number } };
+      if (!Number.isSafeInteger(cachedRoot.signed?.version) || !cachedRoot.signed?.version) {
+        throw new Error("upstream TUF client did not seed a readable root through Durable Object storage");
+      }
+      return {
+        rootVersion: cachedRoot.signed.version,
+        cacheReadAfterBootstrap: true,
+        expectedNetworkFailure
+      };
+    });
+  }
+
   async testTufFilesystemAdapter(): Promise<{ persistentRead: string; copiedRead: string; temporaryRead: string; temporaryExistsAfterCleanup: boolean; seededTufRootVersion: number }> {
     const context = createTufFsContext(this.ctx.storage.sql);
     return runWithTufFsContext(context, async () => {
