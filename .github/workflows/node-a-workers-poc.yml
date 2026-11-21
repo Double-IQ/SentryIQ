@@ -50,11 +50,12 @@ jobs:
         run: |
           cd "$RUNNER_TEMP"
           gh attestation download "$RUNNER_TEMP/sentryiq-0.1.2.zip" --repo Double-IQ/SentryIQ --predicate-type https://slsa.dev/provenance/v1
+          mv "$RUNNER_TEMP/sha256:41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e.jsonl" "$RUNNER_TEMP/sha256-41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e.jsonl"
       - name: Export genuine v0.1.2 bundle for review
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: node-a-v012-genuine-attestation-bundle
-          path: ${{ runner.temp }}/sha256:41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e.jsonl
+          path: ${{ runner.temp }}/sha256-41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e.jsonl
           if-no-files-found: error
           retention-days: 3
       - name: Export generated lockfile for review
