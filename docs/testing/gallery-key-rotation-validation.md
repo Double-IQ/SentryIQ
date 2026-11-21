@@ -1,5 +1,19 @@
 # Secure Gallery key-rotation validation checklist
 
+## Automated validation status (2026-11-21)
+
+The integration branch `feat/gallery-zero-knowledge-mainline` passed all required GitHub Actions workflows at commit `62f53a10e3a2514af4b9c608b5e10402d6263e58`:
+
+- PHP Syntax Check — passed.
+- Release Manifest Tests — passed.
+- Gallery Security Checks — passed.
+- Browser-side Gallery security, recovery, session and rotation suite — 42 tests passed, 0 failed.
+- PHP Gallery storage, keyring v2 persistence, shared rotation lock and rotation journal tests — passed.
+- Repository self-test and authenticated browser self-test — passed (20 browser checks; 12 unsafe/non-GET routes intentionally marked not tested).
+- CSP policy regression tests — passed.
+
+These CI results validate the code and regression tests only. They do not replace the physical-device, staging Backblaze, interruption/resume, rollback-window or key-retirement checks below. Keep the staging checklist as a pre-deployment gate; do not initialize a production keyring or rotate production keys as part of CI.
+
 Run this checklist only in a dedicated staging account and staging Backblaze bucket. Do not use production photos or production key stores for first validation.
 
 ## Before testing
