@@ -105,6 +105,32 @@ $runner = new IntegrityNodeScheduledRunner(
 
 // This runner is intentionally not executed: network access is not part of
 // this unit test. Constructor policy and the no-Node-4 boundary are tested.
+foreach ([
+    'https://sentryiq.bichet.co.za:8443',
+    'https://sentryiq.bichet.co.za/subpath',
+    'https://sentryiq.bichet.co.za/',
+] as $nonCanonicalOrigin) {
+    $originRejected = false;
+    try {
+        new IntegrityNodeScheduledRunner(
+            'integrity-c',
+            $fetcher,
+            static fn(): array => ['version' => '0.1.3', 'commit' => str_repeat('a', 40)],
+            $bindingC,
+            $alertNoop,
+            $private,
+            $webroot,
+            $nonCanonicalOrigin,
+            ['assets/app.js'],
+            $releaseState,
+            null,
+            $evidenceStore
+        );
+    } catch (RuntimeException) {
+        $originRejected = true;
+    }
+    scheduledAssert($originRejected, 'Scheduled node runner must reject non-canonical origins, ports and paths.');
+}
 $rejectedA = false;
 try {
     new IntegrityNodeScheduledRunner(
