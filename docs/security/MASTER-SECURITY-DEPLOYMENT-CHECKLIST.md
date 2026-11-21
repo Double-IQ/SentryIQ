@@ -401,7 +401,7 @@ Phase 1 is complete only when every item above has evidence, all high-risk findi
 
 | Node | Intended infrastructure | Current known position | Required outcome |
 |---|---|---|---|
-| Node A | Independent security host | Provider/host assignment not confirmed in this tracker | Confirm host and independent administrative/failure boundary, then deploy and verify |
+| Node A | Cloudflare Workers | Owner-confirmed platform assignment; Worker deployment, runtime compatibility, secrets, durable state, schedule and alert path not yet verified | Implement/validate the Worker-compatible Node A adapter and deploy independently of Node B/Node 4 |
 | Node B | Val Town | Hosting assignment confirmed; live app/runtime not verified | Deploy/configure and verify |
 | Node C | HelioHost | Owner reports the HelioHost runtime probe has been run; its exact result is not recorded in this tracker. Full Node C provisioning/configuration and scheduled signed-report operation are not verified. Do not ask the owner to rerun the probe by default. | Record the existing probe result/evidence, then complete deployment/configuration and fresh signed-report acceptance |
 | Node 4 | BTM-SA, on the same host as SentryIQ | Shared host; not an independent infrastructure failure domain | Deploy as a separately identified and isolated logical service |
@@ -409,8 +409,8 @@ Phase 1 is complete only when every item above has evidence, all high-risk findi
 ## Node-by-node deployment
 
 - [ ] **2.1** Confirm and document each node's responsibility, trust boundary, host, owner, and failure-domain limitations.
-- [ ] **2.2** Confirm Node A's actual provider and independent administrative boundary.
-- [ ] **2.3** Inspect and provision Node A; configure private secrets, pinned trust roots, unique credentials, schedule, private state/baseline, and direct owner alerts.
+- [x] **2.2** Confirm Node A's provider: Cloudflare Workers (owner-confirmed). Verify the Worker account/project and administrative boundary during provisioning.
+- [ ] **2.3** Implement and provision Node A on Cloudflare Workers. First validate the existing PHP node's runtime/dependency compatibility with Workers; if required, implement a Worker-native adapter preserving native Sigstore verification, pinned trust roots, anti-rollback state, unique credentials, independent scheduling and direct owner alerts. Verify durable state semantics and secret bindings; do not claim deployment from the platform assignment alone.
 - [ ] **2.4** Inspect and provision Node B on Val Town; configure private secrets, pinned trust roots, unique credentials, independent schedule, private state/baseline, and direct owner alerts.
 - [ ] **2.5** Inspect and provision Node C on HelioHost; confirm supported runtime and configure its verifier, keys, private evidence storage, schedule, and direct owner alerts.
   - **Owner-reported work already performed:** the HelioHost runtime probe was run by the owner. Its exact output/result is not captured in this checklist, so this is not marked accepted or failed. Preserve and record the existing result; do not request a repeat run unless the evidence is unavailable or a specific technical reason requires it. Probe execution alone does not establish full Node C deployment or scheduled signed-report acceptance.
