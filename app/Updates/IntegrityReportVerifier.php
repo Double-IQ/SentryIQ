@@ -90,7 +90,8 @@ final class IntegrityReportVerifier
             }
             $seen[$nodeId] = true;
 
-            if (($payload['schema_version'] ?? null) !== 1
+            if (!in_array($payload['schema_version'] ?? null, [1, 2], true)
+                || (($payload['schema_version'] ?? 1) === 2 && !$this->hasValidEventEvidence($payload))
                 || ($payload['decision'] ?? null) !== 'approve'
                 || ($payload['repository'] ?? null) !== self::REPOSITORY
                 || ($payload['repository_id'] ?? null) !== self::REPOSITORY_ID
@@ -172,6 +173,58 @@ final class IntegrityReportVerifier
         }
 
         return $payload;
+    }
+
+    /** @param array<string,mixed> $payload */
+    private function hasValidEventEvidence(array $payload): bool
+    {
+        $origin = $payload['target_origin'] ?? null;
+        $parts = is_string($origin) ? parse_url($origin) : false;
+        if (!is_array($parts) || ($parts['scheme'] ?? '') !== 'https' || empty($parts['host'])
+            || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])
+            || !is_string($payload['manifest_sha256'] ?? null)
+            || !preg_match('/^[a-f0-9]{64}$/', $payload['manifest_sha256'])
+            || !is_array($payload['checked_paths'] ?? null) || !array_is_list($payload['checked_paths'])
+            || count($payload['checked_paths']) > 100
+            || !is_array($payload['mismatches'] ?? null) || !array_is_list($payload['mismatches'])
+            || count($payload['mismatches']) > 100) {
+            return false;
+        }
+        $seen = [];
+        $publicPathCount = 0;
+        foreach ($payload['checked_paths'] as $path) {
+            if (!is_string($path) || !$this->isSafeEvidencePath($path) || isset($seen[$path])
+                || (str_starts_with($path, '@') && !in_array($path, ['@origin-headers', '@private-host-attestation'], true))) return false;
+            $seen[$path] = true;
+            if (!str_starts_with($path, '@')) $publicPathCount++;
+        }
+        $nodeId = $payload['node_id'] ?? null;
+        $requiredMarkers = $nodeId === 'integrity-c'
+            ? ['@origin-headers']
+            : ['@origin-headers', '@private-host-attestation'];
+        foreach ($requiredMarkers as $marker) {
+            if (!isset($seen[$marker])) return false;
+        }
+        if ($publicPathCount < 1) return false;
+        $mismatchPaths = [];
+        foreach ($payload['mismatches'] as $item) {
+            if (!is_array($item) || !is_string($item['path'] ?? null) || !$this->isSafeEvidencePath($item['path'])
+                || !in_array($item['reason'] ?? null, ['content_mismatch', 'fetch_failed', 'security_header_mismatch', 'private_host_attestation_failed'], true)
+                || !isset($seen[$item['path']]) || isset($mismatchPaths[$item['path']])) return false;
+            $mismatchPaths[$item['path']] = true;
+            if (($item['reason'] === 'security_header_mismatch' && $item['path'] !== '@origin-headers')
+                || ($item['reason'] === 'private_host_attestation_failed' && $item['path'] !== '@private-host-attestation')
+                || (in_array($item['reason'], ['content_mismatch', 'fetch_failed'], true) && str_starts_with($item['path'], '@'))) return false;
+        }
+        if ((($payload['decision'] ?? null) === 'approve') !== ($payload['mismatches'] === [])) return false;
+        return true;
+    }
+
+    private function isSafeEvidencePath(string $path): bool
+    {
+        return $path !== '' && strlen($path) <= 512 && !str_starts_with($path, '/')
+            && !str_contains($path, '\\') && !str_contains($path, '//') && !preg_match('~(^|/)\\.\\.?(/|$)~', $path)
+            && !preg_match('/[%?#\\x00-\\x1f]/', $path);
     }
 
     private function normalizeVersion(string $version): string

@@ -1,16 +1,25 @@
 RewriteEngine On
 
+<IfModule mod_headers.c>
+    Header always set Strict-Transport-Security "max-age=31536000"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    Header always set Content-Security-Policy "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+</IfModule>
+
 # Prevent direct web access to packaged runtime templates and root configuration.
 # PHP include/require operations are unaffected by these request rewrite rules.
 RewriteRule ^private_data(?:/|$) - [F,L]
 RewriteRule ^runtime(?:/|$) - [F,L]
 RewriteRule ^(?:sentryiq_config\.php|auth_flow\.php|\.user\.ini)$ - [F,L]
 
-# Block direct HTTP requests to source, test, documentation, and VCS directories.
+# Block direct HTTP requests to source, test, documentation, CLI, and VCS directories.
 # Apache normalizes encoded path characters before matching this per-directory rule.
 # Legacy public routes below terminate their internal rewrite with [END], so their
 # application targets are not reprocessed by this direct-request guard.
-RewriteRule ^(app|cloud|docs|tests|scripts|\.github|\.git)(/|$) - [F,L,NC]
+RewriteRule ^(app|bin|cloud|docs|tests|scripts|\.github|\.git)(/|$) - [F,L,NC]
 
 # Keep existing deployed endpoint URLs working while implementations live under app/.
 RewriteRule ^document_delete\.php$ app/Documents/Delete.php [END]

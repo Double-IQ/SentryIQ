@@ -6,13 +6,17 @@ namespace SentryIQ\Updates;
 
 use RuntimeException;
 
+require_once __DIR__ . '/IntegrityNodeAlertedException.php';
+require_once __DIR__ . '/IntegrityPublicAssetPolicy.php';
+require_once __DIR__ . '/IntegrityEventRequestDecoder.php';
+
 /**
  * Node A's read-only public-origin verifier.
  *
  * Both the external manifest and exact release ZIP must pass the maintained
  * GitHub/Sigstore verifier before the manifest is used as expected state.
- * Only explicitly configured public paths are fetched; private PHP/runtime
- * files are not inferred to be HTTP-verifiable.
+ * Only signed static public assets are fetched; dynamic PHP responses and
+ * private runtime files are not treated as byte-verifiable HTTP assets.
  */
 final class IntegrityNodeA
 {
@@ -22,22 +26,50 @@ final class IntegrityNodeA
     /** @var callable(string):string */
     private $fetch;
 
+    /** @var callable(string,string,array<string,mixed>):void|null */
+    private $notifyFailure;
+
+    /** @var callable(string):array{approved:bool,mismatches:list<string>} */
+    private $verifyOriginHeaders;
+
+    private readonly PrivateHostAttestationGate $verifyPrivateHost;
+
     /**
      * @param callable(string,string,string,string):void $verifyAttestation
      *        Arguments: artifact path, release version, source commit, installed version.
      * @param callable(string):string|null $fetch Test seam; production uses HTTPS cURL.
+     * @param callable(string,string,array<string,mixed>):void $notifyFailure Independent direct owner-alert transport; never routes through Node 4.
+     * @param PrivateHostAttestationGate $verifyPrivateHost Mandatory final gate bound to this node's own collector client, key pin and policy.
      */
     public function __construct(
         private readonly IntegrityReportSigner $signer,
         callable $verifyAttestation,
-        ?callable $fetch = null
+        PrivateHostAttestationGate $verifyPrivateHost,
+        ?callable $fetch = null,
+        ?callable $notifyFailure = null,
+        ?callable $verifyOriginHeaders = null
     ) {
+        if ($this->signer->nodeId() !== 'integrity-a') {
+            throw new RuntimeException('Integrity Node A requires its own integrity-a signing identity.');
+        }
+        if ($notifyFailure === null) {
+            throw new RuntimeException('Integrity Node A requires an independent direct owner-alert transport.');
+        }
+        if ($verifyOriginHeaders === null) {
+            throw new RuntimeException('Integrity Node A requires an origin security-header verifier.');
+        }
+        if ($verifyPrivateHost->nodeId() !== 'integrity-a') {
+            throw new RuntimeException('Integrity Node A requires its own node-bound private-host attestation gate.');
+        }
         $this->verifyAttestation = $verifyAttestation;
         $this->fetch = $fetch ?? fn(string $url): string => $this->fetchHttps($url);
+        $this->notifyFailure = $notifyFailure;
+        $this->verifyOriginHeaders = $verifyOriginHeaders;
+        $this->verifyPrivateHost = $verifyPrivateHost;
     }
 
     /**
-     * @param list<string> $publicPaths Explicit relative URLs to check, e.g. ["index.php","assets/app.js"].
+     * @param list<string> $publicPaths Optional subset of signed static assets; empty selects every manifest public_http_files entry.
      * @param string $nonce Fresh 32-byte event-plane challenge as 64 hexadecimal characters.
      * @return array{approved:bool,report:string,checked_paths:list<string>,mismatches:list<array{path:string,reason:string}>,manifest_sha256:string,artifact_sha256:string}
      */
@@ -73,14 +105,24 @@ final class IntegrityNodeA
         $origin = rtrim($origin, '/') . '/';
 
         // Verify both independently attested subjects before trusting manifest contents.
-        ($this->verifyAttestation)($manifestReal, $version, $commit, $installedVersion);
-        ($this->verifyAttestation)($artifactReal, $version, $commit, $installedVersion);
+        try {
+            ($this->verifyAttestation)($manifestReal, $version, $commit, $installedVersion);
+            ($this->verifyAttestation)($artifactReal, $version, $commit, $installedVersion);
+        } catch (\Throwable $exception) {
+            $this->alertFailure('release_attestation_rejected', ['release_version' => $version]);
+            throw new IntegrityNodeAlertedException(
+                'Release attestation rejected after direct owner alert delivery.',
+                0,
+                $exception
+            );
+        }
 
         $manifestBytes = file_get_contents($manifestReal);
         if (!is_string($manifestBytes) || strlen($manifestBytes) > 5_000_000) {
             throw new RuntimeException('Release manifest is unreadable or exceeds the size limit.');
         }
         try {
+            IntegrityEventRequestDecoder::assertNoDuplicateObjectKeys($manifestBytes);
             $manifest = json_decode($manifestBytes, true, 64, JSON_THROW_ON_ERROR);
         } catch (\JsonException $exception) {
             throw new RuntimeException('Attested release manifest is not valid JSON.', 0, $exception);
@@ -111,22 +153,12 @@ final class IntegrityNodeA
             $entries[$path] = $entry;
         }
 
-        if ($publicPaths === [] || !array_is_list($publicPaths)) {
-            throw new RuntimeException('At least one explicit public-origin path must be configured.');
-        }
+        $pathsToCheck = IntegrityPublicAssetPolicy::resolve($manifest, $entries, $publicPaths);
 
         $checked = [];
         $mismatches = [];
-        foreach (array_values(array_unique($publicPaths)) as $path) {
-            if (!is_string($path) || $path === '' || str_starts_with($path, '/')
-                || str_contains($path, '\\') || preg_match('~(^|/)\.\.?(/|$)~', $path)
-                || preg_match('/[?#]/', $path)) {
-                throw new RuntimeException('Configured public-origin path is unsafe.');
-            }
-            if (!isset($entries[$path])) {
-                throw new RuntimeException('Configured public-origin path is absent from the attested manifest: ' . $path);
-            }
-
+        foreach ($pathsToCheck as $path) {
+            $checked[] = $path;
             $url = $origin . implode('/', array_map('rawurlencode', explode('/', $path)));
             try {
                 $body = ($this->fetch)($url);
@@ -139,26 +171,103 @@ final class IntegrityNodeA
                 continue;
             }
             $actual = hash('sha256', $body);
-            $checked[] = $path;
             if (!hash_equals($entries[$path]['sha256'], $actual)
                 || strlen($body) !== $entries[$path]['size']) {
                 $mismatches[] = ['path' => $path, 'reason' => 'content_mismatch'];
             }
         }
 
+        try {
+            $headerResult = ($this->verifyOriginHeaders)($origin);
+            if (!is_array($headerResult) || !is_bool($headerResult['approved'] ?? null)
+                || !is_array($headerResult['mismatches'] ?? null) || !array_is_list($headerResult['mismatches'])
+                || count($headerResult['mismatches']) > 32
+                || ($headerResult['approved'] !== ($headerResult['mismatches'] === []))) {
+                throw new RuntimeException('Origin security-header verifier returned an invalid result.');
+            }
+        } catch (\Throwable $exception) {
+            $this->alertFailure('origin_security_header_check_failed', ['release_version' => $version]);
+            throw new IntegrityNodeAlertedException(
+                'Origin security-header verification failed after direct owner alert delivery.',
+                0,
+                $exception
+            );
+        }
+        foreach ($headerResult['mismatches'] as $headerMismatch) {
+            if (!is_string($headerMismatch) || $headerMismatch === '' || strlen($headerMismatch) > 128
+                || preg_match('/[\\x00-\\x1f]/', $headerMismatch)) {
+                throw new RuntimeException('Origin security-header verifier returned an unsafe mismatch value.');
+            }
+        }
+        $checked[] = '@origin-headers';
+        $headerMismatchNames = $headerResult['mismatches'];
+        if ($headerResult['approved'] !== true) {
+            $mismatches[] = ['path' => '@origin-headers', 'reason' => 'security_header_mismatch'];
+        }
+
+        $originMismatches = $mismatches;
         $artifactDigest = hash_file('sha256', $artifactReal);
         $manifestDigest = hash('sha256', $manifestBytes);
         if (!is_string($artifactDigest)) {
             throw new RuntimeException('Unable to calculate release artifact digest.');
         }
 
+        try {
+            $privateHost = ($this->verifyPrivateHost)(
+                $version,
+                $commit,
+                $manifestDigest,
+                $artifactDigest,
+                bin2hex(random_bytes(32)),
+                $manifest,
+                rtrim($origin, '/')
+            );
+            if (!is_array($privateHost) || !is_bool($privateHost['approved'] ?? null)
+                || !is_array($privateHost['mismatches'] ?? null) || !array_is_list($privateHost['mismatches'])
+                || count($privateHost['mismatches']) > 100
+                || ($privateHost['approved'] !== ($privateHost['mismatches'] === []))) {
+                throw new RuntimeException('Private-host attestation verifier returned an invalid result.');
+            }
+        } catch (\Throwable $exception) {
+            $this->alertFailure('private_host_attestation_unavailable', [
+                'release_version' => $version,
+                'phase' => 'private_host_attestation',
+            ]);
+            throw new IntegrityNodeAlertedException(
+                'Private-host deployment attestation failed after independent owner alert delivery.',
+                0,
+                $exception
+            );
+        }
+        $checked[] = '@private-host-attestation';
+        if ($privateHost['approved'] !== true) {
+            $mismatches[] = ['path' => '@private-host-attestation', 'reason' => 'private_host_attestation_failed'];
+            $this->alertFailure('private_host_attestation_rejected', [
+                'release_version' => $version,
+                'mismatch_count' => count($privateHost['mismatches']),
+            ]);
+        }
+
         $approved = $mismatches === [];
+        if ($originMismatches !== []) {
+            $this->alertFailure('origin_integrity_mismatch', [
+                'target_origin' => rtrim($origin, '/'),
+                'mismatch_count' => count($originMismatches),
+                'header_mismatches' => $headerMismatchNames,
+            ]);
+        }
         $report = $this->signer->createReport(
             $version,
             $commit,
             $artifactDigest,
             $nonce,
-            $approved ? 'approve' : 'reject'
+            $approved ? 'approve' : 'reject',
+            [
+                'target_origin' => rtrim($origin, '/'),
+                'manifest_sha256' => $manifestDigest,
+                'checked_paths' => $checked,
+                'mismatches' => $mismatches,
+            ]
         );
 
 
@@ -170,6 +279,19 @@ final class IntegrityNodeA
             'manifest_sha256' => $manifestDigest,
             'artifact_sha256' => $artifactDigest,
         ];
+    }
+
+    /** Deliver directly to the node owner's separately configured alert destination. */
+    private function alertFailure(string $reason, array $context = []): void
+    {
+        if ($this->notifyFailure === null) {
+            return;
+        }
+        try {
+            ($this->notifyFailure)($this->signer->nodeId(), $reason, $context);
+        } catch (\Throwable $exception) {
+            throw new RuntimeException('Independent integrity-node owner alert delivery failed.', 0, $exception);
+        }
     }
 
     private function regularFile(string $path): string
@@ -193,6 +315,7 @@ final class IntegrityNodeA
         $body = '';
         curl_setopt_array($handle, [
             CURLOPT_RETURNTRANSFER => false,
+            CURLOPT_HTTPHEADER => ['Cache-Control: no-cache, no-store, no-transform', 'Pragma: no-cache'],
             CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
             CURLOPT_CONNECTTIMEOUT => 10,

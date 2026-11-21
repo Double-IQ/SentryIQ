@@ -55,9 +55,20 @@ A/B/C contract.
   A/B, within HelioHost resource limits.
 - Verify PHP extensions, outbound HTTPS, filesystem permissions, clock
   freshness, execution time and memory on the actual account.
-- Initialize the monotonic baseline only after independently confirming the
-  known-good deployed release. Never initialize from the live origin's claim
-  alone.
+- Initialize the monotonic baseline once with `bin/integrity-node-baseline.php`
+  after independently confirming the known-good deployed version, source
+  commit, manifest digest and ZIP digest. The CLI pre-provisions the state lock
+  and refuses to overwrite an existing baseline. Never initialize from the
+  live origin's claim alone; delete the one-time baseline config after use.
+
+## Local evidence retention
+
+Node C stores each signed result under its private data directory with exact
+0600 file permissions. Evidence older than 30 days is pruned on the next
+successful append; recent records are never silently discarded. The hard cap
+is 10,000 records. At a fifteen-minute schedule, 30 days produces about 2,880
+records. Schedule Node C no more frequently than every fifteen minutes unless
+the run-lock and evidence capacity are deliberately revalidated.
 
 ## Regression coverage
 
@@ -73,8 +84,7 @@ provisioning, schedule setup or live end-to-end monitoring.
 
 ## Status
 
-Native PHP Sigstore adapter: implemented in the repository; merge and CI
-acceptance pending.
+Native PHP Sigstore adapter: merged to `main`; native verification and PHP 8.1–8.5 CI acceptance passed.
 
 HelioHost runtime integration, absolute private paths, Node C key provisioning,
 protected configuration, public-path inventory, independent schedule, direct

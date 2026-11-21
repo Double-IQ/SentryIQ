@@ -31,7 +31,7 @@ deploymentCheck(
 );
 
 deploymentCheck(
-    str_contains($apache, 'RewriteRule ^(app|cloud|docs|tests|scripts|\\.github|\\.git)(/|$) - [F,L,NC]'),
+    str_contains($apache, 'RewriteRule ^(app|bin|cloud|docs|tests|scripts|\\.github|\\.git)(/|$) - [F,L,NC]'),
     'Apache rules must deny normalized direct requests to source, test, documentation, and VCS directories.'
 );
 deploymentCheck(

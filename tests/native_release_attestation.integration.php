@@ -26,6 +26,14 @@ require_once __DIR__ . '/../app/Updates/SnappyBlockDecoder.php';
 require_once __DIR__ . '/../app/Updates/SigstoreProvenance.php';
 require_once __DIR__ . '/../app/Updates/NativeSigstoreReleaseVerifier.php';
 
+$invalidTokenRejected = false;
+try {
+    new NativeSigstoreReleaseVerifier($autoload, $privateDirectory, 'invalid-token');
+} catch (Throwable) {
+    $invalidTokenRejected = true;
+}
+if (!$invalidTokenRejected) throw new RuntimeException('Native verifier must reject malformed optional GitHub API tokens.');
+
 $verifier = new NativeSigstoreReleaseVerifier($autoload, $privateDirectory);
 $claims = $verifier->verifyRelease($zip, '0.1.2');
 

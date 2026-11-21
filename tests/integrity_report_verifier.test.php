@@ -55,6 +55,46 @@ $makeReport = static function (string $nodeId, array $changes = []) use ($secret
 };
 
 $reports = [$makeReport('integrity-a'), $makeReport('integrity-b')];
+
+$eventEvidence = [
+    'schema_version' => 2,
+    'target_origin' => 'https://sentryiq.bichet.co.za',
+    'manifest_sha256' => hash('sha256', 'attested manifest'),
+    'checked_paths' => ['assets/app.js', '@origin-headers', '@private-host-attestation'],
+    'mismatches' => [],
+];
+$eventReports = [
+    $makeReport('integrity-a', $eventEvidence),
+    $makeReport('integrity-b', $eventEvidence),
+];
+$eventResult = $verifier->assertTwoNodeApproval($eventReports, $version, $commit, $digest, $nonce);
+if (($eventResult['approved'] ?? false) !== true) {
+    throw new RuntimeException('Valid signed event-evidence reports should remain valid release approvals.');
+}
+$invalidEventReports = [
+    $makeReport('integrity-a', array_replace($eventEvidence, ['target_origin' => 'http://untrusted.invalid'])),
+    $eventReports[1],
+];
+integrityReject(
+    fn() => $verifier->assertTwoNodeApproval($invalidEventReports, $version, $commit, $digest, $nonce),
+    'Version-2 reports with an invalid target origin must be rejected.'
+);
+
+$privateHostMismatchEvidence = array_replace($eventEvidence, [
+    'checked_paths' => ['assets/app.js', '@origin-headers', '@private-host-attestation'],
+    'mismatches' => [[
+        'path' => '@private-host-attestation',
+        'reason' => 'private_host_attestation_failed',
+    ]],
+]);
+$falsePrivateHostApproval = [
+    $makeReport('integrity-a', $privateHostMismatchEvidence),
+    $eventReports[1],
+];
+integrityReject(
+    fn() => $verifier->assertTwoNodeApproval($falsePrivateHostApproval, $version, $commit, $digest, $nonce),
+    'A signed approval containing a private-host attestation failure must be rejected.'
+);
 $result = $verifier->assertTwoNodeApproval($reports, $version, $commit, $digest, $nonce);
 if (($result['approved'] ?? false) !== true || count($result['node_ids'] ?? []) !== 2) {
     throw new RuntimeException('Two valid independent approvals should pass.');
