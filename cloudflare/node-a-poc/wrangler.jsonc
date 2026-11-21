@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "sentryiq-node-a-poc",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-22",
+  "observability": {
+    "enabled": false
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "NODE_A_STATE",
+        "class_name": "NodeAState"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["NodeAState"]
+    }
+  ]
+}
