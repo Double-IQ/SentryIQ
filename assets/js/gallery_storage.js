@@ -3,6 +3,8 @@
 
     const roles = ['original', 'thumbnail', 'preview', 'metadata'];
     const objectUrls = new Set();
+    const privateMetadata = new Set();
+    let lockGeneration = 0;
 
     function secureApi() {
         if (!root.SentryIQSecureGallery || !root.SentryIQSecureGallery.isUnlocked()) {
@@ -77,6 +79,22 @@
 
     function storedImageType(value) {
         return ['image/webp', 'image/jpeg', 'image/png'].includes(value) ? value : 'image/webp';
+    }
+
+    function decodePrivateMetadata(metadataBytes) {
+        try {
+            const metadata = JSON.parse(new TextDecoder().decode(metadataBytes));
+            if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+                throw new Error('Invalid private metadata shape.');
+            }
+            privateMetadata.add(metadata);
+            return metadata;
+        } catch (_) {
+            throw new Error('The encrypted Gallery photo metadata is invalid.');
+        } finally {
+            if (metadataBytes instanceof ArrayBuffer) new Uint8Array(metadataBytes).fill(0);
+            else if (metadataBytes instanceof Uint8Array) metadataBytes.fill(0);
+        }
     }
 
     async function prepareImage(file) {
@@ -172,11 +190,14 @@
             prepared.saved.blob = null;
             prepared.thumbnail.blob = null;
             prepared.preview.blob = null;
+            if (reservation.activeKeyId && typeof secure.ensureKeyAvailable === 'function') {
+                await secure.ensureKeyAvailable(reservation.activeKeyId);
+            }
             const encrypted = {};
             const sizes = {};
             try {
                 for (const role of roles) {
-                    encrypted[role] = await secure.encryptObject(plainObjects[role], photoId, role);
+                    encrypted[role] = await secure.encryptObject(plainObjects[role], photoId, role, reservation.activeKeyId || undefined);
                     new Uint8Array(plainObjects[role]).fill(0);
                     plainObjects[role] = null;
                     sizes[role] = encrypted[role].ciphertext.byteLength;
@@ -189,7 +210,11 @@
                 }
             }
             for (const role of roles) {
-                await uploadCiphertext(reservation.uploadUrls[role], encrypted[role].ciphertext);
+                try {
+                    await uploadCiphertext(reservation.uploadUrls[role], encrypted[role].ciphertext);
+                } finally {
+                    encrypted[role].ciphertext.fill(0);
+                }
             }
             const envelopes = {};
             for (const role of roles) envelopes[role] = encrypted[role].envelope;
@@ -205,13 +230,7 @@
     }
 
     async function cleanupPending() {
-        const response = await fetch('gallery_storage.php?action=cleanup_pending', {
-            method: 'GET',
-            credentials: 'same-origin',
-            cache: 'no-store',
-            headers: { Accept: 'application/json' }
-        });
-        const payload = await jsonResponse(response);
+        const payload = await post('cleanup_pending');
         const pending = payload.pending || {};
         for (const photoId of Object.keys(pending)) {
             const urls = pending[photoId] || {};
@@ -239,6 +258,7 @@
 
     async function download(photoId, role) {
         const secure = secureApi();
+        const generation = lockGeneration;
         if (!roles.includes(role)) throw new Error('Invalid Gallery object role.');
         const signed = await post('download', { photoId: photoId, role: role });
         const response = await fetch(signed.url, {
@@ -250,30 +270,141 @@
         });
         if (!response.ok) throw new Error('Unable to download encrypted Gallery data (' + response.status + ').');
         const ciphertext = await response.arrayBuffer();
-        return secure.decryptObject(ciphertext, signed.envelope, photoId, role);
+        try {
+            const plaintext = await secure.decryptObject(ciphertext, signed.envelope, photoId, role);
+            if (generation !== lockGeneration) {
+                if (plaintext instanceof ArrayBuffer) new Uint8Array(plaintext).fill(0);
+                else if (plaintext instanceof Uint8Array) plaintext.fill(0);
+                throw new Error('Secure Gallery locked while decrypting this object.');
+            }
+            return plaintext;
+        } finally {
+            new Uint8Array(ciphertext).fill(0);
+        }
+    }
+
+    async function getEnvelope(photoId, role) {
+        secureApi();
+        if (!roles.includes(role)) throw new Error('Invalid Gallery object role.');
+        const result = await post('download', { photoId: photoId, role: role });
+        if (!result.envelope || !/^[a-f0-9]{64}$/.test(String(result.envelopeHash || ''))) {
+            throw new Error('The Gallery object envelope revision is unavailable.');
+        }
+        return { envelope: result.envelope, envelopeHash: result.envelopeHash };
+    }
+
+    async function replaceEnvelope(photoId, role, expectedEnvelopeHash, envelope) {
+        secureApi();
+        if (!roles.includes(role)) throw new Error('Invalid Gallery object role.');
+        return post('replace_envelope', {
+            photoId: photoId,
+            role: role,
+            expectedEnvelopeHash: expectedEnvelopeHash,
+            envelope: envelope
+        });
+    }
+
+    async function keyReferenceInventory() {
+        secureApi();
+        const result = await post('key_inventory');
+        return result.references || {};
+    }
+
+    function clearPrivateMetadata(metadata) {
+        if (!metadata || typeof metadata !== 'object') return;
+        Object.keys(metadata).forEach(function (key) {
+            if (typeof metadata[key] === 'string') metadata[key] = '';
+            else metadata[key] = null;
+        });
+        privateMetadata.delete(metadata);
     }
 
     async function loadPhoto(photoId) {
-        const metadataBytes = await download(photoId, 'metadata');
-        let metadata;
-        try { metadata = JSON.parse(new TextDecoder().decode(metadataBytes)); }
-        catch (_) { throw new Error('The encrypted Gallery photo metadata is invalid.'); }
-        const thumbnailBytes = await download(photoId, 'thumbnail');
-        const thumbnailBlob = new Blob([thumbnailBytes], { type: storedImageType(metadata.thumbnailType) });
-        const thumbnailUrl = URL.createObjectURL(thumbnailBlob);
-        objectUrls.add(thumbnailUrl);
-        return { photoId: photoId, metadata: metadata, thumbnailUrl: thumbnailUrl };
+        let metadata = null;
+        let thumbnailBytes = null;
+        try {
+            const metadataBytes = await download(photoId, 'metadata');
+            metadata = decodePrivateMetadata(metadataBytes);
+            thumbnailBytes = await download(photoId, 'thumbnail');
+            const thumbnailBlob = new Blob([thumbnailBytes], { type: storedImageType(metadata.thumbnailType) });
+            const thumbnailUrl = URL.createObjectURL(thumbnailBlob);
+            objectUrls.add(thumbnailUrl);
+            return { photoId: photoId, metadata: metadata, thumbnailUrl: thumbnailUrl };
+        } catch (error) {
+            clearPrivateMetadata(metadata);
+            throw error;
+        } finally {
+            if (thumbnailBytes instanceof ArrayBuffer) new Uint8Array(thumbnailBytes).fill(0);
+            else if (thumbnailBytes instanceof Uint8Array) thumbnailBytes.fill(0);
+        }
     }
 
     async function openPreview(photoId) {
-        const metadataBytes = await download(photoId, 'metadata');
-        let metadata;
-        try { metadata = JSON.parse(new TextDecoder().decode(metadataBytes)); }
-        catch (_) { throw new Error('The encrypted Gallery photo metadata is invalid.'); }
-        const bytes = await download(photoId, 'preview');
-        const url = URL.createObjectURL(new Blob([bytes], { type: storedImageType(metadata.previewType) }));
-        objectUrls.add(url);
-        return url;
+        let metadata = null;
+        let previewBytes = null;
+        try {
+            const metadataBytes = await download(photoId, 'metadata');
+            metadata = decodePrivateMetadata(metadataBytes);
+            previewBytes = await download(photoId, 'preview');
+            const url = URL.createObjectURL(new Blob([previewBytes], { type: storedImageType(metadata.previewType) }));
+            objectUrls.add(url);
+            return url;
+        } finally {
+            clearPrivateMetadata(metadata);
+            if (previewBytes instanceof ArrayBuffer) new Uint8Array(previewBytes).fill(0);
+            else if (previewBytes instanceof Uint8Array) previewBytes.fill(0);
+        }
+    }
+
+    async function migrateEnvelopesToKey(targetKeyId, onProgress) {
+        const secure = secureApi();
+        if (typeof targetKeyId !== 'string' || !/^[A-Za-z0-9_-]{8,64}$/.test(targetKeyId)) {
+            throw new Error('Invalid target Gallery encryption key.');
+        }
+        const photos = await list();
+        const photoIds = Object.keys(photos);
+        const total = photoIds.length * roles.length;
+        let updated = 0;
+        let skipped = 0;
+
+        for (const photoId of photoIds) {
+            for (const role of roles) {
+                const object = photos[photoId] && photos[photoId].objects
+                    ? photos[photoId].objects[role] : null;
+                if (!object || !object.envelope) throw new Error('A Gallery object is missing its encrypted envelope.');
+                if (object.envelope.keyId === targetKeyId) {
+                    skipped++;
+                    if (typeof onProgress === 'function') onProgress({ photoId, role, updated, skipped, total });
+                    continue;
+                }
+                let currentEnvelope = object.envelope;
+                let currentHash = object.envelope_hash;
+                if (typeof currentHash !== 'string' || !/^[a-f0-9]{64}$/.test(currentHash)) {
+                    throw new Error('A Gallery object is missing its envelope revision.');
+                }
+                let replacement = await secure.rewrapObjectEnvelope(currentEnvelope, photoId, role, targetKeyId);
+                let didUpdate = false;
+                try {
+                    await replaceEnvelope(photoId, role, currentHash, replacement);
+                    didUpdate = true;
+                } catch (firstError) {
+                    // A concurrent delete or another migration may have changed
+                    // this record. Refetch once and retry only if it still needs work.
+                    const latest = await getEnvelope(photoId, role);
+                    if (latest.envelope.keyId !== targetKeyId) {
+                        replacement = await secure.rewrapObjectEnvelope(latest.envelope, photoId, role, targetKeyId);
+                        await replaceEnvelope(photoId, role, latest.envelopeHash, replacement);
+                        didUpdate = true;
+                    } else {
+                        skipped++;
+                    }
+                }
+                if (didUpdate) updated++;
+                if (typeof onProgress === 'function') onProgress({ photoId, role, updated, skipped, total });
+            }
+        }
+
+        return { updated, skipped, total, references: await keyReferenceInventory() };
     }
 
     async function deletePhoto(photoId) {
@@ -297,20 +428,34 @@
         }
     }
 
+    function invalidatePendingDecrypts() {
+        lockGeneration++;
+    }
+
     function lock() {
+        // The Secure Gallery lock callback invalidates in-flight decryptions.
+        // Keep a fallback for a partially initialized page without that API.
+        if (root.SentryIQSecureGallery) root.SentryIQSecureGallery.lock();
+        else invalidatePendingDecrypts();
         objectUrls.forEach(function (url) { URL.revokeObjectURL(url); });
         objectUrls.clear();
-        if (root.SentryIQSecureGallery) root.SentryIQSecureGallery.lock();
+        Array.from(privateMetadata).forEach(clearPrivateMetadata);
     }
 
     root.SentryIQGalleryStorage = Object.freeze({
         upload: upload,
         list: list,
         download: download,
+        getEnvelope: getEnvelope,
+        replaceEnvelope: replaceEnvelope,
+        keyReferenceInventory: keyReferenceInventory,
+        migrateEnvelopesToKey: migrateEnvelopesToKey,
         loadPhoto: loadPhoto,
         openPreview: openPreview,
         deletePhoto: deletePhoto,
         revokeObjectUrl: revokeObjectUrl,
+        clearMetadata: clearPrivateMetadata,
+        invalidatePendingDecrypts: invalidatePendingDecrypts,
         lock: lock
     });
 }(typeof window !== 'undefined' ? window : self));
