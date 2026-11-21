@@ -88,6 +88,7 @@ jobs:
           mkdir -p "$OUT/httpdocs" "$OUT/private"
 
           cp tools/heliohost-attestation/verify-release.php "$OUT/httpdocs/verify-release.php"
+          cp tools/heliohost-attestation/README.md "$OUT/README.md"
           cp tools/heliohost-attestation/validate-native-php-sigstore.php "$OUT/private/"
           cp "sentryiq-${RELEASE_VERSION}.zip" "$OUT/private/sentryiq-${RELEASE_VERSION}.zip"
           cp "$BUNDLE_FILE" "$OUT/private/attestation-bundle.jsonl"
