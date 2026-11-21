@@ -43,20 +43,31 @@ describe("Node A Workers runtime proof", () => {
     const id = env.NODE_A_STATE.idFromName("node-a-rollback-test");
     const stub = env.NODE_A_STATE.get(id);
     await stub.initializeBaseline(candidate("1.0.0"));
-    const original = await stub.advancePin(candidate("2.0.0"));
+    const lock = await stub.acquireRunLock(60_000);
+    const original = await stub.advancePin(candidate("2.0.0"), lock.token);
 
-    await expect(stub.advancePin(candidate("1.9.9", "d")))
+    await expect(stub.advancePin(candidate("1.9.9", "d"), lock.token))
       .rejects.toThrow("release rollback rejected");
-    await expect(stub.advancePin({ ...candidate("2.0.0"), zipSha256: "e".repeat(64) }))
+    await expect(stub.advancePin({ ...candidate("2.0.0"), zipSha256: "e".repeat(64) }, lock.token))
       .rejects.toThrow("same-version release identity or digest replacement rejected");
     expect(await stub.getPin()).toEqual(original);
+  });
+
+  it("will not advance a pin without a valid active run lock", async () => {
+    const id = env.NODE_A_STATE.idFromName("node-a-lock-required-test");
+    const stub = env.NODE_A_STATE.get(id);
+    await stub.initializeBaseline(candidate("1.0.0"));
+    await expect(stub.advancePin(candidate("1.1.0"), "a".repeat(64)))
+      .rejects.toThrow("valid active Node A run lock required");
+    expect((await stub.getPin())?.version).toBe("1.0.0");
   });
 
   it("treats an exact same-version pin as idempotent", async () => {
     const id = env.NODE_A_STATE.idFromName("node-a-idempotent-test");
     const stub = env.NODE_A_STATE.get(id);
     const first = await stub.initializeBaseline(candidate("3.0.0"));
-    const second = await stub.advancePin(candidate("3.0.0"));
+    const lock = await stub.acquireRunLock(60_000);
+    const second = await stub.advancePin(candidate("3.0.0"), lock.token);
     expect(second).toEqual(first);
   });
 
