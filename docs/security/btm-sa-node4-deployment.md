@@ -171,6 +171,11 @@ own independent schedules to call `IntegrityNodeEventRunner`; Node 4's cron
 does not replace those checks.
 
 
+### Node 4 alert delivery semantics
+
+The outbox is durable and retries pending alerts, but delivery is **at least once**, not exactly once. The dispatcher passes the stable alert record ID as the idempotency key on every retry and marks an alert delivered only when the configured sender returns `true`. A sender/provider must honour that key (or deduplicate it at the receiving endpoint); otherwise a crash after the provider accepts a notification but before the local delivered acknowledgement is persisted can produce a duplicate. The sender must return `true` only after the destination has accepted the message, and must return `false` or throw on failure. Configure bounded connection/response timeouts in the provider adapter so a hung transport cannot indefinitely block the monitor. The current injected callable is an integration point; it is not itself a configured or tested notification service.
+
+
 ## Independent direct alerts from Nodes A and B
 
 Node 4 shares the SentryIQ host and is not a failure-independent alert destination. Each separately hosted node must therefore configure its own direct owner-alert callback, with credentials and destination held in that node's private configuration and delivery performed from that node's own provider. The callback is invoked for attestation rejection and public-origin content mismatch; a callback delivery failure fails the node run rather than silently treating the alert as delivered.
