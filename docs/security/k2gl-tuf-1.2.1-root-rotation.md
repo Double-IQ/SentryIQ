@@ -98,3 +98,8 @@ reloads the stored root in a fresh PHP process, and verifies that an incomplete
 refresh cannot replace the last trusted root. This is still a storage component
 and test boundary, not production activation: the updater runtime has not yet
 been wired to this store or tested on the HelioHost PHP web SAPI.
+
+
+### Crash-durability qualification
+
+`TufRootStore::storeVerifiedRoot()` flushes and synchronizes the temporary root file before atomic rename, but does not synchronize the containing directory after publication. As with the Node 4 event store, atomic visibility is not a guarantee that the renamed directory entry survives sudden power loss or filesystem failure. A restart could therefore expose an older trusted-root snapshot even though a refresh had completed before the crash. The monotonic version guard prevents rollback during normal operation, but cannot by itself prevent filesystem rollback after a crash. Before production activation, verify the HelioHost filesystem's rename-durability guarantees or use persistence with documented durable commits. Existing process-reload tests do not simulate power loss.
