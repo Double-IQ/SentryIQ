@@ -1,10 +1,12 @@
 import { env } from "cloudflare:test";
 import { exports as workerExports } from "cloudflare:workers";
 import { bundleFromJSON } from "@sigstore/bundle";
+import { TrustedRoot } from "@sigstore/protobuf-specs";
 import { toSignedEntity, toTrustMaterial, Verifier } from "@sigstore/verify";
 import * as bundles from "./fixtures/bundles";
 import { trustedRoot } from "./fixtures/trust";
 import { genuineV012BundleJson } from "./fixtures/genuine-v012-bundle";
+import { genuineV012TrustedRootJson } from "./fixtures/genuine-v012-trusted-root";
 import { tufRootBase64 } from "./fixtures/tuf-root";
 import { describe, expect, it } from "vitest";
 
@@ -39,11 +41,12 @@ describe("Node A Workers runtime proof", () => {
   });
 
   it("cryptographically verifies the genuine SentryIQ v0.1.2 release attestation in workerd", () => {
-    if (genuineV012BundleJson === null) {
-      throw new Error("CI must inject the genuine GitHub attestation bundle before running this suite");
+    if (genuineV012BundleJson === null || genuineV012TrustedRootJson === null) {
+      throw new Error("CI must inject the genuine GitHub attestation bundle and current Sigstore trusted root before running this suite");
     }
     const bundle = bundleFromJSON(JSON.parse(genuineV012BundleJson));
-    const verifier = new Verifier(toTrustMaterial(trustedRoot), {
+    const currentTrustedRoot = TrustedRoot.fromJSON(JSON.parse(genuineV012TrustedRootJson));
+    const verifier = new Verifier(toTrustMaterial(currentTrustedRoot), {
       ctlogThreshold: 1,
       tlogThreshold: 1,
       timestampThreshold: 1
