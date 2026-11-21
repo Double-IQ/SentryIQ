@@ -12,7 +12,7 @@ function persistentRead(path: string): Buffer {
 
 export function readFileSync(path: string, options?: string | { encoding?: BufferEncoding }): Buffer | string {
   const context = currentTufFsContext();
-  const data = context.temporaryFiles.has(path) ? context.temporaryFiles.get(path)! : persistentRead(path);
+  const data = context.temporaryFiles.get(path) ?? context.stagedFiles.get(path) ?? persistentRead(path);
   const encoding = typeof options === "string" ? options : options?.encoding;
   return encoding ? data.toString(encoding) : Buffer.from(data);
 }
@@ -37,15 +37,12 @@ export function writeFileSync(path: string, data: string | ArrayBufferView): voi
     context.temporaryFiles.set(path, Buffer.from(bytes));
     return;
   }
-  context.sql.exec(
-    "INSERT INTO tuf_files (path, data, updated_at) VALUES (?, ?, ?) ON CONFLICT(path) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at",
-    path, bytes, Date.now()
-  );
+  context.stagedFiles.set(path, Buffer.from(bytes));
 }
 
 export function existsSync(path: string): boolean {
   const context = currentTufFsContext();
-  if (context.temporaryFiles.has(path) || context.directories.has(path)) return true;
+  if (context.temporaryFiles.has(path) || context.stagedFiles.has(path) || context.directories.has(path)) return true;
   return context.sql.exec<{ present: number }>(
     "SELECT 1 AS present FROM tuf_files WHERE path = ?", path
   ).toArray().length > 0;
