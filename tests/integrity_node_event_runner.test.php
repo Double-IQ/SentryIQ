@@ -59,6 +59,27 @@ try {
             $runnerAlerts[] = [$nodeId, $reason];
         }
     );
+
+    // Preparation failures must use the independent alert path as well.
+    $missingEvidenceAlerted = false;
+    try {
+        $runner->run(
+            static fn(string $nonce): array => [],
+            $directory . DIRECTORY_SEPARATOR . 'missing-manifest.json',
+            $artifactPath,
+            '0.1.3',
+            str_repeat('a', 40),
+            'https://sentryiq.bichet.co.za'
+        );
+    } catch (RuntimeException $exception) {
+        $missingEvidenceAlerted = str_contains($exception->getMessage(), 'independent owner alert');
+    }
+    runnerAssert(
+        $missingEvidenceAlerted
+            && in_array(['integrity-b', 'local_evidence_unreadable'], $runnerAlerts, true),
+        'Missing local evidence must fail closed and trigger the independent owner alert.'
+    );
+
     $result = $runner->run(
         static function (string $nonce) use (&$seenNonce, $manifestDigest, $artifactDigest): array {
             $seenNonce = $nonce;
