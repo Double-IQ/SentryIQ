@@ -1,0 +1,124 @@
+diff --git a/src/Exception/NotFoundException.php b/src/Exception/NotFoundException.php
+new file mode 100644
+index 0000000..7ae19fb
+--- /dev/null
++++ b/src/Exception/NotFoundException.php
+@@ -0,0 +1,10 @@
++<?php
++
++declare(strict_types=1);
++
++namespace K2gl\Tuf\Exception;
++
++/**
++ * The requested repository object does not exist (HTTP 404).
++ */
++final class NotFoundException extends DownloadException {}
+diff --git a/src/Fetcher.php b/src/Fetcher.php
+index e3a38b7..811ce6b 100644
+--- a/src/Fetcher.php
++++ b/src/Fetcher.php
+@@ -13,8 +13,9 @@ use K2gl\Tuf\Exception\DownloadException;
+  *
+  * Implementations MUST enforce {@see $maxLength} to defend against endless-data
+  * attacks, and MUST throw {@see DownloadException} for any failure — including a
+- * "not found" response, which {@see Updater} relies on to detect the end of the
+- * root version chain.
++ * "not found" response. A missing object MUST be reported as
++ * {@see \K2gl\Tuf\Exception\NotFoundException}, which {@see Updater} uses to
++ * detect the end of the root version chain without hiding other failures.
+  */
+ interface Fetcher
+ {
+diff --git a/src/HttpFetcher.php b/src/HttpFetcher.php
+index 36c65ad..4c8f68d 100644
+--- a/src/HttpFetcher.php
++++ b/src/HttpFetcher.php
+@@ -5,6 +5,7 @@ declare(strict_types=1);
+ namespace K2gl\Tuf;
+ 
+ use K2gl\Tuf\Exception\DownloadException;
++use K2gl\Tuf\Exception\NotFoundException;
+ 
+ /**
+  * The default {@see Fetcher}: an HTTPS client built on cURL when available,
+@@ -62,7 +63,7 @@ final class HttpFetcher implements Fetcher
+         }
+ 
+         if ($status < 200 || $status >= 300) {
+-            throw new DownloadException(\sprintf('Fetching "%s" returned HTTP %d.', $url, $status));
++            $this->throwHttpStatus($url, $status);
+         }
+ 
+         return $body;
+@@ -71,7 +72,13 @@ final class HttpFetcher implements Fetcher
+     private function fetchWithStream(string $url, int $maxLength): string
+     {
+         $context = stream_context_create([
+-            'http' => ['method' => 'GET', 'timeout' => $this->timeoutSeconds, 'ignore_errors' => true],
++            'http' => [
++                'method' => 'GET',
++                'timeout' => $this->timeoutSeconds,
++                'ignore_errors' => true,
++                'follow_location' => 0,
++                'max_redirects' => 0,
++            ],
+         ]);
+         $stream = @fopen($url, 'rb', false, $context);
+ 
+@@ -85,6 +92,11 @@ final class HttpFetcher implements Fetcher
+         if ($body === false) {
+             throw new DownloadException(\sprintf('Failed to read "%s".', $url));
+         }
++
++        if (\strlen($body) > $maxLength) {
++            throw new DownloadException(\sprintf('Response for "%s" exceeds %d bytes.', $url, $maxLength));
++        }
++
+         $this->assertOkStatus($url, $meta['wrapper_data'] ?? null);
+ 
+         return $body;
+@@ -101,9 +112,20 @@ final class HttpFetcher implements Fetcher
+                 $status = (int) $m[1];
+ 
+                 if ($status < 200 || $status >= 300) {
+-                    throw new DownloadException(\sprintf('Fetching "%s" returned HTTP %d.', $url, $status));
++                    $this->throwHttpStatus($url, $status);
+                 }
+             }
+         }
+     }
++
++    private function throwHttpStatus(string $url, int $status): never
++    {
++        $message = \sprintf('Fetching "%s" returned HTTP %d.', $url, $status);
++
++        if ($status === 404) {
++            throw new NotFoundException($message);
++        }
++
++        throw new DownloadException($message);
++    }
+ }
+diff --git a/src/Updater.php b/src/Updater.php
+index 5636faf..fa943dc 100644
+--- a/src/Updater.php
++++ b/src/Updater.php
+@@ -4,7 +4,7 @@ declare(strict_types=1);
+ 
+ namespace K2gl\Tuf;
+ 
+-use K2gl\Tuf\Exception\DownloadException;
++use K2gl\Tuf\Exception\NotFoundException;
+ use K2gl\Tuf\Exception\RepositoryException;
+ use K2gl\Tuf\Metadata\DelegatedRole;
+ use K2gl\Tuf\Metadata\TargetFile;
+@@ -109,7 +109,7 @@ final class Updater
+         for ($next = $current + 1; $next <= $current + self::MAX_ROOT_ROTATIONS; ++$next) {
+             try {
+                 $bytes = $this->fetcher->fetch($this->metadataUrl($next . '.root.json'), self::ROOT_MAX_LENGTH);
+-            } catch (DownloadException) {
++            } catch (NotFoundException) {
+                 return; // no further root version available
+             }
+             $set->updateRoot($bytes);
