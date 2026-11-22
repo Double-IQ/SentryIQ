@@ -3,7 +3,7 @@ import { exports as workerExports } from "cloudflare:workers";
 import { bundleFromJSON } from "@sigstore/bundle";
 import { crypto as sigstoreCrypto, json as sigstoreJson } from "@sigstore/core";
 import { TrustedRoot } from "@sigstore/protobuf-specs";
-import { createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
+import { createHash, createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
 import { toSignedEntity, toTrustMaterial, Verifier } from "@sigstore/verify";
 import * as bundles from "./fixtures/bundles";
 import { trustedRoot } from "./fixtures/trust";
@@ -174,6 +174,51 @@ describe("Node A Workers runtime proof", () => {
     const second = env.NODE_A_STATE.get(id);
     const contextCheck = await second.testTufFilesystemAdapter();
     expect(contextCheck.persistentRead).toBe("persistent-root-fixture");
+  });
+
+  it("commits TUF metadata with a fenced compare-and-set and monotonic role versions", async () => {
+    const id = env.NODE_A_STATE.idFromName("node-a-tuf-metadata-cas-test");
+    const first = env.NODE_A_STATE.get(id);
+    const lock = await first.acquireRunLock(60_000);
+    const rootV1 = new TextEncoder().encode("already-verified-root-v1");
+    const rootV1Hash = createHash("sha256").update(rootV1).digest("hex");
+    const savedV1 = await first.commitVerifiedTufMetadata(
+      "root", null, { version: 1, sha256: rootV1Hash, data: rootV1 }, lock
+    );
+    const second = env.NODE_A_STATE.get(id);
+    const restored = await second.readTufMetadata("root");
+    expect(restored?.version).toBe(1);
+    expect(restored?.sha256).toBe(rootV1Hash);
+    expect(Array.from(restored!.data)).toEqual(Array.from(rootV1));
+
+    const rootV2 = new TextEncoder().encode("already-verified-root-v2");
+    const rootV2Hash = createHash("sha256").update(rootV2).digest("hex");
+    await expectRemoteRejection(
+      second.commitVerifiedTufMetadata("root", savedV1, { version: 3, sha256: rootV2Hash, data: rootV2 }, lock),
+      "TUF root rotation must advance exactly one version"
+    );
+    await expectRemoteRejection(
+      second.commitVerifiedTufMetadata("root", { version: 9, sha256: "f".repeat(64) }, { version: 2, sha256: rootV2Hash, data: rootV2 }, lock),
+      "TUF metadata compare-and-set current identity changed"
+    );
+    const savedV2 = await second.commitVerifiedTufMetadata(
+      "root", savedV1, { version: 2, sha256: rootV2Hash, data: rootV2 }, lock
+    );
+    expect(savedV2.version).toBe(2);
+    await expectRemoteRejection(
+      second.commitVerifiedTufMetadata("root", savedV2, { version: 1, sha256: rootV1Hash, data: rootV1 }, lock),
+      "TUF metadata rollback rejected"
+    );
+    const replacement = new TextEncoder().encode("different-root-v2");
+    await expectRemoteRejection(
+      second.commitVerifiedTufMetadata("root", savedV2, { version: 2, sha256: createHash("sha256").update(replacement).digest("hex"), data: replacement }, lock),
+      "same-version TUF metadata replacement rejected"
+    );
+    await expectRemoteRejection(
+      second.commitVerifiedTufMetadata("timestamp", null, { version: 1, sha256: "a".repeat(64), data: rootV1 }, lock),
+      "TUF metadata candidate digest mismatch"
+    );
+    expect((await first.readTufMetadata("root"))?.version).toBe(2);
   });
 
   it("requires an explicit immutable baseline before any release pin can advance", async () => {
