@@ -307,61 +307,125 @@ export class NodeAState extends DurableObject<Env> {
     });
   }
 
-  async testUpstreamTufEphemeralCache(rootBase64: string): Promise<{ rootVersion: number; ephemeralCacheBootstrapped: boolean; persistentCacheRejected: boolean; expectedNetworkFailure: boolean }> {
-    const suffix = randomBytes(8).toString("hex");
-    const rootPath = "/tmp/sentryiq-node-a-root-" + suffix + ".json";
-    const persistentCachePath = "/node-a/tuf-cache-" + suffix;
-    const ephemeralCachePath = "/tmp/sentryiq-node-a-cache-" + suffix;
-    nativeFs.writeFileSync(rootPath, Buffer.from(rootBase64, "base64"));
+  private persistTufFile(path: string, data: Buffer, fencingToken: number): void {
+    const metadataMarker = "/metadata/";
+    const metadataIndex = path.lastIndexOf(metadataMarker);
+    if (metadataIndex >= 0) {
+      let parsed: { signed?: { _type?: string; version?: number; expires?: string } };
+      try {
+        parsed = JSON.parse(data.toString("utf8")) as typeof parsed;
+      } catch {
+        throw new Error("TUF metadata write is not valid JSON");
+      }
+      const signed = parsed.signed;
+      if (!signed || typeof signed._type !== "string" || !Number.isSafeInteger(signed.version) || !signed.version) {
+        throw new Error("TUF metadata write is missing a valid signed role and version");
+      }
+      const role = path.slice(metadataIndex + metadataMarker.length);
+      const digest = createHash("sha256").update(data).digest("hex");
+      const current = this.ctx.storage.sql.exec<{ version: number; digest: string }>(
+        "SELECT version, digest FROM tuf_metadata_state WHERE path = ?", path
+      ).toArray()[0];
+      if (current) {
+        if (signed.version! < current.version) throw new Error("TUF metadata rollback rejected");
+        if (signed.version === current.version && digest !== current.digest) {
+          throw new Error("same-version TUF metadata replacement rejected");
+        }
+        if (role === "root.json" && signed.version! > current.version + 1) {
+          throw new Error("TUF root version skip rejected");
+        }
+      }
+      const now = Date.now();
+      this.ctx.storage.sql.exec(
+        "INSERT INTO tuf_metadata_state (path, role, version, digest, metadata_type, expires, fencing_token, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(path) DO UPDATE SET role = excluded.role, version = excluded.version, digest = excluded.digest, metadata_type = excluded.metadata_type, expires = excluded.expires, fencing_token = excluded.fencing_token, updated_at = excluded.updated_at",
+        path, role, signed.version, digest, signed._type, signed.expires ?? null, fencingToken, now
+      );
+      this.ctx.storage.sql.exec(
+        "INSERT OR IGNORE INTO tuf_metadata_history (path, version, digest, accepted_at, fencing_token) VALUES (?, ?, ?, ?, ?)",
+        path, signed.version, digest, now, fencingToken
+      );
+    }
+    this.ctx.storage.sql.exec(
+      "INSERT INTO tuf_files (path, data, updated_at) VALUES (?, ?, ?) ON CONFLICT(path) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at",
+      path, data, Date.now()
+    );
+  }
 
-    let persistentCacheRejected = false;
-    try {
-      await initTUF({
-        cachePath: persistentCachePath,
-        rootPath,
-        mirrorURL: "https://127.0.0.1:1",
-        forceCache: false,
-        forceInit: true,
-        retry: { retries: 0 },
-        timeout: 250
+  async testDurableTufRefresh(rootBase64: string, forceCache = false): Promise<{
+    rootVersion: number;
+    rootHistory: number[];
+    metadataRoles: Array<{ role: string; version: number }>;
+    tlogCount: number;
+    certificateAuthorityCount: number;
+    trustedRootTargetPersisted: boolean;
+    fencingToken: number;
+    forceCache: boolean;
+  }> {
+    const lock = this.acquireRunLock(15 * 60_000);
+    const cachePath = "/node-a/sigstore-tuf-cache";
+    const rootPath = "/tmp/sentryiq-node-a-tuf-root.json";
+    const context = createTufFsContext(this.ctx.storage.sql, (filePath, data) => {
+      this.ctx.storage.transactionSync(() => {
+        this.assertRunLock(lock.token, lock.fencingToken);
+        this.persistTufFile(filePath, data, lock.fencingToken);
       });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (!/EPERM|EACCES|operation not permitted/i.test(message)) throw error;
-      persistentCacheRejected = true;
-    }
-    if (!persistentCacheRejected) {
-      throw new Error("stock TUF unexpectedly accepted a persistent path outside the Workers writable filesystem");
-    }
-
-    let expectedNetworkFailure = false;
+    });
     try {
-      await initTUF({
-        cachePath: ephemeralCachePath,
-        rootPath,
-        mirrorURL: "https://127.0.0.1:1",
-        forceCache: false,
-        forceInit: true,
-        retry: { retries: 0 },
-        timeout: 250
+      return await runWithTufFsContext(context, async () => {
+        tufFs.writeFileSync(rootPath, Buffer.from(rootBase64, "base64"));
+        const client = await initTUF({
+          cachePath,
+          rootPath,
+          mirrorURL: "https://tuf-repo-cdn.sigstore.dev",
+          forceCache,
+          forceInit: false,
+          retry: { retries: 2 },
+          timeout: 10_000
+        });
+        const trustedRootText = await client.getTarget("trusted_root.json");
+        const trustedRoot = TrustedRoot.fromJSON(JSON.parse(trustedRootText));
+        const rootRow = this.ctx.storage.sql.exec<{ path: string; data: ArrayBuffer | Uint8Array }>(
+          "SELECT path, data FROM tuf_files WHERE path LIKE ? AND path LIKE '%/metadata/root.json' ORDER BY updated_at DESC LIMIT 1",
+          cachePath + "%"
+        ).toArray()[0];
+        if (!rootRow) throw new Error("Durable TUF root metadata was not persisted");
+        const rootMetadata = JSON.parse(Buffer.from(rootRow.data).toString("utf8")) as { signed?: { version?: number } };
+        const rootVersion = rootMetadata.signed?.version;
+        if (!Number.isSafeInteger(rootVersion) || !rootVersion) throw new Error("persisted TUF root version is invalid");
+        const rootHistory = this.ctx.storage.sql.exec<{ version: number }>(
+          "SELECT version FROM tuf_metadata_history WHERE path = ? ORDER BY version",
+          rootRow.path
+        ).toArray().map((row) => row.version);
+        const metadataRoles = this.ctx.storage.sql.exec<{ role: string; version: number }>(
+          "SELECT role, version FROM tuf_metadata_state WHERE path LIKE ? ORDER BY role",
+          cachePath + "%"
+        ).toArray();
+        const target = this.ctx.storage.sql.exec<{ present: number }>(
+          "SELECT 1 AS present FROM tuf_files WHERE path LIKE ? AND path LIKE '%trusted_root.json' LIMIT 1",
+          cachePath + "%"
+        ).toArray()[0];
+        return {
+          rootVersion,
+          rootHistory,
+          metadataRoles,
+          tlogCount: trustedRoot.tlogs.length,
+          certificateAuthorityCount: trustedRoot.certificateAuthorities.length,
+          trustedRootTargetPersisted: Boolean(target),
+          fencingToken: lock.fencingToken,
+          forceCache
+        };
       });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (/EPERM|EACCES|ENOENT|operation not permitted/i.test(message)) throw error;
-      expectedNetworkFailure = true;
+    } finally {
+      discardTufFsContext(context);
+      this.releaseRunLock(lock.token, lock.fencingToken);
     }
+  }
 
-    const cachedRootPath = path.join(ephemeralCachePath, encodeURIComponent("127.0.0.1:1"), "root.json");
-    const cachedRoot = JSON.parse(nativeFs.readFileSync(cachedRootPath, "utf8")) as { signed?: { version?: number } };
-    if (!Number.isSafeInteger(cachedRoot.signed?.version) || !cachedRoot.signed?.version) {
-      throw new Error("stock TUF did not bootstrap its root inside the Workers /tmp filesystem");
-    }
-    return {
-      rootVersion: cachedRoot.signed.version,
-      ephemeralCacheBootstrapped: true,
-      persistentCacheRejected,
-      expectedNetworkFailure
-    };
+  testTufFencedWrite(path: string, data: string, token: string, fencingToken: number): void {
+    this.ctx.storage.transactionSync(() => {
+      this.assertRunLock(token, fencingToken);
+      this.persistTufFile(path, Buffer.from(data), fencingToken);
+    });
   }
 
   async testTufFilesystemAdapter(): Promise<{ persistentRead: string; copiedRead: string; temporaryRead: string; temporaryExistsAfterCleanup: boolean; seededTufRootVersion: number; stagedWriteVisibleBeforeCommit: boolean; discardedWriteAbsentAfterRollback: boolean }> {
