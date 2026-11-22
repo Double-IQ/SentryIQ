@@ -117,6 +117,8 @@ jobs:
           test "$(git -C upstream-tuf-js rev-parse HEAD)" = "ce8ba9cd3f074531976ff4eef82af1f3adae3728"
           test "$(git -C upstream-tuf-js rev-parse HEAD:packages/client/src/store.ts)" = "570df07c5b40013a260b00f0b55e692bbfd662f9"
           test "$(git -C upstream-tuf-js rev-parse HEAD:packages/client/tests/updater.test.ts)" = "700821f9c93223d4822384f7e690aa37d954ccb8"
+          test "$(git -C upstream-tuf-js rev-parse HEAD:packages/client/src/updater.ts)" = "913ffb7f91bc6a37e4a00a8595b992df1929b09c"
+          test "$(git -C upstream-tuf-js rev-parse HEAD:packages/models/src/index.ts)" = "f9768beaea20000a9d7e35a80a34674192e15bd4"
           git -C upstream-tuf-js apply --unidiff-zero --check "$PATCH"
           git -C upstream-tuf-js apply --unidiff-zero "$PATCH"
           git -C upstream-tuf-js diff --check
