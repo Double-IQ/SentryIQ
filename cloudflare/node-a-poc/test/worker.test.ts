@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { exports as workerExports } from "cloudflare:workers";
 import { bundleFromJSON } from "@sigstore/bundle";
-import { crypto as sigstoreCrypto, json as sigstoreJson } from "@sigstore/core";
+import { crypto as sigstoreCrypto, dsse as sigstoreDsse, json as sigstoreJson } from "@sigstore/core";
 import { TrustedRoot } from "@sigstore/protobuf-specs";
 import { createPublicKey, generateKeyPairSync, KeyObject, sign, verify } from "node:crypto";
 import cryptoCompat from "crypto";
@@ -93,7 +93,23 @@ describe("Node A Workers runtime proof", () => {
       tlogThreshold: 1,
       timestampThreshold: 1
     });
-    const signer = verifier.verify(toSignedEntity(bundle));
+    const signedEntity = toSignedEntity(bundle);
+    if (signedEntity.key.$case === "certificate") {
+      const dsseKey = cryptoCompat.createPublicKey(signedEntity.key.certificate.publicKey);
+      const envelope = bundle.content.dsseEnvelope;
+      const pae = sigstoreDsse.preAuthEncoding(envelope.payloadType, Buffer.from(envelope.payload));
+      const dsseSignature = Buffer.from(envelope.signatures[0].sig);
+      console.info("SIGSTORE_DSSE_DIAGNOSTIC", JSON.stringify({
+        keyType: dsseKey.asymmetricKeyType,
+        nodeKeyObjectInstance: dsseKey instanceof KeyObject,
+        defaultVerify: sigstoreCrypto.verify(pae, dsseKey, dsseSignature),
+        explicitSha256Verify: sigstoreCrypto.verify(pae, dsseKey, dsseSignature, "sha256"),
+        bareDefaultVerify: cryptoCompat.verify(undefined, pae, dsseKey, dsseSignature),
+        bareSha256Verify: cryptoCompat.verify("sha256", pae, dsseKey, dsseSignature),
+        certificateSignatureAlgorithm: signedEntity.key.certificate.signatureAlgorithm
+      }));
+    }
+    const signer = verifier.verify(signedEntity);
     const statement = JSON.parse(Buffer.from(bundle.content.dsseEnvelope.payload).toString("utf8")) as {
       predicateType?: string;
       subject?: Array<{ name?: string; digest?: { sha256?: string } }>;
