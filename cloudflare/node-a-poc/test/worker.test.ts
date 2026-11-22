@@ -60,7 +60,9 @@ describe("Node A Workers runtime proof", () => {
     };
     const setBytes = Buffer.from(sigstoreJson.canonicalize(setPayload), "utf8");
     const setSignature = Buffer.from(tlogEntry.inclusionPromise!.signedEntryTimestamp);
-    expect(Buffer.isBuffer(tlogEntry.inclusionPromise!.signedEntryTimestamp)).toBe(true);
+    // Protobuf bytes are Uint8Array in the Workers runtime; Buffer is only one Node subclass.
+    expect(tlogEntry.inclusionPromise!.signedEntryTimestamp).toBeInstanceOf(Uint8Array);
+    expect(tlogEntry.inclusionPromise!.signedEntryTimestamp.byteLength).toBeGreaterThan(0);
     expect(sigstoreCrypto.digest("sha256", setBytes).toString("hex")).toBe("afdc764f3952ff786981b31cb5112741eecf747663d48bbcd9e90ebb2a8d346e");
     const selfTestKey = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
     const selfTestSignature = sign("sha256", setBytes, selfTestKey.privateKey);
