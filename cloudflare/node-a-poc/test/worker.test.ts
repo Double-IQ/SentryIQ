@@ -42,6 +42,13 @@ describe("Node A Workers runtime proof", () => {
     expect(body.productionReady).toBe(false);
   });
 
+  it("preserves Ed25519 verification when applying EC/RSA digest inference", () => {
+    const data = Buffer.from("SentryIQ Ed25519 inference regression");
+    const pair = generateKeyPairSync("ed25519");
+    const signature = sign(null, data, pair.privateKey);
+    expect(sigstoreCrypto.verify(data, pair.publicKey, signature)).toBe(true);
+  });
+
   it("cryptographically verifies the genuine SentryIQ v0.1.2 release attestation in workerd", () => {
     if (genuineV012BundleJson === null || genuineV012TrustedRootJson === null) {
       throw new Error("CI must inject the genuine GitHub attestation bundle and current Sigstore trusted root before running this suite");
@@ -51,7 +58,7 @@ describe("Node A Workers runtime proof", () => {
     const trustMaterial = toTrustMaterial(currentTrustedRoot);
     const tlogEntry = bundle.verificationMaterial.tlogEntries[0];
     const tlogAuthority = trustMaterial.tlogs.find((item) => item.logID.equals(tlogEntry.logId.keyId));
-    expect(tlogAuthority).toBeDefined();
+    expect(tlogAuthority, "trusted Rekor log key must be present in the current trusted root").toBeDefined();
     const setPayload = {
       body: tlogEntry.canonicalizedBody.toString("base64"),
       integratedTime: Number(tlogEntry.integratedTime),
@@ -60,17 +67,17 @@ describe("Node A Workers runtime proof", () => {
     };
     const setBytes = Buffer.from(sigstoreJson.canonicalize(setPayload), "utf8");
     const setSignature = Buffer.from(tlogEntry.inclusionPromise!.signedEntryTimestamp);
-    expect(Buffer.isBuffer(tlogEntry.inclusionPromise!.signedEntryTimestamp)).toBe(true);
+    // Protobuf bytes are Uint8Array in the Workers runtime; Buffer is only one Node subclass.
+    expect(tlogEntry.inclusionPromise!.signedEntryTimestamp, "protobuf SET signature bytes must be Uint8Array in workerd").toBeInstanceOf(Uint8Array);
+    expect(tlogEntry.inclusionPromise!.signedEntryTimestamp.byteLength, "protobuf SET signature must not be empty").toBeGreaterThan(0);
     expect(sigstoreCrypto.digest("sha256", setBytes).toString("hex")).toBe("afdc764f3952ff786981b31cb5112741eecf747663d48bbcd9e90ebb2a8d346e");
     const selfTestKey = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
     const selfTestSignature = sign("sha256", setBytes, selfTestKey.privateKey);
-    expect(verify("sha256", setBytes, selfTestKey.publicKey, selfTestSignature)).toBe(true);
+    expect(verify("sha256", setBytes, selfTestKey.publicKey, selfTestSignature), "workerd Node crypto self-test signature must verify").toBe(true);
     const trustedKeyBytes = Buffer.from(currentTrustedRoot.tlogs[0].publicKey.rawBytes);
     const exportedKeyBytes = Buffer.from(tlogAuthority!.publicKey.export({ type: "spki", format: "der" }));
-    expect(exportedKeyBytes.equals(trustedKeyBytes)).toBe(true);
-    expect(verify("sha256", setBytes, tlogAuthority!.publicKey, setSignature)).toBe(true);
-    expect(sigstoreCrypto.verify(setBytes, tlogAuthority!.publicKey, setSignature)).toBe(true);
-
+    expect(exportedKeyBytes.equals(trustedKeyBytes), "selected Rekor authority key must match trusted-root key bytes").toBe(true);
+    expect(verify("sha256", setBytes, tlogAuthority!.publicKey, setSignature), "Node crypto must verify the genuine Rekor SET signature").toBe(true);
     const verifier = new Verifier(trustMaterial, {
       ctlogThreshold: 1,
       tlogThreshold: 1,
@@ -103,6 +110,32 @@ describe("Node A Workers runtime proof", () => {
     });
     expect(statement.predicate?.buildDefinition?.resolvedDependencies?.[0]?.digest?.gitCommit)
       .toBe("9c639a4792cadd5421f01ed198ba2a9261c5145f");
+  });
+
+  it("rejects a tampered genuine DSSE signature after trusted-key validation", () => {
+    if (genuineV012BundleJson === null || genuineV012TrustedRootJson === null) {
+      throw new Error("CI must inject the genuine GitHub attestation bundle and current Sigstore trusted root before running this suite");
+    }
+    const bundle = bundleFromJSON(JSON.parse(genuineV012BundleJson));
+    const trust = toTrustMaterial(TrustedRoot.fromJSON(JSON.parse(genuineV012TrustedRootJson)));
+    const entity = toSignedEntity(bundle);
+    const verifier = new Verifier(trust, {
+      ctlogThreshold: 1,
+      tlogThreshold: 1,
+      timestampThreshold: 1
+    });
+    const internal = verifier as unknown as {
+      verifyTimestamps: (entity: typeof entity) => Date[];
+      verifySigningKey: (entity: typeof entity, timestamps: Date[]) => { key: unknown };
+      verifySignature: (entity: typeof entity, signer: { key: unknown }) => void;
+    };
+    const timestamps = internal.verifyTimestamps(entity);
+    const signer = internal.verifySigningKey(entity, timestamps);
+    const signatureContent = entity.signature as unknown as { env: { signatures: Array<{ sig: Buffer }> } };
+    const tampered = Buffer.from(signatureContent.env.signatures[0].sig);
+    tampered[0] ^= 1;
+    signatureContent.env.signatures[0].sig = tampered;
+    expect(() => internal.verifySignature(entity, signer)).toThrow("signature verification failed");
   });
 
   it("verifies an upstream Sigstore Rekor v2 certificate bundle in workerd", () => {

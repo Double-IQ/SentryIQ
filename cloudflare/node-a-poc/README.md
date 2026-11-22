@@ -18,11 +18,11 @@ npm install
 npm test
 ```
 
-Direct dependencies are exact-version pinned in `package.json`. A reviewed npm lockfile is still required before any deployment or use in a production build.
+Direct dependencies are exact-version pinned in `package.json`. `npm test` first runs the version-guarded `apply-sigstore-core-compat` script. The published `@sigstore/core@4.0.1` artifact forwards an undefined digest to `crypto.verify`, which workerd rejects for EC/RSA signatures; the local patch supplies SHA-256 only for EC/RSA keys and leaves EdDSA and RSA-PSS defaults unchanged. The patch refuses unknown package versions or compiled code shapes. The GitHub Actions workflow applies it explicitly after `npm ci --ignore-scripts`. A committed, reviewed npm lockfile is still required before any deployment or production build.
 
 ## Important non-claims
 
-- The runtime suite verifies an upstream Sigstore Rekor v2 certificate bundle using `@sigstore/verify@4.1.3` and its upstream trusted-root fixture. It is not yet a genuine SentryIQ release bundle and does not exercise the repository-specific release policy.
+- The runtime suite verifies the genuine SentryIQ v0.1.2 GitHub attestation bundle and the upstream Sigstore Rekor v2 certificate bundle using `@sigstore/verify@4.1.3` and the current Sigstore trusted root. It rejects a one-byte-tampered DSSE signature after trusted-key validation and includes an Ed25519 regression check. This is a positive/negative cryptographic PoC, not yet the complete repository-specific release policy or production caller.
 - The suite calls the stock `@sigstore/tuf@5.0.1` client with a fixture root. It confirms cache bootstrap works under `/tmp`, but a cache path outside `/tmp` fails with the Workers filesystem permission restriction. The test intentionally stops at a loopback network failure; it does not complete a live Sigstore TUF refresh.
 - The separate Durable Object filesystem prototype stages file writes, discards uncommitted changes, and commits successful changes to SQLite in a storage transaction. It is **not wired into** the upstream TUF client; the upstream package still uses the native filesystem APIs.
 - The generated CI dependency resolution is `@sigstore/tuf@5.0.1`, `tuf-js@6.0.3`, and `@tufjs/models@5.0.3`. The Sigstore wrapper exposes no storage adapter; the TUF `Fetcher` interface changes transport only, and the updater still uses filesystem metadata/target directories. `TrustedMetadataStore` is internal to `tuf-js`, not exported from its public API. A custom fetcher alone therefore cannot solve persistence.
@@ -33,8 +33,8 @@ Direct dependencies are exact-version pinned in `package.json`. A reviewed npm l
 
 ## Acceptance sequence after this PoC
 
-1. Pass this workerd suite.
-2. Add genuine SentryIQ manifest and ZIP attestation fixtures; verify both using `@sigstore/verify` with an authenticated TUF trusted root.
+1. Preserve the 13-test workerd suite and replace the temporary dependency patch with an upstream release or a separately reviewed/pinned maintained patch plus committed lockfile.
+2. Verify the genuine SentryIQ manifest and ZIP attestations independently against the authenticated TUF trusted root, with digest, subject, identity, workflow and source-commit negative cases.
 3. Implement and independently review a Durable Object-backed TUF adapter that the verifier can actually use, preserving sequential root rotation, metadata expiry/version checks, target hashes and crash-safe atomic refresh. Do not treat ephemeral `/tmp` as persistent.
 4. Test TUF restart/eviction, failed refresh preserving last-known-good metadata, rollback, expiry, threshold/signature failures and malicious metadata.
 5. Port the existing `SigstoreProvenance` and `ReleaseTrustPolicy` constraints without weakening them.

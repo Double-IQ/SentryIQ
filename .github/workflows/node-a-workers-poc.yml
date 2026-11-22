@@ -41,6 +41,8 @@ jobs:
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
       - name: Install from generated lockfile
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Apply pinned Sigstore crypto compatibility patch
+        run: npm run apply-sigstore-core-compat
       - name: Download genuine v0.1.2 release asset
         run: |
           gh release download v0.1.2 --repo Double-IQ/SentryIQ --pattern sentryiq-0.1.2.zip --dir "$RUNNER_TEMP"
