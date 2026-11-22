@@ -18,6 +18,21 @@ export class TufPersistenceCommitError extends Error {
   }
 }
 
+/**
+ * The upstream trusted-state object may have been partially mutated before
+ * validation failed. The patched updater must emit this error unless it can
+ * prove the mutation was rolled back atomically.
+ */
+export class TufStateMutationError extends Error {
+  readonly causeValue: unknown;
+
+  constructor(message: string, causeValue?: unknown) {
+    super(message);
+    this.name = "TufStateMutationError";
+    this.causeValue = causeValue;
+  }
+}
+
 export class TufUpdaterPoisonedError extends Error {
   constructor() {
     super("TUF updater instance is poisoned after a metadata persistence failure; recreate it from durable state");
@@ -49,7 +64,7 @@ export class GuardedTufUpdater<TTarget = unknown, TInfo = unknown> {
     try {
       return await operation();
     } catch (error) {
-      if (error instanceof TufPersistenceCommitError) {
+      if (error instanceof TufPersistenceCommitError || error instanceof TufStateMutationError) {
         this.poisonCause = error;
         throw error;
       }
