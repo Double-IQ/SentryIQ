@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
 import { exports as workerExports } from "cloudflare:workers";
 import { bundleFromJSON } from "@sigstore/bundle";
+import { crypto as sigstoreCrypto, json as sigstoreJson } from "@sigstore/core";
 import { TrustedRoot } from "@sigstore/protobuf-specs";
 import { toSignedEntity, toTrustMaterial, Verifier } from "@sigstore/verify";
 import * as bundles from "./fixtures/bundles";
@@ -46,7 +47,20 @@ describe("Node A Workers runtime proof", () => {
     }
     const bundle = bundleFromJSON(JSON.parse(genuineV012BundleJson));
     const currentTrustedRoot = TrustedRoot.fromJSON(JSON.parse(genuineV012TrustedRootJson));
-    const verifier = new Verifier(toTrustMaterial(currentTrustedRoot), {
+    const trustMaterial = toTrustMaterial(currentTrustedRoot);
+    const tlogEntry = bundle.verificationMaterial.tlogEntries[0];
+    const tlogAuthority = trustMaterial.tlogs.find((item) => item.logID.equals(tlogEntry.logId.keyId));
+    expect(tlogAuthority).toBeDefined();
+    const setPayload = {
+      body: tlogEntry.canonicalizedBody.toString("base64"),
+      integratedTime: Number(tlogEntry.integratedTime),
+      logIndex: Number(tlogEntry.logIndex),
+      logID: tlogEntry.logId.keyId.toString("hex")
+    };
+    const setBytes = Buffer.from(sigstoreJson.canonicalize(setPayload), "utf8");
+    expect(sigstoreCrypto.verify(setBytes, tlogAuthority!.publicKey, tlogEntry.inclusionPromise!.signedEntryTimestamp)).toBe(true);
+
+    const verifier = new Verifier(trustMaterial, {
       ctlogThreshold: 1,
       tlogThreshold: 1,
       timestampThreshold: 1
