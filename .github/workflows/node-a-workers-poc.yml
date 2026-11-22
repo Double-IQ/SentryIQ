@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "cloudflare/node-a-poc/**"
+      - "patches/tuf-js-6.0.3-trusted-state-atomicity.patch"
       - ".github/workflows/node-a-workers-poc.yml"
   push:
     branches:
@@ -94,3 +95,33 @@ jobs:
           path: cloudflare/node-a-poc/package-lock.json
           if-no-files-found: error
           retention-days: 3
+
+  tuf-upstream-atomicity:
+    name: Pinned tuf-js trusted-state atomicity patch
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout SentryIQ
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout pinned upstream tuf-js
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: theupdateframework/tuf-js
+          ref: ce8ba9cd3f074531976ff4eef82af1f3adae3728
+          path: upstream-tuf-js
+      - name: Apply SentryIQ trusted-state atomicity patch
+        working-directory: ${{ github.workspace }}
+        run: |
+          git -C upstream-tuf-js apply --check patches/tuf-js-6.0.3-trusted-state-atomicity.patch
+          git -C upstream-tuf-js apply patches/tuf-js-6.0.3-trusted-state-atomicity.patch
+          git -C upstream-tuf-js diff --check
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.15.0"
+      - name: Install pinned upstream workspace dependencies
+        working-directory: ${{ github.workspace }}/upstream-tuf-js
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run upstream TUF client test project
+        working-directory: ${{ github.workspace }}/upstream-tuf-js
+        run: npm test -- --selectProjects CLIENT --runInBand
