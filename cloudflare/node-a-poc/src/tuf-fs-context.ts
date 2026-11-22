@@ -10,6 +10,7 @@ export interface SqlStore {
 
 export interface TufFsContext {
   sql: SqlStore;
+  persistFile?: (path: string, data: Buffer) => void;
   temporaryFiles: Map<string, Buffer>;
   stagedFiles: Map<string, Buffer>;
   directories: Set<string>;
@@ -23,8 +24,8 @@ export function currentTufFsContext(): TufFsContext {
   return context;
 }
 
-export function createTufFsContext(sql: SqlStore): TufFsContext {
-  return { sql, temporaryFiles: new Map(), stagedFiles: new Map(), directories: new Set(["/tmp"]) };
+export function createTufFsContext(sql: SqlStore, persistFile?: (path: string, data: Buffer) => void): TufFsContext {
+  return { sql, persistFile, temporaryFiles: new Map(), stagedFiles: new Map(), directories: new Set(["/tmp"]) };
 }
 
 export function runWithTufFsContext<T>(context: TufFsContext, callback: () => T): T {

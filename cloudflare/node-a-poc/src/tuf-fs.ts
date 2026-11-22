@@ -37,6 +37,10 @@ export function writeFileSync(path: string, data: string | ArrayBufferView): voi
     context.temporaryFiles.set(path, Buffer.from(bytes));
     return;
   }
+  if (context.persistFile) {
+    context.persistFile(path, Buffer.from(bytes));
+    return;
+  }
   context.stagedFiles.set(path, Buffer.from(bytes));
 }
 
