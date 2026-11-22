@@ -75,3 +75,47 @@ diff --git a/packages/client/src/store.ts b/packages/client/src/store.ts
 +    // Client workflow 5.5.4: check against timestamp role’s snapshot version
 +    const snapshotMeta = timestamp.signed.snapshotMeta;
 +    if (snapshot.signed.version !== snapshotMeta.version) {
+diff --git a/packages/client/tests/updater.test.ts b/packages/client/tests/updater.test.ts
+--- a/packages/client/tests/updater.test.ts
++++ b/packages/client/tests/updater.test.ts
+@@ -1,1 +1,2 @@
+-import { clearMock, mockRepo } from '@tufjs/repo-mock';
++import { clearMock, initializeTUFRepo, mockRepo } from '@tufjs/repo-mock';
++import { TrustedMetadataStore } from '../src/store';
+@@ -211,0 +212,36 @@
++
++describe('TrustedMetadataStore candidate publication', () => {
++  const repo = initializeTUFRepo([{ name: 'foo.txt', content: 'hello' }]);
++  const rootData = Buffer.from(JSON.stringify(repo.rootMeta.toJSON()));
++
++  it('does not publish timestamp metadata when its final validation fails', () => {
++    const store = new TrustedMetadataStore(rootData);
++    Object.defineProperty(store, 'checkFinalTimestamp', {
++      value: () => {
++        throw new Error('forced final timestamp validation failure');
++      },
++    });
++
++    expect(() =>
++      store.updateTimestamp(Buffer.from(JSON.stringify(repo.timestampMeta.toJSON())))
++    ).toThrow('forced final timestamp validation failure');
++    expect(store.timestamp).toBeUndefined();
++  });
++
++  it('does not publish snapshot metadata when its final validation fails', () => {
++    const store = new TrustedMetadataStore(rootData);
++    store.updateTimestamp(
++      Buffer.from(JSON.stringify(repo.timestampMeta.toJSON()))
++    );
++    Object.defineProperty(store, 'checkFinalSnapsnot', {
++      value: () => {
++        throw new Error('forced final snapshot validation failure');
++      },
++    });
++
++    expect(() =>
++      store.updateSnapshot(Buffer.from(JSON.stringify(repo.snapshotMeta.toJSON())))
++    ).toThrow('forced final snapshot validation failure');
++    expect(store.snapshot).toBeUndefined();
++  });
++});
