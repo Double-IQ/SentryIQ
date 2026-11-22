@@ -96,7 +96,7 @@ The current `findCachedTarget` implementation catches every error and returns a 
 
 The narrow `tuf-js@6.0.3` patch is stored at `patches/tuf-js-6.0.3-trusted-state-atomicity.patch`. It moves final timestamp expiry validation and final snapshot expiry/timestamp-linkage validation before the candidate metadata is assigned into `TrustedMetadataStore`. The patch also adds two upstream regression tests that force each final check to fail and assert the corresponding trusted-set getter remains unset. The workflow pins the upstream commit plus the exact Git blob hashes for both patched source files, applies with `git apply --unidiff-zero`, builds the upstream workspaces, and runs the upstream CLIENT Jest project.
 
-Verified on PR #143 head `93e873f8bbdba3c4bb8e61c6c49893892c11bf87`: upstream TUF CLIENT **8 suites / 42 tests passed**, and the workerd suite **19/19 passed** in [CI run 45079227117](https://github.com/Double-IQ/SentryIQ/actions/runs/45079227117). This is a targeted source-level fix, not the async storage adapter. It does not yet make `tuf-js` usable with Durable Objects/R2 or establish production readiness.
+Verified on PR #143 head `93e873f8bbdba3c4bb8e61c6c49893892c11bf87`: upstream TUF CLIENT **8 suites / 42 tests passed**, and the workerd suite **20/20 passed** in [CI run 45079449397](https://github.com/Double-IQ/SentryIQ/actions/runs/45079449397). This is a targeted source-level fix, not the async storage adapter. It does not yet make `tuf-js` usable with Durable Objects/R2 or establish production readiness.
 
 ## Target digest preservation
 

@@ -11,6 +11,7 @@ on:
       - main
     paths:
       - "cloudflare/node-a-poc/**"
+      - "patches/tuf-js-6.0.3-trusted-state-atomicity.patch"
       - ".github/workflows/node-a-workers-poc.yml"
 
 permissions:
