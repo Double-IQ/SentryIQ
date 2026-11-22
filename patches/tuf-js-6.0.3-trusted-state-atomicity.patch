@@ -1,7 +1,7 @@
 diff --git a/packages/client/src/store.ts b/packages/client/src/store.ts
 --- a/packages/client/src/store.ts
 +++ b/packages/client/src/store.ts
-@@
+@@ -140,4 +140,4 @@
 -    this.trustedSet.timestamp = newTimestamp;
 -
 -    // Client workflow 5.4.4: check for freeze attack
@@ -10,7 +10,7 @@ diff --git a/packages/client/src/store.ts b/packages/client/src/store.ts
 +    // failed freeze check must not leave partially advanced in-memory state.
 +    this.checkFinalTimestamp(newTimestamp);
 +    this.trustedSet.timestamp = newTimestamp;
-@@
+@@ -207,5 +207,4 @@
 -    this.trustedSet.snapshot = newSnapshot;
 -
 -    // snapshot is loaded, but we raise if it's not valid _final_ snapshot
@@ -20,49 +20,58 @@ diff --git a/packages/client/src/store.ts b/packages/client/src/store.ts
 +    // failed expiry or timestamp-linkage check must not leave partial state.
 +    this.checkFinalSnapsnot(newSnapshot, this.timestamp);
 +    this.trustedSet.snapshot = newSnapshot;
-@@
+@@ -290,8 +290,8 @@
 -  private checkFinalTimestamp() {
-+  private checkFinalTimestamp(timestamp = this.timestamp) {
-     // Timestamp MUST be loaded
+-    // Timestamp MUST be loaded
 -    if (!this.timestamp) {
-+    if (!timestamp) {
-       throw new ReferenceError('No trusted timestamp metadata');
-     }
- 
-     // Client workflow 5.4.4: check for freeze attack
+-      throw new ReferenceError('No trusted timestamp metadata');
+-    }
+-
+-    // Client workflow 5.4.4: check for freeze attack
 -    if (this.timestamp.signed.isExpired(this.referenceTime)) {
++  private checkFinalTimestamp(timestamp = this.timestamp) {
++    // Timestamp MUST be loaded
++    if (!timestamp) {
++      throw new ReferenceError('No trusted timestamp metadata');
++    }
++
++    // Client workflow 5.4.4: check for freeze attack
 +    if (timestamp.signed.isExpired(this.referenceTime)) {
-       throw new ExpiredMetadataError('Final timestamp.json is expired');
-     }
-   }
- 
+@@ -302,17 +302,20 @@
 -  private checkFinalSnapsnot() {
+-    // Snapshot and timestamp MUST be loaded
+-    if (!this.snapshot) {
+-      throw new ReferenceError('No trusted snapshot metadata');
+-    }
+-    if (!this.timestamp) {
+-      throw new ReferenceError('No trusted timestamp metadata');
+-    }
+-
+-    // Client workflow 5.5.6: check for freeze attack
+-    if (this.snapshot.signed.isExpired(this.referenceTime)) {
+-      throw new ExpiredMetadataError('snapshot.json is expired');
+-    }
+-
+-    // Client workflow 5.5.4: check against timestamp role’s snapshot version
+-    const snapshotMeta = this.timestamp.signed.snapshotMeta;
+-    if (this.snapshot.signed.version !== snapshotMeta.version) {
 +  private checkFinalSnapsnot(
 +    snapshot = this.snapshot,
 +    timestamp = this.timestamp
 +  ) {
-     // Snapshot and timestamp MUST be loaded
--    if (!this.snapshot) {
++    // Snapshot and timestamp MUST be loaded
 +    if (!snapshot) {
-       throw new ReferenceError('No trusted snapshot metadata');
-     }
--    if (!this.timestamp) {
++      throw new ReferenceError('No trusted snapshot metadata');
++    }
 +    if (!timestamp) {
-       throw new ReferenceError('No trusted timestamp metadata');
-     }
- 
-     // Client workflow 5.5.6: check for freeze attack
--    if (this.snapshot.signed.isExpired(this.referenceTime)) {
++      throw new ReferenceError('No trusted timestamp metadata');
++    }
++
++    // Client workflow 5.5.6: check for freeze attack
 +    if (snapshot.signed.isExpired(this.referenceTime)) {
-       throw new ExpiredMetadataError('snapshot.json is expired');
-     }
- 
-     // Client workflow 5.5.4: check against timestamp role’s snapshot version
--    const snapshotMeta = this.timestamp.signed.snapshotMeta;
--    if (this.snapshot.signed.version !== snapshotMeta.version) {
++      throw new ExpiredMetadataError('snapshot.json is expired');
++    }
++
++    // Client workflow 5.5.4: check against timestamp role’s snapshot version
 +    const snapshotMeta = timestamp.signed.snapshotMeta;
 +    if (snapshot.signed.version !== snapshotMeta.version) {
-       throw new BadVersionError("Snapshot version doesn't match timestamp");
-     }
-   }
- }
