@@ -221,7 +221,7 @@ export class NodeAState extends DurableObject<Env> {
       const token = randomBytes(32).toString("hex");
       const expiresAt = now + leaseMs;
       this.ctx.storage.sql.exec("INSERT INTO run_fence_counter (singleton, last_fence) VALUES (1, ?) ON CONFLICT(singleton) DO UPDATE SET last_fence = excluded.last_fence", fence);
-      this.ctx.storage.sql.exec("INSERT INTO run_lease (singleton, run_id, fence, token_hash, expires_at) VALUES (1, ?, ?, ?, ?) ON CONFLICT(singleton) DO UPDATE SET run_id = excluded.run_id, fence = excluded.fence, token_hash = excluded.token_hash, expires_at = excluded.expires_at", runId, fence, token, expiresAt);
+      this.ctx.storage.sql.exec("INSERT INTO run_lease (singleton, run_id, fence, token_hash, expires_at) VALUES (1, ?, ?, ?, ?) ON CONFLICT(singleton) DO UPDATE SET run_id = excluded.run_id, fence = excluded.fence, token_hash = excluded.token_hash, expires_at = excluded.expires_at", runId, fence, createHash("sha256").update(token).digest("hex"), expiresAt);
       return { runId, fence, token, expiresAt };
     });
   }
