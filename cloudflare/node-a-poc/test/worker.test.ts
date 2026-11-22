@@ -31,6 +31,47 @@ const candidate = (version: string, suffix = "a") => ({
   zipSha256: "c".repeat(64)
 });
 
+describe("Node A isolated certificate diagnostic", () => {
+  it("reports native and Sigstore certificate verification results", () => {
+    let stage = "bundle";
+    try {
+      if (genuineV012BundleJson === null || genuineV012TrustedRootJson === null) throw new Error("genuine fixtures missing");
+      const bundle = bundleFromJSON(JSON.parse(genuineV012BundleJson));
+      stage = "trusted-root";
+      const root = TrustedRoot.fromJSON(JSON.parse(genuineV012TrustedRootJson));
+      stage = "trust-material";
+      const trust = toTrustMaterial(root);
+      stage = "signed-entity";
+      const entity = toSignedEntity(bundle);
+      if (entity.key.$case !== "certificate") throw new Error("bundle does not contain certificate key");
+      const leaf = entity.key.certificate;
+      const nativeLeaf = new cryptoCompat.X509Certificate(leaf.root.toDER());
+      const diagnostics = trust.certificateAuthorities.flatMap((authority, authorityIndex) =>
+        authority.certChain.map((cert, certIndex) => {
+          const nativeIssuer = new cryptoCompat.X509Certificate(cert.root.toDER());
+          const result: Record<string, unknown> = {
+            authorityIndex, certIndex,
+            leafSignatureAlgorithm: leaf.signatureAlgorithm,
+            caSignatureAlgorithm: cert.signatureAlgorithm,
+            leafSubjectEqualsIssuer: leaf.subject.equals(leaf.issuer),
+            caSubjectEqualsIssuer: cert.subject.equals(cert.issuer)
+          };
+          try { result.nativeLeafVerify = nativeLeaf.verify(nativeIssuer.publicKey); } catch (e) { result.nativeLeafVerify = String(e); }
+          try { result.nativeCaSelfVerify = nativeIssuer.verify(nativeIssuer.publicKey); } catch (e) { result.nativeCaSelfVerify = String(e); }
+          try { result.sigstoreLeafVerify = leaf.verify(cert); } catch (e) { result.sigstoreLeafVerify = String(e); }
+          try { result.sigstoreCaSelfVerify = cert.verify(); } catch (e) { result.sigstoreCaSelfVerify = String(e); }
+          try { result.directLeafVerify = cryptoCompat.verify(leaf.signatureAlgorithm, leaf.tbsCertificate.toDER(), cryptoCompat.createPublicKey(cert.publicKey), leaf.signatureValue); } catch (e) { result.directLeafVerify = String(e); }
+          return result;
+        })
+      );
+      throw new Error("NODE_A_ISOLATED_CERT_DIAGNOSTIC " + JSON.stringify(diagnostics));
+    } catch (error) {
+      if (String(error).includes("NODE_A_ISOLATED_CERT_DIAGNOSTIC")) throw error;
+      throw new Error("NODE_A_ISOLATED_CERT_DIAGNOSTIC stage=" + stage + " error=" + String(error));
+    }
+  });
+});
+
 describe("Node A Workers runtime proof", () => {
   it("loads the Sigstore verifier and TUF client in workerd and executes Ed25519 crypto", async () => {
     const response = await workerExports.default.fetch(new Request("https://node-a-poc.test/runtime-check"), env, {} as ExecutionContext);
