@@ -71,7 +71,15 @@ describe("Node A Workers runtime proof", () => {
     const exportedKeyBytes = Buffer.from(tlogAuthority!.publicKey.export({ type: "spki", format: "der" }));
     expect(exportedKeyBytes.equals(trustedKeyBytes), "selected Rekor authority key must match trusted-root key bytes").toBe(true);
     expect(verify("sha256", setBytes, tlogAuthority!.publicKey, setSignature), "Node crypto must verify the genuine Rekor SET signature").toBe(true);
-    expect(sigstoreCrypto.verify(setBytes, tlogAuthority!.publicKey, setSignature), "Sigstore crypto must verify the genuine Rekor SET signature").toBe(true);
+    const sigstoreKey = tlogAuthority!.publicKey;
+    console.info("SIGSTORE_CRYPTO_DIAGNOSTIC", JSON.stringify({
+      asymmetricKeyType: (sigstoreKey as { asymmetricKeyType?: string }).asymmetricKeyType ?? null,
+      keyConstructor: Object.getPrototypeOf(sigstoreKey)?.constructor?.name ?? null,
+      nodeKeyObjectInstance: sigstoreKey instanceof (createPublicKey(Buffer.from(currentTrustedRoot.tlogs[0].publicKey.rawBytes)).constructor as typeof sigstoreKey.constructor),
+      explicitSha256Verify: sigstoreCrypto.verify(setBytes, sigstoreKey, setSignature, "sha256"),
+      defaultVerify: sigstoreCrypto.verify(setBytes, sigstoreKey, setSignature)
+    }));
+    expect(sigstoreCrypto.verify(setBytes, sigstoreKey, setSignature), "Sigstore crypto must verify the genuine Rekor SET signature").toBe(true);
 
     const verifier = new Verifier(trustMaterial, {
       ctlogThreshold: 1,
