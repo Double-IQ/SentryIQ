@@ -2,11 +2,11 @@ import { DurableObject } from "cloudflare:workers";
 import { createHash, generateKeyPairSync, randomBytes, sign, verify } from "node:crypto";
 import * as tufFs from "./tuf-fs";
 import * as tufFsPromises from "./tuf-fs-promises";
-import * as nativeFs from "node:fs";
 import { commitTufFsContext, createTufFsContext, discardTufFsContext, runWithTufFsContext } from "./tuf-fs-context";
 import path from "node:path";
 import { Verifier } from "@sigstore/verify";
 import { initTUF } from "@sigstore/tuf";
+import { TrustedRoot } from "@sigstore/protobuf-specs";
 
 export interface Env {
   NODE_A_STATE: DurableObjectNamespace<NodeAState>;
@@ -24,6 +24,7 @@ type PinCandidate = Omit<ReleasePin, "updatedAt">;
 
 type RunLock = {
   token: string;
+  fencingToken: number;
   expiresAt: number;
 };
 
@@ -79,7 +80,30 @@ export class NodeAState extends DurableObject<Env> {
       CREATE TABLE IF NOT EXISTS run_lock (
         singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
         token TEXT NOT NULL,
-        expires_at INTEGER NOT NULL
+        expires_at INTEGER NOT NULL,
+        fencing_token INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS run_fence (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        last_fence INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS tuf_metadata_state (
+        path TEXT PRIMARY KEY,
+        role TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        digest TEXT NOT NULL,
+        metadata_type TEXT NOT NULL,
+        expires TEXT,
+        fencing_token INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS tuf_metadata_history (
+        path TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        digest TEXT NOT NULL,
+        accepted_at INTEGER NOT NULL,
+        fencing_token INTEGER NOT NULL,
+        PRIMARY KEY (path, version)
       );
       CREATE TABLE IF NOT EXISTS tuf_files (
         path TEXT PRIMARY KEY,
@@ -93,6 +117,11 @@ export class NodeAState extends DurableObject<Env> {
         recorded_at INTEGER NOT NULL
       );
     `);
+    const runLockColumns = ctx.storage.sql.exec<{ name: string }>("PRAGMA table_info(run_lock)").toArray();
+    if (!runLockColumns.some((column) => column.name === "fencing_token")) {
+      ctx.storage.sql.exec("ALTER TABLE run_lock ADD COLUMN fencing_token INTEGER NOT NULL DEFAULT 0");
+    }
+    ctx.storage.sql.exec("INSERT OR IGNORE INTO run_fence (singleton, last_fence) VALUES (1, 0)");
   }
 
   getPin(): ReleasePin | null {
@@ -149,11 +178,11 @@ export class NodeAState extends DurableObject<Env> {
     });
   }
 
-  advancePin(candidate: PinCandidate, lockToken: string): ReleasePin {
+  advancePin(candidate: PinCandidate, lockToken: string, fencingToken: number): ReleasePin {
     validatePin(candidate);
     if (!/^[a-f0-9]{64}$/.test(lockToken)) throw new Error("run lock token is invalid");
     return this.ctx.storage.transactionSync(() => {
-      this.assertRunLock(lockToken);
+      this.assertRunLock(lockToken, fencingToken);
       const baseline = this.ctx.storage.sql
         .exec<{ version: string; commit_sha: string; manifest_sha256: string; zip_sha256: string }>(
           "SELECT version, commit_sha, manifest_sha256, zip_sha256 FROM release_baseline WHERE singleton = 1"
@@ -214,46 +243,53 @@ export class NodeAState extends DurableObject<Env> {
       if (current && current.expires_at > now) {
         throw new Error("Node A run already holds the durable lock");
       }
-      const lock = { token, expiresAt: now + leaseMs };
+      const lastFence = this.ctx.storage.sql
+        .exec<{ last_fence: number }>("SELECT last_fence FROM run_fence WHERE singleton = 1")
+        .toArray()[0]?.last_fence ?? 0;
+      const fencingToken = lastFence + 1;
+      this.ctx.storage.sql.exec("UPDATE run_fence SET last_fence = ? WHERE singleton = 1", fencingToken);
+      const lock = { token, fencingToken, expiresAt: now + leaseMs };
       this.ctx.storage.sql.exec(
-        `INSERT INTO run_lock (singleton, token, expires_at) VALUES (1, ?, ?)
-         ON CONFLICT(singleton) DO UPDATE SET token = excluded.token, expires_at = excluded.expires_at`,
-        lock.token,
-        lock.expiresAt
+        "INSERT INTO run_lock (singleton, token, expires_at, fencing_token) VALUES (1, ?, ?, ?) ON CONFLICT(singleton) DO UPDATE SET token = excluded.token, expires_at = excluded.expires_at, fencing_token = excluded.fencing_token",
+        lock.token, lock.expiresAt, lock.fencingToken
       );
       return lock;
     });
   }
 
-  renewRunLock(token: string, leaseMs: number): RunLock {
-    if (!/^[a-f0-9]{64}$/.test(token) || !Number.isSafeInteger(leaseMs)
-        || leaseMs < 1_000 || leaseMs > 15 * 60_000) {
-      throw new Error("invalid run lock token or lease");
+  renewRunLock(token: string, fencingToken: number, leaseMs: number): RunLock {
+    if (!/^[a-f0-9]{64}$/.test(token) || !Number.isSafeInteger(fencingToken) || fencingToken < 1
+        || !Number.isSafeInteger(leaseMs) || leaseMs < 1_000 || leaseMs > 15 * 60_000) {
+      throw new Error("invalid run lock token, fencing token or lease");
     }
     return this.ctx.storage.transactionSync(() => {
       const now = Date.now();
-      this.assertRunLock(token);
-      const lock = { token, expiresAt: now + leaseMs };
+      this.assertRunLock(token, fencingToken);
+      const lock = { token, fencingToken, expiresAt: now + leaseMs };
       this.ctx.storage.sql.exec("UPDATE run_lock SET expires_at = ? WHERE singleton = 1", lock.expiresAt);
       return lock;
     });
   }
 
-  private assertRunLock(token: string): void {
+  private assertRunLock(token: string, fencingToken: number): void {
     const current = this.ctx.storage.sql
-      .exec<{ token: string; expires_at: number }>("SELECT token, expires_at FROM run_lock WHERE singleton = 1")
-      .toArray()[0];
-    if (!current || current.token !== token || current.expires_at <= Date.now()) {
+      .exec<{ token: string; expires_at: number; fencing_token: number }>(
+        "SELECT token, expires_at, fencing_token FROM run_lock WHERE singleton = 1"
+      ).toArray()[0];
+    if (!current || current.token !== token || current.fencing_token !== fencingToken || current.expires_at <= Date.now()) {
       throw new Error("valid active Node A run lock required");
     }
   }
 
-  releaseRunLock(token: string): void {
+  releaseRunLock(token: string, fencingToken: number): void {
     this.ctx.storage.transactionSync(() => {
       const current = this.ctx.storage.sql
-        .exec<{ token: string }>("SELECT token FROM run_lock WHERE singleton = 1")
-        .toArray()[0];
-      if (!current || current.token !== token) throw new Error("run lock token mismatch");
+        .exec<{ token: string; fencing_token: number }>(
+          "SELECT token, fencing_token FROM run_lock WHERE singleton = 1"
+        ).toArray()[0];
+      if (!current || current.token !== token || current.fencing_token !== fencingToken) {
+        throw new Error("run lock token or fencing token mismatch");
+      }
       this.ctx.storage.sql.exec("DELETE FROM run_lock WHERE singleton = 1");
     });
   }
