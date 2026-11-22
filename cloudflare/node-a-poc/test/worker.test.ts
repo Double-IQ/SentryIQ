@@ -341,6 +341,8 @@ describe("Node A Workers runtime proof", () => {
     expect(guarded.poisoned).toBe(true);
     await expect(guarded.getTarget("targets/release.zip")).rejects.toBeInstanceOf(TufUpdaterPoisonedError);
     await expect(guarded.getTargetInfo("targets/release.zip")).rejects.toBeInstanceOf(TufUpdaterPoisonedError);
+    await expect(guarded.findCachedTarget({ path: "targets/release.zip" })).rejects.toBeInstanceOf(TufUpdaterPoisonedError);
+    await expect(guarded.downloadTarget({ path: "targets/release.zip" })).rejects.toBeInstanceOf(TufUpdaterPoisonedError);
     await expect(guarded.refresh()).rejects.toBeInstanceOf(TufUpdaterPoisonedError);
     expect(refreshCalls).toBe(1);
     expect(targetCalls).toBe(0);
