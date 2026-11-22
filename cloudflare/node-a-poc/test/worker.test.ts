@@ -10,6 +10,7 @@ import { trustedRoot } from "./fixtures/trust";
 import { genuineV012BundleJson } from "./fixtures/genuine-v012-bundle";
 import { genuineV012TrustedRootJson } from "./fixtures/genuine-v012-trusted-root";
 import { tufRootBase64 } from "./fixtures/tuf-root";
+import { GuardedTufUpdater, TufPersistenceCommitError, TufUpdaterPoisonedError } from "../src/guarded-tuf-updater";
 import { describe, expect, it } from "vitest";
 
 async function expectRemoteRejection(promise: Promise<unknown>, message: string): Promise<void> {
@@ -317,4 +318,46 @@ describe("Node A Workers runtime proof", () => {
     await expectRemoteRejection(stub.releaseRunLock(first), "valid active Node A run fence required");
     expect((await stub.advancePin(candidate("1.1.0"), second)).version).toBe("1.1.0");
   });
+  it("poisons a TUF updater after accepted metadata cannot be durably committed", async () => {
+    let refreshCalls = 0;
+    let targetCalls = 0;
+    const upstream = {
+      async refresh() {
+        refreshCalls++;
+        throw new TufPersistenceCommitError("durable root commit failed after upstream acceptance");
+      },
+      async getTarget(targetPath: string) {
+        targetCalls++;
+        return targetPath;
+      },
+      async getTargetInfo(targetPath: string) {
+        return { path: targetPath };
+      }
+    };
+    const guarded = new GuardedTufUpdater(upstream);
+    await expect(guarded.refresh()).rejects.toBeInstanceOf(TufPersistenceCommitError);
+    expect(guarded.poisoned).toBe(true);
+    await expect(guarded.getTarget("targets/release.zip")).rejects.toBeInstanceOf(TufUpdaterPoisonedError);
+    await expect(guarded.getTargetInfo("targets/release.zip")).rejects.toBeInstanceOf(TufUpdaterPoisonedError);
+    await expect(guarded.refresh()).rejects.toBeInstanceOf(TufUpdaterPoisonedError);
+    expect(refreshCalls).toBe(1);
+    expect(targetCalls).toBe(0);
+  });
+
+  it("does not poison an updater for an ordinary rejected refresh", async () => {
+    let attempts = 0;
+    const guarded = new GuardedTufUpdater({
+      async refresh() {
+        attempts++;
+        if (attempts === 1) throw new Error("network unavailable before trusted-state mutation");
+      },
+      async getTarget(targetPath: string) { return targetPath; },
+      async getTargetInfo(targetPath: string) { return { path: targetPath }; }
+    });
+    await expect(guarded.refresh()).rejects.toThrow("network unavailable");
+    expect(guarded.poisoned).toBe(false);
+    await expect(guarded.getTarget("targets/release.zip")).resolves.toBe("targets/release.zip");
+    expect(attempts).toBe(1);
+  });
+
 });
