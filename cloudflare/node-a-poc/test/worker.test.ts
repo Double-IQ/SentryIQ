@@ -121,7 +121,26 @@ describe("Node A Workers runtime proof", () => {
           chainDiagnostics.push(item);
         }
       }
-      console.log("SIGSTORE_CERT_CHAIN_DIAGNOSTIC", JSON.stringify(chainDiagnostics));
+      const nativeLeaf = new cryptoCompat.X509Certificate(leaf.root.toDER());
+      const nativeDiagnostics = trustMaterial.certificateAuthorities.flatMap((authority, authorityIndex) =>
+        authority.certChain.map((cert, certIndex) => {
+          const nativeIssuer = new cryptoCompat.X509Certificate(cert.root.toDER());
+          let nativeLeafVerify: unknown;
+          let nativeCaSelfVerify: unknown;
+          let sigstoreLeafVerify: unknown;
+          let directCoreEquivalent: unknown;
+          try { nativeLeafVerify = nativeLeaf.verify(nativeIssuer.publicKey); } catch (error) { nativeLeafVerify = String(error); }
+          try { nativeCaSelfVerify = nativeIssuer.verify(nativeIssuer.publicKey); } catch (error) { nativeCaSelfVerify = String(error); }
+          try { sigstoreLeafVerify = leaf.verify(cert); } catch (error) { sigstoreLeafVerify = String(error); }
+          try {
+            directCoreEquivalent = cryptoCompat.verify(leaf.signatureAlgorithm, leaf.tbsCertificate.toDER(), cryptoCompat.createPublicKey(cert.publicKey), leaf.signatureValue);
+          } catch (error) { directCoreEquivalent = String(error); }
+          return { authorityIndex, certIndex, leafSignatureAlgorithm: leaf.signatureAlgorithm,
+            caSignatureAlgorithm: cert.signatureAlgorithm, nativeLeafVerify, nativeCaSelfVerify,
+            sigstoreLeafVerify, directCoreEquivalent };
+        })
+      );
+      throw new Error("NODE_A_CERTIFICATE_VERIFY_DIAGNOSTIC " + JSON.stringify({chainDiagnostics,nativeDiagnostics}));
     }
     console.log("NODE_A_STAGE_BEFORE_VERIFIER_VERIFY");
     let signer;
