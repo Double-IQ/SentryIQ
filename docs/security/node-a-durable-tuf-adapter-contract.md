@@ -156,3 +156,48 @@ This improves the Durable Object storage boundary but is not an implementation o
 - tests prove the real @sigstore/tuf client refreshes and downloads targets without native filesystem fallback.
 
 Do not mark root rotation or TUF acceptance complete based only on the DO metadata primitive tests.
+
+## 10. Concrete pinned-source call-site inventory and patch order
+
+The adapter patch must cover the following exact upstream responsibilities. This inventory is based on the pinned source revisions in section 8; it is deliberately not a blanket filesystem replacement.
+
+### tuf-js 6.0.3 — packages/client/src/updater.ts
+
+| Updater operation | Current filesystem behavior | Required replacement |
+|---|---|---|
+| Constructor / loadLocalMetadata(root) | fs.readFileSync(path.join(metadataDir, "root.json")) | Synchronous bootstrap from a preloaded, verified root byte snapshot supplied by the storage adapter; no implicit native disk access |
+| loadLocalMetadata(role) | fs.readFileSync for timestamp, snapshot and delegated roles | Read exact role bytes from durable metadata storage; absence remains distinguishable from corrupt metadata |
+| persistMetadata(role, bytes) | fs.writeFileSync after upstream validation | Await a fenced per-role commit with expected-current identity; persistence failure poisons the updater instance |
+| findCachedTarget | existsSync plus createReadStream | Read a committed target through storage and verify it before returning a cache hit |
+| downloadTarget | fetcher temp file, createReadStream verify, copyFileSync promote | Stream into bounded disposable stage, verify expected length/hash, then fenced atomic promotion |
+| generateTargetPath | constructs local path | Return an opaque target handle/key from the adapter, not a filesystem path |
+
+Root update sequencing must remain unchanged semantically: TrustedMetadataStore.updateRoot validates the candidate; after validation, the accepted root is committed durably before the next root version is fetched. Because the current upstream code mutates its in-memory trusted set before persistence, any persistence failure must mark the updater unusable. The wrapper must construct a fresh updater from the last durable state for any retry.
+
+### @sigstore/tuf 5.0.1 — packages/tuf/src/client.ts and target helper
+
+The wrapper currently creates cache and targets directories; seeds root.json from a supplied root path or embedded repository seed; constructs tuf-js with metadata and target directory paths; and returns a filesystem path through the target helper, which then reads the file.
+
+Replace these with an explicit adapter option passed to tuf-js and a byte-returning verified-target API. Keep the existing public initTUF / target retrieval behavior compatible for non-Workers consumers if practical; the Workers integration must opt into the adapter explicitly. Embedded seeds are allowed only as the initial root/seed inputs and must be copied into durable storage under the run fence before refresh starts.
+
+### Patch packaging and drift control
+
+Use a narrowly scoped, reviewable patch against exact tuf-js@6.0.3 and @sigstore/tuf@5.0.1 sources. Pin both package tarball integrity values from the lockfile. The patch application must:
+1. verify package versions and source file hashes before editing;
+2. fail closed if an expected source fragment is absent or appears more than once;
+3. replace every listed metadata/target filesystem operation, not just the root read;
+4. expose no default native-filesystem fallback when the adapter option is selected;
+5. have a drift test that enumerates the dependency's remaining filesystem call sites and fails on any unreviewed addition;
+6. be reproducible from a clean npm ci, with the patch applied deterministically before tests/build.
+
+Do not use runtime monkey-patching, module-loader interception, global fs replacement, or AsyncLocalStorage as a substitute for explicit adapter injection.
+
+### Implementation slices
+
+1. **Metadata bootstrap and commit:** inject adapter into tuf-js; bootstrap root; refresh root/timestamp/snapshot/targets/delegations; prove each accepted root version commits before the next fetch. Add failure injection immediately after each successful role validation and before its commit.
+2. **Updater poisoning:** make every metadata persistence failure terminal for that updater object; test that a second refresh on the same instance is rejected, while a newly constructed instance resumes from the last committed root/metadata.
+3. **Target staging:** implement bounded streaming stage, length/hash verification, atomic fenced promotion, and committed target byte retrieval. Ensure temporary fetcher files remain ephemeral and are never treated as durable cache.
+4. **Sigstore wrapper:** route bootstrap, metadata and target reads through the adapter, then run the unchanged genuine SentryIQ release verification against the returned target bytes.
+5. **Adversarial/restart matrix:** fail at each boundary, evict/reconstruct the DO instance, retry under a newer fence, and prove no stale run can commit or return an uncommitted target.
+
+Acceptance remains blocked until all five slices run in the real Workerd integration test with native filesystem fallback disabled.
