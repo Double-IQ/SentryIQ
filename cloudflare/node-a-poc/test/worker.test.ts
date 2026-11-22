@@ -384,4 +384,30 @@ describe("Node A Workers runtime proof", () => {
     expect(refreshCalls).toBe(1);
   });
 
+  it("serializes concurrent updater operations so queued work observes poison", async () => {
+    let releaseRefresh!: () => void;
+    let targetDownloads = 0;
+    const refreshGate = new Promise<void>((resolve) => { releaseRefresh = resolve; });
+    const guarded = new GuardedTufUpdater({
+      async refresh() {
+        await refreshGate;
+        throw new TufStateMutationError("upstream trusted set mutated before failure");
+      },
+      async getTarget(targetPath: string) { return targetPath; },
+      async getTargetInfo(targetPath: string) { return { path: targetPath }; },
+      async findCachedTarget() { return undefined; },
+      async downloadTarget(targetInfo: unknown) {
+        targetDownloads++;
+        return targetInfo;
+      }
+    });
+
+    const refresh = guarded.refresh();
+    const queuedDownload = guarded.downloadTarget({ path: "targets/release.zip" });
+    releaseRefresh();
+    await expect(refresh).rejects.toBeInstanceOf(TufStateMutationError);
+    await expect(queuedDownload).rejects.toBeInstanceOf(TufUpdaterPoisonedError);
+    expect(targetDownloads).toBe(0);
+  });
+
 });
