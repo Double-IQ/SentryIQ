@@ -44,7 +44,8 @@ export interface TufMetadataStore {
 export interface TufTargetDescriptor {
   readonly targetPath: string;
   readonly length: number;
-  readonly sha256: string;
+  /** Every hash declared by the verified TUF target metadata; do not narrow to SHA-256. */
+  readonly hashes: Readonly<Record<string, string>>;
 }
 
 export interface TufTargetStage {
