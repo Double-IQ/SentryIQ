@@ -13,7 +13,7 @@ export interface TufMetadataIdentity {
 }
 
 export interface StoredTufMetadata extends TufMetadataIdentity {
-  /** Exact canonical bytes consumed by the upstream TUF verifier. */
+  /** Exact original bytes consumed by the upstream TUF verifier. */
   readonly data: Uint8Array;
 }
 
@@ -50,7 +50,7 @@ export interface TufTargetDescriptor {
 
 export interface TufTargetStage {
   readonly stageId: string;
-  readonly targetPath: string;
+  readonly descriptor: TufTargetDescriptor;
   readonly objectKey: string;
   readonly fence: number;
 }
@@ -75,7 +75,7 @@ export interface TufTargetStore {
   writeTargetChunk(stage: TufTargetStage, chunk: Uint8Array): Promise<void>;
 
   /**
-   * Confirm completed object length and SHA-256, then publish its immutable
+   * Confirm completed object length and every declared target digest, then publish its immutable
    * pointer in a short fenced Durable Object transaction. A stale owner may
    * leave an orphaned object but must never publish it.
    */
