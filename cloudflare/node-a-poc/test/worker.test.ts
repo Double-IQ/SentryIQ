@@ -180,7 +180,8 @@ describe("Node A Workers runtime proof", () => {
     const id = env.NODE_A_STATE.idFromName("node-a-tuf-metadata-cas-test");
     const first = env.NODE_A_STATE.get(id);
     const lock = await first.acquireRunLock(60_000);
-    const rootV1 = new TextEncoder().encode("already-verified-root-v1");
+    const metadata = (type: string, version: number, label: string) => new TextEncoder().encode(JSON.stringify({ signed: { type, version, label }, signatures: [] }));
+    const rootV1 = metadata("root", 1, "root-v1");
     const rootV1Hash = createHash("sha256").update(rootV1).digest("hex");
     const savedV1 = await first.commitVerifiedTufMetadata(
       "root", null, { version: 1, sha256: rootV1Hash, data: rootV1 }, lock
@@ -191,7 +192,7 @@ describe("Node A Workers runtime proof", () => {
     expect(restored?.sha256).toBe(rootV1Hash);
     expect(Array.from(restored!.data)).toEqual(Array.from(rootV1));
 
-    const rootV2 = new TextEncoder().encode("already-verified-root-v2");
+    const rootV2 = metadata("root", 2, "root-v2");
     const rootV2Hash = createHash("sha256").update(rootV2).digest("hex");
     await expectRemoteRejection(
       second.commitVerifiedTufMetadata("root", savedV1, { version: 3, sha256: rootV2Hash, data: rootV2 }, lock),
@@ -209,7 +210,7 @@ describe("Node A Workers runtime proof", () => {
       second.commitVerifiedTufMetadata("root", savedV2, { version: 1, sha256: rootV1Hash, data: rootV1 }, lock),
       "TUF metadata rollback rejected"
     );
-    const replacement = new TextEncoder().encode("different-root-v2");
+    const replacement = metadata("root", 2, "different-root-v2");
     await expectRemoteRejection(
       second.commitVerifiedTufMetadata("root", savedV2, { version: 2, sha256: createHash("sha256").update(replacement).digest("hex"), data: replacement }, lock),
       "same-version TUF metadata replacement rejected"
@@ -218,9 +219,14 @@ describe("Node A Workers runtime proof", () => {
       second.commitVerifiedTufMetadata("timestamp", null, { version: 1, sha256: "a".repeat(64), data: rootV1 }, lock),
       "TUF metadata candidate digest mismatch"
     );
+    const wrongEnvelope = metadata("timestamp", 1, "wrong-role");
+    await expectRemoteRejection(
+      second.commitVerifiedTufMetadata("root", null, { version: 1, sha256: createHash("sha256").update(wrongEnvelope).digest("hex"), data: wrongEnvelope }, lock),
+      "TUF metadata role or version does not match its signed envelope"
+    );
     expect((await first.readTufMetadata("root"))?.version).toBe(2);
 
-    const delegated = new TextEncoder().encode("already-verified-delegated-role");
+    const delegated = metadata("targets", 1, "delegated-role");
     const delegatedHash = createHash("sha256").update(delegated).digest("hex");
     await first.commitVerifiedTufMetadata(
       "delegations/team-a", null, { version: 1, sha256: delegatedHash, data: delegated }, lock
