@@ -75,7 +75,6 @@ describe("Node A Workers runtime proof", () => {
     console.info("SIGSTORE_CRYPTO_DIAGNOSTIC", JSON.stringify({
       asymmetricKeyType: (sigstoreKey as { asymmetricKeyType?: string }).asymmetricKeyType ?? null,
       keyConstructor: Object.getPrototypeOf(sigstoreKey)?.constructor?.name ?? null,
-      nodeKeyObjectInstance: sigstoreKey instanceof (createPublicKey(Buffer.from(currentTrustedRoot.tlogs[0].publicKey.rawBytes)).constructor as typeof sigstoreKey.constructor),
       explicitSha256Verify: sigstoreCrypto.verify(setBytes, sigstoreKey, setSignature, "sha256"),
       defaultVerify: sigstoreCrypto.verify(setBytes, sigstoreKey, setSignature)
     }));
