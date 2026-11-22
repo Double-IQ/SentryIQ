@@ -69,6 +69,7 @@ jobs:
       - name: Run workerd integration tests
         run: npm test
       - name: Export genuine v0.1.2 bundle for review
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: node-a-v012-genuine-attestation-bundle
@@ -76,6 +77,7 @@ jobs:
           if-no-files-found: error
           retention-days: 3
       - name: Export current Sigstore trusted root for review
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: node-a-current-sigstore-trusted-root
@@ -83,6 +85,7 @@ jobs:
           if-no-files-found: error
           retention-days: 3
       - name: Export generated lockfile for review
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: node-a-poc-package-lock
