@@ -8,7 +8,8 @@ const original = fs.readFileSync(cryptoPath, "utf8");
 const pattern = /const keyType =\s*key instanceof crypto\.KeyObject\s*\?\s*key\.asymmetricKeyType\s*:\s*crypto\.createPublicKey\(key\)\.asymmetricKeyType;/s;
 const replacement = "const keyType = key !== null && typeof key === 'object' && typeof key.asymmetricKeyType === 'string' ? key.asymmetricKeyType : crypto.createPublicKey(key).asymmetricKeyType;";
 if (!pattern.test(original)) {
-  throw new Error("Pinned @sigstore/core crypto helper did not match the expected 4.0.1 implementation; refusing to apply diagnostic patch");
+  const i = original.indexOf("KeyObject");
+  throw new Error("Pinned @sigstore/core crypto helper did not match; refusing patch. Snippet: " + original.slice(Math.max(0, i - 120), i + 300));
 }
 const patched = original.replace(pattern, replacement);
 if (patched === original) throw new Error("Diagnostic patch made no change");
