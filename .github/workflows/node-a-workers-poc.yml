@@ -125,6 +125,9 @@ jobs:
       - name: Install pinned upstream workspace dependencies
         working-directory: ${{ github.workspace }}/upstream-tuf-js
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build pinned upstream workspaces
+        working-directory: ${{ github.workspace }}/upstream-tuf-js
+        run: npm run build
       - name: Run upstream TUF client test project
         working-directory: ${{ github.workspace }}/upstream-tuf-js
         run: npm test -- --selectProjects CLIENT --runInBand
