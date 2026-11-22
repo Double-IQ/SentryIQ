@@ -134,10 +134,10 @@ describe("Node A isolated certificate diagnostic", () => {
       }
       const checkpointEnvelope = tlogEntry.inclusionProof?.checkpoint?.envelope;
       if (checkpointEnvelope) {
-        const split = checkpointEnvelope.indexOf("\\n\\n");
+        const split = checkpointEnvelope.indexOf("\n\n");
         const note = checkpointEnvelope.slice(0, split + 1);
         const data = checkpointEnvelope.slice(split + 2);
-        const regex = /— (\\S+) (\\S+)\\n/g;
+        const regex = /— (\S+) (\S+)\n/g;
         const checkpointSignatures: unknown[] = [];
         for (const match of data.matchAll(regex)) {
           const name = match[1];
