@@ -42,3 +42,7 @@ Direct dependencies are exact-version pinned in `package.json`. `npm test` first
 7. Complete production deployment only after account access, secrets, schedules, independent failure-domain and owner acceptance gates are met.
 
 The Worker runtime tests are local Miniflare/workerd tests. They are not a substitute for a Cloudflare account-backed staging deployment.
+
+### Adapter integration constraint confirmed from pinned upstream source
+
+The pinned `tuf-js@6.0.3` updater performs synchronous filesystem reads and writes in its constructor, metadata refresh path and target-cache path. The pinned `@sigstore/tuf@5.0.1` wrapper also synchronously creates directories and seeds the initial root/targets before constructing the updater. Therefore the asynchronous `TufStorageAdapter` contract is **not a drop-in implementation**: the maintained fork must refactor those call sites to asynchronous adapter operations (including async initialization), preserve upstream verification ordering, and make updater instances unusable after a persistence failure that may follow an in-memory trust-state mutation. Merely swapping `fs`, passing a custom fetcher, or wrapping the existing synchronous methods would be unsafe and is explicitly not the integration plan.
