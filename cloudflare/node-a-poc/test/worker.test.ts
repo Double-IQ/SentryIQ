@@ -59,6 +59,8 @@ describe("Node A Workers runtime proof", () => {
       logID: tlogEntry.logId.keyId.toString("hex")
     };
     const setBytes = Buffer.from(sigstoreJson.canonicalize(setPayload), "utf8");
+    const setSignature = Buffer.from(tlogEntry.inclusionPromise!.signedEntryTimestamp);
+    expect(Buffer.isBuffer(tlogEntry.inclusionPromise!.signedEntryTimestamp)).toBe(true);
     expect(sigstoreCrypto.digest("sha256", setBytes).toString("hex")).toBe("afdc764f3952ff786981b31cb5112741eecf747663d48bbcd9e90ebb2a8d346e");
     const selfTestKey = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
     const selfTestSignature = sign("sha256", setBytes, selfTestKey.privateKey);
@@ -66,8 +68,8 @@ describe("Node A Workers runtime proof", () => {
     const trustedKeyBytes = Buffer.from(currentTrustedRoot.tlogs[0].publicKey.rawBytes);
     const exportedKeyBytes = Buffer.from(tlogAuthority!.publicKey.export({ type: "spki", format: "der" }));
     expect(exportedKeyBytes.equals(trustedKeyBytes)).toBe(true);
-    expect(verify("sha256", setBytes, tlogAuthority!.publicKey, tlogEntry.inclusionPromise!.signedEntryTimestamp)).toBe(true);
-    expect(sigstoreCrypto.verify(setBytes, tlogAuthority!.publicKey, tlogEntry.inclusionPromise!.signedEntryTimestamp)).toBe(true);
+    expect(verify("sha256", setBytes, tlogAuthority!.publicKey, setSignature)).toBe(true);
+    expect(sigstoreCrypto.verify(setBytes, tlogAuthority!.publicKey, setSignature)).toBe(true);
 
     const verifier = new Verifier(trustMaterial, {
       ctlogThreshold: 1,
