@@ -10,7 +10,7 @@ import { trustedRoot } from "./fixtures/trust";
 import { genuineV012BundleJson } from "./fixtures/genuine-v012-bundle";
 import { genuineV012TrustedRootJson } from "./fixtures/genuine-v012-trusted-root";
 import { tufRootBase64 } from "./fixtures/tuf-root";
-import { GuardedTufUpdater, TufPersistenceCommitError, TufUpdaterPoisonedError } from "../src/guarded-tuf-updater";
+import { GuardedTufUpdater, TufPersistenceCommitError, TufStateMutationError, TufUpdaterPoisonedError } from "../src/guarded-tuf-updater";
 import { describe, expect, it } from "vitest";
 
 async function expectRemoteRejection(promise: Promise<unknown>, message: string): Promise<void> {
@@ -358,6 +358,22 @@ describe("Node A Workers runtime proof", () => {
     expect(guarded.poisoned).toBe(false);
     await expect(guarded.getTarget("targets/release.zip")).resolves.toBe("targets/release.zip");
     expect(attempts).toBe(1);
+  });
+
+  it("poisons a TUF updater when upstream validation throws after partial trusted-state mutation", async () => {
+    let refreshCalls = 0;
+    const guarded = new GuardedTufUpdater({
+      async refresh() {
+        refreshCalls++;
+        throw new TufStateMutationError("timestamp trusted-set mutation preceded freeze-check failure");
+      },
+      async getTarget(targetPath: string) { return targetPath; },
+      async getTargetInfo(targetPath: string) { return { path: targetPath }; }
+    });
+    await expect(guarded.refresh()).rejects.toBeInstanceOf(TufStateMutationError);
+    expect(guarded.poisoned).toBe(true);
+    await expect(guarded.getTarget("targets/release.zip")).rejects.toBeInstanceOf(TufUpdaterPoisonedError);
+    expect(refreshCalls).toBe(1);
   });
 
 });
