@@ -23,6 +23,8 @@ export interface ReleasePin {
 type PinCandidate = Omit<ReleasePin, "updatedAt">;
 
 type RunLock = {
+  runId: string;
+  fence: number;
   token: string;
   expiresAt: number;
 };
@@ -76,10 +78,16 @@ export class NodeAState extends DurableObject<Env> {
         zip_sha256 TEXT NOT NULL,
         updated_at INTEGER NOT NULL
       );
-      CREATE TABLE IF NOT EXISTS run_lock (
+      CREATE TABLE IF NOT EXISTS run_lease (
         singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        run_id TEXT NOT NULL,
+        fence INTEGER NOT NULL CHECK (fence > 0),
         token TEXT NOT NULL,
         expires_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS run_fence_counter (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        last_fence INTEGER NOT NULL CHECK (last_fence >= 0)
       );
       CREATE TABLE IF NOT EXISTS tuf_files (
         path TEXT PRIMARY KEY,
@@ -149,11 +157,11 @@ export class NodeAState extends DurableObject<Env> {
     });
   }
 
-  advancePin(candidate: PinCandidate, lockToken: string): ReleasePin {
+  advancePin(candidate: PinCandidate, lock: RunLock): ReleasePin {
     validatePin(candidate);
-    if (!/^[a-f0-9]{64}$/.test(lockToken)) throw new Error("run lock token is invalid");
+    this.validateRunLock(lock);
     return this.ctx.storage.transactionSync(() => {
-      this.assertRunLock(lockToken);
+      this.assertRunLock(lock);
       const baseline = this.ctx.storage.sql
         .exec<{ version: string; commit_sha: string; manifest_sha256: string; zip_sha256: string }>(
           "SELECT version, commit_sha, manifest_sha256, zip_sha256 FROM release_baseline WHERE singleton = 1"
@@ -201,63 +209,54 @@ export class NodeAState extends DurableObject<Env> {
   }
 
   acquireRunLock(leaseMs: number): RunLock {
-    if (!Number.isSafeInteger(leaseMs) || leaseMs < 1_000 || leaseMs > 15 * 60_000) {
-      throw new Error("invalid run lock time or lease");
-    }
+    if (!Number.isSafeInteger(leaseMs) || leaseMs < 1_000 || leaseMs > 15 * 60_000) throw new Error("invalid run lock time or lease");
     return this.ctx.storage.transactionSync(() => {
       const now = Date.now();
+      const current = this.ctx.storage.sql.exec<{ expires_at: number }>("SELECT expires_at FROM run_lease WHERE singleton = 1").toArray()[0];
+      if (current && current.expires_at > now) throw new Error("Node A run already holds the durable lock");
+      const previousFence = this.ctx.storage.sql.exec<{ last_fence: number }>("SELECT last_fence FROM run_fence_counter WHERE singleton = 1").toArray()[0]?.last_fence ?? 0;
+      if (!Number.isSafeInteger(previousFence) || previousFence < 0 || previousFence >= Number.MAX_SAFE_INTEGER) throw new Error("run fencing counter is invalid or exhausted");
+      const fence = previousFence + 1;
+      const runId = randomBytes(16).toString("hex");
       const token = randomBytes(32).toString("hex");
-      const current = this.ctx.storage.sql
-        .exec<{ token: string; expires_at: number }>(
-          "SELECT token, expires_at FROM run_lock WHERE singleton = 1"
-        ).toArray()[0];
-      if (current && current.expires_at > now) {
-        throw new Error("Node A run already holds the durable lock");
-      }
-      const lock = { token, expiresAt: now + leaseMs };
-      this.ctx.storage.sql.exec(
-        `INSERT INTO run_lock (singleton, token, expires_at) VALUES (1, ?, ?)
-         ON CONFLICT(singleton) DO UPDATE SET token = excluded.token, expires_at = excluded.expires_at`,
-        lock.token,
-        lock.expiresAt
-      );
-      return lock;
+      const expiresAt = now + leaseMs;
+      this.ctx.storage.sql.exec("INSERT INTO run_fence_counter (singleton, last_fence) VALUES (1, ?) ON CONFLICT(singleton) DO UPDATE SET last_fence = excluded.last_fence", fence);
+      this.ctx.storage.sql.exec("INSERT INTO run_lease (singleton, run_id, fence, token, expires_at) VALUES (1, ?, ?, ?, ?) ON CONFLICT(singleton) DO UPDATE SET run_id = excluded.run_id, fence = excluded.fence, token = excluded.token, expires_at = excluded.expires_at", runId, fence, token, expiresAt);
+      return { runId, fence, token, expiresAt };
     });
   }
 
-  renewRunLock(token: string, leaseMs: number): RunLock {
-    if (!/^[a-f0-9]{64}$/.test(token) || !Number.isSafeInteger(leaseMs)
-        || leaseMs < 1_000 || leaseMs > 15 * 60_000) {
-      throw new Error("invalid run lock token or lease");
-    }
+  renewRunLock(lock: RunLock, leaseMs: number): RunLock {
+    this.validateRunLock(lock);
+    if (!Number.isSafeInteger(leaseMs) || leaseMs < 1_000 || leaseMs > 15 * 60_000) throw new Error("invalid run lock token or lease");
     return this.ctx.storage.transactionSync(() => {
-      const now = Date.now();
-      this.assertRunLock(token);
-      const lock = { token, expiresAt: now + leaseMs };
-      this.ctx.storage.sql.exec("UPDATE run_lock SET expires_at = ? WHERE singleton = 1", lock.expiresAt);
-      return lock;
+      this.assertRunLock(lock);
+      const expiresAt = Date.now() + leaseMs;
+      this.ctx.storage.sql.exec("UPDATE run_lease SET expires_at = ? WHERE singleton = 1 AND run_id = ? AND fence = ? AND token = ?", expiresAt, lock.runId, lock.fence, lock.token);
+      return { ...lock, expiresAt };
     });
   }
 
-  private assertRunLock(token: string): void {
-    const current = this.ctx.storage.sql
-      .exec<{ token: string; expires_at: number }>("SELECT token, expires_at FROM run_lock WHERE singleton = 1")
-      .toArray()[0];
-    if (!current || current.token !== token || current.expires_at <= Date.now()) {
-      throw new Error("valid active Node A run lock required");
+  private validateRunLock(lock: RunLock): void {
+    if (!lock || !/^[a-f0-9]{32}$/.test(lock.runId) || !Number.isSafeInteger(lock.fence) || lock.fence < 1 || !/^[a-f0-9]{64}$/.test(lock.token)) {
+      throw new Error("run lock identity, fence or token is invalid");
     }
   }
 
-  releaseRunLock(token: string): void {
-    this.ctx.storage.transactionSync(() => {
-      const current = this.ctx.storage.sql
-        .exec<{ token: string }>("SELECT token FROM run_lock WHERE singleton = 1")
-        .toArray()[0];
-      if (!current || current.token !== token) throw new Error("run lock token mismatch");
-      this.ctx.storage.sql.exec("DELETE FROM run_lock WHERE singleton = 1");
-    });
+  private assertRunLock(lock: RunLock): void {
+    const current = this.ctx.storage.sql.exec<{ run_id: string; fence: number; token: string; expires_at: number }>("SELECT run_id, fence, token, expires_at FROM run_lease WHERE singleton = 1").toArray()[0];
+    if (!current || current.run_id !== lock.runId || current.fence !== lock.fence || current.token !== lock.token || current.expires_at <= Date.now()) {
+      throw new Error("valid active Node A run fence required");
+    }
   }
 
+  releaseRunLock(lock: RunLock): void {
+    this.validateRunLock(lock);
+    this.ctx.storage.transactionSync(() => {
+      this.assertRunLock(lock);
+      this.ctx.storage.sql.exec("DELETE FROM run_lease WHERE singleton = 1 AND run_id = ? AND fence = ? AND token = ?", lock.runId, lock.fence, lock.token);
+    });
+  }
   recordOutcome(outcome: "started" | "approved" | "rejected" | "failed", version: string | null): void {
     if (version !== null) parseVersion(version);
     this.ctx.storage.transactionSync(() => {
