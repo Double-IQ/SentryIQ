@@ -1,0 +1,68 @@
+diff --git a/packages/client/src/store.ts b/packages/client/src/store.ts
+--- a/packages/client/src/store.ts
++++ b/packages/client/src/store.ts
+@@
+-    this.trustedSet.timestamp = newTimestamp;
+-
+-    // Client workflow 5.4.4: check for freeze attack
+-    this.checkFinalTimestamp();
++    // Validate the candidate before publishing it into the trusted set. A
++    // failed freeze check must not leave partially advanced in-memory state.
++    this.checkFinalTimestamp(newTimestamp);
++    this.trustedSet.timestamp = newTimestamp;
+@@
+-    this.trustedSet.snapshot = newSnapshot;
+-
+-    // snapshot is loaded, but we raise if it's not valid _final_ snapshot
+-    // Client workflow 5.5.4 & 5.5.6
+-    this.checkFinalSnapsnot();
++    // Validate the candidate before publishing it into the trusted set. A
++    // failed expiry or timestamp-linkage check must not leave partial state.
++    this.checkFinalSnapsnot(newSnapshot, this.timestamp);
++    this.trustedSet.snapshot = newSnapshot;
+@@
+-  private checkFinalTimestamp() {
++  private checkFinalTimestamp(timestamp = this.timestamp) {
+     // Timestamp MUST be loaded
+-    if (!this.timestamp) {
++    if (!timestamp) {
+       throw new ReferenceError('No trusted timestamp metadata');
+     }
+ 
+     // Client workflow 5.4.4: check for freeze attack
+-    if (this.timestamp.signed.isExpired(this.referenceTime)) {
++    if (timestamp.signed.isExpired(this.referenceTime)) {
+       throw new ExpiredMetadataError('Final timestamp.json is expired');
+     }
+   }
+ 
+-  private checkFinalSnapsnot() {
++  private checkFinalSnapsnot(
++    snapshot = this.snapshot,
++    timestamp = this.timestamp
++  ) {
+     // Snapshot and timestamp MUST be loaded
+-    if (!this.snapshot) {
++    if (!snapshot) {
+       throw new ReferenceError('No trusted snapshot metadata');
+     }
+-    if (!this.timestamp) {
++    if (!timestamp) {
+       throw new ReferenceError('No trusted timestamp metadata');
+     }
+ 
+     // Client workflow 5.5.6: check for freeze attack
+-    if (this.snapshot.signed.isExpired(this.referenceTime)) {
++    if (snapshot.signed.isExpired(this.referenceTime)) {
+       throw new ExpiredMetadataError('snapshot.json is expired');
+     }
+ 
+     // Client workflow 5.5.4: check against timestamp role’s snapshot version
+-    const snapshotMeta = this.timestamp.signed.snapshotMeta;
+-    if (this.snapshot.signed.version !== snapshotMeta.version) {
++    const snapshotMeta = timestamp.signed.snapshotMeta;
++    if (snapshot.signed.version !== snapshotMeta.version) {
+       throw new BadVersionError("Snapshot version doesn't match timestamp");
+     }
+   }
+ }
