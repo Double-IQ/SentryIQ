@@ -126,7 +126,7 @@ If a maintained upstream release adds a first-class storage adapter, prefer that
 
 ## 7. Current status and release gate
 
-The current PoC does not satisfy the real-integration, root-rotation, target, or fencing rows. The existing SQLite filesystem prototype only demonstrates a separate storage boundary. The stock TUF updater still uses its own filesystem APIs, and the current lease is token/expiry based without a monotonic fence.
+The current PoC does not satisfy the real-integration or target rows. Draft PR #143 adds a Durable Object monotonic fencing epoch, token-hash-backed lease identity, and a fenced compare-and-set primitive for role-keyed TUF metadata. Its 15-test workerd run passes the metadata storage primitive and stale-owner cases. These primitives are not yet connected to the stock TUF updater, so they do not satisfy the real-integration or end-to-end root-rotation rows. The separate SQLite filesystem shim remains disconnected, and target staging is still outstanding.
 
 Node A remains a non-production PoC until the full acceptance matrix is implemented and exercised in workerd, then validated in a Cloudflare account-backed staging environment. No release pin may be advanced until the full attestation, manifest/ZIP, origin/private-host, and Node 4 gates have passed.
 
@@ -142,3 +142,17 @@ A direct source review of Sigstore JS commit 3154029799fe44e6a037fc634e175abe091
 - The updater's timestamp/snapshot/delegated-role update methods similarly mutate the in-memory trusted set before persisting the accepted bytes. The integration must fail closed on a persistence error and discard the updater instance; no later stage or target may proceed on a partially committed in-memory view.
 
 Implementation consequence: introduce a narrow TUF storage seam in tuf-js for metadata/target persistence and adapt the Sigstore wrapper's cache bootstrap and target-return behavior. A custom Fetcher alone is not enough because the stock Updater still owns metadata and target filesystem calls. Do not claim the adapter is integrated until a real refresh and target download execute through these seams with filesystem fallback disabled.
+
+
+## 9. Implementation status update
+
+As of the current review, draft PR #143 (based on the Sigstore compatibility branch) contains the first fenced metadata persistence primitive. Its latest workerd CI run passed 15/15 tests, including genuine release attestation verification, tampered DSSE rejection, Ed25519 regression, stale lease owner rejection after takeover, and TUF metadata compare-and-set/digest/rollback/equivocation/root-sequence/delegated-role tests.
+
+This improves the Durable Object storage boundary but is not an implementation of the TUF adapter. The next code change must modify the pinned tuf-js updater and Sigstore wrapper call sites identified above so that:
+- updater bootstrap reads the pinned root through durable storage;
+- each candidate metadata role is verified by the existing TUF logic and then committed with the current run fence;
+- a persistence failure discards the mutated updater instance;
+- target temporary download, hash verification and final target retrieval use a fenced staging/promote/read path;
+- tests prove the real @sigstore/tuf client refreshes and downloads targets without native filesystem fallback.
+
+Do not mark root rotation or TUF acceptance complete based only on the DO metadata primitive tests.
