@@ -96,8 +96,10 @@ The current `findCachedTarget` implementation catches every error and returns a 
 
 The narrow `tuf-js@6.0.3` patch is stored at `patches/tuf-js-6.0.3-trusted-state-atomicity.patch`. It moves final timestamp expiry validation and final snapshot expiry/timestamp-linkage validation before the candidate metadata is assigned into `TrustedMetadataStore`. The patch also adds two upstream regression tests that force each final check to fail and assert the corresponding trusted-set getter remains unset. The workflow pins the upstream commit plus the exact Git blob hashes for both patched source files, applies with `git apply --unidiff-zero`, builds the upstream workspaces, and runs the upstream CLIENT Jest project.
 
-Verified on PR #143 head `93e873f8bbdba3c4bb8e61c6c49893892c11bf87`: upstream TUF CLIENT **8 suites / 42 tests passed**, and the workerd suite **20/20 passed** in [CI run 45079449397](https://github.com/Double-IQ/SentryIQ/actions/runs/45079449397). This is a targeted source-level fix, not the async storage adapter. It does not yet make `tuf-js` usable with Durable Objects/R2 or establish production readiness.
+Verified on PR #143 head `93e873f8bbdba3c4bb8e61c6c49893892c11bf87`: upstream TUF CLIENT **8 suites / 42 tests passed**, and the workerd suite **20/20 passed** in [CI run 45079940882](https://github.com/Double-IQ/SentryIQ/actions/runs/45079940882). This is a targeted source-level fix, not the async storage adapter. It does not yet make `tuf-js` usable with Durable Objects/R2 or establish production readiness.
 
 ## Target digest preservation
 
 The target-store contract carries the complete hash map from the TUF `TargetFile`, not a hard-coded SHA-256 field. The adapter must incrementally compute and verify every algorithm declared by upstream target metadata and enforce the declared length before the immutable R2 pointer can be published. The workerd suite includes a compile-time/runtime contract assertion retaining both SHA-256 and SHA-512 fields. Metadata-record identity remains SHA-256 over the exact metadata bytes; this distinction does not narrow target verification.
+
+The same maintained patch also narrows cached-target recovery: only `LengthOrHashMismatchError` and `ENOENT` become cache misses; all other filesystem/storage errors propagate. The upstream CLIENT suite includes an EACCES regression for this behavior.
