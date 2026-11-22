@@ -180,7 +180,7 @@ describe("Node A Workers runtime proof", () => {
     const id = env.NODE_A_STATE.idFromName("node-a-baseline-test");
     const stub = env.NODE_A_STATE.get(id);
     const lock = await stub.acquireRunLock(60_000);
-    await expectRemoteRejection(stub.advancePin(candidate("1.0.0"), lock.token), "independent release baseline has not been initialized");
+    await expectRemoteRejection(stub.advancePin(candidate("1.0.0"), lock), "independent release baseline has not been initialized");
     await stub.initializeBaseline(candidate("1.0.0"));
     await expectRemoteRejection(stub.initializeBaseline(candidate("1.0.1", "d")), "independently initialized baseline is immutable");
     expect((await stub.getPin())?.version).toBe("1.0.0");
@@ -201,10 +201,10 @@ describe("Node A Workers runtime proof", () => {
     const stub = env.NODE_A_STATE.get(id);
     await stub.initializeBaseline(candidate("1.0.0"));
     const lock = await stub.acquireRunLock(60_000);
-    const original = await stub.advancePin(candidate("2.0.0"), lock.token);
+    const original = await stub.advancePin(candidate("2.0.0"), lock);
 
-    await expectRemoteRejection(stub.advancePin(candidate("1.9.9", "d"), lock.token), "release rollback rejected");
-    await expectRemoteRejection(stub.advancePin({ ...candidate("2.0.0"), zipSha256: "e".repeat(64) }, lock.token), "same-version release identity or digest replacement rejected");
+    await expectRemoteRejection(stub.advancePin(candidate("1.9.9", "d"), lock), "release rollback rejected");
+    await expectRemoteRejection(stub.advancePin({ ...candidate("2.0.0"), zipSha256: "e".repeat(64) }, lock), "same-version release identity or digest replacement rejected");
     expect(await stub.getPin()).toEqual(original);
   });
 
@@ -212,7 +212,7 @@ describe("Node A Workers runtime proof", () => {
     const id = env.NODE_A_STATE.idFromName("node-a-lock-required-test");
     const stub = env.NODE_A_STATE.get(id);
     await stub.initializeBaseline(candidate("1.0.0"));
-    await expectRemoteRejection(stub.advancePin(candidate("1.1.0"), "a".repeat(64)), "valid active Node A run lock required");
+    await expectRemoteRejection(stub.advancePin(candidate("1.1.0"), { runId: "a".repeat(32), fence: 1, token: "a".repeat(64), expiresAt: Date.now() + 60_000 }), "valid active Node A run fence required");
     expect((await stub.getPin())?.version).toBe("1.0.0");
   });
 
@@ -221,7 +221,7 @@ describe("Node A Workers runtime proof", () => {
     const stub = env.NODE_A_STATE.get(id);
     const first = await stub.initializeBaseline(candidate("3.0.0"));
     const lock = await stub.acquireRunLock(60_000);
-    const second = await stub.advancePin(candidate("3.0.0"), lock.token);
+    const second = await stub.advancePin(candidate("3.0.0"), lock);
     expect(second).toEqual(first);
   });
 
@@ -230,10 +230,27 @@ describe("Node A Workers runtime proof", () => {
     const stub = env.NODE_A_STATE.get(id);
     const lock = await stub.acquireRunLock(60_000);
     await expectRemoteRejection(stub.acquireRunLock(60_000), "Node A run already holds the durable lock");
-    await expectRemoteRejection(stub.releaseRunLock("b".repeat(64)), "run lock token mismatch");
-    await stub.releaseRunLock(lock.token);
+    await expectRemoteRejection(stub.releaseRunLock({ ...lock, token: "b".repeat(64) }), "valid active Node A run fence required");
+    await stub.releaseRunLock(lock);
     const next = await stub.acquireRunLock(60_000);
     expect(next.token).toMatch(/^[a-f0-9]{64}$/);
     expect(next.token).not.toBe(lock.token);
+    expect(next.fence).toBe(lock.fence + 1);
+    expect(next.runId).not.toBe(lock.runId);
+  });
+
+  it("rejects stale owners after lease expiry and monotonic-fence takeover", async () => {
+    const id = env.NODE_A_STATE.idFromName("node-a-fencing-takeover-test");
+    const stub = env.NODE_A_STATE.get(id);
+    await stub.initializeBaseline(candidate("1.0.0"));
+    const first = await stub.acquireRunLock(1_000);
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    const second = await stub.acquireRunLock(60_000);
+    expect(second.fence).toBe(first.fence + 1);
+    expect(second.runId).not.toBe(first.runId);
+    await expectRemoteRejection(stub.advancePin(candidate("1.1.0"), first), "valid active Node A run fence required");
+    await expectRemoteRejection(stub.renewRunLock(first, 60_000), "valid active Node A run fence required");
+    await expectRemoteRejection(stub.releaseRunLock(first), "valid active Node A run fence required");
+    expect((await stub.advancePin(candidate("1.1.0"), second)).version).toBe("1.1.0");
   });
 });
