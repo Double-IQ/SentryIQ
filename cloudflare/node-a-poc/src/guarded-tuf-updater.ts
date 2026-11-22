@@ -50,6 +50,7 @@ export interface TufUpdaterOperations<TTarget = unknown, TInfo = unknown> {
 
 export class GuardedTufUpdater<TTarget = unknown, TInfo = unknown> {
   private poisonCause: unknown | null = null;
+  private operationQueue: Promise<void> = Promise.resolve();
 
   constructor(private readonly upstream: TufUpdaterOperations<TTarget, TInfo>) {}
 
@@ -61,17 +62,23 @@ export class GuardedTufUpdater<TTarget = unknown, TInfo = unknown> {
     if (this.poisoned) throw new TufUpdaterPoisonedError();
   }
 
-  private async invoke<T>(operation: () => Promise<T>): Promise<T> {
-    this.assertHealthy();
-    try {
-      return await operation();
-    } catch (error) {
-      if (error instanceof TufPersistenceCommitError || error instanceof TufStateMutationError) {
-        this.poisonCause = error;
+  private invoke<T>(operation: () => Promise<T>): Promise<T> {
+    // Serialize access to the mutable upstream trusted set. A call queued
+    // behind a failing mutation must observe poison before it can execute.
+    const result = this.operationQueue.then(async () => {
+      this.assertHealthy();
+      try {
+        return await operation();
+      } catch (error) {
+        if (error instanceof TufPersistenceCommitError || error instanceof TufStateMutationError) {
+          this.poisonCause = error;
+          throw error;
+        }
         throw error;
       }
-      throw error;
-    }
+    });
+    this.operationQueue = result.then(() => undefined, () => undefined);
+    return result;
   }
 
   refresh(): Promise<void> {
