@@ -125,7 +125,7 @@ diff --git a/packages/client/src/updater.ts b/packages/client/src/updater.ts
 @@ -1,1 +1,1 @@
 -import { Metadata, MetadataKind, TargetFile, Targets } from '@tufjs/models';
 +import { LengthOrHashMismatchError, Metadata, MetadataKind, TargetFile, Targets } from '@tufjs/models';
-@@ -169,9 +169,18 @@
+@@ -169,9 +169,19 @@
 -    try {
 -      if (fs.existsSync(filePath)) {
 -        await targetInfo.verify(fs.createReadStream(filePath));
