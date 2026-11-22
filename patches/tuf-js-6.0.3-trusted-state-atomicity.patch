@@ -145,7 +145,8 @@ diff --git a/packages/client/src/updater.ts b/packages/client/src/updater.ts
 +        return;
 +      }
 +      if (
-+        error instanceof Error &&
++        typeof error === 'object' &&
++        error !== null &&
 +        'code' in error &&
 +        error.code === 'ENOENT'
 +      ) {
