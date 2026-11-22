@@ -113,8 +113,10 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           PATCH="$GITHUB_WORKSPACE/patches/tuf-js-6.0.3-trusted-state-atomicity.patch"
-          git -C upstream-tuf-js apply --check "$PATCH"
-          git -C upstream-tuf-js apply "$PATCH"
+          test "$(git -C upstream-tuf-js rev-parse HEAD)" = "ce8ba9cd3f074531976ff4eef82af1f3adae3728"
+          test "$(git -C upstream-tuf-js rev-parse HEAD:packages/client/src/store.ts)" = "570df07c5b40013a260b00f0b55e692bbfd662f9"
+          git -C upstream-tuf-js apply --unidiff-zero --check "$PATCH"
+          git -C upstream-tuf-js apply --unidiff-zero "$PATCH"
           git -C upstream-tuf-js diff --check
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
