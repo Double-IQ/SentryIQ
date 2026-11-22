@@ -56,6 +56,45 @@ Do not use container disk, process memory, snapshots, Workers KV, or an untested
 
 The PHP refactor should isolate storage/locking from verification policy. Preserve the existing verification policy and wire contracts. Add adapter contract tests that run against both the existing filesystem test adapter and the Durable Object-backed implementation.
 
+## 2.1 Required Durable Object state contract and run protocol
+
+The existing PHP implementation holds its filesystem lock for the complete run. Preserve the exclusion guarantee, not the implementation mechanism: never hold a SQLite transaction open while fetching GitHub assets, refreshing TUF, checking the origin, contacting the private-host collector, waiting for Node 4, or delivering an alert.
+
+Use one dedicated Durable Object as the serialization authority for Node A. The minimum logical records are:
+
+| Record | Required fields / invariant |
+|---|---|
+| Node state | Explicitly bootstrapped baseline and current approved version, full commit, manifest SHA-256, ZIP SHA-256, approval timestamp; baseline cannot be silently learned from the live origin |
+| Run lease | Unique run ID, monotonically increasing fencing token, lease expiry, heartbeat/renewal time; only one live lease |
+| TUF metadata | Exact accepted metadata bytes (or a lossless representation), role/version and digest; root versions monotonic, same-version different bytes rejected |
+| Run record | Run ID, fencing token, phase, timestamps, candidate identities/digests and bounded redacted outcome; no secrets, bearer tokens, raw private-host payloads or report bodies |
+| Challenge binding | Hash of nonce, run ID, candidate digests and expiry, if local durable replay diagnostics are required; never log the raw nonce |
+
+### Lease and fencing rules
+
+1. Acquire a lease in a short transaction. Increment the fencing token on every new lease acquisition; return the token to the caller.
+2. Renew the lease in short transactions during long verification. A renewal succeeds only for the same run ID and current fencing token. Set the lease duration comfortably above the heartbeat interval and account for maximum expected pauses.
+3. Before every durable mutation, check in the same transaction that the run ID, fencing token and unexpired lease still match. A run that wakes after expiry is stale even if its PHP process is still executing.
+4. Release only the matching lease. An expired lease can be replaced by a later run; the later run receives a higher fencing token.
+5. If renewal fails or the lease is lost, stop work and do not submit a new Node 4 report or advance state. If a remote request is already in flight, its eventual response must not authorize a local commit by the stale run.
+
+A lease is not a transaction held open across the run. The fencing token is what prevents an expired process from committing after another run has taken ownership.
+
+### Commit and crash boundaries
+
+- **TUF refresh:** read the current persisted metadata; perform the network refresh and cryptographic verification outside a DB transaction; then atomically compare the current metadata version/digest and lease fence, and store the newly accepted metadata. A failed refresh must leave the last accepted metadata untouched. Preserve all metadata required by the TUF client, not only root.json, if its cache contract requires timestamp/snapshot/targets/delegations.
+- **Candidate preparation:** stage the manifest and ZIP as disposable container files, hash them, and bind the candidate version/commit/digests to the run record. Re-hash the exact files after verification, as the PHP implementation does.
+- **Verification:** perform attestation, provenance, public-origin, security-header and private-host checks outside transactions. Keep the existing requirement that both the manifest and ZIP are independently attested.
+- **Node 4 exchange:** request a challenge bound to the target, release version, commit and both artifact digests; verify using its nonce; submit the signed report and require the expected acknowledgement. The current PHP flow performs this exchange before advancing the local release pin. Preserve that ordering.
+- **Final pin commit:** in one short transaction, re-check the current lease fence and compare the candidate against the latest persisted pin. Reject downgrade, same-version commit retargeting, and same-version digest replacement. If approved, update the pin and mark the run successful atomically. This transaction is the only operation allowed to advance the pin.
+- **Crash after Node 4 accepted but before local commit:** do not blindly replay the old signed report or assume the pin advanced. Record the run as indeterminate if possible, alert independently, and let a later run obtain a fresh challenge and repeat verification/reporting. Node 4's existing nonce/replay policy remains authoritative.
+- **Crash before final commit:** previous approved pin remains authoritative. Expired leases are recoverable by a new fencing token; stale runs cannot commit.
+- **Alert delivery:** preserve the direct owner-alert path independent of Node 4. Do not claim exactly-once alert delivery unless the selected provider exposes a tested idempotency contract. Record bounded delivery outcome without logging payloads or credentials.
+
+### Adapter acceptance tests
+
+The storage interface must have the same contract tests against the existing filesystem reference adapter and the Durable Object adapter. Include: two concurrent acquisitions; lease expiry and takeover; stale owner renewal/release/commit rejection; heartbeat during slow verification; crash after TUF verification but before metadata commit; root rollback and same-version byte replacement; crash after Node 4 acknowledgement but before pin commit; concurrent candidate pin compare-and-advance; same-version digest replacement; and container restart with all authoritative state retained. Test transactions under actual Durable Object SQLite semantics, not only a local SQLite emulator.
+
 ## 3. Option B — Worker-native TypeScript
 
 A native Worker avoids the PHP container and may simplify direct Cron/Fetch/Web Crypto integration, but it requires a security-sensitive port of orchestration, Sigstore/TUF verification, provenance policy, private-host attestation, Node 4 exchange, state management and alert delivery.
