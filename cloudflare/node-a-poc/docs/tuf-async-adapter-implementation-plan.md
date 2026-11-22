@@ -77,3 +77,17 @@ Those checks can throw (for example, expiry or timestamp/snapshot version linkag
 ## Concurrency guard
 
 The lifecycle wrapper serializes every public updater operation through a promise queue. This is necessary because a second refresh/target operation must not race a first operation that may partially mutate the trusted set; operations already queued behind a mutation failure must re-check poison and fail before touching upstream state. The regression suite exercises this queued-call case. The upstream integration must preserve this single-updater serialization or provide an equivalent mutex around the shared mutable `TrustedMetadataStore`.
+
+## Pinned source callsite map for the fork
+
+| Upstream source | Current filesystem dependency | Required adapter replacement |
+|---|---|---|
+| `tuf-js/packages/client/src/updater.ts` constructor and `loadLocalMetadata` | Synchronous `readFileSync` of root and role metadata | Async factory/bootstrap plus `readRole` |
+| Same `updater.ts`, `persistMetadata` | Synchronous `writeFileSync` after role validation | Fenced `commitVerifiedRole` with expected-current identity |
+| Same `updater.ts`, `findCachedTarget` | `existsSync` and `createReadStream`; broad catch currently treats any error as cache miss | Resolve committed target pointer; distinguish not-found from storage failure; verify the stream |
+| Same `updater.ts`, `downloadTarget` | Fetcher temp file, `createReadStream` verification, then `copyFileSync` | Stream directly to private R2 stage, incrementally enforce length/hash, then fenced pointer commit |
+| `tuf-js/packages/client/src/fetcher.ts` | Temp-file creation, `createWriteStream`, and `createReadStream` for byte downloads | Keep metadata byte fetch bounded in memory; use stream-to-stage only for target objects; remove filesystem temp-file callback contract |
+| `@sigstore/tuf/packages/tuf/src/client.ts` | Synchronous cache/targets directory creation and root/seed-target copy/write | Async TUF client factory with explicit trust-anchor bytes and storage adapter |
+| `@sigstore/tuf/packages/tuf/src/target.ts` | Reads target path back with `fs.readFile` and returns string | Consume a verified target byte stream/reader; avoid path-based readback and unbounded string conversion |
+
+The current `findCachedTarget` implementation catches every error and returns a cache miss. The adapter fork must not preserve that blanket behavior for Durable Object/R2 failures: only an explicit not-found result or a failed cached-target integrity check should trigger a re-download. Permission, connectivity, unavailable-object-store and consistency errors must propagate so the caller fails closed rather than silently treating an infrastructure fault as an absent cache entry.
