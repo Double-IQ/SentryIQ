@@ -93,30 +93,45 @@ describe("Node A Workers runtime proof", () => {
       tlogThreshold: 1,
       timestampThreshold: 1
     });
-    const signedEntity = toSignedEntity(bundle);
-    if (signedEntity.key.$case === "certificate") {
-      const leaf = signedEntity.key.certificate;
-      const chainDiagnostics = trustMaterial.certificateAuthorities.flatMap((authority, authorityIndex) =>
-        authority.certChain.map((cert, certIndex) => {
-          try {
-            const key = cryptoCompat.createPublicKey(cert.publicKey);
-            let selfVerify: string;
-            try { selfVerify = String(cert.verify()); } catch (error) { selfVerify = String(error); }
-            let leafVerify: string;
-            try { leafVerify = String(leaf.verify(cert)); } catch (error) { leafVerify = String(error); }
-            return {
-              authorityIndex, certIndex, selfSigned: cert.subject.equals(cert.issuer),
-              signatureAlgorithm: cert.signatureAlgorithm, publicKeyType: key.asymmetricKeyType,
-              selfVerify, leafVerify
-            };
-          } catch (error) {
-            return { authorityIndex, certIndex, importError: String(error), signatureAlgorithm: cert.signatureAlgorithm };
-          }
-        })
-      );
-      console.info("SIGSTORE_CERT_CHAIN_DIAGNOSTIC", JSON.stringify(chainDiagnostics));
+    console.log("NODE_A_STAGE_BEFORE_TO_SIGNED_ENTITY");
+    let signedEntity: ReturnType<typeof toSignedEntity>;
+    try {
+      signedEntity = toSignedEntity(bundle);
+      console.log("NODE_A_STAGE_AFTER_TO_SIGNED_ENTITY", signedEntity.key.$case);
+    } catch (error) {
+      console.log("NODE_A_TO_SIGNED_ENTITY_ERROR", String(error), error instanceof Error ? error.stack : "");
+      throw error;
     }
-    const signer = verifier.verify(signedEntity);
+    if (signedEntity.key.$case === "certificate") {
+      console.log("NODE_A_STAGE_BEFORE_CERT_DIAGNOSTICS");
+      const leaf = signedEntity.key.certificate;
+      const chainDiagnostics: unknown[] = [];
+      for (let authorityIndex = 0; authorityIndex < trustMaterial.certificateAuthorities.length; authorityIndex++) {
+        const authority = trustMaterial.certificateAuthorities[authorityIndex];
+        for (let certIndex = 0; certIndex < authority.certChain.length; certIndex++) {
+          const cert = authority.certChain[certIndex];
+          let item: Record<string, unknown> = { authorityIndex, certIndex };
+          try {
+            item.signatureAlgorithm = cert.signatureAlgorithm;
+            item.selfSigned = cert.subject.equals(cert.issuer);
+            item.publicKeyType = cryptoCompat.createPublicKey(cert.publicKey).asymmetricKeyType;
+            try { item.selfVerify = cert.verify(); } catch (error) { item.selfVerifyError = String(error); }
+            try { item.leafVerify = leaf.verify(cert); } catch (error) { item.leafVerifyError = String(error); }
+          } catch (error) { item.diagnosticError = String(error); }
+          chainDiagnostics.push(item);
+        }
+      }
+      console.log("SIGSTORE_CERT_CHAIN_DIAGNOSTIC", JSON.stringify(chainDiagnostics));
+    }
+    console.log("NODE_A_STAGE_BEFORE_VERIFIER_VERIFY");
+    let signer;
+    try {
+      signer = verifier.verify(signedEntity);
+      console.log("NODE_A_STAGE_AFTER_VERIFIER_VERIFY");
+    } catch (error) {
+      console.log("NODE_A_VERIFIER_ERROR", String(error), error instanceof Error ? error.stack : "");
+      throw error;
+    }
     const statement = JSON.parse(Buffer.from(bundle.content.dsseEnvelope.payload).toString("utf8")) as {
       predicateType?: string;
       subject?: Array<{ name?: string; digest?: { sha256?: string } }>;
