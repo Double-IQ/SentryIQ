@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 const coreEntry = fileURLToPath(import.meta.resolve("@sigstore/core"));
 const cryptoPath = path.join(path.dirname(coreEntry), "crypto.js");
 const original = fs.readFileSync(cryptoPath, "utf8");
-const pattern = /const keyType =\\s*key instanceof crypto_1\\.default\\.KeyObject\\s*\\?\\s*key\\.asymmetricKeyType\\s*:\\s*crypto_1\\.default\\.createPublicKey\\(key\\)\\.asymmetricKeyType;/s;
+const pattern = /const keyType =\s*key instanceof crypto_1\.default\.KeyObject\s*\?\s*key\.asymmetricKeyType\s*:\s*crypto_1\.default\.createPublicKey\(key\)\.asymmetricKeyType;/s;
 const replacement = "const keyType = key !== null && typeof key === 'object' && typeof key.asymmetricKeyType === 'string' ? key.asymmetricKeyType : crypto_1.default.createPublicKey(key).asymmetricKeyType;";
 if (!pattern.test(original)) {
   const i = original.indexOf("exports.verify");
