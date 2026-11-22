@@ -73,3 +73,7 @@ The pinned `tuf-js@6.0.3` `TrustedMetadataStore` has post-assignment checks in t
 - `updateSnapshot` assigns `trustedSet.snapshot` and then calls `checkFinalSnapsnot()`.
 
 Those checks can throw (for example, expiry or timestamp/snapshot version linkage), leaving the in-memory trusted set partially advanced even though the update method reports failure. Therefore the fork must either validate against a candidate state before publishing it (preferred) or explicitly roll back the mutation. The updater lifecycle guard now also recognizes `TufStateMutationError` and covers the public refresh, target-info, cached-target and target-download operations; the patched upstream boundary must translate any failure after an unrolled-back trusted-set mutation into that type. A generic validation/network error must not be treated as proof that state is unchanged unless the callsite can establish that ordering.
+
+## Concurrency guard
+
+The lifecycle wrapper serializes every public updater operation through a promise queue. This is necessary because a second refresh/target operation must not race a first operation that may partially mutate the trusted set; operations already queued behind a mutation failure must re-check poison and fail before touching upstream state. The regression suite exercises this queued-call case. The upstream integration must preserve this single-updater serialization or provide an equivalent mutex around the shared mutable `TrustedMetadataStore`.
