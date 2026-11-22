@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { exports as workerExports } from "cloudflare:workers";
 import { bundleFromJSON } from "@sigstore/bundle";
-import { crypto as sigstoreCrypto, dsse as sigstoreDsse, json as sigstoreJson } from "@sigstore/core";
+import { crypto as sigstoreCrypto, json as sigstoreJson } from "@sigstore/core";
 import { TrustedRoot } from "@sigstore/protobuf-specs";
 import { createPublicKey, generateKeyPairSync, KeyObject, sign, verify } from "node:crypto";
 import cryptoCompat from "crypto";
@@ -95,19 +95,26 @@ describe("Node A Workers runtime proof", () => {
     });
     const signedEntity = toSignedEntity(bundle);
     if (signedEntity.key.$case === "certificate") {
-      const dsseKey = cryptoCompat.createPublicKey(signedEntity.key.certificate.publicKey);
-      const envelope = bundle.content.dsseEnvelope;
-      const pae = sigstoreDsse.preAuthEncoding(envelope.payloadType, Buffer.from(envelope.payload));
-      const dsseSignature = Buffer.from(envelope.signatures[0].sig);
-      console.info("SIGSTORE_DSSE_DIAGNOSTIC", JSON.stringify({
-        keyType: dsseKey.asymmetricKeyType,
-        nodeKeyObjectInstance: dsseKey instanceof KeyObject,
-        defaultVerify: sigstoreCrypto.verify(pae, dsseKey, dsseSignature),
-        explicitSha256Verify: sigstoreCrypto.verify(pae, dsseKey, dsseSignature, "sha256"),
-        bareDefaultVerify: cryptoCompat.verify(undefined, pae, dsseKey, dsseSignature),
-        bareSha256Verify: cryptoCompat.verify("sha256", pae, dsseKey, dsseSignature),
-        certificateSignatureAlgorithm: signedEntity.key.certificate.signatureAlgorithm
-      }));
+      const leaf = signedEntity.key.certificate;
+      const chainDiagnostics = trustMaterial.certificateAuthorities.flatMap((authority, authorityIndex) =>
+        authority.certChain.map((cert, certIndex) => {
+          try {
+            const key = cryptoCompat.createPublicKey(cert.publicKey);
+            let selfVerify: string;
+            try { selfVerify = String(cert.verify()); } catch (error) { selfVerify = String(error); }
+            let leafVerify: string;
+            try { leafVerify = String(leaf.verify(cert)); } catch (error) { leafVerify = String(error); }
+            return {
+              authorityIndex, certIndex, selfSigned: cert.subject.equals(cert.issuer),
+              signatureAlgorithm: cert.signatureAlgorithm, publicKeyType: key.asymmetricKeyType,
+              selfVerify, leafVerify
+            };
+          } catch (error) {
+            return { authorityIndex, certIndex, importError: String(error), signatureAlgorithm: cert.signatureAlgorithm };
+          }
+        })
+      );
+      console.info("SIGSTORE_CERT_CHAIN_DIAGNOSTIC", JSON.stringify(chainDiagnostics));
     }
     const signer = verifier.verify(signedEntity);
     const statement = JSON.parse(Buffer.from(bundle.content.dsseEnvelope.payload).toString("utf8")) as {
