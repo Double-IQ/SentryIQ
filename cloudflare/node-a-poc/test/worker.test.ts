@@ -3,6 +3,7 @@ import { exports as workerExports } from "cloudflare:workers";
 import { bundleFromJSON } from "@sigstore/bundle";
 import { crypto as sigstoreCrypto, json as sigstoreJson } from "@sigstore/core";
 import { TrustedRoot } from "@sigstore/protobuf-specs";
+import { createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
 import { toSignedEntity, toTrustMaterial, Verifier } from "@sigstore/verify";
 import * as bundles from "./fixtures/bundles";
 import { trustedRoot } from "./fixtures/trust";
@@ -58,6 +59,13 @@ describe("Node A Workers runtime proof", () => {
       logID: tlogEntry.logId.keyId.toString("hex")
     };
     const setBytes = Buffer.from(sigstoreJson.canonicalize(setPayload), "utf8");
+    const selfTestKey = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+    const selfTestSignature = sign("sha256", setBytes, selfTestKey.privateKey);
+    expect(verify("sha256", setBytes, selfTestKey.publicKey, selfTestSignature)).toBe(true);
+    const trustedKeyBytes = Buffer.from(currentTrustedRoot.tlogs[0].publicKey.rawBytes);
+    const exportedKeyBytes = Buffer.from(tlogAuthority!.publicKey.export({ type: "spki", format: "der" }));
+    expect(exportedKeyBytes.equals(trustedKeyBytes)).toBe(true);
+    expect(verify("sha256", setBytes, tlogAuthority!.publicKey, tlogEntry.inclusionPromise!.signedEntryTimestamp)).toBe(true);
     expect(sigstoreCrypto.verify(setBytes, tlogAuthority!.publicKey, tlogEntry.inclusionPromise!.signedEntryTimestamp)).toBe(true);
 
     const verifier = new Verifier(trustMaterial, {
