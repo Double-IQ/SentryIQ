@@ -437,7 +437,8 @@ export class NodeAState extends DurableObject<Env> {
   }
 
   private validateTufRoleName(roleName: string): void {
-    if (typeof roleName !== "string" || !/^(root|timestamp|snapshot|targets|[a-z0-9][a-z0-9._-]{0,127})$/.test(roleName)) {
+    if (typeof roleName !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$/.test(roleName)
+        || roleName.split("/").some((part) => part === "" || part === "." || part === "..")) {
       throw new Error("TUF metadata role name is invalid");
     }
   }
