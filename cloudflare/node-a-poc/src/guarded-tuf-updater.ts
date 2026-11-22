@@ -44,6 +44,8 @@ export interface TufUpdaterOperations<TTarget = unknown, TInfo = unknown> {
   refresh(): Promise<void>;
   getTarget(targetPath: string): Promise<TTarget>;
   getTargetInfo(targetPath: string): Promise<TInfo>;
+  findCachedTarget(targetInfo: TInfo): Promise<TTarget | undefined>;
+  downloadTarget(targetInfo: TInfo): Promise<TTarget>;
 }
 
 export class GuardedTufUpdater<TTarget = unknown, TInfo = unknown> {
@@ -82,5 +84,13 @@ export class GuardedTufUpdater<TTarget = unknown, TInfo = unknown> {
 
   getTargetInfo(targetPath: string): Promise<TInfo> {
     return this.invoke(() => this.upstream.getTargetInfo(targetPath));
+  }
+
+  findCachedTarget(targetInfo: TInfo): Promise<TTarget | undefined> {
+    return this.invoke(() => this.upstream.findCachedTarget(targetInfo));
+  }
+
+  downloadTarget(targetInfo: TInfo): Promise<TTarget> {
+    return this.invoke(() => this.upstream.downloadTarget(targetInfo));
   }
 }
