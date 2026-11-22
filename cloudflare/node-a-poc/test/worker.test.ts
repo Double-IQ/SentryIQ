@@ -3,7 +3,7 @@ import { exports as workerExports } from "cloudflare:workers";
 import { bundleFromJSON } from "@sigstore/bundle";
 import { crypto as sigstoreCrypto, json as sigstoreJson } from "@sigstore/core";
 import { TrustedRoot } from "@sigstore/protobuf-specs";
-import { createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
+import { createPublicKey, generateKeyPairSync, KeyObject, sign, verify } from "node:crypto";
 import { toSignedEntity, toTrustMaterial, Verifier } from "@sigstore/verify";
 import * as bundles from "./fixtures/bundles";
 import { trustedRoot } from "./fixtures/trust";
@@ -75,6 +75,7 @@ describe("Node A Workers runtime proof", () => {
     console.info("SIGSTORE_CRYPTO_DIAGNOSTIC", JSON.stringify({
       asymmetricKeyType: (sigstoreKey as { asymmetricKeyType?: string }).asymmetricKeyType ?? null,
       keyConstructor: Object.getPrototypeOf(sigstoreKey)?.constructor?.name ?? null,
+      nodeKeyObjectInstance: sigstoreKey instanceof KeyObject,
       explicitSha256Verify: sigstoreCrypto.verify(setBytes, sigstoreKey, setSignature, "sha256"),
       defaultVerify: sigstoreCrypto.verify(setBytes, sigstoreKey, setSignature)
     }));
