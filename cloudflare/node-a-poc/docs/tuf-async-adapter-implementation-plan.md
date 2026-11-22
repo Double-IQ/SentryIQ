@@ -58,3 +58,9 @@ Replace the path-based API with an explicit asynchronous storage API. Do not shi
 ## Explicit non-claims
 
 The current `tuf-storage-contract.ts`, SQLite metadata primitive and R2 target design do not implement this refactor. The existing filesystem simulation is not connected to `tuf-js`. Production readiness requires the adapter to be wired into the real upstream verifier and the complete acceptance matrix above to pass.
+
+## Updater poisoning primitive added to the PoC
+
+`src/guarded-tuf-updater.ts` now supplies a fail-closed lifecycle wrapper. The future async adapter must translate a failure to durably commit metadata after upstream acceptance into `TufPersistenceCommitError`. The wrapper then permanently rejects refresh, target and target-info calls on that updater instance. Ordinary network/validation failures that occur before a persistence-commit failure do not poison the instance. Unit tests cover both paths.
+
+This primitive is not yet connected to `tuf-js`; production integration must ensure the adapter emits the typed error at the exact persistence boundary and that every public updater operation is routed through the guard.
