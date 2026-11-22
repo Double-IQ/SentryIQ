@@ -64,7 +64,23 @@ describe("Node A isolated certificate diagnostic", () => {
           return result;
         })
       );
-      throw new Error("NODE_A_ISOLATED_CERT_DIAGNOSTIC " + JSON.stringify(diagnostics));
+      const chainLinks = trust.certificateAuthorities.map((authority, authorityIndex) => {
+        const links = [];
+        for (let i = 0; i < authority.certChain.length - 1; i++) {
+          const child = authority.certChain[i];
+          const issuer = authority.certChain[i + 1];
+          const nativeChild = new cryptoCompat.X509Certificate(child.root.toDER());
+          const nativeIssuer = new cryptoCompat.X509Certificate(issuer.root.toDER());
+          let nativeVerify: unknown;
+          let sigstoreVerify: unknown;
+          try { nativeVerify = nativeChild.verify(nativeIssuer.publicKey); } catch (e) { nativeVerify = String(e); }
+          try { sigstoreVerify = child.verify(issuer); } catch (e) { sigstoreVerify = String(e); }
+          links.push({ index: i, childSignatureAlgorithm: child.signatureAlgorithm,
+            issuerSignatureAlgorithm: issuer.signatureAlgorithm, nativeVerify, sigstoreVerify });
+        }
+        return { authorityIndex, links };
+      });
+      throw new Error("NODE_A_ISOLATED_CERT_DIAGNOSTIC " + JSON.stringify({diagnostics,chainLinks}));
     } catch (error) {
       if (String(error).includes("NODE_A_ISOLATED_CERT_DIAGNOSTIC")) throw error;
       throw new Error("NODE_A_ISOLATED_CERT_DIAGNOSTIC stage=" + stage + " error=" + String(error));
