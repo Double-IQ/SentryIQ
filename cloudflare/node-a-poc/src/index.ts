@@ -22,7 +22,7 @@ export interface ReleasePin {
 
 type PinCandidate = Omit<ReleasePin, "updatedAt">;
 
-type RunLock = {
+export type RunLock = {
   runId: string;
   fence: number;
   token: string;
