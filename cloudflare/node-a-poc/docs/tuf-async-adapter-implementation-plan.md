@@ -61,7 +61,7 @@ The current `tuf-storage-contract.ts`, SQLite metadata primitive and R2 target d
 
 ## Updater poisoning primitive added to the PoC
 
-`src/guarded-tuf-updater.ts` now supplies a fail-closed lifecycle wrapper. The future async adapter must translate a failure to durably commit metadata after upstream acceptance into `TufPersistenceCommitError`. The wrapper then permanently rejects refresh, target and target-info calls on that updater instance. Ordinary network/validation failures that occur before a persistence-commit failure do not poison the instance. Unit tests cover both paths.
+`src/guarded-tuf-updater.ts` now supplies a fail-closed lifecycle wrapper. The future async adapter must translate a failure to durably commit metadata after upstream acceptance into `TufPersistenceCommitError`. The wrapper then permanently rejects refresh, target-info, cached-target and target-download calls on that updater instance. Ordinary network/validation failures that occur before a persistence-commit failure do not poison the instance. Unit tests cover both paths.
 
 This primitive is not yet connected to `tuf-js`; production integration must ensure the adapter emits the typed error at the exact persistence boundary and that every public updater operation is routed through the guard.
 
@@ -72,4 +72,4 @@ The pinned `tuf-js@6.0.3` `TrustedMetadataStore` has post-assignment checks in t
 - `updateTimestamp` assigns `trustedSet.timestamp` and then calls `checkFinalTimestamp()`.
 - `updateSnapshot` assigns `trustedSet.snapshot` and then calls `checkFinalSnapsnot()`.
 
-Those checks can throw (for example, expiry or timestamp/snapshot version linkage), leaving the in-memory trusted set partially advanced even though the update method reports failure. Therefore the fork must either validate against a candidate state before publishing it (preferred) or explicitly roll back the mutation. The updater lifecycle guard now also recognizes `TufStateMutationError`; the patched upstream boundary must translate any failure after an unrolled-back trusted-set mutation into that type. A generic validation/network error must not be treated as proof that state is unchanged unless the callsite can establish that ordering.
+Those checks can throw (for example, expiry or timestamp/snapshot version linkage), leaving the in-memory trusted set partially advanced even though the update method reports failure. Therefore the fork must either validate against a candidate state before publishing it (preferred) or explicitly roll back the mutation. The updater lifecycle guard now also recognizes `TufStateMutationError` and covers the public refresh, target-info, cached-target and target-download operations; the patched upstream boundary must translate any failure after an unrolled-back trusted-set mutation into that type. A generic validation/network error must not be treated as proof that state is unchanged unless the callsite can establish that ordering.
