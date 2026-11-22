@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { exports as workerExports } from "cloudflare:workers";
 import { bundleFromJSON } from "@sigstore/bundle";
-import { crypto as sigstoreCrypto, json as sigstoreJson } from "@sigstore/core";
+import { crypto as sigstoreCrypto, dsse as sigstoreDsse, json as sigstoreJson } from "@sigstore/core";
 import { TrustedRoot } from "@sigstore/protobuf-specs";
 import { createPublicKey, generateKeyPairSync, KeyObject, sign, verify } from "node:crypto";
 import cryptoCompat from "crypto";
@@ -112,7 +112,53 @@ describe("Node A isolated certificate diagnostic", () => {
           }
         }
       }
-      throw new Error("NODE_A_ISOLATED_CERT_DIAGNOSTIC " + JSON.stringify({diagnostics,chainLinks,sctResults}));
+      const postCertificateDiagnostics: Record<string, unknown> = {};
+      if (bundle.content.$case === "dsseEnvelope" && entity.key.$case === "certificate") {
+        const envelope = bundle.content.dsseEnvelope;
+        const signingKey = cryptoCompat.createPublicKey({ key: entity.key.certificate.publicKey, format: "der", type: "spki" });
+        const pae = sigstoreDsse.preAuthEncoding(envelope.payloadType, Buffer.from(envelope.payload));
+        const dsseSig = Buffer.from(envelope.signatures[0].sig);
+        const dsseChecks: Record<string, unknown> = {
+          keyType: signingKey.asymmetricKeyType,
+          keyDetails: signingKey.asymmetricKeyDetails,
+          defaultVerify: null, sha256Verify: null, sha384Verify: null,
+          sigstoreDefaultVerify: null, sigstoreSha256Verify: null, sigstoreSha384Verify: null
+        };
+        try { dsseChecks.defaultVerify = cryptoCompat.verify(undefined, pae, signingKey, dsseSig); } catch (e) { dsseChecks.defaultVerify = String(e); }
+        try { dsseChecks.sha256Verify = cryptoCompat.verify("sha256", pae, signingKey, dsseSig); } catch (e) { dsseChecks.sha256Verify = String(e); }
+        try { dsseChecks.sha384Verify = cryptoCompat.verify("sha384", pae, signingKey, dsseSig); } catch (e) { dsseChecks.sha384Verify = String(e); }
+        try { dsseChecks.sigstoreDefaultVerify = sigstoreCrypto.verify(pae, signingKey, dsseSig); } catch (e) { dsseChecks.sigstoreDefaultVerify = String(e); }
+        try { dsseChecks.sigstoreSha256Verify = sigstoreCrypto.verify(pae, signingKey, dsseSig, "sha256"); } catch (e) { dsseChecks.sigstoreSha256Verify = String(e); }
+        try { dsseChecks.sigstoreSha384Verify = sigstoreCrypto.verify(pae, signingKey, dsseSig, "sha384"); } catch (e) { dsseChecks.sigstoreSha384Verify = String(e); }
+        postCertificateDiagnostics.dsse = dsseChecks;
+      }
+      const checkpointEnvelope = tlogEntry.inclusionProof?.checkpoint?.envelope;
+      if (checkpointEnvelope) {
+        const split = checkpointEnvelope.indexOf("\\n\\n");
+        const note = checkpointEnvelope.slice(0, split + 1);
+        const data = checkpointEnvelope.slice(split + 2);
+        const regex = /— (\\S+) (\\S+)\\n/g;
+        const checkpointSignatures: unknown[] = [];
+        for (const match of data.matchAll(regex)) {
+          const name = match[1];
+          const bytes = Buffer.from(match[2], "base64");
+          const keyHint = bytes.subarray(0, 4);
+          const signature = bytes.subarray(4);
+          const log = trust.tlogs.find(item => item.logID.subarray(0, 4).equals(keyHint) && item.baseURL.includes(name));
+          const result: Record<string, unknown> = { name, logFound: Boolean(log), signatureLength: signature.length };
+          if (log) {
+            result.keyType = log.publicKey.asymmetricKeyType;
+            try { result.defaultVerify = cryptoCompat.verify(undefined, Buffer.from(note), log.publicKey, signature); } catch (e) { result.defaultVerify = String(e); }
+            try { result.sha256Verify = cryptoCompat.verify("sha256", Buffer.from(note), log.publicKey, signature); } catch (e) { result.sha256Verify = String(e); }
+            try { result.sha384Verify = cryptoCompat.verify("sha384", Buffer.from(note), log.publicKey, signature); } catch (e) { result.sha384Verify = String(e); }
+            try { result.sigstoreDefaultVerify = sigstoreCrypto.verify(Buffer.from(note), log.publicKey, signature); } catch (e) { result.sigstoreDefaultVerify = String(e); }
+          }
+          checkpointSignatures.push(result);
+        }
+        postCertificateDiagnostics.checkpoint = checkpointSignatures;
+      }
+      throw new Error("NODE_A_ISOLATED_CERT_DIAGNOSTIC " + JSON.stringify({diagnostics,chainLinks,sctResults,postCertificateDiagnostics}));
+
 
     } catch (error) {
       if (String(error).includes("NODE_A_ISOLATED_CERT_DIAGNOSTIC")) throw error;
