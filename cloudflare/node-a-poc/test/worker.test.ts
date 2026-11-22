@@ -112,6 +112,32 @@ describe("Node A Workers runtime proof", () => {
       .toBe("9c639a4792cadd5421f01ed198ba2a9261c5145f");
   });
 
+  it("rejects a tampered genuine DSSE signature after trusted-key validation", () => {
+    if (genuineV012BundleJson === null || genuineV012TrustedRootJson === null) {
+      throw new Error("CI must inject the genuine GitHub attestation bundle and current Sigstore trusted root before running this suite");
+    }
+    const bundle = bundleFromJSON(JSON.parse(genuineV012BundleJson));
+    const trust = toTrustMaterial(TrustedRoot.fromJSON(JSON.parse(genuineV012TrustedRootJson)));
+    const entity = toSignedEntity(bundle);
+    const verifier = new Verifier(trust, {
+      ctlogThreshold: 1,
+      tlogThreshold: 1,
+      timestampThreshold: 1
+    });
+    const internal = verifier as unknown as {
+      verifyTimestamps: (entity: typeof entity) => Date[];
+      verifySigningKey: (entity: typeof entity, timestamps: Date[]) => { key: unknown };
+      verifySignature: (entity: typeof entity, signer: { key: unknown }) => void;
+    };
+    const timestamps = internal.verifyTimestamps(entity);
+    const signer = internal.verifySigningKey(entity, timestamps);
+    const signatureContent = entity.signature as unknown as { env: { signatures: Array<{ sig: Buffer }> } };
+    const tampered = Buffer.from(signatureContent.env.signatures[0].sig);
+    tampered[0] ^= 1;
+    signatureContent.env.signatures[0].sig = tampered;
+    expect(() => internal.verifySignature(entity, signer)).toThrow("signature verification failed");
+  });
+
   it("verifies an upstream Sigstore Rekor v2 certificate bundle in workerd", () => {
     const bundle = bundleFromJSON(bundles.V3.MESSAGE_SIGNATURE.TLOG_HASHEDREKORDV002);
     const verifier = new Verifier(toTrustMaterial(trustedRoot), {
