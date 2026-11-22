@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "postinstall": "node ./scripts/apply-sigstore-core-compat.mjs",
-    "test": "vitest run --config vitest.config.ts"
+    "apply-sigstore-core-compat": "node ./scripts/apply-sigstore-core-compat.mjs",
+    "test": "npm run apply-sigstore-core-compat && vitest run --config vitest.config.ts"
   },
   "dependencies": {
     "@sigstore/bundle": "5.0.1",
