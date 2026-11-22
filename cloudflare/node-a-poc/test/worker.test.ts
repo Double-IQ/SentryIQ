@@ -166,7 +166,31 @@ describe("Node A isolated certificate diagnostic", () => {
         }
         postCertificateDiagnostics.checkpoint = checkpointSignatures;
       }
+      const stageResults: Record<string, unknown> = {};
+      const stageVerifier = new Verifier(trust, { ctlogThreshold: 1, tlogThreshold: 1, timestampThreshold: 1 });
+      const internal = stageVerifier as unknown as {
+        verifyTimestamps: (entity: typeof entity) => Date[];
+        verifySigningKey: (entity: typeof entity, timestamps: Date[]) => { key: unknown };
+        verifyTLogs: (entity: typeof entity) => void;
+        verifySignature: (entity: typeof entity, signer: { key: unknown }) => void;
+      };
+      let stageTimestamps: Date[] | undefined;
+      let stageSigner: { key: unknown } | undefined;
+      try { stageTimestamps = internal.verifyTimestamps(entity); stageResults.timestamps = "passed"; }
+      catch (e) { stageResults.timestamps = String(e); }
+      if (stageTimestamps) {
+        try { stageSigner = internal.verifySigningKey(entity, stageTimestamps); stageResults.signingKeyAndSCT = "passed"; }
+        catch (e) { stageResults.signingKeyAndSCT = String(e); }
+      }
+      try { internal.verifyTLogs(entity); stageResults.rekorInclusionAndBody = "passed"; }
+      catch (e) { stageResults.rekorInclusionAndBody = String(e); }
+      if (stageSigner) {
+        try { internal.verifySignature(entity, stageSigner); stageResults.dsseSignature = "passed"; }
+        catch (e) { stageResults.dsseSignature = String(e); }
+      }
+      postCertificateDiagnostics.verifierStages = stageResults;
       throw new Error("NODE_A_ISOLATED_CERT_DIAGNOSTIC " + JSON.stringify({diagnostics,chainLinks,sctResults,postCertificateDiagnostics}));
+
 
 
     } catch (error) {
