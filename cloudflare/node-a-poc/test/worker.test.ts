@@ -122,8 +122,9 @@ describe("Node A isolated certificate diagnostic", () => {
         const dsseChecks: Record<string, unknown> = {
           keyType: signingKey.asymmetricKeyType,
           keyDetails: signingKey.asymmetricKeyDetails,
-          defaultVerify: null, sha256Verify: null, sha384Verify: null,
-          sigstoreDefaultVerify: null, sigstoreSha256Verify: null, sigstoreSha384Verify: null
+          keyObjectInstance: signingKey instanceof cryptoCompat.KeyObject,
+          defaultVerify: null, sha256Verify: null, sha384Verify: null, pemDefaultVerify: null,
+          sigstoreDefaultVerify: null, sigstoreSha256Verify: null, sigstoreSha384Verify: null, sigstorePemDefaultVerify: null
         };
         try { dsseChecks.defaultVerify = cryptoCompat.verify(undefined, pae, signingKey, dsseSig); } catch (e) { dsseChecks.defaultVerify = String(e); }
         try { dsseChecks.sha256Verify = cryptoCompat.verify("sha256", pae, signingKey, dsseSig); } catch (e) { dsseChecks.sha256Verify = String(e); }
@@ -131,6 +132,9 @@ describe("Node A isolated certificate diagnostic", () => {
         try { dsseChecks.sigstoreDefaultVerify = sigstoreCrypto.verify(pae, signingKey, dsseSig); } catch (e) { dsseChecks.sigstoreDefaultVerify = String(e); }
         try { dsseChecks.sigstoreSha256Verify = sigstoreCrypto.verify(pae, signingKey, dsseSig, "sha256"); } catch (e) { dsseChecks.sigstoreSha256Verify = String(e); }
         try { dsseChecks.sigstoreSha384Verify = sigstoreCrypto.verify(pae, signingKey, dsseSig, "sha384"); } catch (e) { dsseChecks.sigstoreSha384Verify = String(e); }
+        const signingKeyPem = signingKey.export({ type: "spki", format: "pem" });
+        try { dsseChecks.pemDefaultVerify = cryptoCompat.verify(undefined, pae, signingKeyPem, dsseSig); } catch (e) { dsseChecks.pemDefaultVerify = String(e); }
+        try { dsseChecks.sigstorePemDefaultVerify = sigstoreCrypto.verify(pae, signingKeyPem, dsseSig); } catch (e) { dsseChecks.sigstorePemDefaultVerify = String(e); }
         postCertificateDiagnostics.dsse = dsseChecks;
       }
       const checkpointEnvelope = tlogEntry.inclusionProof?.checkpoint?.envelope;
@@ -149,10 +153,14 @@ describe("Node A isolated certificate diagnostic", () => {
           const result: Record<string, unknown> = { name, logFound: Boolean(log), signatureLength: signature.length };
           if (log) {
             result.keyType = log.publicKey.asymmetricKeyType;
+            result.keyObjectInstance = log.publicKey instanceof cryptoCompat.KeyObject;
             try { result.defaultVerify = cryptoCompat.verify(undefined, Buffer.from(note), log.publicKey, signature); } catch (e) { result.defaultVerify = String(e); }
             try { result.sha256Verify = cryptoCompat.verify("sha256", Buffer.from(note), log.publicKey, signature); } catch (e) { result.sha256Verify = String(e); }
             try { result.sha384Verify = cryptoCompat.verify("sha384", Buffer.from(note), log.publicKey, signature); } catch (e) { result.sha384Verify = String(e); }
             try { result.sigstoreDefaultVerify = sigstoreCrypto.verify(Buffer.from(note), log.publicKey, signature); } catch (e) { result.sigstoreDefaultVerify = String(e); }
+            const logKeyPem = log.publicKey.export({ type: "spki", format: "pem" });
+            try { result.pemDefaultVerify = cryptoCompat.verify(undefined, Buffer.from(note), logKeyPem, signature); } catch (e) { result.pemDefaultVerify = String(e); }
+            try { result.sigstorePemDefaultVerify = sigstoreCrypto.verify(Buffer.from(note), logKeyPem, signature); } catch (e) { result.sigstorePemDefaultVerify = String(e); }
           }
           checkpointSignatures.push(result);
         }
