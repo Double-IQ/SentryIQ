@@ -194,8 +194,10 @@ describe("Node A Workers runtime proof", () => {
 
     const rootV2 = metadata("root", 2, "root-v2");
     const rootV2Hash = createHash("sha256").update(rootV2).digest("hex");
+    const rootV3 = metadata("root", 3, "root-v3");
+    const rootV3Hash = createHash("sha256").update(rootV3).digest("hex");
     await expectRemoteRejection(
-      second.commitVerifiedTufMetadata("root", savedV1, { version: 3, sha256: rootV2Hash, data: rootV2 }, lock),
+      second.commitVerifiedTufMetadata("root", savedV1, { version: 3, sha256: rootV3Hash, data: rootV3 }, lock),
       "TUF root rotation must advance exactly one version"
     );
     await expectRemoteRejection(
