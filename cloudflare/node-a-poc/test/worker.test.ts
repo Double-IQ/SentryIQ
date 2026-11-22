@@ -79,6 +79,10 @@ describe("Node A Workers runtime proof", () => {
       nodeKeyObjectInstance: sigstoreKey instanceof KeyObject,
       compatKeyObjectInstance: sigstoreKey instanceof cryptoCompat.KeyObject,
       compatKeyObjectConstructor: cryptoCompat.KeyObject?.name ?? null,
+      compatDefaultVerify: cryptoCompat.verify(undefined, setBytes, sigstoreKey, setSignature),
+      compatSha256Verify: cryptoCompat.verify("sha256", setBytes, sigstoreKey, setSignature),
+      namedDefaultVerify: verify(undefined, setBytes, sigstoreKey, setSignature),
+      namedSha256Verify: verify("sha256", setBytes, sigstoreKey, setSignature),
       explicitSha256Verify: sigstoreCrypto.verify(setBytes, sigstoreKey, setSignature, "sha256"),
       defaultVerify: sigstoreCrypto.verify(setBytes, sigstoreKey, setSignature)
     }));
