@@ -50,3 +50,5 @@ The pinned `tuf-js@6.0.3` updater performs synchronous filesystem reads and writ
 The pinned upstream `tuf-js@6.0.3` source also contains post-mutation validation hazards: timestamp and snapshot trusted-set entries are assigned before final expiry/linkage checks. The maintained fork must validate candidates before publishing them or roll back atomically; otherwise its adapter must poison the updater after any post-mutation failure. This is covered in the implementation plan and a new regression test.
 
 The expanded suite now adds a dedicated regression for an upstream timestamp/snapshot-style partial trusted-state mutation and explicitly asserts that a poisoned updater blocks refresh, target lookup, target-info, cached-target lookup, and target download. The expanded exact-head CI run is pending.
+
+The updater guard also serializes calls against the shared mutable TUF trusted set. Work queued behind a call that poisons the updater is rejected before it reaches the upstream client; this prevents concurrent target/refresh work from racing partially mutated trust state. The expanded suite now contains 19 tests, pending exact-head CI.
