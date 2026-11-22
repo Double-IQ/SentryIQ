@@ -3,10 +3,14 @@
 **Document status:** Active execution tracker  
 **Baseline branch:** `main`  
 **Repository:** `Double-IQ/SentryIQ`  
-**Last updated:** 2026-11-21 09:34 UTC (Phase 2 updater/provenance review; PR #114)  
+**Last updated:** 2026-11-22 22:25 UTC (Phase 2 updater/provenance review; PR #114)  
 **Execution rule:** Phase 1 audit/remediation test tasks are complete (30/30). Do not restart or repeat them. Keep repository changes in review until explicitly approved; proceed with safe documentation and non-production verification. Production changes and changes to credentials, DNS, hosting configuration, repository protection, or release publication require the appropriate owner action and explicit approval.
 
 This document is the single working checklist for the reset security review and subsequent four-node deployment. It is intentionally separate from the broader historical security/migration roadmap. Where older planning documents describe a different sequence, follow this checklist for the current execution.
+
+## Current execution state — 2026-11-22
+
+**Node A Cloudflare Workers feasibility and TUF adapter work (2026-11-22):** The isolated workerd/Miniflare proof of concept is progressing on draft PR [#143](https://github.com/Double-IQ/SentryIQ/pull/143), with supporting compatibility work in [#140](https://github.com/Double-IQ/SentryIQ/pull/140) and the adapter contract in [#142](https://github.com/Double-IQ/SentryIQ/pull/142). The latest confirmed PR #143 CI run [45074698151](https://github.com/Double-IQ/SentryIQ/actions/runs/45074698151) passed 17/17 workerd tests, including genuine SentryIQ v0.1.2 attestation verification, tampered-DSSE rejection, Ed25519 regression, Durable Object fencing/metadata checks, and updater-poisoning lifecycle checks. Subsequent changes add coverage for partial trusted-state mutation and guard all target-cache/download operations; their exact-head CI is pending. Source review of pinned `tuf-js@6.0.3` found that timestamp and snapshot state can be assigned before final expiry/linkage checks, so the maintained upstream fork must validate candidates before publication or roll back atomically; otherwise the updater must be poisoned after any post-mutation exception. The explicit async adapter and R2 target staging are still not implemented, the generated npm lockfile is not committed, and the PRs remain draft/unmerged. This is runtime/architecture proof only: no Cloudflare account bindings, secrets, production routes, schedule, or deployment are configured. Node A remains a Phase 2 implementation and acceptance task; do not mark it deployed or production-ready.
 
 ## Current execution state — 2026-11-21
 
