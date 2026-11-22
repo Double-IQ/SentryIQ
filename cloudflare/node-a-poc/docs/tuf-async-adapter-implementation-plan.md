@@ -96,7 +96,7 @@ The current `findCachedTarget` implementation catches every error and returns a 
 
 The narrow `tuf-js@6.0.3` patch is stored at `patches/tuf-js-6.0.3-trusted-state-atomicity.patch`. It moves final timestamp expiry validation and final snapshot expiry/timestamp-linkage validation before the candidate metadata is assigned into `TrustedMetadataStore`. The patch also adds two upstream regression tests that force each final check to fail and assert the corresponding trusted-set getter remains unset. The workflow pins the upstream commit plus the exact Git blob hashes for both patched source files, applies with `git apply --unidiff-zero`, builds the upstream workspaces, and runs the upstream CLIENT Jest project.
 
-Verified on PR #143 head `93e873f8bbdba3c4bb8e61c6c49893892c11bf87`: upstream TUF CLIENT **8 suites / 42 tests passed**, and the workerd suite **20/20 passed** in [CI run 45080109093](https://github.com/Double-IQ/SentryIQ/actions/runs/45080109093). This is a targeted source-level fix, not the async storage adapter. It does not yet make `tuf-js` usable with Durable Objects/R2 or establish production readiness.
+Verified on PR #143 head `93e873f8bbdba3c4bb8e61c6c49893892c11bf87`: upstream TUF CLIENT **8 suites / 42 tests passed**, and the workerd suite **20/20 passed** in [CI run 45080395120](https://github.com/Double-IQ/SentryIQ/actions/runs/45080395120). This is a targeted source-level fix, not the async storage adapter. It does not yet make `tuf-js` usable with Durable Objects/R2 or establish production readiness.
 
 ## Target digest preservation
 
@@ -107,3 +107,9 @@ The same maintained patch also narrows cached-target recovery: only `LengthOrHas
 Each private target stage carries the full immutable `TufTargetDescriptor` (path, length and every declared hash). `commitTarget` must compare the completed R2 object against that descriptor before publishing the pointer; it must not reconstruct or narrow the expected digest set from a SHA-256-only shortcut.
 
 The complete target-stage contract now retains its immutable descriptor through commit, including the full TUF hash map; the workerd compile-time assertion and the upstream TUF patch suite both pass on the latest exact head.
+
+## Durable Object metadata adapter slice implemented
+
+`src/durable-tuf-metadata-store.ts` now implements `TufMetadataStore` over the existing Node A Durable Object RPC surface. It delegates metadata reads and compare-and-set commits to the authoritative DO methods, validates the supplied run ID/fence/token against the active run lock, and does not duplicate rollback or root-rotation policy outside the DO transaction. A workerd test verifies read-after-commit and rejects a mismatched fence. On latest exact-head CI, workerd passed **21/21** and upstream TUF CLIENT passed **8 suites / 43 tests** ([run 45080395120](https://github.com/Double-IQ/SentryIQ/actions/runs/45080395120)).
+
+This is a concrete metadata-store implementation slice only. It is not yet passed into `tuf-js`; the async updater factory/refactor, R2 target-store implementation, and full refresh/rotation/restart acceptance matrix remain open.
