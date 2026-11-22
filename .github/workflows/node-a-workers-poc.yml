@@ -112,8 +112,9 @@ jobs:
       - name: Apply SentryIQ trusted-state atomicity patch
         working-directory: ${{ github.workspace }}
         run: |
-          git -C upstream-tuf-js apply --check patches/tuf-js-6.0.3-trusted-state-atomicity.patch
-          git -C upstream-tuf-js apply patches/tuf-js-6.0.3-trusted-state-atomicity.patch
+          PATCH="$GITHUB_WORKSPACE/patches/tuf-js-6.0.3-trusted-state-atomicity.patch"
+          git -C upstream-tuf-js apply --check "$PATCH"
+          git -C upstream-tuf-js apply "$PATCH"
           git -C upstream-tuf-js diff --check
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
