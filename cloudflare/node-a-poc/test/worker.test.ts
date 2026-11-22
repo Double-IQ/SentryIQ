@@ -219,6 +219,17 @@ describe("Node A Workers runtime proof", () => {
       "TUF metadata candidate digest mismatch"
     );
     expect((await first.readTufMetadata("root"))?.version).toBe(2);
+
+    const delegated = new TextEncoder().encode("already-verified-delegated-role");
+    const delegatedHash = createHash("sha256").update(delegated).digest("hex");
+    await first.commitVerifiedTufMetadata(
+      "delegations/team-a", null, { version: 1, sha256: delegatedHash, data: delegated }, lock
+    );
+    await expectRemoteRejection(
+      first.commitVerifiedTufMetadata("../escape", null, { version: 1, sha256: delegatedHash, data: delegated }, lock),
+      "TUF metadata role name is invalid"
+    );
+    expect((await first.readTufMetadata("delegations/team-a"))?.sha256).toBe(delegatedHash);
   });
 
   it("requires an explicit immutable baseline before any release pin can advance", async () => {
