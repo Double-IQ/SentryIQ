@@ -35,7 +35,7 @@ export class TufStateMutationError extends Error {
 
 export class TufUpdaterPoisonedError extends Error {
   constructor() {
-    super("TUF updater instance is poisoned after a metadata persistence failure; recreate it from durable state");
+    super("TUF updater instance is poisoned after a trusted-state or metadata persistence failure; recreate it from durable state");
     this.name = "TufUpdaterPoisonedError";
   }
 }
