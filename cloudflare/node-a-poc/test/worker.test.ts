@@ -80,7 +80,40 @@ describe("Node A isolated certificate diagnostic", () => {
         }
         return { authorityIndex, links };
       });
-      throw new Error("NODE_A_ISOLATED_CERT_DIAGNOSTIC " + JSON.stringify({diagnostics,chainLinks}));
+      const sctResults: unknown[] = [];
+      const sctExtension = leaf.extSCT;
+      if (sctExtension) {
+        const clone = leaf.clone();
+        const extIndex = clone.extensions.findIndex(ext => ext.subs[0].toOID() === "1.3.6.1.4.1.11129.2.4.2");
+        if (extIndex >= 0) clone.extensions.splice(extIndex, 1);
+        const issuer = trust.certificateAuthorities[1]?.certChain[0] ?? trust.certificateAuthorities[0]?.certChain[0];
+        if (issuer) {
+          const issuerId = sigstoreCrypto.digest("sha256", issuer.publicKey);
+          const tbs = clone.tbsCertificate.toDER();
+          const preCert = Buffer.concat([issuerId, Buffer.from([(tbs.length >>> 16) & 255, (tbs.length >>> 8) & 255, tbs.length & 255]), tbs]);
+          for (const sct of sctExtension.signedCertificateTimestamps) {
+            const signedData = Buffer.concat([
+              Buffer.from([sct.version, 0]), sct.timestamp, Buffer.from([0, 1]), preCert,
+              Buffer.from([(sct.extensions.length >>> 8) & 255, sct.extensions.length & 255]), sct.extensions
+            ]);
+            const logs = trust.ctlogs.filter(log => log.logID.equals(sct.logID));
+            sctResults.push({
+              algorithm: sct.algorithm,
+              signatureAlgorithm: sct.signatureAlgorithm,
+              matchingLogs: logs.length,
+              logs: logs.map(log => {
+                let nativeVerify: unknown;
+                let sigstoreVerify: unknown;
+                try { nativeVerify = cryptoCompat.verify(sct.algorithm, signedData, log.publicKey, sct.signature); } catch (e) { nativeVerify = String(e); }
+                try { sigstoreVerify = sct.verify(preCert, log.publicKey); } catch (e) { sigstoreVerify = String(e); }
+                return { keyType: log.publicKey.asymmetricKeyType, nativeVerify, sigstoreVerify };
+              })
+            });
+          }
+        }
+      }
+      throw new Error("NODE_A_ISOLATED_CERT_DIAGNOSTIC " + JSON.stringify({diagnostics,chainLinks,sctResults}));
+
     } catch (error) {
       if (String(error).includes("NODE_A_ISOLATED_CERT_DIAGNOSTIC")) throw error;
       throw new Error("NODE_A_ISOLATED_CERT_DIAGNOSTIC stage=" + stage + " error=" + String(error));
