@@ -82,7 +82,7 @@ export class NodeAState extends DurableObject<Env> {
         singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
         run_id TEXT NOT NULL,
         fence INTEGER NOT NULL CHECK (fence > 0),
-        token TEXT NOT NULL,
+        token_hash TEXT NOT NULL,
         expires_at INTEGER NOT NULL
       );
       CREATE TABLE IF NOT EXISTS run_fence_counter (
@@ -221,7 +221,7 @@ export class NodeAState extends DurableObject<Env> {
       const token = randomBytes(32).toString("hex");
       const expiresAt = now + leaseMs;
       this.ctx.storage.sql.exec("INSERT INTO run_fence_counter (singleton, last_fence) VALUES (1, ?) ON CONFLICT(singleton) DO UPDATE SET last_fence = excluded.last_fence", fence);
-      this.ctx.storage.sql.exec("INSERT INTO run_lease (singleton, run_id, fence, token, expires_at) VALUES (1, ?, ?, ?, ?) ON CONFLICT(singleton) DO UPDATE SET run_id = excluded.run_id, fence = excluded.fence, token_hash = excluded.token_hash, expires_at = excluded.expires_at", runId, fence, token, expiresAt);
+      this.ctx.storage.sql.exec("INSERT INTO run_lease (singleton, run_id, fence, token_hash, expires_at) VALUES (1, ?, ?, ?, ?) ON CONFLICT(singleton) DO UPDATE SET run_id = excluded.run_id, fence = excluded.fence, token_hash = excluded.token_hash, expires_at = excluded.expires_at", runId, fence, token, expiresAt);
       return { runId, fence, token, expiresAt };
     });
   }
@@ -232,7 +232,7 @@ export class NodeAState extends DurableObject<Env> {
     return this.ctx.storage.transactionSync(() => {
       this.assertRunLock(lock);
       const expiresAt = Date.now() + leaseMs;
-      this.ctx.storage.sql.exec("UPDATE run_lease SET expires_at = ? WHERE singleton = 1 AND run_id = ? AND fence = ? AND token = ?", expiresAt, lock.runId, lock.fence, lock.token);
+      this.ctx.storage.sql.exec("UPDATE run_lease SET expires_at = ? WHERE singleton = 1 AND run_id = ? AND fence = ? AND token_hash = ?", expiresAt, lock.runId, lock.fence, createHash("sha256").update(lock.token).digest("hex"));
       return { ...lock, expiresAt };
     });
   }
@@ -244,8 +244,8 @@ export class NodeAState extends DurableObject<Env> {
   }
 
   private assertRunLock(lock: RunLock): void {
-    const current = this.ctx.storage.sql.exec<{ run_id: string; fence: number; token: string; expires_at: number }>("SELECT run_id, fence, token, expires_at FROM run_lease WHERE singleton = 1").toArray()[0];
-    if (!current || current.run_id !== lock.runId || current.fence !== lock.fence || current.token !== lock.token || current.expires_at <= Date.now()) {
+    const current = this.ctx.storage.sql.exec<{ run_id: string; fence: number; token_hash: string; expires_at: number }>("SELECT run_id, fence, token_hash, expires_at FROM run_lease WHERE singleton = 1").toArray()[0];
+    if (!current || current.run_id !== lock.runId || current.fence !== lock.fence || current.token_hash !== createHash("sha256").update(lock.token).digest("hex") || current.expires_at <= Date.now()) {
       throw new Error("valid active Node A run fence required");
     }
   }
@@ -254,7 +254,7 @@ export class NodeAState extends DurableObject<Env> {
     this.validateRunLock(lock);
     this.ctx.storage.transactionSync(() => {
       this.assertRunLock(lock);
-      this.ctx.storage.sql.exec("DELETE FROM run_lease WHERE singleton = 1 AND run_id = ? AND fence = ? AND token = ?", lock.runId, lock.fence, lock.token);
+      this.ctx.storage.sql.exec("DELETE FROM run_lease WHERE singleton = 1 AND run_id = ? AND fence = ? AND token_hash = ?", lock.runId, lock.fence, createHash("sha256").update(lock.token).digest("hex"));
     });
   }
   recordOutcome(outcome: "started" | "approved" | "rejected" | "failed", version: string | null): void {
