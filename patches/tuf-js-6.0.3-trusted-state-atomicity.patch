@@ -119,3 +119,69 @@ diff --git a/packages/client/tests/updater.test.ts b/packages/client/tests/updat
 +    expect(store.snapshot).toBeUndefined();
 +  });
 +});
+diff --git a/packages/client/src/updater.ts b/packages/client/src/updater.ts
+--- a/packages/client/src/updater.ts
++++ b/packages/client/src/updater.ts
+@@ -1,1 +1,1 @@
+-import { Metadata, MetadataKind, TargetFile, Targets } from '@tufjs/models';
++import { LengthOrHashMismatchError, Metadata, MetadataKind, TargetFile, Targets } from '@tufjs/models';
+@@ -169,9 +169,18 @@
+-    try {
+-      if (fs.existsSync(filePath)) {
+-        await targetInfo.verify(fs.createReadStream(filePath));
+-        return filePath;
+-      }
+-    } catch (error) {
+-      return; // File not found
+-    }
+-    return; // File not found
++    try {
++      await targetInfo.verify(fs.createReadStream(filePath));
++      return filePath;
++    } catch (error) {
++      // A corrupt cached target can be downloaded again. Infrastructure and
++      // permission failures must propagate rather than masquerade as a miss.
++      if (error instanceof LengthOrHashMismatchError) {
++        return;
++      }
++      if (
++        error instanceof Error &&
++        'code' in error &&
++        error.code === 'ENOENT'
++      ) {
++        return;
++      }
++      throw error;
++    }
+diff --git a/packages/models/src/index.ts b/packages/models/src/index.ts
+--- a/packages/models/src/index.ts
++++ b/packages/models/src/index.ts
+@@ -2,1 +2,1 @@
+-export { ValueError } from './error';
++export { LengthOrHashMismatchError, ValueError } from './error';
+diff --git a/packages/client/tests/updater.test.ts b/packages/client/tests/updater.test.ts
+--- a/packages/client/tests/updater.test.ts
++++ b/packages/client/tests/updater.test.ts
+@@ -184,3 +184,19 @@
+-  });
+-
+-  describe('#downloadTarget', () => {
++    it('propagates cached-target permission errors instead of treating them as misses', async () => {
++      const targetInfo = await subject.getTargetInfo(target.name);
++      assert(targetInfo);
++      fs.writeFileSync(path.join(tufCacheDir, target.name), target.content);
++
++      const readSpy = jest.spyOn(fs, 'createReadStream').mockImplementation(() => {
++        throw Object.assign(new Error('permission denied'), { code: 'EACCES' });
++      });
++      try {
++        await expect(subject.findCachedTarget(targetInfo)).rejects.toThrow(
++          'permission denied'
++        );
++      } finally {
++        readSpy.mockRestore();
++      }
++    });
++  });
++
++  describe('#downloadTarget', () => {
