@@ -188,6 +188,12 @@ describe("Node A isolated certificate diagnostic", () => {
         try { internal.verifySignature(entity, stageSigner); stageResults.dsseSignature = "passed"; }
         catch (e) { stageResults.dsseSignature = String(e); }
       }
+      try {
+        stageVerifier.verify(entity);
+        stageResults.fullVerifierCall = "passed";
+      } catch (e) {
+        stageResults.fullVerifierCall = String(e);
+      }
       postCertificateDiagnostics.verifierStages = stageResults;
       throw new Error("NODE_A_ISOLATED_CERT_DIAGNOSTIC " + JSON.stringify({diagnostics,chainLinks,sctResults,postCertificateDiagnostics}));
 
