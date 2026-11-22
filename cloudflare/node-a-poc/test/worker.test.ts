@@ -332,7 +332,9 @@ describe("Node A Workers runtime proof", () => {
       },
       async getTargetInfo(targetPath: string) {
         return { path: targetPath };
-      }
+      },
+      async findCachedTarget() { return undefined; },
+      async downloadTarget(targetInfo: unknown) { return targetInfo; }
     };
     const guarded = new GuardedTufUpdater(upstream);
     await expect(guarded.refresh()).rejects.toBeInstanceOf(TufPersistenceCommitError);
@@ -352,7 +354,9 @@ describe("Node A Workers runtime proof", () => {
         if (attempts === 1) throw new Error("network unavailable before trusted-state mutation");
       },
       async getTarget(targetPath: string) { return targetPath; },
-      async getTargetInfo(targetPath: string) { return { path: targetPath }; }
+      async getTargetInfo(targetPath: string) { return { path: targetPath }; },
+      async findCachedTarget() { return undefined; },
+      async downloadTarget(targetInfo: unknown) { return targetInfo; }
     });
     await expect(guarded.refresh()).rejects.toThrow("network unavailable");
     expect(guarded.poisoned).toBe(false);
@@ -368,7 +372,9 @@ describe("Node A Workers runtime proof", () => {
         throw new TufStateMutationError("timestamp trusted-set mutation preceded freeze-check failure");
       },
       async getTarget(targetPath: string) { return targetPath; },
-      async getTargetInfo(targetPath: string) { return { path: targetPath }; }
+      async getTargetInfo(targetPath: string) { return { path: targetPath }; },
+      async findCachedTarget() { return undefined; },
+      async downloadTarget(targetInfo: unknown) { return targetInfo; }
     });
     await expect(guarded.refresh()).rejects.toBeInstanceOf(TufStateMutationError);
     expect(guarded.poisoned).toBe(true);
