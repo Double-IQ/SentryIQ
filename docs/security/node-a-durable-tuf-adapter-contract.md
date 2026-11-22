@@ -201,3 +201,20 @@ Do not use runtime monkey-patching, module-loader interception, global fs replac
 5. **Adversarial/restart matrix:** fail at each boundary, evict/reconstruct the DO instance, retry under a newer fence, and prove no stale run can commit or return an uncommitted target.
 
 Acceptance remains blocked until all five slices run in the real Workerd integration test with native filesystem fallback disabled.
+## 11. Target object durability decision
+
+Do not place arbitrary release target bytes into the metadata SQLite tables or concatenate an unbounded stream in Worker memory. Keep the Durable Object as the serialization and authorization authority, and use a dedicated Cloudflare R2 bucket for potentially large target objects, subject to account-backed staging validation.
+
+Recommended target lifecycle:
+1. Allocate a cryptographically random stage ID and a run-bound object key under a private staging prefix. Persist the stage identity, run ID, fence, token hash, expected target identity and expiry in the Durable Object.
+2. Stream the response into the R2 staging object with strict maximum byte count and request timeout. No SQL transaction remains open during upload.
+3. Run the upstream TUF target length/hash verification against the staged object stream. The object is still not visible as a committed target.
+4. Ask the Durable Object to promote the logical target pointer in a short transaction. That transaction checks the active run fence and stage identity, checks expected current target identity, and writes the committed R2 object key plus verified length/hash.
+5. Readers resolve only committed pointers from the Durable Object and then read the referenced R2 object. They never enumerate or serve the staging prefix.
+6. On failed verification or stale fence, do not publish the pointer. Delete the stage best-effort; orphan cleanup is a separate bounded lifecycle job and must never delete an object referenced by a committed pointer.
+
+This is a two-resource protocol, not a distributed atomic transaction: the R2 upload happens first and the Durable Object pointer publication is the visibility commit. A crash between upload and pointer commit leaves an unreachable orphan, which is safe and later garbage-collected. A crash after pointer commit leaves a durable pointer to an already completed immutable object. Never publish a pointer before R2 confirms the object write.
+
+Use immutable object keys per stage/target digest; do not overwrite an existing committed object in place. The Durable Object transaction must reject a stale fence even if the stale worker successfully finishes an R2 upload. A later run may clean up the orphan but must not adopt it without re-running all TUF and SentryIQ verification under its own fence.
+
+Account-backed acceptance must verify R2 binding permissions, maximum object size, multipart behavior for the expected artifact size, streaming hash verification, interrupted upload cleanup, object availability after Worker/DO eviction, and stale-owner upload/publish races. If the target sizes exceed single-put limits, use the supported multipart lifecycle with bounded part sizes and explicit abort handling.
