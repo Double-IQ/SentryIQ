@@ -11,6 +11,7 @@ import { genuineV012BundleJson } from "./fixtures/genuine-v012-bundle";
 import { genuineV012TrustedRootJson } from "./fixtures/genuine-v012-trusted-root";
 import { tufRootBase64 } from "./fixtures/tuf-root";
 import { GuardedTufUpdater, TufPersistenceCommitError, TufStateMutationError, TufUpdaterPoisonedError } from "../src/guarded-tuf-updater";
+import { DurableObjectTufMetadataStore } from "../src/durable-tuf-metadata-store";
 import type { TufTargetDescriptor, TufTargetStage } from "../src/tuf-storage-contract";
 import { describe, expect, it } from "vitest";
 
@@ -423,6 +424,39 @@ describe("Node A Workers runtime proof", () => {
     expect(Object.keys(descriptor.hashes).sort()).toEqual(["sha256", "sha512"]);
     const stage: TufTargetStage = { stageId: "stage-1", descriptor, objectKey: "staging/1", fence: 1 };
     expect(stage.descriptor).toBe(descriptor);
+  });
+
+  it("adapts TUF metadata commits to the fenced Durable Object store", async () => {
+    const id = env.NODE_A_STATE.idFromName("node-a-tuf-metadata-store-adapter-test");
+    const state = env.NODE_A_STATE.get(id);
+    const lock = await state.acquireRunLock(60_000);
+    const store = new DurableObjectTufMetadataStore(state, () => lock);
+    const data = new TextEncoder().encode(JSON.stringify({
+      signed: { type: "root", version: 1 },
+      signatures: []
+    }));
+    const sha256 = createHash("sha256").update(data).digest("hex");
+    const fence = { runId: lock.runId, fence: lock.fence, token: lock.token };
+
+    const saved = await store.commitVerifiedRole(
+      "root",
+      null,
+      { version: 1, sha256, data },
+      fence
+    );
+    expect(saved).toEqual({ version: 1, sha256 });
+
+    const restored = await store.readRole("root");
+    expect(restored?.version).toBe(1);
+    expect(restored?.sha256).toBe(sha256);
+    expect(Array.from(restored!.data)).toEqual(Array.from(data));
+
+    await expect(store.commitVerifiedRole(
+      "timestamp",
+      null,
+      { version: 1, sha256, data },
+      { ...fence, fence: fence.fence + 1 }
+    )).rejects.toThrow("TUF storage fence does not match the active Node A run lock");
   });
 
 });
