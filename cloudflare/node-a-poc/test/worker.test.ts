@@ -37,6 +37,7 @@ describe("Node A isolated certificate diagnostic", () => {
     try {
       if (genuineV012BundleJson === null || genuineV012TrustedRootJson === null) throw new Error("genuine fixtures missing");
       const bundle = bundleFromJSON(JSON.parse(genuineV012BundleJson));
+      const tlogEntry = bundle.verificationMaterial.tlogEntries[0];
       stage = "trusted-root";
       const root = TrustedRoot.fromJSON(JSON.parse(genuineV012TrustedRootJson));
       stage = "trust-material";
@@ -60,7 +61,7 @@ describe("Node A isolated certificate diagnostic", () => {
           try { result.nativeCaSelfVerify = nativeIssuer.verify(nativeIssuer.publicKey); } catch (e) { result.nativeCaSelfVerify = String(e); }
           try { result.sigstoreLeafVerify = leaf.verify(cert); } catch (e) { result.sigstoreLeafVerify = String(e); }
           try { result.sigstoreCaSelfVerify = cert.verify(); } catch (e) { result.sigstoreCaSelfVerify = String(e); }
-          try { result.directLeafVerify = cryptoCompat.verify(leaf.signatureAlgorithm, leaf.tbsCertificate.toDER(), cryptoCompat.createPublicKey(cert.publicKey), leaf.signatureValue); } catch (e) { result.directLeafVerify = String(e); }
+          try { result.directLeafVerify = cryptoCompat.verify(leaf.signatureAlgorithm, leaf.tbsCertificate.toDER(), cryptoCompat.createPublicKey({ key: cert.publicKey, format: "der", type: "spki" }), leaf.signatureValue); } catch (e) { result.directLeafVerify = String(e); }
           return result;
         })
       );
@@ -250,7 +251,7 @@ describe("Node A Workers runtime proof", () => {
           try {
             item.signatureAlgorithm = cert.signatureAlgorithm;
             item.selfSigned = cert.subject.equals(cert.issuer);
-            item.publicKeyType = cryptoCompat.createPublicKey(cert.publicKey).asymmetricKeyType;
+            item.publicKeyType = cryptoCompat.createPublicKey({ key: cert.publicKey, format: "der", type: "spki" }).asymmetricKeyType;
             try { item.selfVerify = cert.verify(); } catch (error) { item.selfVerifyError = String(error); }
             try { item.leafVerify = leaf.verify(cert); } catch (error) { item.leafVerifyError = String(error); }
           } catch (error) { item.diagnosticError = String(error); }
