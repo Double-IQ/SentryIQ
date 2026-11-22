@@ -115,6 +115,7 @@ jobs:
           PATCH="$GITHUB_WORKSPACE/patches/tuf-js-6.0.3-trusted-state-atomicity.patch"
           test "$(git -C upstream-tuf-js rev-parse HEAD)" = "ce8ba9cd3f074531976ff4eef82af1f3adae3728"
           test "$(git -C upstream-tuf-js rev-parse HEAD:packages/client/src/store.ts)" = "570df07c5b40013a260b00f0b55e692bbfd662f9"
+          test "$(git -C upstream-tuf-js rev-parse HEAD:packages/client/tests/updater.test.ts)" = "700821f9c93223d4822384f7e690aa37d954ccb8"
           git -C upstream-tuf-js apply --unidiff-zero --check "$PATCH"
           git -C upstream-tuf-js apply --unidiff-zero "$PATCH"
           git -C upstream-tuf-js diff --check
