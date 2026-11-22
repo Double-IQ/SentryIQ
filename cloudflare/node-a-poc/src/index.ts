@@ -94,6 +94,13 @@ export class NodeAState extends DurableObject<Env> {
         data BLOB NOT NULL,
         updated_at INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS tuf_metadata (
+        role_name TEXT PRIMARY KEY,
+        version INTEGER NOT NULL CHECK (version > 0),
+        sha256 TEXT NOT NULL CHECK (length(sha256) = 64),
+        data BLOB NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS run_audit (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         outcome TEXT NOT NULL CHECK (outcome IN ('started', 'approved', 'rejected', 'failed')),
@@ -364,6 +371,75 @@ export class NodeAState extends DurableObject<Env> {
         discardedWriteAbsentAfterRollback
       };
     });
+  }
+
+  readTufMetadata(roleName: string): { version: number; sha256: string; data: Uint8Array } | null {
+    this.validateTufRoleName(roleName);
+    const row = this.ctx.storage.sql.exec<{
+      version: number; sha256: string; data: ArrayBuffer | Uint8Array
+    }>("SELECT version, sha256, data FROM tuf_metadata WHERE role_name = ?", roleName).toArray()[0];
+    if (!row) return null;
+    return { version: row.version, sha256: row.sha256, data: new Uint8Array(row.data) };
+  }
+
+  commitVerifiedTufMetadata(
+    roleName: string,
+    expectedCurrent: { version: number; sha256: string } | null,
+    next: { version: number; sha256: string; data: Uint8Array },
+    lock: RunLock
+  ): { version: number; sha256: string } {
+    this.validateTufRoleName(roleName);
+    this.validateRunLock(lock);
+    if (!Number.isSafeInteger(next.version) || next.version < 1
+        || !/^[a-f0-9]{64}$/.test(next.sha256)
+        || !(next.data instanceof Uint8Array) || next.data.byteLength < 1 || next.data.byteLength > 4 * 1024 * 1024) {
+      throw new Error("TUF metadata candidate is malformed or exceeds the storage limit");
+    }
+    const actualDigest = createHash("sha256").update(Buffer.from(next.data)).digest("hex");
+    if (actualDigest !== next.sha256) throw new Error("TUF metadata candidate digest mismatch");
+    if (expectedCurrent !== null
+        && (!Number.isSafeInteger(expectedCurrent.version) || expectedCurrent.version < 1
+          || !/^[a-f0-9]{64}$/.test(expectedCurrent.sha256))) {
+      throw new Error("TUF metadata expected-current identity is invalid");
+    }
+
+    return this.ctx.storage.transactionSync(() => {
+      this.assertRunLock(lock);
+      const current = this.ctx.storage.sql.exec<{
+        version: number; sha256: string
+      }>("SELECT version, sha256 FROM tuf_metadata WHERE role_name = ?", roleName).toArray()[0] ?? null;
+
+      if (expectedCurrent === null) {
+        if (current) throw new Error("TUF metadata compare-and-set expected an empty role");
+      } else if (!current || current.version !== expectedCurrent.version || current.sha256 !== expectedCurrent.sha256) {
+        throw new Error("TUF metadata compare-and-set current identity changed");
+      }
+
+      if (current) {
+        if (next.version < current.version) throw new Error("TUF metadata rollback rejected");
+        if (next.version === current.version) {
+          if (next.sha256 !== current.sha256) throw new Error("same-version TUF metadata replacement rejected");
+          return { version: current.version, sha256: current.sha256 };
+        }
+        if (roleName === "root" && next.version !== current.version + 1) {
+          throw new Error("TUF root rotation must advance exactly one version");
+        }
+      } else if (roleName === "root" && next.version !== 1) {
+        throw new Error("initial TUF root must be version 1");
+      }
+
+      this.ctx.storage.sql.exec(
+        "INSERT INTO tuf_metadata (role_name, version, sha256, data, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(role_name) DO UPDATE SET version = excluded.version, sha256 = excluded.sha256, data = excluded.data, updated_at = excluded.updated_at",
+        roleName, next.version, next.sha256, Buffer.from(next.data), Date.now()
+      );
+      return { version: next.version, sha256: next.sha256 };
+    });
+  }
+
+  private validateTufRoleName(roleName: string): void {
+    if (typeof roleName !== "string" || !/^(root|timestamp|snapshot|targets|[a-z0-9][a-z0-9._-]{0,127})$/.test(roleName)) {
+      throw new Error("TUF metadata role name is invalid");
+    }
   }
 
   getRecentOutcomes(): Array<{ outcome: string; releaseVersion: string | null; recordedAt: number }> {
