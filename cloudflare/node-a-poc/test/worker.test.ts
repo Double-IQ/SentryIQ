@@ -11,6 +11,7 @@ import { genuineV012BundleJson } from "./fixtures/genuine-v012-bundle";
 import { genuineV012TrustedRootJson } from "./fixtures/genuine-v012-trusted-root";
 import { tufRootBase64 } from "./fixtures/tuf-root";
 import { GuardedTufUpdater, TufPersistenceCommitError, TufStateMutationError, TufUpdaterPoisonedError } from "../src/guarded-tuf-updater";
+import type { TufTargetDescriptor } from "../src/tuf-storage-contract";
 import { describe, expect, it } from "vitest";
 
 async function expectRemoteRejection(promise: Promise<unknown>, message: string): Promise<void> {
@@ -408,6 +409,18 @@ describe("Node A Workers runtime proof", () => {
     await expect(refresh).rejects.toBeInstanceOf(TufStateMutationError);
     await expect(queuedDownload).rejects.toBeInstanceOf(TufUpdaterPoisonedError);
     expect(targetDownloads).toBe(0);
+  });
+
+  it("preserves every hash algorithm declared by TUF target metadata", () => {
+    const descriptor: TufTargetDescriptor = {
+      targetPath: "targets/release.zip",
+      length: 12,
+      hashes: {
+        sha256: "a".repeat(64),
+        sha512: "b".repeat(128)
+      }
+    };
+    expect(Object.keys(descriptor.hashes).sort()).toEqual(["sha256", "sha512"]);
   });
 
 });
