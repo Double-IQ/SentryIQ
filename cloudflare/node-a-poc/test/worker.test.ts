@@ -11,7 +11,7 @@ import { genuineV012BundleJson } from "./fixtures/genuine-v012-bundle";
 import { genuineV012TrustedRootJson } from "./fixtures/genuine-v012-trusted-root";
 import { tufRootBase64 } from "./fixtures/tuf-root";
 import { GuardedTufUpdater, TufPersistenceCommitError, TufStateMutationError, TufUpdaterPoisonedError } from "../src/guarded-tuf-updater";
-import type { TufTargetDescriptor } from "../src/tuf-storage-contract";
+import type { TufTargetDescriptor, TufTargetStage } from "../src/tuf-storage-contract";
 import { describe, expect, it } from "vitest";
 
 async function expectRemoteRejection(promise: Promise<unknown>, message: string): Promise<void> {
@@ -421,6 +421,8 @@ describe("Node A Workers runtime proof", () => {
       }
     };
     expect(Object.keys(descriptor.hashes).sort()).toEqual(["sha256", "sha512"]);
+    const stage: TufTargetStage = { stageId: "stage-1", descriptor, objectKey: "staging/1", fence: 1 };
+    expect(stage.descriptor).toBe(descriptor);
   });
 
 });
