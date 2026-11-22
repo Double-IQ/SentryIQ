@@ -1,10 +1,9 @@
 import { env } from "cloudflare:test";
 import { exports as workerExports } from "cloudflare:workers";
 import { bundleFromJSON } from "@sigstore/bundle";
-import { crypto as sigstoreCrypto, dsse as sigstoreDsse, json as sigstoreJson } from "@sigstore/core";
+import { crypto as sigstoreCrypto, json as sigstoreJson } from "@sigstore/core";
 import { TrustedRoot } from "@sigstore/protobuf-specs";
-import { createPublicKey, generateKeyPairSync, KeyObject, sign, verify } from "node:crypto";
-import cryptoCompat from "crypto";
+import { createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
 import { toSignedEntity, toTrustMaterial, Verifier } from "@sigstore/verify";
 import * as bundles from "./fixtures/bundles";
 import { trustedRoot } from "./fixtures/trust";
@@ -31,181 +30,6 @@ const candidate = (version: string, suffix = "a") => ({
   zipSha256: "c".repeat(64)
 });
 
-describe("Node A isolated certificate diagnostic", () => {
-  it("reports native and Sigstore certificate verification results", () => {
-    let stage = "bundle";
-    try {
-      if (genuineV012BundleJson === null || genuineV012TrustedRootJson === null) throw new Error("genuine fixtures missing");
-      const bundle = bundleFromJSON(JSON.parse(genuineV012BundleJson));
-      const tlogEntry = bundle.verificationMaterial.tlogEntries[0];
-      stage = "trusted-root";
-      const root = TrustedRoot.fromJSON(JSON.parse(genuineV012TrustedRootJson));
-      stage = "trust-material";
-      const trust = toTrustMaterial(root);
-      stage = "signed-entity";
-      const entity = toSignedEntity(bundle);
-      if (entity.key.$case !== "certificate") throw new Error("bundle does not contain certificate key");
-      const leaf = entity.key.certificate;
-      const nativeLeaf = new cryptoCompat.X509Certificate(leaf.root.toDER());
-      const diagnostics = trust.certificateAuthorities.flatMap((authority, authorityIndex) =>
-        authority.certChain.map((cert, certIndex) => {
-          const nativeIssuer = new cryptoCompat.X509Certificate(cert.root.toDER());
-          const result: Record<string, unknown> = {
-            authorityIndex, certIndex,
-            leafSignatureAlgorithm: leaf.signatureAlgorithm,
-            caSignatureAlgorithm: cert.signatureAlgorithm,
-            leafSubjectEqualsIssuer: leaf.subject.equals(leaf.issuer),
-            caSubjectEqualsIssuer: cert.subject.equals(cert.issuer)
-          };
-          try { result.nativeLeafVerify = nativeLeaf.verify(nativeIssuer.publicKey); } catch (e) { result.nativeLeafVerify = String(e); }
-          try { result.nativeCaSelfVerify = nativeIssuer.verify(nativeIssuer.publicKey); } catch (e) { result.nativeCaSelfVerify = String(e); }
-          try { result.sigstoreLeafVerify = leaf.verify(cert); } catch (e) { result.sigstoreLeafVerify = String(e); }
-          try { result.sigstoreCaSelfVerify = cert.verify(); } catch (e) { result.sigstoreCaSelfVerify = String(e); }
-          try { result.directLeafVerify = cryptoCompat.verify(leaf.signatureAlgorithm, leaf.tbsCertificate.toDER(), cryptoCompat.createPublicKey({ key: cert.publicKey, format: "der", type: "spki" }), leaf.signatureValue); } catch (e) { result.directLeafVerify = String(e); }
-          return result;
-        })
-      );
-      const chainLinks = trust.certificateAuthorities.map((authority, authorityIndex) => {
-        const links = [];
-        for (let i = 0; i < authority.certChain.length - 1; i++) {
-          const child = authority.certChain[i];
-          const issuer = authority.certChain[i + 1];
-          const nativeChild = new cryptoCompat.X509Certificate(child.root.toDER());
-          const nativeIssuer = new cryptoCompat.X509Certificate(issuer.root.toDER());
-          let nativeVerify: unknown;
-          let sigstoreVerify: unknown;
-          try { nativeVerify = nativeChild.verify(nativeIssuer.publicKey); } catch (e) { nativeVerify = String(e); }
-          try { sigstoreVerify = child.verify(issuer); } catch (e) { sigstoreVerify = String(e); }
-          links.push({ index: i, childSignatureAlgorithm: child.signatureAlgorithm,
-            issuerSignatureAlgorithm: issuer.signatureAlgorithm, nativeVerify, sigstoreVerify });
-        }
-        return { authorityIndex, links };
-      });
-      const sctResults: unknown[] = [];
-      const sctExtension = leaf.extSCT;
-      if (sctExtension) {
-        const clone = leaf.clone();
-        const extIndex = clone.extensions.findIndex(ext => ext.subs[0].toOID() === "1.3.6.1.4.1.11129.2.4.2");
-        if (extIndex >= 0) clone.extensions.splice(extIndex, 1);
-        const issuer = trust.certificateAuthorities[1]?.certChain[0] ?? trust.certificateAuthorities[0]?.certChain[0];
-        if (issuer) {
-          const issuerId = sigstoreCrypto.digest("sha256", issuer.publicKey);
-          const tbs = clone.tbsCertificate.toDER();
-          const preCert = Buffer.concat([issuerId, Buffer.from([(tbs.length >>> 16) & 255, (tbs.length >>> 8) & 255, tbs.length & 255]), tbs]);
-          for (const sct of sctExtension.signedCertificateTimestamps) {
-            const signedData = Buffer.concat([
-              Buffer.from([sct.version, 0]), sct.timestamp, Buffer.from([0, 1]), preCert,
-              Buffer.from([(sct.extensions.length >>> 8) & 255, sct.extensions.length & 255]), sct.extensions
-            ]);
-            const logs = trust.ctlogs.filter(log => log.logID.equals(sct.logID));
-            sctResults.push({
-              algorithm: sct.algorithm,
-              signatureAlgorithm: sct.signatureAlgorithm,
-              matchingLogs: logs.length,
-              logs: logs.map(log => {
-                let nativeVerify: unknown;
-                let sigstoreVerify: unknown;
-                try { nativeVerify = cryptoCompat.verify(sct.algorithm, signedData, log.publicKey, sct.signature); } catch (e) { nativeVerify = String(e); }
-                try { sigstoreVerify = sct.verify(preCert, log.publicKey); } catch (e) { sigstoreVerify = String(e); }
-                return { keyType: log.publicKey.asymmetricKeyType, nativeVerify, sigstoreVerify };
-              })
-            });
-          }
-        }
-      }
-      const postCertificateDiagnostics: Record<string, unknown> = {};
-      if (bundle.content.$case === "dsseEnvelope" && entity.key.$case === "certificate") {
-        const envelope = bundle.content.dsseEnvelope;
-        const signingKey = cryptoCompat.createPublicKey({ key: entity.key.certificate.publicKey, format: "der", type: "spki" });
-        const pae = sigstoreDsse.preAuthEncoding(envelope.payloadType, Buffer.from(envelope.payload));
-        const dsseSig = Buffer.from(envelope.signatures[0].sig);
-        const dsseChecks: Record<string, unknown> = {
-          keyType: signingKey.asymmetricKeyType,
-          keyDetails: signingKey.asymmetricKeyDetails,
-          keyObjectInstance: signingKey instanceof cryptoCompat.KeyObject,
-          defaultVerify: null, sha256Verify: null, sha384Verify: null, pemDefaultVerify: null,
-          sigstoreDefaultVerify: null, sigstoreSha256Verify: null, sigstoreSha384Verify: null, sigstorePemDefaultVerify: null
-        };
-        try { dsseChecks.defaultVerify = cryptoCompat.verify(undefined, pae, signingKey, dsseSig); } catch (e) { dsseChecks.defaultVerify = String(e); }
-        try { dsseChecks.sha256Verify = cryptoCompat.verify("sha256", pae, signingKey, dsseSig); } catch (e) { dsseChecks.sha256Verify = String(e); }
-        try { dsseChecks.sha384Verify = cryptoCompat.verify("sha384", pae, signingKey, dsseSig); } catch (e) { dsseChecks.sha384Verify = String(e); }
-        try { dsseChecks.sigstoreDefaultVerify = sigstoreCrypto.verify(pae, signingKey, dsseSig); } catch (e) { dsseChecks.sigstoreDefaultVerify = String(e); }
-        try { dsseChecks.sigstoreSha256Verify = sigstoreCrypto.verify(pae, signingKey, dsseSig, "sha256"); } catch (e) { dsseChecks.sigstoreSha256Verify = String(e); }
-        try { dsseChecks.sigstoreSha384Verify = sigstoreCrypto.verify(pae, signingKey, dsseSig, "sha384"); } catch (e) { dsseChecks.sigstoreSha384Verify = String(e); }
-        const signingKeyPem = signingKey.export({ type: "spki", format: "pem" });
-        try { dsseChecks.pemDefaultVerify = cryptoCompat.verify(undefined, pae, signingKeyPem, dsseSig); } catch (e) { dsseChecks.pemDefaultVerify = String(e); }
-        try { dsseChecks.sigstorePemDefaultVerify = sigstoreCrypto.verify(pae, signingKeyPem, dsseSig); } catch (e) { dsseChecks.sigstorePemDefaultVerify = String(e); }
-        postCertificateDiagnostics.dsse = dsseChecks;
-      }
-      const checkpointEnvelope = tlogEntry.inclusionProof?.checkpoint?.envelope;
-      if (checkpointEnvelope) {
-        const split = checkpointEnvelope.indexOf("\n\n");
-        const note = checkpointEnvelope.slice(0, split + 1);
-        const data = checkpointEnvelope.slice(split + 2);
-        const regex = /— (\S+) (\S+)\n/g;
-        const checkpointSignatures: unknown[] = [];
-        for (const match of data.matchAll(regex)) {
-          const name = match[1];
-          const bytes = Buffer.from(match[2], "base64");
-          const keyHint = bytes.subarray(0, 4);
-          const signature = bytes.subarray(4);
-          const log = trust.tlogs.find(item => item.logID.subarray(0, 4).equals(keyHint) && item.baseURL.includes(name));
-          const result: Record<string, unknown> = { name, logFound: Boolean(log), signatureLength: signature.length };
-          if (log) {
-            result.keyType = log.publicKey.asymmetricKeyType;
-            result.keyObjectInstance = log.publicKey instanceof cryptoCompat.KeyObject;
-            try { result.defaultVerify = cryptoCompat.verify(undefined, Buffer.from(note), log.publicKey, signature); } catch (e) { result.defaultVerify = String(e); }
-            try { result.sha256Verify = cryptoCompat.verify("sha256", Buffer.from(note), log.publicKey, signature); } catch (e) { result.sha256Verify = String(e); }
-            try { result.sha384Verify = cryptoCompat.verify("sha384", Buffer.from(note), log.publicKey, signature); } catch (e) { result.sha384Verify = String(e); }
-            try { result.sigstoreDefaultVerify = sigstoreCrypto.verify(Buffer.from(note), log.publicKey, signature); } catch (e) { result.sigstoreDefaultVerify = String(e); }
-            const logKeyPem = log.publicKey.export({ type: "spki", format: "pem" });
-            try { result.pemDefaultVerify = cryptoCompat.verify(undefined, Buffer.from(note), logKeyPem, signature); } catch (e) { result.pemDefaultVerify = String(e); }
-            try { result.sigstorePemDefaultVerify = sigstoreCrypto.verify(Buffer.from(note), logKeyPem, signature); } catch (e) { result.sigstorePemDefaultVerify = String(e); }
-          }
-          checkpointSignatures.push(result);
-        }
-        postCertificateDiagnostics.checkpoint = checkpointSignatures;
-      }
-      const stageResults: Record<string, unknown> = {};
-      const stageVerifier = new Verifier(trust, { ctlogThreshold: 1, tlogThreshold: 1, timestampThreshold: 1 });
-      const internal = stageVerifier as unknown as {
-        verifyTimestamps: (entity: typeof entity) => Date[];
-        verifySigningKey: (entity: typeof entity, timestamps: Date[]) => { key: unknown };
-        verifyTLogs: (entity: typeof entity) => void;
-        verifySignature: (entity: typeof entity, signer: { key: unknown }) => void;
-      };
-      let stageTimestamps: Date[] | undefined;
-      let stageSigner: { key: unknown } | undefined;
-      try { stageTimestamps = internal.verifyTimestamps(entity); stageResults.timestamps = "passed"; }
-      catch (e) { stageResults.timestamps = String(e); }
-      if (stageTimestamps) {
-        try { stageSigner = internal.verifySigningKey(entity, stageTimestamps); stageResults.signingKeyAndSCT = "passed"; }
-        catch (e) { stageResults.signingKeyAndSCT = String(e); }
-      }
-      try { internal.verifyTLogs(entity); stageResults.rekorInclusionAndBody = "passed"; }
-      catch (e) { stageResults.rekorInclusionAndBody = String(e); }
-      if (stageSigner) {
-        try { internal.verifySignature(entity, stageSigner); stageResults.dsseSignature = "passed"; }
-        catch (e) { stageResults.dsseSignature = String(e); }
-      }
-      try {
-        stageVerifier.verify(entity);
-        stageResults.fullVerifierCall = "passed";
-      } catch (e) {
-        stageResults.fullVerifierCall = String(e);
-      }
-      postCertificateDiagnostics.verifierStages = stageResults;
-      throw new Error("NODE_A_ISOLATED_CERT_DIAGNOSTIC " + JSON.stringify({diagnostics,chainLinks,sctResults,postCertificateDiagnostics}));
-
-
-
-    } catch (error) {
-      if (String(error).includes("NODE_A_ISOLATED_CERT_DIAGNOSTIC")) throw error;
-      throw new Error("NODE_A_ISOLATED_CERT_DIAGNOSTIC stage=" + stage + " error=" + String(error));
-    }
-  });
-});
-
 describe("Node A Workers runtime proof", () => {
   it("loads the Sigstore verifier and TUF client in workerd and executes Ed25519 crypto", async () => {
     const response = await workerExports.default.fetch(new Request("https://node-a-poc.test/runtime-check"), env, {} as ExecutionContext);
@@ -216,6 +40,13 @@ describe("Node A Workers runtime proof", () => {
     expect(body.tufClientLoaded).toBe(true);
     expect(body.tufNetworkOrCacheInitialized).toBe(false);
     expect(body.productionReady).toBe(false);
+  });
+
+  it("preserves Ed25519 verification when applying EC/RSA digest inference", () => {
+    const data = Buffer.from("SentryIQ Ed25519 inference regression");
+    const pair = generateKeyPairSync("ed25519");
+    const signature = sign(null, data, pair.privateKey);
+    expect(sigstoreCrypto.verify(data, pair.publicKey, signature)).toBe(true);
   });
 
   it("cryptographically verifies the genuine SentryIQ v0.1.2 release attestation in workerd", () => {
@@ -247,85 +78,12 @@ describe("Node A Workers runtime proof", () => {
     const exportedKeyBytes = Buffer.from(tlogAuthority!.publicKey.export({ type: "spki", format: "der" }));
     expect(exportedKeyBytes.equals(trustedKeyBytes), "selected Rekor authority key must match trusted-root key bytes").toBe(true);
     expect(verify("sha256", setBytes, tlogAuthority!.publicKey, setSignature), "Node crypto must verify the genuine Rekor SET signature").toBe(true);
-    const sigstoreKey = tlogAuthority!.publicKey;
-    console.info("SIGSTORE_CRYPTO_DIAGNOSTIC", JSON.stringify({
-      asymmetricKeyType: (sigstoreKey as { asymmetricKeyType?: string }).asymmetricKeyType ?? null,
-      keyConstructor: Object.getPrototypeOf(sigstoreKey)?.constructor?.name ?? null,
-      nodeKeyObjectInstance: sigstoreKey instanceof KeyObject,
-      compatKeyObjectInstance: sigstoreKey instanceof cryptoCompat.KeyObject,
-      compatKeyObjectConstructor: cryptoCompat.KeyObject?.name ?? null,
-      compatDefaultVerify: cryptoCompat.verify(undefined, setBytes, sigstoreKey, setSignature),
-      compatSha256Verify: cryptoCompat.verify("sha256", setBytes, sigstoreKey, setSignature),
-      namedDefaultVerify: verify(undefined, setBytes, sigstoreKey, setSignature),
-      namedSha256Verify: verify("sha256", setBytes, sigstoreKey, setSignature),
-      explicitSha256Verify: sigstoreCrypto.verify(setBytes, sigstoreKey, setSignature, "sha256"),
-      defaultVerify: sigstoreCrypto.verify(setBytes, sigstoreKey, setSignature)
-    }));
-    expect(sigstoreCrypto.verify(setBytes, sigstoreKey, setSignature), "Sigstore crypto must verify the genuine Rekor SET signature").toBe(true);
-
     const verifier = new Verifier(trustMaterial, {
       ctlogThreshold: 1,
       tlogThreshold: 1,
       timestampThreshold: 1
     });
-    console.log("NODE_A_STAGE_BEFORE_TO_SIGNED_ENTITY");
-    let signedEntity: ReturnType<typeof toSignedEntity>;
-    try {
-      signedEntity = toSignedEntity(bundle);
-      console.log("NODE_A_STAGE_AFTER_TO_SIGNED_ENTITY", signedEntity.key.$case);
-    } catch (error) {
-      console.log("NODE_A_TO_SIGNED_ENTITY_ERROR", String(error), error instanceof Error ? error.stack : "");
-      throw error;
-    }
-    if (signedEntity.key.$case === "certificate") {
-      console.log("NODE_A_STAGE_BEFORE_CERT_DIAGNOSTICS");
-      const leaf = signedEntity.key.certificate;
-      const chainDiagnostics: unknown[] = [];
-      for (let authorityIndex = 0; authorityIndex < trustMaterial.certificateAuthorities.length; authorityIndex++) {
-        const authority = trustMaterial.certificateAuthorities[authorityIndex];
-        for (let certIndex = 0; certIndex < authority.certChain.length; certIndex++) {
-          const cert = authority.certChain[certIndex];
-          let item: Record<string, unknown> = { authorityIndex, certIndex };
-          try {
-            item.signatureAlgorithm = cert.signatureAlgorithm;
-            item.selfSigned = cert.subject.equals(cert.issuer);
-            item.publicKeyType = cryptoCompat.createPublicKey({ key: cert.publicKey, format: "der", type: "spki" }).asymmetricKeyType;
-            try { item.selfVerify = cert.verify(); } catch (error) { item.selfVerifyError = String(error); }
-            try { item.leafVerify = leaf.verify(cert); } catch (error) { item.leafVerifyError = String(error); }
-          } catch (error) { item.diagnosticError = String(error); }
-          chainDiagnostics.push(item);
-        }
-      }
-      const nativeLeaf = new cryptoCompat.X509Certificate(leaf.root.toDER());
-      const nativeDiagnostics = trustMaterial.certificateAuthorities.flatMap((authority, authorityIndex) =>
-        authority.certChain.map((cert, certIndex) => {
-          const nativeIssuer = new cryptoCompat.X509Certificate(cert.root.toDER());
-          let nativeLeafVerify: unknown;
-          let nativeCaSelfVerify: unknown;
-          let sigstoreLeafVerify: unknown;
-          let directCoreEquivalent: unknown;
-          try { nativeLeafVerify = nativeLeaf.verify(nativeIssuer.publicKey); } catch (error) { nativeLeafVerify = String(error); }
-          try { nativeCaSelfVerify = nativeIssuer.verify(nativeIssuer.publicKey); } catch (error) { nativeCaSelfVerify = String(error); }
-          try { sigstoreLeafVerify = leaf.verify(cert); } catch (error) { sigstoreLeafVerify = String(error); }
-          try {
-            directCoreEquivalent = cryptoCompat.verify(leaf.signatureAlgorithm, leaf.tbsCertificate.toDER(), cryptoCompat.createPublicKey(cert.publicKey), leaf.signatureValue);
-          } catch (error) { directCoreEquivalent = String(error); }
-          return { authorityIndex, certIndex, leafSignatureAlgorithm: leaf.signatureAlgorithm,
-            caSignatureAlgorithm: cert.signatureAlgorithm, nativeLeafVerify, nativeCaSelfVerify,
-            sigstoreLeafVerify, directCoreEquivalent };
-        })
-      );
-      throw new Error("NODE_A_CERTIFICATE_VERIFY_DIAGNOSTIC " + JSON.stringify({chainDiagnostics,nativeDiagnostics}));
-    }
-    console.log("NODE_A_STAGE_BEFORE_VERIFIER_VERIFY");
-    let signer;
-    try {
-      signer = verifier.verify(signedEntity);
-      console.log("NODE_A_STAGE_AFTER_VERIFIER_VERIFY");
-    } catch (error) {
-      console.log("NODE_A_VERIFIER_ERROR", String(error), error instanceof Error ? error.stack : "");
-      throw error;
-    }
+    const signer = verifier.verify(toSignedEntity(bundle));
     const statement = JSON.parse(Buffer.from(bundle.content.dsseEnvelope.payload).toString("utf8")) as {
       predicateType?: string;
       subject?: Array<{ name?: string; digest?: { sha256?: string } }>;
