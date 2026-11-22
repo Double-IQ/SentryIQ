@@ -5,13 +5,25 @@ import { fileURLToPath } from "node:url";
 const coreEntry = fileURLToPath(import.meta.resolve("@sigstore/core"));
 const cryptoPath = path.join(path.dirname(coreEntry), "crypto.js");
 const original = fs.readFileSync(cryptoPath, "utf8");
-const pattern = /const keyType =\s*key instanceof crypto_1\.default\.KeyObject\s*\?\s*key\.asymmetricKeyType\s*:\s*crypto_1\.default\.createPublicKey\(key\)\.asymmetricKeyType;/s;
+const target = "return crypto_1.default.verify(algorithm, data, key, signature);";
+const replacement = \`let verificationAlgorithm = algorithm;
+        if (verificationAlgorithm === undefined) {
+            const keyType = key !== null && typeof key === 'object' && typeof key.asymmetricKeyType === 'string'
+                ? key.asymmetricKeyType
+                : crypto_1.default.createPublicKey(key).asymmetricKeyType;
+            if (keyType === 'ec' || keyType === 'rsa') {
+                verificationAlgorithm = 'sha256';
+            }
+        }
+        return crypto_1.default.verify(verificationAlgorithm, data, key, signature);\`;
 const replacement = "const keyType = key !== null && typeof key === 'object' && typeof key.asymmetricKeyType === 'string' ? key.asymmetricKeyType : crypto_1.default.createPublicKey(key).asymmetricKeyType;";
 if (!pattern.test(original)) {
   const i = original.indexOf("exports.verify");
   throw new Error("Pinned @sigstore/core crypto helper did not match; refusing patch. Snippet: " + original.slice(Math.max(0, i - 120), i + 2200));
 }
-const patched = original.replace(pattern, replacement);
+const occurrences = original.split(target).length - 1;
+if (occurrences !== 1) throw new Error("Expected exactly one published verify call; found " + occurrences);
+const patched = original.replace(target, replacement);
 if (patched === original) throw new Error("Diagnostic patch made no change");
 fs.writeFileSync(cryptoPath, patched);
 process.stdout.write("Applied diagnostic-only KeyObject algorithm-inference patch to pinned @sigstore/core\n");
