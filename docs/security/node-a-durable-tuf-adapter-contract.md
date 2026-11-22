@@ -129,3 +129,16 @@ If a maintained upstream release adds a first-class storage adapter, prefer that
 The current PoC does not satisfy the real-integration, root-rotation, target, or fencing rows. The existing SQLite filesystem prototype only demonstrates a separate storage boundary. The stock TUF updater still uses its own filesystem APIs, and the current lease is token/expiry based without a monotonic fence.
 
 Node A remains a non-production PoC until the full acceptance matrix is implemented and exercised in workerd, then validated in a Cloudflare account-backed staging environment. No release pin may be advanced until the full attestation, manifest/ZIP, origin/private-host, and Node 4 gates have passed.
+
+
+## 8. Source-level integration findings (pinned upstream revisions)
+
+A direct source review of Sigstore JS commit 3154029799fe44e6a037fc634e175abe091521b3 and tuf-js commit ce8ba9cd3f074531976ff4eef82af1f3adae3728 shows that the integration seam must cover more than the updater's metadata directory:
+
+- Sigstore's TUFClient wrapper performs filesystem cache-directory creation, seeds root.json and optional seed targets, and constructs the tuf-js Updater with metadataDir and targetDir. Its target helper later reads the downloaded target from a local path. Therefore a tuf-js-only patch is insufficient unless the Sigstore wrapper is also changed or replaced by an explicitly reviewed SentryIQ integration.
+- tuf-js Updater reads root metadata synchronously during construction; reads timestamp, snapshot and delegated metadata from local files; writes each accepted metadata role; checks cached targets; downloads targets to a temporary file; verifies target length/hash from a stream; then copies the verified target to its target path.
+- tuf-js Fetcher itself creates a temporary file, streams response chunks into it with a maximum-length check, invokes a handler, and removes the temporary file. Its downloadBytes path reads that temporary file back into memory. Keep this request-scoped temporary staging distinct from durable metadata/target storage, and retain explicit size limits.
+- The updater's loadRoot currently updates its in-memory TrustedMetadataStore before calling persistMetadata. If durable persistence fails after that in-memory mutation, the current updater instance must be treated as poisoned and discarded; do not continue a refresh with a trusted root that was not committed. On restart, rebuild the updater from the last durable root.
+- The updater's timestamp/snapshot/delegated-role update methods similarly mutate the in-memory trusted set before persisting the accepted bytes. The integration must fail closed on a persistence error and discard the updater instance; no later stage or target may proceed on a partially committed in-memory view.
+
+Implementation consequence: introduce a narrow TUF storage seam in tuf-js for metadata/target persistence and adapt the Sigstore wrapper's cache bootstrap and target-return behavior. A custom Fetcher alone is not enough because the stock Updater still owns metadata and target filesystem calls. Do not claim the adapter is integrated until a real refresh and target download execute through these seams with filesystem fallback disabled.
