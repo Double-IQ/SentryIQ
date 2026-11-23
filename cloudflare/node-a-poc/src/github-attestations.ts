@@ -39,7 +39,7 @@ export async function fetchGithubReleaseAttestationBundles(
 
   const bundleUrls: string[] = [];
   for (const entry of document.attestations) {
-    if (!isRecord(entry) || String(entry.repository_id) !== REPOSITORY_ID) continue;
+    if (!isRecord(entry) || entry.repository_id !== Number(REPOSITORY_ID)) continue;
     if (typeof entry.bundle_url !== "string") continue;
     const url = validateBundleUrl(entry.bundle_url);
     bundleUrls.push(url);
@@ -76,10 +76,14 @@ function validateBundleUrl(value: string): string {
   try { url = new URL(value); }
   catch { throw new Error("GitHub attestation bundle URL is invalid"); }
   const host = url.hostname.toLowerCase();
+  const repositoryBundlePrefix = "/attestations/" + REPOSITORY_ID + "/";
   if (url.protocol !== "https:" || !host.endsWith(".blob.core.windows.net") ||
       url.username !== "" || url.password !== "" ||
-      (url.port !== "" && url.port !== "443") || url.hash !== "") {
-    throw new Error("GitHub attestation bundle URL is outside the approved HTTPS blob host boundary");
+      (url.port !== "" && url.port !== "443") || url.hash !== "" ||
+      !url.pathname.startsWith(repositoryBundlePrefix) ||
+      !url.searchParams.has("sig") || !url.searchParams.has("se") ||
+      !url.searchParams.has("sp")) {
+    throw new Error("GitHub attestation bundle URL is outside the approved repository-scoped HTTPS blob boundary");
   }
   return url.toString();
 }
