@@ -444,7 +444,8 @@ describe("Node A Workers runtime proof", () => {
   });
 
   it("rejects an invalid bearer token before touching TUF or storage", async () => {
-    const protectedEnv = { ...env, NODE_A_API_TOKEN: "expected-secret" };
+    const protectedEnv = Object.create(env) as typeof env & { NODE_A_API_TOKEN: string };
+    protectedEnv.NODE_A_API_TOKEN = "expected-secret";
     const response = await workerExports.default.fetch(
       new Request("https://node-a.test/internal/tuf/refresh", {
         method: "POST",
@@ -457,7 +458,8 @@ describe("Node A Workers runtime proof", () => {
   });
 
   it("requires explicit root and mirror configuration after authentication", async () => {
-    const protectedEnv = { ...env, NODE_A_API_TOKEN: "expected-secret" };
+    const protectedEnv = Object.create(env) as typeof env & { NODE_A_API_TOKEN: string };
+    protectedEnv.NODE_A_API_TOKEN = "expected-secret";
     const response = await workerExports.default.fetch(
       new Request("https://node-a.test/internal/tuf/refresh", {
         method: "POST",
