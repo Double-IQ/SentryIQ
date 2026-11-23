@@ -596,6 +596,19 @@ function cryptoSelfTest(): boolean {
 }
 
 export default {
+  async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
+    const stateId = env.NODE_A_STATE.idFromName("node-a-async-tuf-runtime");
+    const state = env.NODE_A_STATE.get(stateId);
+    try {
+      const result = await runNodeAReleaseMonitor(env, state, false);
+      await state.recordOutcome(result.event.approved && result.pin_advanced ? "approved" : "rejected", result.release_version);
+    } catch {
+      // The monitor independently alerts on operational failures when configured.
+      // Record only a minimal outcome; do not persist exception details or secrets.
+      await state.recordOutcome("failed", null);
+    }
+  },
+
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/health") {
@@ -785,7 +798,7 @@ export function authorizeBaselineInitialization(
     return Response.json({ error: "one-time baseline approval token is not configured" }, { status: 503 });
   }
   if (expectedToken.length < 32 || expectedToken.length > 512 ||
-      /[\\x00-\\x1f\\x7f]/.test(expectedToken)) {
+      /[\x00-\x1f\x7f]/.test(expectedToken)) {
     return Response.json({ error: "baseline approval token configuration is invalid" }, { status: 503 });
   }
   const expected = Buffer.from(expectedToken, "utf8");
