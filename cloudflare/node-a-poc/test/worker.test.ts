@@ -51,12 +51,15 @@ describe("Node A Workers runtime proof", () => {
   });
 
   it("keeps the new monitor and baseline routes authenticated and fail-closed when secrets are absent", async () => {
-    const configuredEnv = { ...env, NODE_A_API_TOKEN: "A".repeat(48), NODE_A_BASELINE_APPROVAL_TOKEN: "B".repeat(48) };
+    const configuredEnv = Object.assign(Object.create(env), {
+      NODE_A_API_TOKEN: "A".repeat(48),
+      NODE_A_BASELINE_APPROVAL_TOKEN: "B".repeat(48)
+    });
     const unauthorized = await workerExports.default.fetch(
       new Request("https://node-a-poc.test/internal/monitor/run", { method: "POST" }),
       configuredEnv, {} as ExecutionContext
     );
-    expect(unauthorized.status).toBe(401);
+    expect(unauthorized.status, "API token must be present in the isolated test environment").toBe(401);
 
     const missingConfig = await workerExports.default.fetch(
       new Request("https://node-a-poc.test/internal/monitor/run", {
@@ -75,7 +78,7 @@ describe("Node A Workers runtime proof", () => {
       }),
       configuredEnv, {} as ExecutionContext
     );
-    expect(baselineUnauthorized.status).toBe(401);
+    expect(baselineUnauthorized.status, "baseline approval token must be checked after API authentication").toBe(401);
   });
 
   it("preserves Ed25519 verification when applying EC/RSA digest inference", () => {
