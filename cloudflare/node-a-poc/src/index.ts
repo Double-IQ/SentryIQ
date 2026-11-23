@@ -479,7 +479,7 @@ export default {
         tufNetworkOrCacheInitialized: false,
         productionReady: false
       }, {
-        status: cryptoOk && sigstoreVerifierLoaded && tufClientLoaded &&
+        status: cryptoOk && sigstoreVerifierLoaded &&
           asyncTufUpdaterLoaded && durableMetadataBindingLoaded && r2TargetBindingLoaded ? 200 : 503
       });
     }
