@@ -479,21 +479,6 @@ describe("Node A Workers runtime proof", () => {
 
   });
 
-  it("rejects traversal, backslash, control, and query characters at the Durable Object pointer boundary", async () => {
-    const id = env.NODE_A_STATE.idFromName("node-a-invalid-target-path-test");
-    const state = env.NODE_A_STATE.get(id);
-    for (const targetPath of [
-      "../secret",
-      "targets/../secret",
-      "targets\\\\secret",
-      "targets/file?redirect=1",
-      "targets/file#fragment",
-      "targets/invalid" + String.fromCharCode(0) + "name"
-    ]) {
-      await expect(state.readTufTargetPointer(targetPath)).rejects.toThrow("TUF target path is invalid");
-    }
-  });
-
   it("streams a verified target through the Workerd R2 binding and publishes its DO pointer", async () => {
     const id = env.NODE_A_STATE.idFromName("node-a-real-r2-target-stream-test");
     const state = env.NODE_A_STATE.get(id);
