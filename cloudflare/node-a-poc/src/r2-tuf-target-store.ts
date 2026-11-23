@@ -5,9 +5,9 @@ import type {
   TufRunFence,
   TufTargetDescriptor,
   TufTargetStage,
-  TufTargetStore,
-  TufTargetCommitAmbiguousError
+  TufTargetStore
 } from "./tuf-storage-contract";
+import { TufTargetCommitAmbiguousError } from "./tuf-storage-contract";
 
 export interface R2ObjectLike {
   readonly size: number;
