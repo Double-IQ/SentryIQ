@@ -142,7 +142,7 @@ describe("R2 TUF target store", () => {
       fence
     });
 
-    expect(committed.objectKey).toMatch(/^objects\\//);
+    expect(committed.objectKey.startsWith("objects/")).toBe(true);
     expect(pointers.pointers.get(descriptor.targetPath)?.objectKey).toBe(committed.objectKey);
     expect(bucket.objects.has(committed.objectKey)).toBe(true);
   });
