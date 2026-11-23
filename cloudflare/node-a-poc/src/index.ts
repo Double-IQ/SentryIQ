@@ -4,7 +4,8 @@ import { createHash, generateKeyPairSync, randomBytes, sign, timingSafeEqual, ve
 import { Verifier } from "@sigstore/verify";
 import { createNodeAAsyncTufUpdater } from "./node-a-tuf-runtime";
 import { NodeAReleaseAssetFetcher } from "./release-assets";
-import { NodeAReleaseMonitor } from "./node-a-release-monitor";
+import { NodeAReleaseMonitor, NodeAReleaseMonitorAlertAttemptedError } from "./node-a-release-monitor";
+import { NodeAEventAlreadyAlertedError } from "./node-a-event-runner";
 import { Node4EventClient } from "./node4-event-client";
 import { NodeAReportSigner } from "./node-a-report-signer";
 import { NodeAPrivateHostGate } from "./private-host-attestation";
@@ -602,8 +603,11 @@ export default {
     try {
       const result = await runNodeAReleaseMonitor(env, state, false);
       await state.recordOutcome(result.event.approved && result.pin_advanced ? "approved" : "rejected", result.release_version);
-    } catch {
-      // The monitor independently alerts on operational failures when configured.
+    } catch (error) {
+      if (!(error instanceof NodeAEventAlreadyAlertedError) &&
+          !(error instanceof NodeAReleaseMonitorAlertAttemptedError)) {
+        await notifyNodeAUncaughtFailure(env, "scheduled_entrypoint", error);
+      }
       // Record only a minimal outcome; do not persist exception details or secrets.
       await state.recordOutcome("failed", null);
     }
@@ -681,7 +685,11 @@ export default {
           status: result.event.approved ? 200 : 409,
           headers: { "Cache-Control": "private, no-store" }
         });
-      } catch {
+      } catch (error) {
+        if (!(error instanceof NodeAEventAlreadyAlertedError) &&
+            !(error instanceof NodeAReleaseMonitorAlertAttemptedError)) {
+          await notifyNodeAUncaughtFailure(env, "manual_entrypoint", error);
+        }
         return Response.json(
           { error: "Node A monitor failed; verify monitor configuration and independent alert delivery" },
           { status: 502, headers: { "Cache-Control": "private, no-store" } }
@@ -778,6 +786,26 @@ export function requiredNodeAMonitorConfiguration(env: Env): string[] {
     const value = env[key];
     return typeof value !== "string" || value.length === 0;
   }).map(([, label]) => label);
+}
+
+async function notifyNodeAUncaughtFailure(
+  env: Env,
+  phase: "scheduled_entrypoint" | "manual_entrypoint",
+  error: unknown
+): Promise<void> {
+  if (!env.NODE_A_ALERT_URL || !env.NODE_A_ALERT_HOST || !env.NODE_A_ALERT_TOKEN) return;
+  try {
+    const webhook = new NodeAOwnerAlertWebhook(
+      env.NODE_A_ALERT_URL, env.NODE_A_ALERT_HOST, env.NODE_A_ALERT_TOKEN
+    );
+    await webhook.send("monitor_preflight_failed", {
+      node_id: "integrity-a",
+      phase,
+      exception: error instanceof Error ? error.name : "UnknownError"
+    });
+  } catch {
+    // The independent endpoint is unavailable or invalid; never persist its credentials/details.
+  }
 }
 
 function parseNodeADigestMap(source: string, label: string): Record<string, string> {
