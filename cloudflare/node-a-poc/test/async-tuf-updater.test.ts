@@ -103,6 +103,55 @@ function fakeTargetStore() {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("async TUF updater workflow", () => {
+  it("requires HTTPS mirror base URLs without credentials, queries, or fragments", () => {
+    const { store } = fakeTargetStore();
+    const trusted = makeTrustedAdapter() as unknown as AsyncTufTrustedStateAdapter;
+    for (const metadataBaseUrl of [
+      "http://mirror.test/metadata/",
+      "https://user:pass@mirror.test/metadata/",
+      "https://mirror.test/metadata/?override=1",
+      "https://mirror.test/metadata/#fragment"
+    ]) {
+      expect(() => new AsyncTufUpdater(trusted, store, fence, {
+        metadataBaseUrl,
+        targetBaseUrl: "https://mirror.test/targets/"
+      })).toThrow();
+    }
+  });
+
+  it("keeps target requests beneath the configured HTTPS base and encodes path segments", async () => {
+    const { store } = fakeTargetStore();
+    const trusted = makeTrustedAdapter() as unknown as AsyncTufTrustedStateAdapter;
+    const fetchMock = vi.fn(async () => new Response(stream(payload)));
+    vi.stubGlobal("fetch", fetchMock);
+    const updater = new AsyncTufUpdater(trusted, store, fence, {
+      metadataBaseUrl: "https://mirror.test/metadata",
+      targetBaseUrl: "https://mirror.test/targets"
+    });
+
+    await updater.downloadTarget({
+      ...targetInfo,
+      path: "release%2Fbundle.bin"
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("https://mirror.test/targets/release%252Fbundle.bin");
+  });
+
+  it("rejects traversal and query-bearing target paths before making a request", async () => {
+    const { store } = fakeTargetStore();
+    const trusted = makeTrustedAdapter() as unknown as AsyncTufTrustedStateAdapter;
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const updater = new AsyncTufUpdater(trusted, store, fence, {
+      metadataBaseUrl: "https://mirror.test/metadata/",
+      targetBaseUrl: "https://mirror.test/targets/"
+    });
+
+    await expect(updater.downloadTarget({ ...targetInfo, path: "../secret" })).rejects.toThrow("TUF target path is invalid");
+    await expect(updater.downloadTarget({ ...targetInfo, path: "release.bin?redirect=1" })).rejects.toThrow("TUF target path is invalid");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("refreshes root, timestamp, snapshot, and delegated targets in TUF order", async () => {
     const trusted = makeTrustedAdapter();
     const calls: string[] = [];
