@@ -247,3 +247,22 @@ diff --git a/packages/models/src/utils/key.ts b/packages/models/src/utils/key.ts
    ) {
      throw new CryptoError('ECDSA key curve does not match scheme');
    }
+
+diff --git a/packages/models/src/utils/verify.ts b/packages/models/src/utils/verify.ts
+--- a/packages/models/src/utils/verify.ts
++++ b/packages/models/src/utils/verify.ts
+@@ -1,5 +1,5 @@
+ import { canonicalize } from '@tufjs/canonical-json';
+-import crypto from 'crypto';
++import { verify } from 'node:crypto';
+ import { JSONObject } from '../utils/types';
+ import { PublicKey } from './key';
+@@ -13,7 +13,7 @@ export const verifySignature = (
+ ): boolean => {
+   const canonicalData = Buffer.from(canonicalize(metaDataSignedData));
+ 
+-  return crypto.verify(
++  return verify(
+     key.hashAlgorithm,
+     canonicalData,
+     key,
