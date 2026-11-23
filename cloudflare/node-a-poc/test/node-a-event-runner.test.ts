@@ -59,13 +59,18 @@ describe("Node A end-to-end event runner", () => {
   it("binds release, origin, private host and Node 4 acknowledgement in one signed report", async () => {
     const f = fixtures();
     const alerts: Array<[string, Record<string, unknown>]> = [];
-    const privateHost = { verify: async () => ({
-      approved: true, collectorId: "sentryiq-host-attestor" as const,
-      issuedAt: 1_800_000_000, expiresAt: 1_800_000_100,
-      filesChecked: 1, privateConfigChecked: 1, mismatches: []
-    }) };
+    const privateHostNonces: string[] = [];
+    const privateHost = { verify: async (input: { nonce: string }) => {
+      privateHostNonces.push(input.nonce);
+      return {
+        approved: true, collectorId: "sentryiq-host-attestor" as const,
+        issuedAt: 1_800_000_000, expiresAt: 1_800_000_100,
+        filesChecked: 1, privateConfigChecked: 1, mismatches: []
+      };
+    } };
     const runner = new NodeAEventRunner(f.node4, f.signer, privateHost,
-      async (reason, context) => { alerts.push([reason, context]); });
+      async (reason, context) => { alerts.push([reason, context]); },
+      () => new Uint8Array(32).fill(0x7a));
     const result = await runner.run({
       release: f.release,
       origin: { approved: true, checkedPaths: ["VERSION", "@origin-headers"], mismatches: [], headerMismatches: [] }
@@ -73,6 +78,8 @@ describe("Node A end-to-end event runner", () => {
     expect(result.approved).toBe(true);
     expect(result.event_acknowledgement).toMatchObject({ status: "accepted", report_id: "node4-report-1" });
     expect(alerts).toHaveLength(0);
+    expect(privateHostNonces).toEqual(["7a".repeat(32)]);
+    expect(privateHostNonces[0]).not.toBe("c".repeat(64));
     expect(f.calls).toHaveLength(2);
     const report = JSON.parse(String(f.calls[1]!.envelope)) as { payload: string; signature: string };
     const payloadBytes = Buffer.from(report.payload, "base64");
