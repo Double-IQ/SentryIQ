@@ -24,6 +24,7 @@ function memoryStore() {
   const records = new Map<string, StoredTufMetadata>();
   const store: TufMetadataStore = {
     readRole: vi.fn(async (name: string) => records.get(name) ?? null),
+    listRoles: vi.fn(async () => [...records.keys()]),
     commitVerifiedRole: vi.fn(async (
       name: string,
       expected: TufMetadataIdentity | null,
