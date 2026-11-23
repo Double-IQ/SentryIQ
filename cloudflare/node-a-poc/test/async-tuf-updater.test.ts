@@ -250,6 +250,40 @@ describe("async TUF updater workflow", () => {
     })).toThrow("maxDelegations");
   });
 
+  it("fails closed instead of silently truncating delegated-role traversal at its configured limit", async () => {
+    const trusted = makeTrustedAdapter();
+    trusted.getRole = (name: string) => name === "targets"
+      ? {
+          signed: {
+            targets: {},
+            delegations: {
+              rolesForTarget: () => [{ role: "child", terminating: false }]
+            }
+          }
+        }
+      : undefined;
+    trusted.setTimestamp({ signed: { version: 4, snapshotMeta: { version: 7, length: 0 } } });
+    trusted.setSnapshot({ signed: { version: 7, meta: { "child.json": { version: 1, length: 1 } } } });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { store } = fakeTargetStore();
+    const updater = new AsyncTufUpdater(
+      trusted as unknown as AsyncTufTrustedStateAdapter,
+      store,
+      fence,
+      {
+        metadataBaseUrl: "https://example.test/metadata",
+        targetBaseUrl: "https://example.test/targets",
+        maxDelegations: 0
+      }
+    );
+
+    await expect(updater.getTargetInfo("release.bin")).rejects.toThrow(
+      "TUF delegation traversal exceeded the configured role limit"
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("rejects a target larger than the configured staging bound before download", async () => {
     const trusted = makeTrustedAdapter();
     trusted.getRole = () => ({ signed: { targets: { "release.bin": targetInfo } } });
