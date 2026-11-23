@@ -146,7 +146,7 @@ export class NodeAReleaseMonitor {
       if (error instanceof NodeAEventAlreadyAlertedError ||
           error instanceof NodeAReleaseMonitorAlertAttemptedError) throw error;
       try {
-        await this.dependencies.notifyOwnerDirectly("scheduled_integrity_run_failed", {
+        await this.dependencies.notifyOwnerDirectly("integrity_run_failed", {
           node_id: "integrity-a",
           phase: execution.phase,
           ...(execution.version !== "unknown" ? { release_version: execution.version } : {}),
