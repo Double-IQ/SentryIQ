@@ -293,3 +293,29 @@ diff --git a/packages/models/src/utils/key.ts b/packages/models/src/utils/key.ts
 @@ -114,1 +114,1 @@ function getECDCSAPublicKey(keyInfo: KeyInfo): PublicKey {
 -    key = crypto.createPublicKey({
 +    key = createPublicKey({
+
+diff --git a/packages/models/src/utils/verify.ts b/packages/models/src/utils/verify.ts
+--- a/packages/models/src/utils/verify.ts
++++ b/packages/models/src/utils/verify.ts
+@@ -1,4 +1,4 @@
+ import { canonicalize } from '@tufjs/canonical-json';
+-import { verify } from 'node:crypto';
++import { verify, type KeyObject } from 'node:crypto';
+ import { JSONObject } from '../utils/types';
+ import { PublicKey } from './key';
+@@ -10,7 +10,12 @@ export const verifySignature = (
+ ): boolean => {
+   const canonicalData = Buffer.from(canonicalize(metaDataSignedData));
+ 
++  const publicKey = key.key as KeyObject;
++  const verificationKey = key.padding === undefined
++    ? publicKey
++    : { key: publicKey.export({ type: 'spki', format: 'pem' }), padding: key.padding };
++
+   return verify(
+     key.hashAlgorithm,
+     canonicalData,
+-    key,
++    verificationKey,
+     Buffer.from(signature, 'hex')
+   );
