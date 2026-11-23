@@ -78,8 +78,16 @@ export class AsyncTufTrustedStateAdapter {
     // after the next timestamp refresh, matching the TUF client workflow.
     const timestamp = await metadata.readRole("timestamp");
     if (timestamp) {
-      await assertStoredRoleIdentity("timestamp", timestamp);
-      trusted.updateTimestamp(Buffer.from(timestamp.data));
+      try {
+        await assertStoredRoleIdentity("timestamp", timestamp);
+        // The pinned tuf-js atomicity patch validates a timestamp candidate
+        // before publishing it. An expired/corrupt cached timestamp can
+        // therefore be discarded safely and replaced by a fresh remote one.
+        trusted.updateTimestamp(Buffer.from(timestamp.data));
+      } catch {
+        // A bad local cache is recoverable. Durable read outages are not:
+        // those are raised by readRole above and never enter this branch.
+      }
     }
 
     return new AsyncTufTrustedStateAdapter(trusted, session, metadata);
