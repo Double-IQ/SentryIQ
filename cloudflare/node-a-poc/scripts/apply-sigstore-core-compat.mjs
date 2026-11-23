@@ -101,3 +101,30 @@ if (modelsVerifySource.includes(verifyMarker)) {
   fs.writeFileSync(modelsVerifyPath, modelsVerifySource);
   process.stdout.write("Applied SentryIQ @tufjs/models named node:crypto.verify compatibility patch\n");
 }
+
+const modelsKeyMarker = "SENTRYIQ_TUF_MODELS_WORKER_NAMED_CRYPTO_KEY_PATCH";
+let modelsKeyRuntimeSource = fs.readFileSync(modelsKeyPath, "utf8");
+if (modelsKeyRuntimeSource.includes(modelsKeyMarker)) {
+  process.stdout.write("SentryIQ @tufjs/models named crypto key patch already applied\\n");
+} else {
+  const esmKeyImport = "import crypto from 'crypto';";
+  const cjsKeyImport = 'const crypto_1 = __importDefault(require("crypto"));';
+  if (modelsKeyRuntimeSource.includes(esmKeyImport)) {
+    modelsKeyRuntimeSource = modelsKeyRuntimeSource.replace(esmKeyImport, "import { constants, createPublicKey } from 'node:crypto';");
+    const calls = modelsKeyRuntimeSource.split("crypto.createPublicKey(").length - 1;
+    if (calls !== 5) throw new Error("Expected five pinned @tufjs/models createPublicKey calls; found " + calls);
+    modelsKeyRuntimeSource = modelsKeyRuntimeSource.replaceAll("crypto.createPublicKey(", "createPublicKey(");
+    modelsKeyRuntimeSource = modelsKeyRuntimeSource.replace("crypto.constants.RSA_PKCS1_PSS_PADDING", "constants.RSA_PKCS1_PSS_PADDING");
+  } else if (modelsKeyRuntimeSource.includes(cjsKeyImport)) {
+    modelsKeyRuntimeSource = modelsKeyRuntimeSource.replace(cjsKeyImport, 'const { constants, createPublicKey } = require("node:crypto");');
+    const calls = modelsKeyRuntimeSource.split("crypto_1.default.createPublicKey(").length - 1;
+    if (calls !== 5) throw new Error("Expected five pinned @tufjs/models createPublicKey calls; found " + calls);
+    modelsKeyRuntimeSource = modelsKeyRuntimeSource.replaceAll("crypto_1.default.createPublicKey(", "createPublicKey(");
+    modelsKeyRuntimeSource = modelsKeyRuntimeSource.replace("crypto_1.default.constants.RSA_PKCS1_PSS_PADDING", "constants.RSA_PKCS1_PSS_PADDING");
+  } else {
+    throw new Error("Could not identify the pinned @tufjs/models 5.0.3 crypto key import; refusing an unknown build");
+  }
+  modelsKeyRuntimeSource = "/* " + modelsKeyMarker + " */\\n" + modelsKeyRuntimeSource;
+  fs.writeFileSync(modelsKeyPath, modelsKeyRuntimeSource);
+  process.stdout.write("Applied SentryIQ @tufjs/models named node:crypto key patch\\n");
+}
