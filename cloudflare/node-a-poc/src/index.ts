@@ -7,6 +7,7 @@ import { commitTufFsContext, createTufFsContext, discardTufFsContext, runWithTuf
 import path from "node:path";
 import { Verifier } from "@sigstore/verify";
 import { initTUF } from "@sigstore/tuf";
+import { createNodeAAsyncTufUpdater } from "./node-a-tuf-runtime";
 import type { CommittedTufTarget, TufTargetDescriptor } from "./tuf-storage-contract";
 
 export interface Env {
@@ -555,7 +556,7 @@ function cryptoSelfTest(): boolean {
 }
 
 export default {
-  async fetch(request: Request): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/health") {
       return Response.json({ ok: true, component: "node-a-workers-poc" });
@@ -564,16 +565,25 @@ export default {
       const cryptoOk = cryptoSelfTest();
       const sigstoreVerifierLoaded = typeof Verifier === "function";
       const tufClientLoaded = typeof initTUF === "function";
+      const asyncTufUpdaterLoaded = typeof createNodeAAsyncTufUpdater === "function";
+      const durableMetadataBindingLoaded = Boolean(env.NODE_A_STATE);
+      const r2TargetBindingLoaded = Boolean(env.NODE_A_TARGETS);
       return Response.json({
         cryptoOk,
         sigstoreVerifierLoaded,
         tufClientLoaded,
+        asyncTufUpdaterLoaded,
+        durableMetadataBindingLoaded,
+        r2TargetBindingLoaded,
         tufNetworkOrCacheInitialized: false,
         productionReady: false
-      }, { status: cryptoOk && sigstoreVerifierLoaded && tufClientLoaded ? 200 : 503 });
+      }, {
+        status: cryptoOk && sigstoreVerifierLoaded && tufClientLoaded &&
+          asyncTufUpdaterLoaded && durableMetadataBindingLoaded && r2TargetBindingLoaded ? 200 : 503
+      });
     }
     return new Response("not found", { status: 404 });
   }
 };
 
-export { createNodeAAsyncTufUpdater } from "./node-a-tuf-runtime";
+export { createNodeAAsyncTufUpdater };
