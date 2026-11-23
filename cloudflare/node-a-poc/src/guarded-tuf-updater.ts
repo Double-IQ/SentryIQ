@@ -9,6 +9,7 @@
  */
 
 export class TufPersistenceCommitError extends Error {
+  readonly code = "TUF_METADATA_COMMIT_FAILED";
   readonly causeValue: unknown;
 
   constructor(message: string, causeValue?: unknown) {
