@@ -25,6 +25,8 @@ export type PinnedTufTrustedMetadataStoreFactory = (
 ) => PinnedTufTrustedMetadataStore;
 
 export class AsyncTufTrustedStateAdapter {
+  private operationQueue: Promise<void> = Promise.resolve();
+
   private constructor(
     private readonly trusted: PinnedTufTrustedMetadataStore,
     private readonly session: FencedTufMetadataSession,
@@ -75,19 +77,44 @@ export class AsyncTufTrustedStateAdapter {
     return this.accept(roleName, bytes, () => this.trusted.updateDelegatedTargets(roleName, bytes));
   }
 
-  private async accept(
+  rotateRoots(
+    firstVersion: number,
+    maxRotations: number,
+    fetchRoot: (version: number) => Promise<Uint8Array>,
+    current: TufMetadataIdentity
+  ): Promise<TufMetadataIdentity> {
+    return this.serialize(() => this.session.rotateRoots(
+      firstVersion,
+      maxRotations,
+      fetchRoot,
+      (bytes) => this.trusted.updateRoot(bytes),
+      current
+    ));
+  }
+
+  private serialize<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.operationQueue.then(operation);
+    this.operationQueue = result.then(() => undefined, () => undefined);
+    return result;
+  }
+
+  private accept(
     roleName: string,
     bytes: Uint8Array,
     upstreamAccept: () => void
   ): Promise<TufMetadataIdentity> {
-    const current: StoredTufMetadata | null = await this.metadata.readRole(roleName);
-    const expectedCurrent = current
-      ? { version: current.version, sha256: current.sha256 }
-      : null;
+    return this.serialize(async () => {
+      // Read the CAS identity inside the same adapter queue as acceptance.
+      // Concurrent refresh calls therefore cannot race on a stale identity.
+      const current: StoredTufMetadata | null = await this.metadata.readRole(roleName);
+      const expectedCurrent = current
+        ? { version: current.version, sha256: current.sha256 }
+        : null;
 
-    return this.session.acceptVerifiedRole(roleName, bytes, {
-      expectedCurrent,
-      acceptIntoTrustedSet: upstreamAccept
+      return this.session.acceptVerifiedRole(roleName, bytes, {
+        expectedCurrent,
+        acceptIntoTrustedSet: upstreamAccept
+      });
     });
   }
 }
