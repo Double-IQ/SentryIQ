@@ -95,7 +95,7 @@ describe("Node A scheduled release monitor composition", () => {
   it("directly alerts on pre-event failures and does not duplicate an event-runner alert", async () => {
     const failed = dependencies({ refreshTuf: async () => { throw new Error("TUF unavailable"); } });
     await expect(new NodeAReleaseMonitor(failed.deps).run()).rejects.toThrow("after independent owner alert");
-    expect(failed.alerts).toEqual([["scheduled_integrity_run_failed", {
+    expect(failed.alerts).toEqual([["integrity_run_failed", {
       node_id: "integrity-a", phase: "refresh_sigstore_tuf",
       exception: "Error"
     }]]);
