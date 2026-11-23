@@ -81,8 +81,8 @@ export class AsyncTufUpdater {
       targetMaxLength: config.targetMaxLength ?? DEFAULTS.targetMaxLength,
       prefixTargetsWithHash: config.prefixTargetsWithHash ?? DEFAULTS.prefixTargetsWithHash
     };
-    this.metadataBaseUrl = ensureTrailingSlash(config.metadataBaseUrl);
-    this.targetBaseUrl = ensureTrailingSlash(config.targetBaseUrl);
+    this.metadataBaseUrl = normalizeHttpsBaseUrl(config.metadataBaseUrl, "metadata");
+    this.targetBaseUrl = normalizeHttpsBaseUrl(config.targetBaseUrl, "target");
   }
 
   private readonly metadataBaseUrl: string;
@@ -183,7 +183,8 @@ export class AsyncTufUpdater {
       targetPath = parts.join("/");
     }
 
-    const targetUrl = new URL(targetPath, this.targetBaseUrl).toString();
+    const encodedTargetPath = targetPath.split("/").map((part) => encodeURIComponent(part)).join("/");
+    const targetUrl = new URL(encodedTargetPath, this.targetBaseUrl).toString();
     const response = await fetch(targetUrl);
     if (!response.ok) throw new TufMetadataHttpError(response.status, targetUrl);
     if (!response.body) throw new Error("TUF target response has no readable body");
@@ -271,13 +272,24 @@ export class AsyncTufUpdater {
   }
 }
 
-function ensureTrailingSlash(value: string): string {
-  return value.endsWith("/") ? value : value + "/";
+function normalizeHttpsBaseUrl(value: string, label: string): string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("TUF " + label + " base URL is invalid");
+  }
+  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) {
+    throw new Error("TUF " + label + " base URL must be HTTPS without credentials, query, or fragment");
+  }
+  url.pathname = url.pathname.endsWith("/") ? url.pathname : url.pathname + "/";
+  return url.toString();
 }
 
 function validateTargetPath(targetPath: string): void {
   if (typeof targetPath !== "string" || targetPath.length === 0 ||
-      targetPath.length > 1024 || targetPath.startsWith("/") ||
+      targetPath.length > 1024 || targetPath.startsWith("/") || targetPath.includes("\\") ||
+      /[\\u0000-\\u001f\\u007f?#]/.test(targetPath) ||
       targetPath.split("/").some((part) => part === "" || part === "." || part === "..")) {
     throw new Error("TUF target path is invalid");
   }
