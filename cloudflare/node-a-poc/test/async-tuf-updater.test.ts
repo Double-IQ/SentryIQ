@@ -166,7 +166,7 @@ describe("async TUF updater workflow", () => {
         return json({ signed: { _type: "snapshot", version: 7, meta: { "targets.json": { version: 1, length: 1024 } } } });
       }
       if (url.endsWith("/targets.json")) {
-        return json({ signed: { _type: "targets", version: 1, targets: { "release.bin": targetInfo } } });
+        return json({ signed: { _type: "targets", version: 1, targets: { "release.bin": { length: targetInfo.length, hashes: targetInfo.hashes } } } });
       }
       return new Response("unexpected URL", { status: 500 });
     }));
