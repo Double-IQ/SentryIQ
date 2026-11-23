@@ -12,7 +12,7 @@ describe("bounded raw Snappy block decoder", () => {
 
   it("rejects oversized, truncated, non-minimal, and invalid back-references", () => {
     expect(() => decodeSnappyBlock(new Uint8Array([5, 0, 97]), 4)).toThrow("excessive");
-    expect(() => decodeSnappyBlock(new Uint8Array([3, 8, 97]), 16)).toThrow("truncated");
+    expect(() => decodeSnappyBlock(new Uint8Array([3, 8, 97]), 16)).toThrow("exceeds its input");
     expect(() => decodeSnappyBlock(new Uint8Array([1, 0xf0, 0]), 16)).toThrow();
     expect(() => decodeSnappyBlock(new Uint8Array([4, 1, 0]), 16)).toThrow("invalid");
     expect(() => decodeSnappyBlock(new Uint8Array([1, 0, 97]), 8_000_001)).toThrow("invalid output limit");
