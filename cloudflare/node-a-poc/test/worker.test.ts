@@ -12,7 +12,8 @@ import { genuineV012TrustedRootJson } from "./fixtures/genuine-v012-trusted-root
 import { tufRootBase64 } from "./fixtures/tuf-root";
 import { GuardedTufUpdater, TufPersistenceCommitError, TufStateMutationError, TufUpdaterPoisonedError } from "../src/guarded-tuf-updater";
 import { DurableObjectTufMetadataStore } from "../src/durable-tuf-metadata-store";
-import { TufMetadataReadError } from "../src/tuf-storage-contract";
+import { TufMetadataReadError, type TufMetadataIdentity, type TufMetadataStore, type StoredTufMetadata } from "../src/tuf-storage-contract";
+import { FencedTufMetadataSession } from "../src/fenced-tuf-metadata-session";
 import type { TufTargetDescriptor, TufTargetStage } from "../src/tuf-storage-contract";
 import { describe, expect, it } from "vitest";
 
@@ -484,4 +485,73 @@ describe("Node A Workers runtime proof", () => {
     await expect(unavailableStore.readRole("timestamp")).rejects.toMatchObject({ code: "TUF_METADATA_READ_FAILED" });
   });
 
+});
+
+
+describe("fenced asynchronous TUF metadata session", () => {
+  const roleBytes = (type: string, version: number) =>
+    new TextEncoder().encode(JSON.stringify({ signed: { type, version }, signatures: [] }));
+
+  function memoryStore() {
+    const roles = new Map<string, StoredTufMetadata>();
+    let failCommit = false;
+    const store: TufMetadataStore = {
+      async readRole(roleName) {
+        const value = roles.get(roleName);
+        return value ? { ...value, data: value.data.slice() } : null;
+      },
+      async commitVerifiedRole(roleName, expected, next) {
+        if (failCommit) throw new Error("injected durable commit failure");
+        const current = roles.get(roleName) ?? null;
+        if (expected === null ? current !== null : !current || current.version !== expected.version || current.sha256 !== expected.sha256) {
+          throw new Error("CAS mismatch");
+        }
+        if (current && next.version !== current.version + 1) throw new Error("version sequence mismatch");
+        roles.set(roleName, { ...next, data: next.data.slice() });
+        return { version: next.version, sha256: next.sha256 } satisfies TufMetadataIdentity;
+      }
+    };
+    return { store, fail: () => { failCommit = true; } };
+  }
+
+  const fence = { runId: "a".repeat(32), fence: 1, token: "b".repeat(64) };
+
+  it("seeds an explicit root and commits root rotations one-by-one before fetching the next", async () => {
+    const { store } = memoryStore();
+    const root1 = roleBytes("root", 1);
+    const { session, root } = await FencedTufMetadataSession.create(store, fence, root1);
+    expect(root.version).toBe(1);
+    const events: string[] = [];
+    const identity = await session.rotateRoots(
+      2,
+      2,
+      async (version) => {
+        events.push(`fetch:${version}`);
+        return roleBytes("root", version);
+      },
+      async (bytes) => {
+        const parsed = JSON.parse(new TextDecoder().decode(bytes)) as { signed: { version: number } };
+        events.push(`accept:${parsed.signed.version}`);
+      },
+      { version: 1, sha256: root.sha256 }
+    );
+    expect(identity.version).toBe(3);
+    expect(events).toEqual(["fetch:2", "accept:2", "fetch:3", "accept:3"]);
+    expect((await store.readRole("root"))?.version).toBe(3);
+  });
+
+  it("poisons the session when upstream acceptance succeeds but durable commit fails", async () => {
+    const { store, fail } = memoryStore();
+    const { session } = await FencedTufMetadataSession.create(store, fence, roleBytes("root", 1));
+    fail();
+    await expect(session.acceptVerifiedRole("timestamp", roleBytes("timestamp", 1), {
+      expectedCurrent: null,
+      acceptIntoTrustedSet: () => undefined
+    })).rejects.toMatchObject({ code: "TUF_METADATA_COMMIT_FAILED" });
+    expect(session.isPoisoned).toBe(true);
+    await expect(session.acceptVerifiedRole("snapshot", roleBytes("snapshot", 1), {
+      expectedCurrent: null,
+      acceptIntoTrustedSet: () => undefined
+    })).rejects.toThrow("poisoned");
+  });
 });
