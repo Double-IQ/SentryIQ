@@ -1,6 +1,6 @@
 # Integrity Node A — Cloudflare Workers implementation boundary
 
-**Status:** Worker-native TypeScript implementation track selected; isolated Workerd runtime and async TUF/R2 integration demonstrated; production/account acceptance remains incomplete.  
+**Status:** Worker-native TypeScript monitor composition and 15-minute Cron handler are implemented in draft PR #145; 129/129 Workerd tests and isolated TUF/R2 proofs pass; production/account acceptance remains incomplete. The private-host HTTP adapter is a confirmed external integration blocker.  
 **Owner-confirmed platform:** Cloudflare Workers.  
 **Canonical target:** `https://sentryiq.bichet.co.za`.  
 **Identity:** `integrity-a`.
@@ -75,11 +75,16 @@ Both options use:
   Node A identity. Preserve challenge binding to target origin, release
   version, source commit, ZIP digest and manifest digest; preserve report
   signature verification and replay protection on Node 4.
-- **Private-host attestation** using the existing collector endpoint and A-only
-  bearer token. Verify the collector's Ed25519 signature against the
-  independently pinned public key and enforce the same file/config policy
-  maps as the PHP `PrivateHostAttestationGate`. Node A must not accept an
-  unsigned or self-described approval.
+- **Private-host attestation** using the PHP collector/request-handler/nonce-store
+  contract and A-only bearer token. Verify the collector's Ed25519 signature
+  against the independently pinned public key and enforce the same file/config
+  policy maps as the PHP `PrivateHostAttestationGate`. Node A must not accept an
+  unsigned or self-described approval. **Current blocker:** the Node A client
+  calls `/private-host-attestation`, but the PHP request handler is framework-
+  neutral and the production webroot currently has no HTTP entry-point or
+  `.htaccess` route for it. A separate owner-approved host adapter, route,
+  private nonce-store provisioning and A/B credential/key setup are required
+  before this exchange can run end to end.
 
 The Worker is an independent observer, not an authority to rewrite the
 release policy or trust root.
