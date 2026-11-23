@@ -12,7 +12,7 @@ The Worker exposes:
 - `GET /internal/tuf/targets/<URL-encoded-target-path>` — bearer-authenticated retrieval of a target matching the currently trusted TUF descriptor.
 - `POST /internal/baseline/initialize` — one-time baseline initialization after the complete release, origin, private-host and Node 4 evidence flow succeeds. Requires both the normal API bearer token and a separate one-time approval header. The request has no body; the baseline candidate is derived from verified live release evidence, never from caller-supplied hashes.
 - `POST /internal/monitor/run` — manual monitor execution after an immutable baseline exists. The release pin advances only after the signed Node 4 report is acknowledged.
-- **Scheduled handler:** Wrangler declares `*/15 * * * *`. It runs the same monitor under the Durable Object run lease, records only minimal approved/rejected/failed outcomes, and never initializes the baseline. If the baseline is absent or the monitor fails, the run fails closed and attempts the independent owner-alert path when that path is configured.
+- **Scheduled handler:** Wrangler declares `*/15 * * * *`. It runs the same monitor under the Durable Object run lease, records only minimal approved/rejected/failed outcomes, and never initializes the baseline. If the baseline is absent, the scheduled handler records a failed outcome and skips without recurring alerts; the owner must initialize the baseline through the separate approval route. After baseline initialization, monitor/configuration failures attempt the independent owner-alert path when configured.
 
 The Cron expression is code/configuration only. It has not been activated against a production Worker. Confirm the 15-minute cadence with the service owner before deploying.
 
@@ -126,7 +126,7 @@ The Worker sends only a constrained operational context (node ID, phase/release 
 
 ## Cron and production acceptance
 
-The configured Cron expression is `*/15 * * * *` (every 15 minutes). Do not activate it in production until the service owner confirms this cadence, the external alert destination, and the intended Cloudflare administrative boundary. The scheduled handler never creates or resets a baseline. If no baseline exists, it records a failed outcome and alerts through the independent path when configured.
+The configured Cron expression is `*/15 * * * *` (every 15 minutes). Do not activate it in production until the service owner confirms this cadence, the external alert destination, and the intended Cloudflare administrative boundary. The scheduled handler never creates or resets a baseline. If no baseline exists, it records a failed outcome and skips without recurring alerts until the owner-approved baseline route succeeds.
 
 Before production sign-off, complete all of the following in a non-production Cloudflare account:
 
