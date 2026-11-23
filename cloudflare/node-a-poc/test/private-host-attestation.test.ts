@@ -60,6 +60,8 @@ function fixture(decision = "approve", manifestHash = manifestDigest) {
   const signature = sign(null, payloadBytes, pair.privateKey);
   const request: typeof fetch = async (_input, init) => {
     expect(init?.redirect).toBe("error");
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+    expect((init?.signal as AbortSignal).aborted).toBe(false);
     expect(new Headers(init?.headers).get("authorization")).toBe("Bearer " + token);
     return Response.json({
       payload: payloadBytes.toString("base64"),
