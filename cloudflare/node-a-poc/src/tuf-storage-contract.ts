@@ -24,6 +24,20 @@ export interface TufRunFence {
   readonly token: string;
 }
 
+/**
+ * A durable metadata read failed. Upstream recovery may fall back to remote
+ * metadata only for a missing/corrupt cached record, never for this error.
+ */
+export class TufMetadataReadError extends Error {
+  readonly causeValue: unknown;
+
+  constructor(message: string, causeValue?: unknown) {
+    super(message);
+    this.name = "TufMetadataReadError";
+    this.causeValue = causeValue;
+  }
+}
+
 export interface TufMetadataStore {
   readRole(roleName: string): Promise<StoredTufMetadata | null>;
 
