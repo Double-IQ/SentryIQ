@@ -7,7 +7,7 @@ describe("bounded raw Snappy block decoder", () => {
   });
 
   it("decodes overlapping copy references", () => {
-    expect(new TextDecoder().decode(decodeSnappyBlock(new Uint8Array([5, 0, 97, 5, 1]), 16))).toBe("aaaaa");
+    expect(new TextDecoder().decode(decodeSnappyBlock(new Uint8Array([5, 0, 97, 1, 1]), 16))).toBe("aaaaa");
   });
 
   it("rejects oversized, truncated, non-minimal, and invalid back-references", () => {
