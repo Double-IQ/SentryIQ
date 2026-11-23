@@ -53,7 +53,7 @@ describe("Node A independent direct owner-alert webhook", () => {
       "https://alerts.example.net/hooks/sentryiq", "alerts.example.net", token,
       async () => new Response(null, { status: 500 })
     );
-    await expect(failed.send("integrity_mismatch", {})).rejects.toThrow("did not acknowledge");
+    await expect(failed.send("integrity_mismatch", { node_id: "integrity-a" })).rejects.toThrow("did not acknowledge");
     const redirect = new NodeAOwnerAlertWebhook(
       "https://alerts.example.net/hooks/sentryiq", "alerts.example.net", token,
       async (_input, init) => {
@@ -61,11 +61,11 @@ describe("Node A independent direct owner-alert webhook", () => {
         return new Response(null, { status: 302 });
       }
     );
-    await expect(redirect.send("integrity_mismatch", {})).rejects.toThrow("did not acknowledge");
+    await expect(redirect.send("integrity_mismatch", { node_id: "integrity-a" })).rejects.toThrow("did not acknowledge");
     const oversized = new NodeAOwnerAlertWebhook(
       "https://alerts.example.net/hooks/sentryiq", "alerts.example.net", token,
       async () => new Response(null, { status: 204 })
     );
-    await expect(oversized.send("integrity_mismatch", { detail: "x".repeat(9000) })).rejects.toThrow("8 KB");
+    await expect(oversized.send("integrity_mismatch", { node_id: "integrity-a", phase: "x".repeat(9000) })).rejects.toThrow("8 KB");
   });
 });
