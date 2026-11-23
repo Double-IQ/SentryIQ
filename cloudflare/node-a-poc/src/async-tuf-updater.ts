@@ -146,7 +146,7 @@ export class AsyncTufUpdater {
             !target.hashes || Object.keys(target.hashes).length === 0) {
           throw new Error("TUF target length or digest descriptor is outside the configured bounds");
         }
-        return target;
+        return { ...target, path: targetPath };
       }
 
       visited.add(roleName);
