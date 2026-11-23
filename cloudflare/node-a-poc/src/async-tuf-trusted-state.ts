@@ -177,37 +177,6 @@ export class AsyncTufTrustedStateAdapter {
   }
 }
 
-function findDelegator(
-  trusted: PinnedTufTrustedMetadataStore,
-  loadedRoleNames: Set<string>,
-  roleName: string
-): string | undefined {
-  for (const parentName of loadedRoleNames) {
-    const parent = trusted.getRole(parentName);
-    const delegates = parent?.signed?.delegations?.roles ?? [];
-    if (delegates.some((delegation) => delegation.name === roleName)) {
-      return parentName;
-    }
-  }
-  return undefined;
-}
-
-function parseSnapshotRoleNames(bytes: Uint8Array): string[] {
-  let envelope: { signed?: { meta?: Record<string, unknown> } };
-  try {
-    envelope = JSON.parse(new TextDecoder().decode(bytes)) as typeof envelope;
-  } catch {
-    throw new Error("durable TUF snapshot is not valid JSON");
-  }
-  const meta = envelope.signed?.meta;
-  if (!meta || typeof meta !== "object" || Array.isArray(meta)) {
-    throw new Error("durable TUF snapshot has no metadata index");
-  }
-  return Object.keys(meta)
-    .filter((fileName) => fileName.endsWith(".json"))
-    .map((fileName) => fileName.slice(0, -5));
-}
-
 async function assertStoredRoleIdentity(
   roleName: string,
   stored: StoredTufMetadata
