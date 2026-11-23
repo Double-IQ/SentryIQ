@@ -1,7 +1,8 @@
 /** Strict decoder for GitHub's raw Snappy-block attestation bundle payloads. */
+const HARD_OUTPUT_LIMIT = 8_000_000;
 export function decodeSnappyBlock(input: Uint8Array, maximumOutputBytes: number): Uint8Array {
   if (!(input instanceof Uint8Array) || input.byteLength < 2 ||
-      !Number.isSafeInteger(maximumOutputBytes) || maximumOutputBytes < 1) {
+      !Number.isSafeInteger(maximumOutputBytes) || maximumOutputBytes < 1 || maximumOutputBytes > HARD_OUTPUT_LIMIT) {
     throw new Error("Snappy block is empty or has an invalid output limit");
   }
   let offset = 0;
