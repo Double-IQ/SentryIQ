@@ -141,10 +141,15 @@ export class R2TufTargetStore implements TufTargetStore {
           readError
         );
       }
-      if (pointer && pointer.objectKey === stage.objectKey &&
-          pointer.fence === fence.fence &&
-          targetDescriptorMatches(pointer, stage.descriptor)) {
-        return pointer;
+      if (pointer?.objectKey === stage.objectKey) {
+        if (pointer.fence === fence.fence &&
+            targetDescriptorMatches(pointer, stage.descriptor)) {
+          return pointer;
+        }
+        throw new TufTargetCommitAmbiguousError(
+          "durable target pointer references this object with an unexpected descriptor; preserve it for investigation",
+          error
+        );
       }
 
       try { await this.bucket.delete(stage.objectKey); } catch { /* stale-stage sweep retries */ }
