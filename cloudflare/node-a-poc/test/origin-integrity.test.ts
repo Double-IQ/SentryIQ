@@ -31,7 +31,7 @@ describe("Node A canonical-origin integrity", () => {
       const url = String(input);
       calls.push([url, init]);
       if (url.endsWith("/assets/app.js")) return new Response("abc", { status: 200 });
-      if (url.endsWith("/VERSION")) return new Response("0.1.3\\n", { status: 200, headers });
+      if (url.endsWith("/VERSION")) return new Response("0.1.3\n", { status: 200, headers });
       return new Response("1.2.3", { status: 200, headers });
     };
     const result = await verifyCanonicalOrigin(NODE_A_CANONICAL_ORIGIN, manifest, request);
