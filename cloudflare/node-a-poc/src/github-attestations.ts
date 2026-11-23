@@ -76,13 +76,13 @@ function validateBundleUrl(value: string): string {
   try { url = new URL(value); }
   catch { throw new Error("GitHub attestation bundle URL is invalid"); }
   const host = url.hostname.toLowerCase();
-  const repositoryBundlePrefix = "/attestations/" + REPOSITORY_ID + "/";
+  const repositoryBundlePath = new RegExp("^/attestations/" + REPOSITORY_ID + "/[0-9]{4}/[0-9]{2}/[0-9]{2}/[A-Za-z0-9._-]+\\.json\\.sn$");
   if (url.protocol !== "https:" || !host.endsWith(".blob.core.windows.net") ||
       url.username !== "" || url.password !== "" ||
       (url.port !== "" && url.port !== "443") || url.hash !== "" ||
-      !url.pathname.startsWith(repositoryBundlePrefix) ||
+      !repositoryBundlePath.test(url.pathname) ||
       !url.searchParams.has("sig") || !url.searchParams.has("se") ||
-      !url.searchParams.has("sp")) {
+      url.searchParams.get("sp") !== "r") {
     throw new Error("GitHub attestation bundle URL is outside the approved repository-scoped HTTPS blob boundary");
   }
   return url.toString();
