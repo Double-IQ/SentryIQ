@@ -165,6 +165,8 @@ export class FencedTufMetadataSession {
         throw new Error("root rotation bound must be between 1 and 256");
       }
       let identity = current;
+      let rotations = 0;
+      let reachedEndOfRootChain = false;
       for (let version = firstVersion; version < firstVersion + maxRotations; version++) {
         let bytes: Uint8Array;
         try {
@@ -175,6 +177,7 @@ export class FencedTufMetadataSession {
           if (typeof error === "object" && error !== null &&
               "statusCode" in error &&
               (error.statusCode === 403 || error.statusCode === 404)) {
+            reachedEndOfRootChain = true;
             break;
           }
           throw error;
@@ -200,6 +203,28 @@ export class FencedTufMetadataSession {
             `root ${version} was accepted in memory but not durably committed; discard this verifier instance`,
             error
           );
+        }
+        rotations += 1;
+      }
+
+      // Hitting the configured cap is not the same as reaching the end of
+      // the TUF root chain. Probe exactly one next version: 403/404 confirms
+      // normal completion; a present root means we must fail closed rather
+      // than silently continue with a stale trust root.
+      if (!reachedEndOfRootChain && rotations === maxRotations) {
+        try {
+          await fetchRoot(identity.version + 1);
+        } catch (error) {
+          if (typeof error === "object" && error !== null &&
+              "statusCode" in error &&
+              (error.statusCode === 403 || error.statusCode === 404)) {
+            reachedEndOfRootChain = true;
+          } else {
+            throw error;
+          }
+        }
+        if (!reachedEndOfRootChain) {
+          throw new Error("TUF root rotation exceeded the configured maximum; refusing to continue with a potentially stale root");
         }
       }
       return identity;
