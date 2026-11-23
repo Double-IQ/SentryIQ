@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { R2TufTargetStore } from "../src/r2-tuf-target-store";
 import type { RunLock } from "../src/index";
 import type {
@@ -188,6 +188,19 @@ describe("R2 TUF target store", () => {
 
     expect(bucket.objects.has(oldKey)).toBe(false);
     expect(pointers.listRetiredTufTargetObjects()).toEqual([]);
+  });
+
+  it("enforces the 24-hour reader grace period before retired-object garbage collection", async () => {
+    const bucket = new MemoryR2Bucket();
+    const pointers = memoryPointers();
+    const listRetired = vi.fn(async () => []);
+    pointers.listRetiredTufTargetObjects = listRetired;
+    const store = new R2TufTargetStore(bucket, pointers, () => lock1);
+
+    await expect(store.cleanupRetiredObjects(lock1)).resolves.toBe(0);
+
+    expect(listRetired).toHaveBeenCalledOnce();
+    expect(listRetired).toHaveBeenCalledWith(lock1, 100, 24 * 60 * 60 * 1000);
   });
 
   it("cleans crash-orphaned private R2 stages after a newer fencing epoch takes over", async () => {
