@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { AsyncTufTrustedStateAdapter } from "../src/async-tuf-trusted-state";
+import { TufStateMutationError } from "../src/guarded-tuf-updater";
 import type {
   StoredTufMetadata,
   TufMetadataIdentity,
@@ -106,7 +107,10 @@ describe("async adapter over pinned TUF trusted metadata store", () => {
     );
 
     await expect(adapter.refreshTimestamp(metadata(1, "timestamp")))
-      .rejects.toThrow("signature threshold failed");
+      .rejects.toMatchObject({
+        constructor: TufStateMutationError,
+        causeValue: expect.objectContaining({ message: "signature threshold failed" })
+      });
     expect(records.has("timestamp")).toBe(false);
     expect(store.commitVerifiedRole).toHaveBeenCalledTimes(1);
   });
