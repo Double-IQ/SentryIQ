@@ -7,6 +7,7 @@ import { commitTufFsContext, createTufFsContext, discardTufFsContext, runWithTuf
 import path from "node:path";
 import { Verifier } from "@sigstore/verify";
 import { initTUF } from "@sigstore/tuf";
+import type { CommittedTufTarget, TufTargetDescriptor } from "./tuf-storage-contract";
 
 export interface Env {
   NODE_A_STATE: DurableObjectNamespace<NodeAState>;
@@ -100,6 +101,14 @@ export class NodeAState extends DurableObject<Env> {
         sha256 TEXT NOT NULL CHECK (length(sha256) = 64),
         data BLOB NOT NULL,
         updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS tuf_target_pointers (
+        target_path TEXT PRIMARY KEY,
+        object_key TEXT NOT NULL UNIQUE,
+        length INTEGER NOT NULL CHECK (length >= 0),
+        hashes_json TEXT NOT NULL,
+        fence INTEGER NOT NULL CHECK (fence > 0),
+        committed_at INTEGER NOT NULL
       );
       CREATE TABLE IF NOT EXISTS run_audit (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -371,6 +380,491 @@ export class NodeAState extends DurableObject<Env> {
         discardedWriteAbsentAfterRollback
       };
     });
+  }
+
+  commitTufTargetPointer(
+    descriptor: TufTargetDescriptor,
+    objectKey: string,
+    lock: RunLock
+  ): CommittedTufTarget {
+    this.validateRunLock(lock);
+    this.validateTufTargetDescriptor(descriptor);
+    if (!/^objects\/[a-f0-9-]{36}$/.test(objectKey)) {
+      throw new Error("TUF target object key is invalid");
+    }
+    return this.ctx.storage.transactionSync(() => {
+      this.assertRunLock(lock);
+      const committedAt = Date.now();
+      this.ctx.storage.sql.exec(
+        `INSERT INTO tuf_target_pointers
+          (target_path, object_key, length, hashes_json, fence, committed_at)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(target_path) DO UPDATE SET
+           object_key = excluded.object_key,
+           length = excluded.length,
+           hashes_json = excluded.hashes_json,
+           fence = excluded.fence,
+           committed_at = excluded.committed_at`,
+        descriptor.targetPath,
+        objectKey,
+        descriptor.length,
+        JSON.stringify(descriptor.hashes),
+        lock.fence,
+        committedAt
+      );
+      return {
+        ...descriptor,
+        hashes: { ...descriptor.hashes },
+        objectKey,
+        fence: lock.fence,
+        committedAt
+      };
+    });
+  }
+
+  readTufTargetPointer(targetPath: string): CommittedTufTarget | null {
+    this.validateTufTargetPath(targetPath);
+    const row = this.ctx.storage.sql.exec<{
+      object_key: string;
+      length: number;
+      hashes_json: string;
+      fence: number;
+      committed_at: number;
+    }>(
+      "SELECT object_key, length, hashes_json, fence, committed_at FROM tuf_target_pointers WHERE target_path = ?",
+      targetPath
+    ).toArray()[0];
+    if (!row) return null;
+    let hashes: Record<string, string>;
+    try {
+      hashes = JSON.parse(row.hashes_json) as Record<string, string>;
+    } catch {
+      throw new Error("committed TUF target pointer hashes are corrupt");
+    }
+    const descriptor = { targetPath, length: row.length, hashes };
+    this.validateTufTargetDescriptor(descriptor);
+    if (!/^objects\/[a-f0-9-]{36}$/.test(row.object_key) ||
+        !Number.isSafeInteger(row.fence) || row.fence < 1) {
+      throw new Error("committed TUF target pointer identity is corrupt");
+    }
+    return {
+      ...descriptor,
+      objectKey: row.object_key,
+      fence: row.fence,
+      committedAt: row.committed_at
+    };
+  }
+
+  private validateTufTargetDescriptor(descriptor: TufTargetDescriptor): void {
+    this.validateTufTargetPath(descriptor.targetPath);
+    if (!Number.isSafeInteger(descriptor.length) || descriptor.length < 0 ||
+        !descriptor.hashes || Object.keys(descriptor.hashes).length === 0) {
+      throw new Error("TUF target descriptor is invalid");
+    }
+    for (const [algorithm, digest] of Object.entries(descriptor.hashes)) {
+      let digestLength: number;
+      try {
+        digestLength = createHash(algorithm).digest("hex").length;
+      } catch {
+        throw new Error("unsupported TUF target hash algorithm: " + algorithm);
+      }
+      if (typeof digest !== "string" ||
+          !new RegExp(`^[a-f0-9]{${digestLength}}import { DurableObject } from "cloudflare:workers";
+import { createHash, generateKeyPairSync, randomBytes, sign, verify } from "node:crypto";
+import * as tufFs from "./tuf-fs";
+import * as tufFsPromises from "./tuf-fs-promises";
+import * as nativeFs from "node:fs";
+import { commitTufFsContext, createTufFsContext, discardTufFsContext, runWithTufFsContext } from "./tuf-fs-context";
+import path from "node:path";
+import { Verifier } from "@sigstore/verify";
+import { initTUF } from "@sigstore/tuf";
+import type { CommittedTufTarget, TufTargetDescriptor } from "./tuf-storage-contract";
+
+export interface Env {
+  NODE_A_STATE: DurableObjectNamespace<NodeAState>;
+}
+
+export interface ReleasePin {
+  version: string;
+  commit: string;
+  manifestSha256: string;
+  zipSha256: string;
+  updatedAt: number;
+}
+
+type PinCandidate = Omit<ReleasePin, "updatedAt">;
+
+export type RunLock = {
+  runId: string;
+  fence: number;
+  token: string;
+  expiresAt: number;
+};
+
+function parseVersion(version: string): [number, number, number] {
+  if (!/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(version)) {
+    throw new Error("release version must be canonical MAJOR.MINOR.PATCH");
+  }
+  const parts = version.split(".").map(Number);
+  if (!parts.every(Number.isSafeInteger)) throw new Error("release version component is too large");
+  return [parts[0], parts[1], parts[2]];
+}
+
+function compareVersions(a: string, b: string): number {
+  const av = parseVersion(a);
+  const bv = parseVersion(b);
+  for (let i = 0; i < 3; i++) {
+    if (av[i] !== bv[i]) return av[i] < bv[i] ? -1 : 1;
+  }
+  return 0;
+}
+
+function validatePin(candidate: PinCandidate): void {
+  parseVersion(candidate.version);
+  if (!/^[a-f0-9]{40}$/.test(candidate.commit)) {
+    throw new Error("release commit must be a lowercase full Git SHA");
+  }
+  if (!/^[a-f0-9]{64}$/.test(candidate.manifestSha256)
+      || !/^[a-f0-9]{64}$/.test(candidate.zipSha256)) {
+    throw new Error("release artifact digests must be lowercase SHA-256");
+  }
+}
+
+export class NodeAState extends DurableObject<Env> {
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    ctx.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS release_baseline (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        version TEXT NOT NULL,
+        commit_sha TEXT NOT NULL,
+        manifest_sha256 TEXT NOT NULL,
+        zip_sha256 TEXT NOT NULL,
+        initialized_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS release_pin (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        version TEXT NOT NULL,
+        commit_sha TEXT NOT NULL,
+        manifest_sha256 TEXT NOT NULL,
+        zip_sha256 TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS run_lease (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        run_id TEXT NOT NULL,
+        fence INTEGER NOT NULL CHECK (fence > 0),
+        token_hash TEXT NOT NULL,
+        expires_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS run_fence_counter (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        last_fence INTEGER NOT NULL CHECK (last_fence >= 0)
+      );
+      CREATE TABLE IF NOT EXISTS tuf_files (
+        path TEXT PRIMARY KEY,
+        data BLOB NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS tuf_metadata (
+        role_name TEXT PRIMARY KEY,
+        version INTEGER NOT NULL CHECK (version > 0),
+        sha256 TEXT NOT NULL CHECK (length(sha256) = 64),
+        data BLOB NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS tuf_target_pointers (
+        target_path TEXT PRIMARY KEY,
+        object_key TEXT NOT NULL UNIQUE,
+        length INTEGER NOT NULL CHECK (length >= 0),
+        hashes_json TEXT NOT NULL,
+        fence INTEGER NOT NULL CHECK (fence > 0),
+        committed_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS run_audit (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        outcome TEXT NOT NULL CHECK (outcome IN ('started', 'approved', 'rejected', 'failed')),
+        release_version TEXT,
+        recorded_at INTEGER NOT NULL
+      );
+    `);
+  }
+
+  getPin(): ReleasePin | null {
+    const row = this.ctx.storage.sql
+      .exec<{
+        version: string;
+        commit_sha: string;
+        manifest_sha256: string;
+        zip_sha256: string;
+        updated_at: number;
+      }>("SELECT version, commit_sha, manifest_sha256, zip_sha256, updated_at FROM release_pin WHERE singleton = 1")
+      .toArray()[0];
+    if (!row) return null;
+    return {
+      version: row.version,
+      commit: row.commit_sha,
+      manifestSha256: row.manifest_sha256,
+      zipSha256: row.zip_sha256,
+      updatedAt: row.updated_at
+    };
+  }
+
+  initializeBaseline(candidate: PinCandidate): ReleasePin {
+    validatePin(candidate);
+    return this.ctx.storage.transactionSync(() => {
+      const existing = this.ctx.storage.sql
+        .exec<{ version: string; commit_sha: string; manifest_sha256: string; zip_sha256: string }>(
+          "SELECT version, commit_sha, manifest_sha256, zip_sha256 FROM release_baseline WHERE singleton = 1"
+        ).toArray()[0];
+      if (existing) {
+        if (existing.version !== candidate.version || existing.commit_sha !== candidate.commit
+            || existing.manifest_sha256 !== candidate.manifestSha256 || existing.zip_sha256 !== candidate.zipSha256) {
+          throw new Error("independently initialized baseline is immutable");
+        }
+        const current = this.getPin();
+        if (!current) throw new Error("baseline exists but release pin is missing");
+        return current;
+      }
+      const now = Date.now();
+      this.ctx.storage.sql.exec(
+        "INSERT INTO release_baseline (singleton, version, commit_sha, manifest_sha256, zip_sha256, initialized_at) VALUES (1, ?, ?, ?, ?, ?)",
+        candidate.version, candidate.commit, candidate.manifestSha256, candidate.zipSha256, now
+      );
+      this.ctx.storage.sql.exec(
+        "INSERT INTO release_pin (singleton, version, commit_sha, manifest_sha256, zip_sha256, updated_at) VALUES (1, ?, ?, ?, ?, ?)",
+        candidate.version, candidate.commit, candidate.manifestSha256, candidate.zipSha256, now
+      );
+      const saved = this.getPin();
+      if (!saved || saved.version !== candidate.version || saved.commit !== candidate.commit
+          || saved.manifestSha256 !== candidate.manifestSha256 || saved.zipSha256 !== candidate.zipSha256) {
+        throw new Error("baseline initialization transaction did not persist the requested identity");
+      }
+      return saved;
+    });
+  }
+
+  advancePin(candidate: PinCandidate, lock: RunLock): ReleasePin {
+    validatePin(candidate);
+    this.validateRunLock(lock);
+    return this.ctx.storage.transactionSync(() => {
+      this.assertRunLock(lock);
+      const baseline = this.ctx.storage.sql
+        .exec<{ version: string; commit_sha: string; manifest_sha256: string; zip_sha256: string }>(
+          "SELECT version, commit_sha, manifest_sha256, zip_sha256 FROM release_baseline WHERE singleton = 1"
+        ).toArray()[0];
+      if (!baseline) throw new Error("independent release baseline has not been initialized");
+      if (compareVersions(candidate.version, baseline.version) < 0) {
+        throw new Error("release is older than independently initialized baseline");
+      }
+      const current = this.getPin();
+      if (current) {
+        const order = compareVersions(candidate.version, current.version);
+        const sameIdentity = candidate.version === current.version
+          && candidate.commit === current.commit
+          && candidate.manifestSha256 === current.manifestSha256
+          && candidate.zipSha256 === current.zipSha256;
+        if (order < 0) throw new Error("release rollback rejected");
+        if (order === 0 && !sameIdentity) {
+          throw new Error("same-version release identity or digest replacement rejected");
+        }
+        if (sameIdentity) return current;
+      }
+
+      this.ctx.storage.sql.exec(
+        `INSERT INTO release_pin (singleton, version, commit_sha, manifest_sha256, zip_sha256, updated_at)
+         VALUES (1, ?, ?, ?, ?, ?)
+         ON CONFLICT(singleton) DO UPDATE SET
+           version = excluded.version,
+           commit_sha = excluded.commit_sha,
+           manifest_sha256 = excluded.manifest_sha256,
+           zip_sha256 = excluded.zip_sha256,
+           updated_at = excluded.updated_at`,
+        candidate.version,
+        candidate.commit,
+        candidate.manifestSha256,
+        candidate.zipSha256,
+        Date.now()
+      );
+      const saved = this.getPin();
+      if (!saved || saved.version !== candidate.version || saved.commit !== candidate.commit
+          || saved.manifestSha256 !== candidate.manifestSha256 || saved.zipSha256 !== candidate.zipSha256) {
+        throw new Error("release pin transaction did not persist the requested identity");
+      }
+      return saved;
+    });
+  }
+
+  acquireRunLock(leaseMs: number): RunLock {
+    if (!Number.isSafeInteger(leaseMs) || leaseMs < 1_000 || leaseMs > 15 * 60_000) throw new Error("invalid run lock time or lease");
+    return this.ctx.storage.transactionSync(() => {
+      const now = Date.now();
+      const current = this.ctx.storage.sql.exec<{ expires_at: number }>("SELECT expires_at FROM run_lease WHERE singleton = 1").toArray()[0];
+      if (current && current.expires_at > now) throw new Error("Node A run already holds the durable lock");
+      const previousFence = this.ctx.storage.sql.exec<{ last_fence: number }>("SELECT last_fence FROM run_fence_counter WHERE singleton = 1").toArray()[0]?.last_fence ?? 0;
+      if (!Number.isSafeInteger(previousFence) || previousFence < 0 || previousFence >= Number.MAX_SAFE_INTEGER) throw new Error("run fencing counter is invalid or exhausted");
+      const fence = previousFence + 1;
+      const runId = randomBytes(16).toString("hex");
+      const token = randomBytes(32).toString("hex");
+      const expiresAt = now + leaseMs;
+      this.ctx.storage.sql.exec("INSERT INTO run_fence_counter (singleton, last_fence) VALUES (1, ?) ON CONFLICT(singleton) DO UPDATE SET last_fence = excluded.last_fence", fence);
+      this.ctx.storage.sql.exec("INSERT INTO run_lease (singleton, run_id, fence, token_hash, expires_at) VALUES (1, ?, ?, ?, ?) ON CONFLICT(singleton) DO UPDATE SET run_id = excluded.run_id, fence = excluded.fence, token_hash = excluded.token_hash, expires_at = excluded.expires_at", runId, fence, createHash("sha256").update(token).digest("hex"), expiresAt);
+      return { runId, fence, token, expiresAt };
+    });
+  }
+
+  renewRunLock(lock: RunLock, leaseMs: number): RunLock {
+    this.validateRunLock(lock);
+    if (!Number.isSafeInteger(leaseMs) || leaseMs < 1_000 || leaseMs > 15 * 60_000) throw new Error("invalid run lock token or lease");
+    return this.ctx.storage.transactionSync(() => {
+      this.assertRunLock(lock);
+      const expiresAt = Date.now() + leaseMs;
+      this.ctx.storage.sql.exec("UPDATE run_lease SET expires_at = ? WHERE singleton = 1 AND run_id = ? AND fence = ? AND token_hash = ?", expiresAt, lock.runId, lock.fence, createHash("sha256").update(lock.token).digest("hex"));
+      return { ...lock, expiresAt };
+    });
+  }
+
+  private validateRunLock(lock: RunLock): void {
+    if (!lock || !/^[a-f0-9]{32}$/.test(lock.runId) || !Number.isSafeInteger(lock.fence) || lock.fence < 1 || !/^[a-f0-9]{64}$/.test(lock.token)) {
+      throw new Error("run lock identity, fence or token is invalid");
+    }
+  }
+
+  private assertRunLock(lock: RunLock): void {
+    const current = this.ctx.storage.sql.exec<{ run_id: string; fence: number; token_hash: string; expires_at: number }>("SELECT run_id, fence, token_hash, expires_at FROM run_lease WHERE singleton = 1").toArray()[0];
+    if (!current || current.run_id !== lock.runId || current.fence !== lock.fence || current.token_hash !== createHash("sha256").update(lock.token).digest("hex") || current.expires_at <= Date.now()) {
+      throw new Error("valid active Node A run fence required");
+    }
+  }
+
+  releaseRunLock(lock: RunLock): void {
+    this.validateRunLock(lock);
+    this.ctx.storage.transactionSync(() => {
+      this.assertRunLock(lock);
+      this.ctx.storage.sql.exec("DELETE FROM run_lease WHERE singleton = 1 AND run_id = ? AND fence = ? AND token_hash = ?", lock.runId, lock.fence, createHash("sha256").update(lock.token).digest("hex"));
+    });
+  }
+  recordOutcome(outcome: "started" | "approved" | "rejected" | "failed", version: string | null): void {
+    if (version !== null) parseVersion(version);
+    this.ctx.storage.transactionSync(() => {
+      this.ctx.storage.sql.exec(
+        "INSERT INTO run_audit (outcome, release_version, recorded_at) VALUES (?, ?, ?)",
+        outcome,
+        version,
+        Date.now()
+      );
+      this.ctx.storage.sql.exec("DELETE FROM run_audit WHERE id NOT IN (SELECT id FROM run_audit ORDER BY id DESC LIMIT 200)");
+    });
+  }
+
+  async testUpstreamTufEphemeralCache(rootBase64: string): Promise<{ rootVersion: number; ephemeralCacheBootstrapped: boolean; persistentCacheRejected: boolean; expectedNetworkFailure: boolean }> {
+    const suffix = randomBytes(8).toString("hex");
+    const rootPath = "/tmp/sentryiq-node-a-root-" + suffix + ".json";
+    const persistentCachePath = "/node-a/tuf-cache-" + suffix;
+    const ephemeralCachePath = "/tmp/sentryiq-node-a-cache-" + suffix;
+    nativeFs.writeFileSync(rootPath, Buffer.from(rootBase64, "base64"));
+
+    let persistentCacheRejected = false;
+    try {
+      await initTUF({
+        cachePath: persistentCachePath,
+        rootPath,
+        mirrorURL: "https://127.0.0.1:1",
+        forceCache: false,
+        forceInit: true,
+        retry: { retries: 0 },
+        timeout: 250
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/EPERM|EACCES|operation not permitted/i.test(message)) throw error;
+      persistentCacheRejected = true;
+    }
+    if (!persistentCacheRejected) {
+      throw new Error("stock TUF unexpectedly accepted a persistent path outside the Workers writable filesystem");
+    }
+
+    let expectedNetworkFailure = false;
+    try {
+      await initTUF({
+        cachePath: ephemeralCachePath,
+        rootPath,
+        mirrorURL: "https://127.0.0.1:1",
+        forceCache: false,
+        forceInit: true,
+        retry: { retries: 0 },
+        timeout: 250
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/EPERM|EACCES|ENOENT|operation not permitted/i.test(message)) throw error;
+      expectedNetworkFailure = true;
+    }
+
+    const cachedRootPath = path.join(ephemeralCachePath, encodeURIComponent("127.0.0.1:1"), "root.json");
+    const cachedRoot = JSON.parse(nativeFs.readFileSync(cachedRootPath, "utf8")) as { signed?: { version?: number } };
+    if (!Number.isSafeInteger(cachedRoot.signed?.version) || !cachedRoot.signed?.version) {
+      throw new Error("stock TUF did not bootstrap its root inside the Workers /tmp filesystem");
+    }
+    return {
+      rootVersion: cachedRoot.signed.version,
+      ephemeralCacheBootstrapped: true,
+      persistentCacheRejected,
+      expectedNetworkFailure
+    };
+  }
+
+  async testTufFilesystemAdapter(): Promise<{ persistentRead: string; copiedRead: string; temporaryRead: string; temporaryExistsAfterCleanup: boolean; seededTufRootVersion: number; stagedWriteVisibleBeforeCommit: boolean; discardedWriteAbsentAfterRollback: boolean }> {
+    const context = createTufFsContext(this.ctx.storage.sql);
+    return runWithTufFsContext(context, async () => {
+      const rootPath = "/node-a/tuf/repository/root.json";
+      const copiedPath = "/node-a/tuf/cache/root.json";
+      tufFs.mkdirSync("/node-a/tuf/repository", { recursive: true });
+      tufFs.mkdirSync("/node-a/tuf/cache", { recursive: true });
+      tufFs.writeFileSync(rootPath, Buffer.from("persistent-root-fixture"));
+      tufFs.copyFileSync(rootPath, copiedPath);
+      const persistentRead = tufFs.readFileSync(rootPath, "utf8") as string;
+      const copiedRead = tufFs.readFileSync(copiedPath, "utf8") as string;
+      const discardedPath = "/node-a/tuf/cache/uncommitted.json";
+      tufFs.writeFileSync(discardedPath, "must-not-persist");
+      const stagedWriteVisibleBeforeCommit = tufFs.existsSync(discardedPath);
+      discardTufFsContext(context);
+      const discardedWriteAbsentAfterRollback = !tufFs.existsSync(discardedPath);
+      tufFs.writeFileSync(rootPath, Buffer.from("persistent-root-fixture"));
+      tufFs.copyFileSync(rootPath, copiedPath);
+
+      const tempDir = await tufFsPromises.mkdtemp("/tmp/");
+      const tempPath = path.join(tempDir, "tempfile");
+      await tufFsPromises.open(tempPath, "a");
+      const stream = tufFs.createWriteStream(tempPath);
+      stream.write(Buffer.from("request-scoped-target"));
+      await new Promise<void>((resolve, reject) => stream.close((error) => error ? reject(error) : resolve()));
+      const temporaryRead = tufFs.readFileSync(tempPath, "utf8") as string;
+      await tufFsPromises.rm(tempDir, { recursive: true, force: true });
+      this.ctx.storage.transactionSync(() => commitTufFsContext(context));
+      return {
+        persistentRead,
+        copiedRead,
+        temporaryRead,
+        temporaryExistsAfterCleanup: tufFs.existsSync(tempPath),
+        stagedWriteVisibleBeforeCommit,
+        discardedWriteAbsentAfterRollback
+      };
+    });
+  }
+
+).test(digest)) {
+        throw new Error("TUF target hash value is malformed");
+      }
+    }
+  }
+
+  private validateTufTargetPath(targetPath: string): void {
+    if (typeof targetPath !== "string" || targetPath.length === 0 || targetPath.length > 1024 ||
+        targetPath.startsWith("/") ||
+        targetPath.split("/").some((part) => part === "" || part === "." || part === "..")) {
+      throw new Error("TUF target path is invalid");
+    }
   }
 
   listTufMetadataRoles(): string[] {
