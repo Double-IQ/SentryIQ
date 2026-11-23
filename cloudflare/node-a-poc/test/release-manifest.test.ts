@@ -54,6 +54,14 @@ describe("Node A signed release manifest policy", () => {
     expect(() => parseAndValidateReleaseManifest(new TextEncoder().encode(JSON.stringify(unassigned)), "0.1.3", commit)).toThrow("complete file set");
   });
 
+  it("rejects a VERSION file whose signed bytes do not match the release identity", () => {
+    const wrongVersion = manifest();
+    wrongVersion.files[0] = { ...wrongVersion.files[0]!, sha256: digest };
+    expect(() => parseAndValidateReleaseManifest(
+      new TextEncoder().encode(JSON.stringify(wrongVersion)), "0.1.3", commit
+    )).toThrow("VERSION file");
+  });
+
   it("rejects traversal, encoded paths, and a public inventory entry pointing into runtime", () => {
     const traversal = manifest();
     traversal.public_files[0] = "../secret";
