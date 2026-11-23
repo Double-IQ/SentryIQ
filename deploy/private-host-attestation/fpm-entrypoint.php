@@ -44,6 +44,11 @@ function privateHostLoadConfig(string $path): array
     if (!is_string($real) || is_link($path)) {
         throw new RuntimeException('Attestation service config must be a real file, not a symlink.');
     }
+    $documentRoot = realpath((string)($_SERVER['DOCUMENT_ROOT'] ?? ''));
+    if (is_string($documentRoot)
+        && str_starts_with($real, rtrim($documentRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
+        throw new RuntimeException('Attestation service config must be outside the public document root.');
+    }
     clearstatcache(true, $real);
     $before = @lstat($real);
     $uid = posix_geteuid();
@@ -106,8 +111,12 @@ function privateHostLoadConfig(string $path): array
         throw new RuntimeException('Attestation service config has missing or unexpected fields.');
     }
 
-    $web = realpath((string)$config['public_web_root']);
-    $private = realpath((string)$config['private_data_directory']);
+    if (!is_string($config['public_web_root']) || !is_string($config['private_data_directory'])
+        || !is_string($config['signing_key_path'])) {
+        throw new RuntimeException('Attestation service path settings must be strings.');
+    }
+    $web = realpath($config['public_web_root']);
+    $private = realpath($config['private_data_directory']);
     if (!is_string($web) || !is_dir($web) || !is_string($private) || !is_dir($private)
         || is_link((string)$config['public_web_root']) || is_link((string)$config['private_data_directory'])
         || (($privateStat = @lstat($private)) === false)
@@ -131,7 +140,7 @@ try {
     if (PHP_SAPI !== 'fpm-fcgi') {
         throw new RuntimeException('Attestation entrypoint must run only inside its dedicated PHP-FPM pool.');
     }
-    $configPath = getenv('PRIVATE_HOST_ATTESTATION_CONFIG');
+    $configPath = $_SERVER['PRIVATE_HOST_ATTESTATION_CONFIG'] ?? getenv('PRIVATE_HOST_ATTESTATION_CONFIG');
     if (!is_string($configPath) || $configPath === '') {
         throw new RuntimeException('Dedicated PHP-FPM pool did not provide the private config path.');
     }
