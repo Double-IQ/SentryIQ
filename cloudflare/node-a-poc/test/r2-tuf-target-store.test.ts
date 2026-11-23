@@ -61,9 +61,11 @@ class MemoryR2Bucket {
 function memoryPointers() {
   const pointers = new Map<string, CommittedTufTarget>();
   const stages = new Map<string, { objectKey: string; fence: number }>();
+  const retired = new Set<string>();
   return {
     pointers,
     stages,
+    retired,
     registerTufTargetStage(stageId: string, objectKey: string, lock: RunLock) {
       stages.set(stageId, { objectKey, fence: lock.fence });
     },
@@ -75,6 +77,8 @@ function memoryPointers() {
     deleteTufTargetStage(stageId: string, objectKey: string) {
       if (stages.get(stageId)?.objectKey === objectKey) stages.delete(stageId);
     },
+    listRetiredTufTargetObjects() { return [...retired]; },
+    deleteRetiredTufTargetObject(objectKey: string) { retired.delete(objectKey); },
     async commitTufTargetPointer(
       target: TufTargetDescriptor,
       stageId: string,
@@ -82,6 +86,8 @@ function memoryPointers() {
       lock: RunLock
     ): Promise<CommittedTufTarget> {
       if (stages.get(stageId)?.objectKey !== objectKey) throw new Error("staging record missing");
+      const previous = pointers.get(target.targetPath);
+      if (previous && previous.objectKey !== objectKey) retired.add(previous.objectKey);
       const pointer = {
         ...target,
         objectKey,
@@ -118,6 +124,27 @@ describe("R2 TUF target store", () => {
     expect(reader).not.toBeNull();
     const result = await reader!.getReader().read();
     expect(Array.from(result.value!)).toEqual(Array.from(bytes));
+  });
+
+  it("garbage-collects superseded immutable R2 objects after pointer replacement", async () => {
+    const bucket = new MemoryR2Bucket();
+    const pointers = memoryPointers();
+    const oldKey = "objects/77777777-7777-4777-8777-777777777777";
+    const newKey = "objects/88888888-8888-4888-8888-888888888888";
+    pointers.pointers.set(descriptor.targetPath, {
+      ...descriptor, objectKey: oldKey, fence: lock1.fence, committedAt: 1
+    });
+    bucket.objects.set(oldKey, bytes.slice());
+    const stageId = "99999999-9999-4999-8999-999999999999";
+    pointers.registerTufTargetStage(stageId, newKey, lock2);
+    const replacementStore = new R2TufTargetStore(bucket, pointers, () => lock2);
+
+    await pointers.commitTufTargetPointer(descriptor, stageId, newKey, lock2);
+    expect(pointers.listRetiredTufTargetObjects()).toEqual([oldKey]);
+    await expect(replacementStore.cleanupRetiredObjects(lock2)).resolves.toBe(1);
+
+    expect(bucket.objects.has(oldKey)).toBe(false);
+    expect(pointers.listRetiredTufTargetObjects()).toEqual([]);
   });
 
   it("cleans crash-orphaned private R2 stages after a newer fencing epoch takes over", async () => {
