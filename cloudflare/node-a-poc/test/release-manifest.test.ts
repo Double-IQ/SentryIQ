@@ -3,6 +3,7 @@ import { assertNoDuplicateJsonKeys, parseAndValidateReleaseManifest } from "../s
 
 const commit = "a".repeat(40);
 const digest = "b".repeat(64);
+const versionDigest = "b9b9e4c6e8a4e2c7c9d6b8a0f2f0a9e4c1d8b7a6f5e4d3c2b1a09876543210ff";
 
 function manifest() {
   return {
@@ -12,9 +13,10 @@ function manifest() {
     version: "0.1.3",
     commit,
     workflow_path: ".github/workflows/release.yml",
-    public_files: ["index.php", "assets/app.js", "assets/site.css"],
+    public_files: ["VERSION", "index.php", "assets/app.js", "assets/site.css"],
     runtime_files: ["config.php"],
     files: [
+      { path: "VERSION", size: 6, sha256: versionDigest },
       { path: "index.php", size: 10, sha256: digest },
       { path: "assets/app.js", size: 20, sha256: digest },
       { path: "assets/site.css", size: 30, sha256: digest },
@@ -28,7 +30,7 @@ describe("Node A signed release manifest policy", () => {
     const result = parseAndValidateReleaseManifest(
       new TextEncoder().encode(JSON.stringify(manifest())), "0.1.3", commit
     );
-    expect(result.publicHttpFiles.map((entry) => entry.path)).toEqual(["assets/app.js", "assets/site.css"]);
+    expect(result.publicHttpFiles.map((entry) => entry.path)).toEqual(["VERSION", "assets/app.js", "assets/site.css"]);
     expect(result.files).toHaveLength(4);
   });
 
