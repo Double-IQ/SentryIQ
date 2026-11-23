@@ -60,13 +60,28 @@ class MemoryR2Bucket {
 
 function memoryPointers() {
   const pointers = new Map<string, CommittedTufTarget>();
+  const stages = new Map<string, { objectKey: string; fence: number }>();
   return {
     pointers,
+    stages,
+    registerTufTargetStage(stageId: string, objectKey: string, lock: RunLock) {
+      stages.set(stageId, { objectKey, fence: lock.fence });
+    },
+    listStaleTufTargetStages(lock: RunLock) {
+      return [...stages.entries()]
+        .filter(([, stage]) => stage.fence < lock.fence)
+        .map(([stageId, stage]) => ({ stageId, objectKey: stage.objectKey, fence: stage.fence }));
+    },
+    deleteTufTargetStage(stageId: string, objectKey: string) {
+      if (stages.get(stageId)?.objectKey === objectKey) stages.delete(stageId);
+    },
     async commitTufTargetPointer(
       target: TufTargetDescriptor,
+      stageId: string,
       objectKey: string,
       lock: RunLock
     ): Promise<CommittedTufTarget> {
+      if (stages.get(stageId)?.objectKey !== objectKey) throw new Error("staging record missing");
       const pointer = {
         ...target,
         objectKey,
@@ -74,6 +89,7 @@ function memoryPointers() {
         committedAt: Date.now()
       };
       pointers.set(target.targetPath, pointer);
+      stages.delete(stageId);
       return pointer;
     },
     readTufTargetPointer(targetPath: string) {
