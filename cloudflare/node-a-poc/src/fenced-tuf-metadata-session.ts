@@ -54,10 +54,17 @@ export class FencedTufMetadataSession {
     const session = new FencedTufMetadataSession(store, fence);
     const existing = await store.readRole("root");
     if (existing) {
-      // Durable bytes are untrusted input until the pinned upstream verifier
-      // has validated the self-signed root and constructed its trusted set.
-      await verifyTrustedRoot(existing.data.slice());
-      return { session, root: existing };
+      // Check the durable record's envelope and content identity before passing
+      // bytes to the upstream verifier. A store response with mismatched bytes,
+      // version or digest is corruption, not a cache miss or trust anchor.
+      const restored = await makeStoredRole(existing.data, "root");
+      if (restored.version !== existing.version || restored.sha256 !== existing.sha256) {
+        throw new Error("durable TUF root identity does not match its stored bytes");
+      }
+      // Durable bytes remain untrusted until the pinned upstream verifier has
+      // validated the self-signed root and constructed its trusted set.
+      await verifyTrustedRoot(restored.data.slice());
+      return { session, root: restored };
     }
 
     const candidate = await makeStoredRole(trustAnchor, "root");
