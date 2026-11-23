@@ -237,7 +237,7 @@ diff --git a/packages/client/src/index.ts b/packages/client/src/index.ts
 diff --git a/packages/models/src/utils/key.ts b/packages/models/src/utils/key.ts
 --- a/packages/models/src/utils/key.ts
 +++ b/packages/models/src/utils/key.ts
-@@ -105,7 +105,8 @@ function getECDCSAPublicKey(keyInfo: KeyInfo): PublicKey {
+@@ -105,6 +105,7 @@ function getECDCSAPublicKey(keyInfo: KeyInfo): PublicKey {
    if (
      key.asymmetricKeyType !== 'ec' ||
 -    key.asymmetricKeyDetails?.namedCurve !== namedCurve
