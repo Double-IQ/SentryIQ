@@ -304,6 +304,26 @@ describe("async TUF updater workflow", () => {
     expect(fetchMock).not.toHaveBeenCalledWith("https://example.test/metadata/child.json");
   });
 
+  it("refreshes timestamp and snapshot on a new updater even when durable snapshot metadata was restored", async () => {
+    const trusted = makeTrustedAdapter();
+    trusted.getRole = () => ({ signed: { targets: { "release.bin": targetInfo } } });
+    trusted.setTimestamp({ signed: { version: 3, snapshotMeta: { version: 6, length: 1 } } });
+    trusted.setSnapshot({ signed: { version: 6, meta: {} } });
+    const fetchMock = stubMetadataRefresh();
+    const { store } = fakeTargetStore();
+    const updater = new AsyncTufUpdater(
+      trusted as unknown as AsyncTufTrustedStateAdapter,
+      store,
+      fence,
+      { metadataBaseUrl: "https://example.test/metadata", targetBaseUrl: "https://example.test/targets" }
+    );
+
+    await expect(updater.getTargetInfo("release.bin")).resolves.toEqual(targetInfo);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(trusted.refreshTimestamp).toHaveBeenCalledOnce();
+    expect(trusted.refreshSnapshot).toHaveBeenCalledOnce();
+  });
+
   it("rejects a target larger than the configured staging bound before download", async () => {
     const trusted = makeTrustedAdapter();
     trusted.getRole = () => ({ signed: { targets: { "release.bin": targetInfo } } });
