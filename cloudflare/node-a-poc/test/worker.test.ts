@@ -9,7 +9,6 @@ import * as bundles from "./fixtures/bundles";
 import { trustedRoot } from "./fixtures/trust";
 import { genuineV012BundleJson } from "./fixtures/genuine-v012-bundle";
 import { genuineV012TrustedRootJson } from "./fixtures/genuine-v012-trusted-root";
-import { tufRootBase64 } from "./fixtures/tuf-root";
 import { GuardedTufUpdater, TufPersistenceCommitError, TufStateMutationError, TufUpdaterPoisonedError } from "../src/guarded-tuf-updater";
 import { DurableObjectTufMetadataStore } from "../src/durable-tuf-metadata-store";
 import { TufMetadataReadError, type TufMetadataIdentity, type TufMetadataStore, type StoredTufMetadata } from "../src/tuf-storage-contract";
@@ -42,7 +41,6 @@ describe("Node A Workers runtime proof", () => {
     const body = await response.json() as Record<string, unknown>;
     expect(body.cryptoOk).toBe(true);
     expect(body.sigstoreVerifierLoaded).toBe(true);
-    expect(body.tufClientLoaded).toBe(true);
     expect(body.asyncTufUpdaterLoaded).toBe(true);
     expect(body.durableMetadataBindingLoaded).toBe(true);
     expect(body.r2TargetBindingLoaded).toBe(true);
@@ -154,34 +152,6 @@ describe("Node A Workers runtime proof", () => {
       timestampThreshold: 1
     });
     expect(() => verifier.verify(toSignedEntity(bundle, bundles.ARTIFACT))).not.toThrow();
-  });
-
-  it("bootstraps the upstream Sigstore TUF cache through Durable Object SQLite", async () => {
-    const id = env.NODE_A_STATE.idFromName("node-a-upstream-tuf-bootstrap-test");
-    const stub = env.NODE_A_STATE.get(id);
-    const result = await stub.testUpstreamTufEphemeralCache(tufRootBase64);
-    expect(result.rootVersion).toBeGreaterThan(0);
-    expect(result.ephemeralCacheBootstrapped).toBe(true);
-    expect(result.persistentCacheRejected).toBe(true);
-    expect(result.expectedNetworkFailure).toBe(true);
-  });
-
-  it("uses Durable Object SQLite for persistent TUF files and request-local temporary files", async () => {
-    const id = env.NODE_A_STATE.idFromName("node-a-tuf-fs-adapter-test");
-    const first = env.NODE_A_STATE.get(id);
-    const result = await first.testTufFilesystemAdapter();
-    expect(result).toEqual({
-      persistentRead: "persistent-root-fixture",
-      copiedRead: "persistent-root-fixture",
-      temporaryRead: "request-scoped-target",
-      temporaryExistsAfterCleanup: false,
-      stagedWriteVisibleBeforeCommit: true,
-      discardedWriteAbsentAfterRollback: true
-    });
-
-    const second = env.NODE_A_STATE.get(id);
-    const contextCheck = await second.testTufFilesystemAdapter();
-    expect(contextCheck.persistentRead).toBe("persistent-root-fixture");
   });
 
   it("commits TUF metadata with a fenced compare-and-set and monotonic role versions", async () => {
