@@ -1,13 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { Buffer } from "node:buffer";
 import { createHash, generateKeyPairSync, randomBytes, sign, timingSafeEqual, verify } from "node:crypto";
-import * as tufFs from "./tuf-fs";
-import * as tufFsPromises from "./tuf-fs-promises";
-import * as nativeFs from "node:fs";
-import { commitTufFsContext, createTufFsContext, discardTufFsContext, runWithTufFsContext } from "./tuf-fs-context";
-import path from "node:path";
 import { Verifier } from "@sigstore/verify";
-import { initTUF } from "@sigstore/tuf";
 import { createNodeAAsyncTufUpdater } from "./node-a-tuf-runtime";
 import type { CommittedTufTarget, TufTargetDescriptor } from "./tuf-storage-contract";
 
@@ -293,102 +287,6 @@ export class NodeAState extends DurableObject<Env> {
     });
   }
 
-  async testUpstreamTufEphemeralCache(rootBase64: string): Promise<{ rootVersion: number; ephemeralCacheBootstrapped: boolean; persistentCacheRejected: boolean; expectedNetworkFailure: boolean }> {
-    const suffix = randomBytes(8).toString("hex");
-    const rootPath = "/tmp/sentryiq-node-a-root-" + suffix + ".json";
-    const persistentCachePath = "/node-a/tuf-cache-" + suffix;
-    const ephemeralCachePath = "/tmp/sentryiq-node-a-cache-" + suffix;
-    nativeFs.writeFileSync(rootPath, Buffer.from(rootBase64, "base64"));
-
-    let persistentCacheRejected = false;
-    try {
-      await initTUF({
-        cachePath: persistentCachePath,
-        rootPath,
-        mirrorURL: "https://127.0.0.1:1",
-        forceCache: false,
-        forceInit: true,
-        retry: { retries: 0 },
-        timeout: 250
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (!/EPERM|EACCES|operation not permitted/i.test(message)) throw error;
-      persistentCacheRejected = true;
-    }
-    if (!persistentCacheRejected) {
-      throw new Error("stock TUF unexpectedly accepted a persistent path outside the Workers writable filesystem");
-    }
-
-    let expectedNetworkFailure = false;
-    try {
-      await initTUF({
-        cachePath: ephemeralCachePath,
-        rootPath,
-        mirrorURL: "https://127.0.0.1:1",
-        forceCache: false,
-        forceInit: true,
-        retry: { retries: 0 },
-        timeout: 250
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (/EPERM|EACCES|ENOENT|operation not permitted/i.test(message)) throw error;
-      expectedNetworkFailure = true;
-    }
-
-    const cachedRootPath = path.join(ephemeralCachePath, encodeURIComponent("127.0.0.1:1"), "root.json");
-    const cachedRoot = JSON.parse(nativeFs.readFileSync(cachedRootPath, "utf8")) as { signed?: { version?: number } };
-    if (!Number.isSafeInteger(cachedRoot.signed?.version) || !cachedRoot.signed?.version) {
-      throw new Error("stock TUF did not bootstrap its root inside the Workers /tmp filesystem");
-    }
-    return {
-      rootVersion: cachedRoot.signed.version,
-      ephemeralCacheBootstrapped: true,
-      persistentCacheRejected,
-      expectedNetworkFailure
-    };
-  }
-
-  async testTufFilesystemAdapter(): Promise<{ persistentRead: string; copiedRead: string; temporaryRead: string; temporaryExistsAfterCleanup: boolean; seededTufRootVersion: number; stagedWriteVisibleBeforeCommit: boolean; discardedWriteAbsentAfterRollback: boolean }> {
-    const context = createTufFsContext(this.ctx.storage.sql);
-    return runWithTufFsContext(context, async () => {
-      const rootPath = "/node-a/tuf/repository/root.json";
-      const copiedPath = "/node-a/tuf/cache/root.json";
-      tufFs.mkdirSync("/node-a/tuf/repository", { recursive: true });
-      tufFs.mkdirSync("/node-a/tuf/cache", { recursive: true });
-      tufFs.writeFileSync(rootPath, Buffer.from("persistent-root-fixture"));
-      tufFs.copyFileSync(rootPath, copiedPath);
-      const persistentRead = tufFs.readFileSync(rootPath, "utf8") as string;
-      const copiedRead = tufFs.readFileSync(copiedPath, "utf8") as string;
-      const discardedPath = "/node-a/tuf/cache/uncommitted.json";
-      tufFs.writeFileSync(discardedPath, "must-not-persist");
-      const stagedWriteVisibleBeforeCommit = tufFs.existsSync(discardedPath);
-      discardTufFsContext(context);
-      const discardedWriteAbsentAfterRollback = !tufFs.existsSync(discardedPath);
-      tufFs.writeFileSync(rootPath, Buffer.from("persistent-root-fixture"));
-      tufFs.copyFileSync(rootPath, copiedPath);
-
-      const tempDir = await tufFsPromises.mkdtemp("/tmp/");
-      const tempPath = path.join(tempDir, "tempfile");
-      await tufFsPromises.open(tempPath, "a");
-      const stream = tufFs.createWriteStream(tempPath);
-      stream.write(Buffer.from("request-scoped-target"));
-      await new Promise<void>((resolve, reject) => stream.close((error) => error ? reject(error) : resolve()));
-      const temporaryRead = tufFs.readFileSync(tempPath, "utf8") as string;
-      await tufFsPromises.rm(tempDir, { recursive: true, force: true });
-      this.ctx.storage.transactionSync(() => commitTufFsContext(context));
-      return {
-        persistentRead,
-        copiedRead,
-        temporaryRead,
-        temporaryExistsAfterCleanup: tufFs.existsSync(tempPath),
-        stagedWriteVisibleBeforeCommit,
-        discardedWriteAbsentAfterRollback
-      };
-    });
-  }
-
   commitTufTargetPointer(
     descriptor: TufTargetDescriptor,
     objectKey: string,
@@ -569,14 +467,12 @@ export default {
     if (url.pathname === "/runtime-check") {
       const cryptoOk = cryptoSelfTest();
       const sigstoreVerifierLoaded = typeof Verifier === "function";
-      const tufClientLoaded = typeof initTUF === "function";
       const asyncTufUpdaterLoaded = typeof createNodeAAsyncTufUpdater === "function";
       const durableMetadataBindingLoaded = Boolean(env.NODE_A_STATE);
       const r2TargetBindingLoaded = Boolean(env.NODE_A_TARGETS);
       return Response.json({
         cryptoOk,
         sigstoreVerifierLoaded,
-        tufClientLoaded,
         asyncTufUpdaterLoaded,
         durableMetadataBindingLoaded,
         r2TargetBindingLoaded,
