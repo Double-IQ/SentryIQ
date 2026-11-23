@@ -171,6 +171,9 @@ export class AsyncTufUpdater {
       ordered.reverse();
       stack.push(...ordered);
     }
+    if (stack.length > 0) {
+      throw new Error("TUF delegation traversal exceeded the configured role limit");
+    }
     return undefined;
   }
 
