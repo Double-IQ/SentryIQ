@@ -143,17 +143,22 @@ export class R2TufTargetStore implements TufTargetStore {
           readError
         );
       }
-      if (pointer?.objectKey === stage.objectKey) {
-        if (pointer.fence === fence.fence &&
-            targetDescriptorMatches(pointer, stage.descriptor)) {
-          return pointer;
-        }
+      if (pointer?.objectKey === stage.objectKey &&
+          pointer.fence === fence.fence &&
+          targetDescriptorMatches(pointer, stage.descriptor)) {
+        return pointer;
+      }
+      if (pointer) {
+        // A different pointer may mean this upload committed and was then
+        // superseded. Its object is already queued for grace-period GC.
         throw new TufTargetCommitAmbiguousError(
-          "durable target pointer references this object with an unexpected descriptor; preserve it for investigation",
+          "a different durable pointer is visible; preserve this object for fenced cleanup or retirement",
           error
         );
       }
 
+      // A successful durable read with no pointer proves this stage was not
+      // published; it is safe to discard the private object immediately.
       try { await this.bucket.delete(stage.objectKey); } catch { /* stale-stage sweep retries */ }
       try { await this.state.deleteTufTargetStage(stage.stageId, stage.objectKey, this.currentLock()); } catch { /* stale-stage sweep retries */ }
       throw error;
