@@ -58,7 +58,8 @@ describe("complete release evidence gate", () => {
     }), { status: 200 });
     await expect(verifyReleaseEvidence({
       manifestBytes,
-      zipBytes: new Uint8Array([1, 2, 3]),
+      zipSha256: "b".repeat(64),
+      zipSize: 3,
       expectedVersion: "0.1.3",
       expectedCommit: commit,
       trustedRootJson: "{}",
