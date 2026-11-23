@@ -1,10 +1,9 @@
 /**
  * Explicit persistence boundary for the Node A TUF client integration.
  *
- * This is a contract only: the current PoC does not yet adapt tuf-js to it.
- * Implementations must never fall back to node:fs for durable metadata or
- * verified targets. Durable Objects own metadata and target-pointer commits;
- * object storage owns target bytes.
+ * The async Node A updater uses this explicit boundary. Implementations must
+ * never fall back to node:fs for durable metadata or verified targets. Durable
+ * Objects own metadata and target-pointer commits; object storage owns bytes.
  */
 
 export interface TufMetadataIdentity {
@@ -56,6 +55,21 @@ export interface TufMetadataStore {
     next: StoredTufMetadata,
     fence: TufRunFence
   ): Promise<TufMetadataIdentity>;
+}
+
+/**
+ * The pointer-publication RPC failed and its commit outcome could not be
+ * determined by reading durable state. Preserve the staged object: deleting
+ * it could destroy a pointer whose transaction actually committed.
+ */
+export class TufTargetCommitAmbiguousError extends Error {
+  readonly causeValue: unknown;
+
+  constructor(message: string, causeValue?: unknown) {
+    super(message);
+    this.name = "TufTargetCommitAmbiguousError";
+    this.causeValue = causeValue;
+  }
 }
 
 export interface TufTargetDescriptor {
