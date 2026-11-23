@@ -321,7 +321,14 @@ export class NodeAState extends DurableObject<Env> {
     return this.ctx.storage.sql.exec<{ stage_id: string; object_key: string; fence: number }>(
       "SELECT stage_id, object_key, fence FROM tuf_target_staging WHERE fence < ? ORDER BY created_at LIMIT ?",
       lock.fence, limit
-    ).toArray().map((row) => ({ stageId: row.stage_id, objectKey: row.object_key, fence: row.fence }));
+    ).toArray().map((row) => {
+      if (!/^[a-f0-9-]{36}$/.test(row.stage_id) ||
+          !/^objects\/[a-f0-9-]{36}$/.test(row.object_key) ||
+          !Number.isSafeInteger(row.fence) || row.fence < 1 || row.fence >= lock.fence) {
+        throw new Error("durable TUF staging registry contains an invalid identity");
+      }
+      return { stageId: row.stage_id, objectKey: row.object_key, fence: row.fence };
+    });
   }
 
   deleteTufTargetStage(stageId: string, objectKey: string, lock: RunLock): void {
@@ -401,7 +408,12 @@ export class NodeAState extends DurableObject<Env> {
     return this.ctx.storage.sql.exec<{ object_key: string }>(
       "SELECT object_key FROM tuf_target_gc WHERE queued_at <= ? ORDER BY queued_at LIMIT ?",
       Date.now() - minimumAgeMs, limit
-    ).toArray().map((row) => row.object_key);
+    ).toArray().map((row) => {
+      if (!/^objects\/[a-f0-9-]{36}$/.test(row.object_key)) {
+        throw new Error("durable TUF garbage-collection queue contains an invalid object key");
+      }
+      return row.object_key;
+    });
   }
 
   deleteRetiredTufTargetObject(objectKey: string, lock: RunLock): void {
