@@ -1,4 +1,5 @@
-import type { ReleaseManifestFile, VerifiedReleaseManifest } from "./release-manifest";
+import { createHash } from "node:crypto";
+import type { VerifiedReleaseManifest } from "./release-manifest";
 
 export const NODE_A_CANONICAL_ORIGIN = "https://sentryiq.bichet.co.za";
 const MAX_PUBLIC_ASSET_BYTES = 10_000_000;
@@ -145,15 +146,5 @@ async function readBounded(response: Response, maximumBytes: number): Promise<Ui
 }
 
 function sha256(bytes: Uint8Array): string {
-  // Web Crypto digest is asynchronous in Workers; use the platform primitive.
-  return createSha256(bytes);
-}
-
-function createSha256(bytes: Uint8Array): string {
-  return Array.from(new Uint8Array(sha256Digest(bytes)), (value) => value.toString(16).padStart(2, "0")).join("");
-}
-
-function sha256Digest(bytes: Uint8Array): ArrayBuffer {
-  // Kept separate to make the byte-for-byte digest input explicit.
-  throw new Error("SHA-256 digest implementation not initialized");
+  return createHash("sha256").update(bytes).digest("hex");
 }
