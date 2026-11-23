@@ -32,7 +32,8 @@ export class NodeAEventRunner {
     private readonly notifyOwnerDirectly: (
       reason: string,
       context: Record<string, unknown>
-    ) => void | Promise<void>
+    ) => void | Promise<void>,
+    private readonly privateHostNonceSource: () => Uint8Array = () => crypto.getRandomValues(new Uint8Array(32))
   ) {
     if (typeof notifyOwnerDirectly !== "function") {
       throw new Error("Node A requires an independent direct owner-alert transport");
@@ -88,8 +89,17 @@ export class NodeAEventRunner {
     let privateResult: PrivateHostResult | undefined;
     let privateHostFailed = false;
     try {
+      // Keep the host collector's replay domain independent from Node 4's
+      // event-plane challenge. The report below remains bound to Node 4's nonce.
+      const privateHostNonceBytes = this.privateHostNonceSource();
+      if (!(privateHostNonceBytes instanceof Uint8Array) || privateHostNonceBytes.byteLength !== 32) {
+        throw new Error("private-host nonce source must return exactly 32 cryptographically random bytes");
+      }
+      const privateHostNonce = Array.from(privateHostNonceBytes, (byte) =>
+        byte.toString(16).padStart(2, "0")
+      ).join("");
       privateResult = await this.privateHost.verify({
-        nonce: challenge.nonce,
+        nonce: privateHostNonce,
         releaseVersion: manifest.version,
         commit: manifest.commit,
         manifestSha256: manifest.sha256,
