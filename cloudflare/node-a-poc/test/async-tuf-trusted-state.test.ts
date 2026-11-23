@@ -94,6 +94,35 @@ describe("async adapter over pinned TUF trusted metadata store", () => {
     expect(restartedTrusted.updateSnapshot).toHaveBeenCalledWith(records.get("snapshot")?.data);
   });
 
+  it("rotates roots sequentially through upstream validation and durable commits", async () => {
+    const { store, records } = memoryStore();
+    const upstream = {
+      updateRoot: vi.fn(),
+      updateTimestamp: vi.fn(),
+      updateSnapshot: vi.fn(),
+      updateDelegatedTargets: vi.fn()
+    };
+    const adapter = await AsyncTufTrustedStateAdapter.create(
+      store, fence, metadata(1, "root"), () => upstream
+    );
+    const events: string[] = [];
+    vi.mocked(store.commitVerifiedRole).mockImplementation(async (name, expected, next) => {
+      events.push("commit:" + name + ":" + next.version);
+      records.set(name, { ...next, data: next.data.slice() });
+      return { version: next.version, sha256: next.sha256 };
+    });
+    upstream.updateRoot.mockImplementation(() => { events.push("accept:root"); });
+    await adapter.rotateRoots(2, 2, async (version) => {
+      events.push("fetch:" + version);
+      return metadata(version, "root");
+    });
+    expect(events).toEqual([
+      "fetch:2", "accept:root", "commit:root:2",
+      "fetch:3", "accept:root", "commit:root:3"
+    ]);
+    expect(records.get("root")?.version).toBe(3);
+  });
+
   it("does not persist when upstream TUF rejects a role", async () => {
     const { store, records } = memoryStore();
     const upstream = {
