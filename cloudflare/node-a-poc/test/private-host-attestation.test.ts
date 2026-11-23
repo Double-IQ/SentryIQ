@@ -19,7 +19,7 @@ function createManifest() {
     version, commit, workflow_path: ".github/workflows/release.yml",
     public_files: ["VERSION"], runtime_files: ["config.php"],
     files: [
-      { path: "VERSION", size: 6, sha256: "2d2454ef0edeb462a6ce8b25d387aaa74df08093d5cea0428a10ce55510c6326" },
+      { path: "VERSION", size: 6, sha256: "d82f34ae9aa41bc4a0cb529a1ac0898fed09d6b479fb1cc44cb66c34f15ee84d" },
       { path: "runtime/config.php", size: 1, sha256: fileDigest }
     ]
   })), version, commit);
