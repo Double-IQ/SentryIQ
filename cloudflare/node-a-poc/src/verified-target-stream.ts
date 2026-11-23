@@ -35,7 +35,7 @@ export async function stageVerifiedTufTarget(
   validateDescriptor(descriptor);
 
   const stage = await store.beginTarget(descriptor, fence);
-  const reader = body.getReader();
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   const hashers = new Map<string, ReturnType<typeof createHash>>();
   for (const algorithm of Object.keys(descriptor.hashes)) {
     hashers.set(algorithm, createHash(algorithm));
@@ -44,6 +44,7 @@ export async function stageVerifiedTufTarget(
   let received = 0;
   let completed = false;
   try {
+    reader = body.getReader();
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -77,10 +78,12 @@ export async function stageVerifiedTufTarget(
     completed = true;
     return committed;
   } catch (error) {
-    try {
-      await reader.cancel(error);
-    } catch {
-      // Preserve the integrity, stream, or durable-store failure.
+    if (reader) {
+      try {
+        await reader.cancel(error);
+      } catch {
+        // Preserve the integrity, stream, or durable-store failure.
+      }
     }
     throw error;
   } finally {
@@ -91,7 +94,7 @@ export async function stageVerifiedTufTarget(
         // Cleanup is best-effort; the stage is never reader-visible.
       }
     }
-    reader.releaseLock();
+    reader?.releaseLock();
   }
 }
 
