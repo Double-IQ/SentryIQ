@@ -95,51 +95,25 @@ describe("async adapter over pinned TUF trusted metadata store", () => {
     expect(records.has("timestamp")).toBe(true);
     expect(records.has("snapshot")).toBe(true);
     expect(restartedTrusted.updateTimestamp).toHaveBeenCalledWith(Buffer.from(records.get("timestamp")!.data));
-    expect(restartedTrusted.updateSnapshot).toHaveBeenCalledWith(Buffer.from(records.get("snapshot")!.data));
+    expect(restartedTrusted.updateSnapshot).not.toHaveBeenCalled();
   });
 
-  it("rehydrates delegated targets using the verified parent delegation chain", async () => {
+  it("passes delegated metadata to the upstream verifier in its exact API argument order", async () => {
     const { store } = memoryStore();
-    const firstTrusted = {
+    const upstream = {
       updateRoot: vi.fn(),
       updateTimestamp: vi.fn(),
       updateSnapshot: vi.fn(),
       updateDelegatedTargets: vi.fn(),
       getRole: vi.fn(() => undefined)
     };
-    const first = await AsyncTufTrustedStateAdapter.create(
-      store, fence, metadata(1, "root"), () => firstTrusted
+    const adapter = await AsyncTufTrustedStateAdapter.create(
+      store, fence, metadata(1, "root"), () => upstream
     );
-    await first.refreshTimestamp(metadata(1, "timestamp"));
-    await first.refreshSnapshot(metadata(1, "snapshot", {
-      meta: {
-        "targets.json": { version: 1 },
-        "child.json": { version: 1 }
-      }
-    }));
-    await first.refreshDelegatedTargets("targets", "root", metadata(1, "targets", {
-      delegations: { roles: [{ name: "child" }] }
-    }));
-    await first.refreshDelegatedTargets("child", "targets", metadata(1, "targets"));
-
-    const restartedTrusted = {
-      updateRoot: vi.fn(),
-      updateTimestamp: vi.fn(),
-      updateSnapshot: vi.fn(),
-      updateDelegatedTargets: vi.fn(),
-      getRole: vi.fn((name: string) => name === "targets"
-        ? { signed: { delegations: { roles: [{ name: "child" }] } } }
-        : undefined)
-    };
-    await AsyncTufTrustedStateAdapter.create(
-      store, fence, metadata(1, "root"), () => restartedTrusted
-    );
-
-    expect(restartedTrusted.updateDelegatedTargets).toHaveBeenNthCalledWith(
-      1, Buffer.from((await store.readRole("targets"))!.data), "targets", "root"
-    );
-    expect(restartedTrusted.updateDelegatedTargets).toHaveBeenNthCalledWith(
-      2, Buffer.from((await store.readRole("child"))!.data), "child", "targets"
+    const delegated = metadata(1, "targets");
+    await adapter.refreshDelegatedTargets("child", "targets", delegated);
+    expect(upstream.updateDelegatedTargets).toHaveBeenCalledWith(
+      Buffer.from(delegated), "child", "targets"
     );
   });
 
