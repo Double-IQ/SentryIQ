@@ -141,18 +141,16 @@ export class AsyncTufUpdater {
 
       visited.add(roleName);
       const childRoles = signed.delegations?.rolesForTarget?.(targetPath) ?? [];
-      const ordered = childRoles.map((child) => ({
-        roleName: child.role,
-        parentRoleName: roleName,
-        terminating: child.terminating
-      }));
-      for (let index = ordered.length - 1; index >= 0; index--) {
-        stack.push({
-          roleName: ordered[index].roleName,
-          parentRoleName: ordered[index].parentRoleName
-        });
-        if (ordered[index].terminating) break;
+      const ordered: Array<{ roleName: string; parentRoleName: string }> = [];
+      for (const child of childRoles) {
+        ordered.push({ roleName: child.role, parentRoleName: roleName });
+        if (child.terminating) {
+          stack.splice(0);
+          break;
+        }
       }
+      ordered.reverse();
+      stack.push(...ordered);
     }
     return undefined;
   }
@@ -164,6 +162,7 @@ export class AsyncTufUpdater {
       hashes: targetInfo.hashes
     };
     let targetPath = targetInfo.path;
+    validateTargetPath(targetPath);
     if (this.trusted.root.signed.consistentSnapshot &&
         this.config.prefixTargetsWithHash) {
       const hash = Object.values(targetInfo.hashes)[0];
@@ -264,4 +263,12 @@ export class AsyncTufUpdater {
 
 function ensureTrailingSlash(value: string): string {
   return value.endsWith("/") ? value : value + "/";
+}
+
+function validateTargetPath(targetPath: string): void {
+  if (typeof targetPath !== "string" || targetPath.length === 0 ||
+      targetPath.length > 1024 || targetPath.startsWith("/") ||
+      targetPath.split("/").some((part) => part === "" || part === "." || part === "..")) {
+    throw new Error("TUF target path is invalid");
+  }
 }
