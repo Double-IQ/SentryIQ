@@ -131,6 +131,22 @@ export class AsyncTufTrustedStateAdapter {
     return new AsyncTufTrustedStateAdapter(trusted, session, metadata);
   }
 
+  get root(): PinnedTufRoleMetadata {
+    return this.trusted.root;
+  }
+
+  get timestamp(): PinnedTufRoleMetadata | undefined {
+    return this.trusted.timestamp;
+  }
+
+  get snapshot(): PinnedTufRoleMetadata | undefined {
+    return this.trusted.snapshot;
+  }
+
+  getRole(roleName: string): PinnedTufRoleMetadata | undefined {
+    return this.trusted.getRole(roleName);
+  }
+
   refreshRoot(bytes: Uint8Array): Promise<TufMetadataIdentity> {
     return this.accept("root", bytes, () => this.trusted.updateRoot(Buffer.from(bytes)));
   }
