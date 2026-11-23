@@ -126,3 +126,9 @@ The async adapter must therefore distinguish:
 Do not identify storage failures by message text or by treating every thrown error as recoverable. The adapter must wrap RPC failures in a stable typed error, and the patched updater's catch blocks must explicitly rethrow it. This is a prerequisite to wiring `DurableObjectTufMetadataStore` into the updater.
 
 The same rule applies to persistence: after the upstream trusted set accepts a candidate, a failed fenced commit must emit the dedicated persistence-commit error and poison that updater instance. The next attempt must instantiate a new updater from the last durable metadata snapshot; it must never retry against the already-advanced in-memory trusted set.
+
+## Typed durable-store failure contract implemented
+
+`TufMetadataReadError` now exposes stable code `TUF_METADATA_READ_FAILED`. `DurableObjectTufMetadataStore.readRole` wraps Durable Object RPC failures in this type, allowing the upstream updater patch to rethrow storage outages rather than swallowing them in cached-metadata recovery catches. `TufPersistenceCommitError` now exposes `TUF_METADATA_COMMIT_FAILED`; failed fenced compare-and-set commits are wrapped in this error so `GuardedTufUpdater` poisons the mutable updater and requires reconstruction from durable state.
+
+The workerd regression verifies the metadata adapter's read/write round trip, rejects a mismatched supplied fence, rejects an old owner after release and a higher fencing epoch takeover, checks the stable read-error code, and checks the stable commit-error code. Latest exact-head CI passed **21/21 workerd tests** and **8 upstream CLIENT suites / 43 tests** ([CI run 45105712826](https://github.com/Double-IQ/SentryIQ/actions/runs/45105712826)).
