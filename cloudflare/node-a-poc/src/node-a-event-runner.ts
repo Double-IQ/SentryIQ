@@ -5,6 +5,10 @@ import { Node4EventClient } from "./node4-event-client";
 import { NodeAReportSigner } from "./node-a-report-signer";
 import type { NodeAPrivateHostGate } from "./private-host-attestation";
 
+export class NodeAEventAlreadyAlertedError extends Error {
+  constructor(message: string, options?: ErrorOptions) { super(message, options); }
+}
+
 export interface NodeAEventRunResult {
   readonly approved: boolean;
   readonly report: string;
@@ -41,11 +45,23 @@ export class NodeAEventRunner {
   }): Promise<NodeAEventRunResult> {
     const release = input.release;
     const manifest = release.manifest;
+    const zipSubjectName = "sentryiq-" + manifest.version + ".zip";
     if (!release || !manifest || release.tagCommit !== manifest.commit ||
+        release.manifestClaims.repository !== "Double-IQ/SentryIQ" ||
+        release.zipClaims.repository !== "Double-IQ/SentryIQ" ||
+        release.manifestClaims.repositoryId !== "1345956206" ||
+        release.zipClaims.repositoryId !== "1345956206" ||
+        release.manifestClaims.version !== manifest.version ||
+        release.zipClaims.version !== manifest.version ||
+        release.manifestClaims.workflowCommit !== manifest.commit ||
+        release.zipClaims.workflowCommit !== manifest.commit ||
+        release.manifestClaims.subjectName !== "release-manifest.json" ||
+        release.zipClaims.subjectName !== zipSubjectName ||
         release.manifestClaims.subjectSha256 !== manifest.sha256 ||
         release.zipClaims.subjectSha256 !== release.zipSha256 ||
         release.manifestClaims.sourceCommit !== manifest.commit ||
-        release.zipClaims.sourceCommit !== manifest.commit) {
+        release.zipClaims.sourceCommit !== manifest.commit ||
+        !/^[a-f0-9]{64}$/.test(release.zipSha256)) {
       throw new Error("Node A event runner requires fully bound dual-subject release evidence");
     }
     if (!input.origin || !Array.isArray(input.origin.checkedPaths) ||
@@ -66,7 +82,7 @@ export class NodeAEventRunner {
       });
     } catch (error) {
       await this.alert("node4_challenge_unavailable", manifest.version, manifest.commit, 0);
-      throw new Error("Node 4 challenge failed after independent owner alert delivery", { cause: error });
+      throw new NodeAEventAlreadyAlertedError("Node 4 challenge failed after independent owner alert delivery", { cause: error });
     }
 
     let privateResult: PrivateHostResult | undefined;
@@ -81,7 +97,8 @@ export class NodeAEventRunner {
         manifest
       });
       if (!privateResult || typeof privateResult.approved !== "boolean" ||
-          !Array.isArray(privateResult.mismatches)) {
+          !Array.isArray(privateResult.mismatches) ||
+          privateResult.approved !== (privateResult.mismatches.length === 0)) {
         throw new Error("private-host verifier returned an invalid result");
       }
     } catch {
@@ -125,7 +142,7 @@ export class NodeAEventRunner {
       });
     } catch (error) {
       await this.alert("report_signing_failed", manifest.version, manifest.commit, mismatches.length);
-      throw new Error("Node A report signing failed after independent owner alert delivery", { cause: error });
+      throw new NodeAEventAlreadyAlertedError("Node A report signing failed after independent owner alert delivery", { cause: error });
     }
 
     let acknowledgement: Record<string, unknown>;
@@ -133,7 +150,7 @@ export class NodeAEventRunner {
       acknowledgement = await this.node4.submitReport(report);
     } catch (error) {
       await this.alert("node4_report_delivery_failed", manifest.version, manifest.commit, mismatches.length);
-      throw new Error("Node 4 report submission failed after independent owner alert delivery", { cause: error });
+      throw new NodeAEventAlreadyAlertedError("Node 4 report submission failed after independent owner alert delivery", { cause: error });
     }
 
     if (decision === "reject") {
@@ -159,7 +176,7 @@ export class NodeAEventRunner {
         mismatch_count: mismatchCount
       });
     } catch (error) {
-      throw new Error("Node A independent direct owner alert delivery failed", { cause: error });
+      throw new NodeAEventAlreadyAlertedError("Node A independent direct owner alert delivery failed", { cause: error });
     }
   }
 }
