@@ -127,6 +127,9 @@ describe("fenced asynchronous TUF metadata session", () => {
     });
     const fetch = vi.fn(async (version: number) => {
       events.push("fetch:" + version);
+      if (version === 4) {
+        throw Object.assign(new Error("not found"), { statusCode: 404 });
+      }
       return role(version);
     });
     const accept = vi.fn(async (bytes: Uint8Array) => {
@@ -143,7 +146,21 @@ describe("fenced asynchronous TUF metadata session", () => {
 
     expect(events).toEqual([
       "fetch:2", "accept:2", "commit:2",
-      "fetch:3", "accept:3", "commit:3"
+      "fetch:3", "accept:3", "commit:3", "fetch:4"
     ]);
+  });
+
+  it("fails closed if another root exists beyond the configured rotation cap", async () => {
+    const { store } = fakeStore();
+    const { session } = await FencedTufMetadataSession.create(
+      store, fence, role(1), vi.fn()
+    );
+    const fetch = vi.fn(async (version: number) => role(version));
+    await expect(session.rotateRoots(2, 2, fetch, vi.fn(), {
+      version: 1,
+      sha256: "1".repeat(64)
+    })).rejects.toThrow("exceeded the configured maximum");
+    expect(fetch.mock.calls.map(([version]) => version)).toEqual([2, 3, 4]);
+    expect(store.commitVerifiedRole).toHaveBeenCalledTimes(3);
   });
 });
