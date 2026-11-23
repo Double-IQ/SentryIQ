@@ -1,6 +1,6 @@
 # Node A Cloudflare Workers proof of concept
 
-**Status: isolated runtime/storage PoC only. Not deployable as the production Node A.**
+**Status: isolated Workerd implementation and policy-integration PoC; not deployable or accepted as production Node A.**
 
 This directory is deliberately separate from the PHP production application. It tests a narrow but important question in the actual Workers runtime:
 
@@ -22,20 +22,20 @@ Direct dependencies are exact-version pinned in `package.json`. `npm test` first
 
 ## Important non-claims
 
-- The runtime suite verifies the genuine SentryIQ v0.1.2 GitHub attestation bundle and the upstream Sigstore Rekor v2 certificate bundle using `@sigstore/verify@4.1.3` and the current Sigstore trusted root. It rejects a one-byte-tampered DSSE signature after trusted-key validation and includes an Ed25519 regression check. This is a positive/negative cryptographic PoC, not yet the complete repository-specific release policy or production caller.
+- The runtime suite verifies the genuine SentryIQ v0.1.2 GitHub attestation bundle and the upstream Sigstore Rekor v2 certificate bundle using `@sigstore/verify@4.1.3` and the current Sigstore trusted root. It rejects a one-byte-tampered DSSE signature after trusted-key validation and includes an Ed25519 regression check. The branch now also contains a repository-specific SLSA/GitHub release policy, strict release-manifest parser, bounded Snappy GitHub-bundle retrieval, dual-subject manifest/ZIP evidence gate, and canonical-origin static-asset/header verifier. These modules are tested, but are not yet wired into the scheduled Worker control plane.
 - The suite calls the stock `@sigstore/tuf@5.0.1` client with a fixture root. It confirms cache bootstrap works under `/tmp`, but a cache path outside `/tmp` fails with the Workers filesystem permission restriction. The test intentionally stops at a loopback network failure; it does not complete a live Sigstore TUF refresh.
-- The separate Durable Object filesystem prototype stages file writes, discards uncommitted changes, and commits successful changes to SQLite in a storage transaction. It is **not wired into** the upstream TUF client; the upstream package still uses the native filesystem APIs. `src/tuf-storage-contract.ts` now defines the explicit metadata/target persistence boundary intended for the future adapter, but it is contract-only and has no production implementation yet. Target bytes are intended for R2; Durable Objects own metadata and committed-pointer publication under the run fence.
+- The Worker-native async TUF path now uses pinned `tuf-js@6.0.3` trusted metadata with fenced Durable Object metadata persistence and private R2 target staging. The stock filesystem-backed `@sigstore/tuf` wrapper is removed from the Worker path. This is isolated Workerd/R2-test-double evidence; account-backed Cloudflare deployment, real R2 fault injection, and operational acceptance remain outstanding.
 - The latest confirmed workerd CI run passes 17/17 tests, including genuine SentryIQ v0.1.2 attestation verification, tampered-DSSE rejection, Ed25519 regression, fenced metadata CAS and updater-poisoning lifecycle tests. The CI-generated `package-lock.json` is uploaded as an artifact for review but is not yet committed to this branch; a committed lockfile remains a release gate. The generated CI dependency resolution is `@sigstore/tuf@5.0.1`, `tuf-js@6.0.3`, and `@tufjs/models@5.0.3`. The Sigstore wrapper exposes no storage adapter; the TUF `Fetcher` interface changes transport only, and the updater still uses filesystem metadata/target directories. `TrustedMetadataStore` is internal to `tuf-js`, not exported from its public API. A custom fetcher alone therefore cannot solve persistence.
-- The SQLite Durable Object stores the monotonic release pin, a run lease, bounded run audit and the isolated TUF-file prototype. It does not yet store or validate real TUF metadata through the stock client.
+- The SQLite Durable Object stores the monotonic release pin, run lease, bounded run audit, fenced TUF metadata, immutable target pointers, staging records and delayed target-GC queue. It does not provision or validate a live Cloudflare account or production binding.
 - The release-pin method is a storage primitive. It must only be called after the full release attestation, manifest/ZIP, origin, private-host and Node 4 acceptance gates have passed. No production caller is wired.
-- The Worker exposes only health/runtime diagnostics. It does not fetch releases, call Node 4, access private-host attestation, send alerts, or expose state mutation routes.
+- The Worker exposes health/runtime diagnostics and authenticated TUF refresh/target routes. The release-evidence and origin-policy modules are not yet called by a scheduled release-monitor workflow; Node 4 exchange, private-host attestation, direct owner alerts and Cron scheduling remain outstanding.
 - No secrets, Cloudflare account identifiers, production bindings, routes, Cron Triggers or deployments are configured.
 
 ## Acceptance sequence after this PoC
 
 1. Preserve the 17-test workerd suite and replace the temporary dependency patch with an upstream release or a separately reviewed/pinned maintained patch plus committed lockfile.
-2. Verify the genuine SentryIQ manifest and ZIP attestations independently against the authenticated TUF trusted root, with digest, subject, identity, workflow and source-commit negative cases.
-3. Implement and independently review a Durable Object-backed TUF adapter that the verifier can actually use, preserving sequential root rotation, metadata expiry/version checks, target hashes and crash-safe atomic refresh. Do not treat ephemeral `/tmp` as persistent.
+2. Wire the tested dual-subject manifest/ZIP evidence gate and canonical-origin verifier into the Worker scheduled control plane, then add golden and adversarial end-to-end tests against a genuine current release.
+3. Continue independent review and account-backed fault-injection acceptance of the implemented Durable Object-backed async TUF adapter, preserving sequential root rotation, metadata expiry/version checks, target hashes and crash-safe atomic refresh. Do not treat ephemeral `/tmp` as persistent.
 4. Test TUF restart/eviction, failed refresh preserving last-known-good metadata, rollback, expiry, threshold/signature failures and malicious metadata.
 5. Port the existing `SigstoreProvenance` and `ReleaseTrustPolicy` constraints without weakening them.
 6. Add the Node 4 challenge/report exchange, private-host collector and independent owner-alert path.
