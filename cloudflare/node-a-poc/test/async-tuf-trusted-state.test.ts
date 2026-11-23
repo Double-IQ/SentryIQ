@@ -16,9 +16,9 @@ const fence: TufRunFence = {
   token: "b".repeat(64)
 };
 
-function metadata(version: number, role: string): Uint8Array {
+function metadata(version: number, role: string, extra: Record<string, unknown> = {}): Uint8Array {
   return new TextEncoder().encode(JSON.stringify({
-    signed: { _type: role, version }
+    signed: { _type: role, version, ...extra }
   }));
 }
 
@@ -96,6 +96,51 @@ describe("async adapter over pinned TUF trusted metadata store", () => {
     expect(records.has("snapshot")).toBe(true);
     expect(restartedTrusted.updateTimestamp).toHaveBeenCalledWith(Buffer.from(records.get("timestamp")!.data));
     expect(restartedTrusted.updateSnapshot).toHaveBeenCalledWith(Buffer.from(records.get("snapshot")!.data));
+  });
+
+  it("rehydrates delegated targets using the verified parent delegation chain", async () => {
+    const { store } = memoryStore();
+    const firstTrusted = {
+      updateRoot: vi.fn(),
+      updateTimestamp: vi.fn(),
+      updateSnapshot: vi.fn(),
+      updateDelegatedTargets: vi.fn(),
+      getRole: vi.fn(() => undefined)
+    };
+    const first = await AsyncTufTrustedStateAdapter.create(
+      store, fence, metadata(1, "root"), () => firstTrusted
+    );
+    await first.refreshTimestamp(metadata(1, "timestamp"));
+    await first.refreshSnapshot(metadata(1, "snapshot", {
+      meta: {
+        "targets.json": { version: 1 },
+        "child.json": { version: 1 }
+      }
+    }));
+    await first.refreshDelegatedTargets("targets", "root", metadata(1, "targets", {
+      delegations: { roles: [{ name: "child" }] }
+    }));
+    await first.refreshDelegatedTargets("child", "targets", metadata(1, "targets"));
+
+    const restartedTrusted = {
+      updateRoot: vi.fn(),
+      updateTimestamp: vi.fn(),
+      updateSnapshot: vi.fn(),
+      updateDelegatedTargets: vi.fn(),
+      getRole: vi.fn((name: string) => name === "targets"
+        ? { signed: { delegations: { roles: [{ name: "child" }] } } }
+        : undefined)
+    };
+    await AsyncTufTrustedStateAdapter.create(
+      store, fence, metadata(1, "root"), () => restartedTrusted
+    );
+
+    expect(restartedTrusted.updateDelegatedTargets).toHaveBeenNthCalledWith(
+      1, Buffer.from((await store.readRole("targets"))!.data), "targets", "root"
+    );
+    expect(restartedTrusted.updateDelegatedTargets).toHaveBeenNthCalledWith(
+      2, Buffer.from((await store.readRole("child"))!.data), "child", "targets"
+    );
   });
 
   it("rotates roots sequentially through upstream validation and durable commits", async () => {
