@@ -612,4 +612,40 @@ describe("fenced asynchronous TUF metadata session", () => {
     expect((await store.readRole("root"))?.version).toBe(1);
   });
 
+
+  it("stops root rotation and poisons the verifier when a verified root cannot be durably committed", async () => {
+    const { store, fail } = memoryStore();
+    const { session, root } = await FencedTufMetadataSession.create(
+      store, fence, roleBytes("root", 1), () => undefined
+    );
+    let fetched: number[] = [];
+    let accepted: number[] = [];
+    // The first rotation is accepted in memory, but its durable commit fails.
+    fail();
+    await expect(session.rotateRoots(
+      2,
+      3,
+      async (version) => {
+        fetched.push(version);
+        return roleBytes("root", version);
+      },
+      (bytes) => {
+        const parsed = JSON.parse(new TextDecoder().decode(bytes)) as { signed: { version: number } };
+        accepted.push(parsed.signed.version);
+      },
+      { version: 1, sha256: root.sha256 }
+    )).rejects.toMatchObject({ code: "TUF_METADATA_COMMIT_FAILED" });
+
+    expect(fetched).toEqual([2]);
+    expect(accepted).toEqual([2]);
+    expect(session.isPoisoned).toBe(true);
+    expect((await store.readRole("root"))?.version).toBe(1);
+    await expect(session.rotateRoots(
+      2, 1,
+      async (version) => roleBytes("root", version),
+      () => undefined,
+      { version: 1, sha256: root.sha256 }
+    )).rejects.toBeInstanceOf(TufUpdaterPoisonedError);
+  });
+
 });
