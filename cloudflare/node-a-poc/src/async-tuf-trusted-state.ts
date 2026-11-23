@@ -13,18 +13,29 @@ import { FencedTufMetadataSession } from "./fenced-tuf-metadata-session";
  * delegator). Buffer is required because upstream decodes metadata via
  * Buffer.toString("utf8").
  */
+export interface PinnedTufRoleMetadata {
+  signed: {
+    version: number;
+    consistentSnapshot?: boolean;
+    snapshotMeta?: { version: number; length?: number };
+    meta?: Record<string, { version: number; length?: number }>;
+    targets?: Record<string, unknown>;
+    delegations?: {
+      roles?: Array<{ name?: string }>;
+      rolesForTarget?: (targetPath: string) => Array<{ role: string; terminating: boolean }>;
+    };
+  };
+}
+
 export interface PinnedTufTrustedMetadataStore {
+  readonly root: PinnedTufRoleMetadata;
+  readonly timestamp?: PinnedTufRoleMetadata;
+  readonly snapshot?: PinnedTufRoleMetadata;
   updateRoot(bytes: Buffer): unknown;
   updateTimestamp(bytes: Buffer): unknown;
-  updateSnapshot(bytes: Buffer): unknown;
+  updateSnapshot(bytes: Buffer, trusted?: boolean): unknown;
   updateDelegatedTargets(bytes: Buffer, roleName: string, delegatorName: string): unknown;
-  getRole(roleName: string): {
-    signed?: {
-      delegations?: {
-        roles?: Array<{ name?: string }>;
-      };
-    };
-  } | undefined;
+  getRole(roleName: string): PinnedTufRoleMetadata | undefined;
 }
 
 export type PinnedTufTrustedMetadataStoreFactory = (
