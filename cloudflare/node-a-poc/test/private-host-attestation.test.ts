@@ -25,7 +25,7 @@ function createManifest() {
   })), version, commit);
 }
 
-function fixture(decision = "approve") {
+function fixture(decision = "approve", manifestHash = manifestDigest) {
   const pair = generateKeyPairSync("ed25519");
   const rawPublic = (pair.publicKey.export({ format: "der", type: "spki" }) as Buffer).subarray(-32);
   const payload = {
@@ -40,7 +40,7 @@ function fixture(decision = "approve") {
     release_version: version,
     tag: "v" + version,
     commit,
-    manifest_sha256: manifestDigest,
+    manifest_sha256: manifestHash,
     artifact_sha256: artifactDigest,
     files: [{
       path: "runtime/config.php",
@@ -76,10 +76,11 @@ function fixture(decision = "approve") {
 
 describe("Node A private-host collector gate", () => {
   it("verifies the pinned Ed25519 collector response and exact release/config inventory", async () => {
-    const { gate } = fixture();
+    const manifest = createManifest();
+    const { gate } = fixture("approve", manifest.sha256);
     const result = await gate.verify({
-      nonce, releaseVersion: version, commit, manifestSha256: manifestDigest,
-      artifactSha256: artifactDigest, manifest: createManifest()
+      nonce, releaseVersion: version, commit, manifestSha256: manifest.sha256,
+      artifactSha256: artifactDigest, manifest
     });
     expect(result).toMatchObject({
       approved: true, collectorId: "sentryiq-host-attestor",
@@ -88,13 +89,14 @@ describe("Node A private-host collector gate", () => {
   });
 
   it("rejects wrong nonce, stale evidence, bad signatures and manifest-policy drift", async () => {
-    const first = fixture();
+    const manifest = createManifest();
+    const first = fixture("approve", manifest.sha256);
     await expect(first.gate.verify({
-      nonce: "0".repeat(64), releaseVersion: version, commit, manifestSha256: manifestDigest,
-      artifactSha256: artifactDigest, manifest: createManifest()
+      nonce: "0".repeat(64), releaseVersion: version, commit, manifestSha256: manifest.sha256,
+      artifactSha256: artifactDigest, manifest
     })).rejects.toThrow("identity, freshness or schema");
 
-    const stale = fixture();
+    const stale = fixture("approve", manifest.sha256);
     stale.payload.expires_at = 1_800_000_020;
     const staleBytes = Buffer.from(JSON.stringify(stale.payload));
     const staleSignature = sign(null, staleBytes, stale.pair.privateKey);
@@ -104,19 +106,20 @@ describe("Node A private-host collector gate", () => {
       async () => Response.json({ payload: staleBytes.toString("base64"), signature: staleSignature.toString("base64") }),
       () => 1_800_000_050);
     await expect(staleGate.verify({
-      nonce, releaseVersion: version, commit, manifestSha256: manifestDigest,
-      artifactSha256: artifactDigest, manifest: createManifest()
+      nonce, releaseVersion: version, commit, manifestSha256: manifest.sha256,
+      artifactSha256: artifactDigest, manifest
     })).rejects.toThrow("stale");
 
-    const drift = fixture();
+    const drift = fixture("approve", manifest.sha256);
     await expect(drift.gate.verify({
       nonce, releaseVersion: version, commit, manifestSha256: "0".repeat(64),
-      artifactSha256: artifactDigest, manifest: createManifest()
+      artifactSha256: artifactDigest, manifest
     })).rejects.toThrow("challenge context");
   });
 
   it("rejects a collector-signed file digest mismatch and missing pinned files", async () => {
-    const mismatch = fixture();
+    const manifest = createManifest();
+    const mismatch = fixture("approve", manifest.sha256);
     mismatch.payload.files[0]!.result = "digest_mismatch";
     mismatch.payload.files[0]!.observed_sha256 = "0".repeat(64);
     mismatch.payload.decision = "reject";
@@ -128,8 +131,8 @@ describe("Node A private-host collector gate", () => {
       async () => Response.json({ payload: payloadBytes.toString("base64"), signature: signature.toString("base64") }),
       () => 1_800_000_050);
     const result = await gate.verify({
-      nonce, releaseVersion: version, commit, manifestSha256: manifestDigest,
-      artifactSha256: artifactDigest, manifest: createManifest()
+      nonce, releaseVersion: version, commit, manifestSha256: manifest.sha256,
+      artifactSha256: artifactDigest, manifest
     });
     expect(result.approved).toBe(false);
     expect(result.mismatches).toContainEqual({ path: "runtime/config.php", reason: "digest_mismatch" });
