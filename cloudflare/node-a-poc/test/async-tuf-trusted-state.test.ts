@@ -66,6 +66,36 @@ describe("async adapter over pinned TUF trusted metadata store", () => {
     expect(store.commitVerifiedRole).toHaveBeenCalledTimes(2);
   });
 
+  it("rejects same-version timestamp equivocation while allowing an identical cached timestamp", async () => {
+    const { store, records } = memoryStore();
+    const trusted: any = {
+      root: { signed: { version: 1 } },
+      timestamp: undefined,
+      snapshot: undefined,
+      updateRoot: vi.fn(),
+      updateTimestamp: vi.fn(),
+      updateSnapshot: vi.fn(),
+      updateDelegatedTargets: vi.fn(),
+      getRole: vi.fn(() => undefined)
+    };
+    const adapter = await AsyncTufTrustedStateAdapter.create(
+      store, fence, metadata(1, "root"), () => trusted
+    );
+    const accepted = metadata(1, "timestamp");
+    await adapter.refreshTimestamp(accepted);
+    trusted.timestamp = { signed: { version: 1 } };
+
+    await expect(adapter.refreshTimestamp(accepted)).resolves.toEqual({
+      version: 1,
+      sha256: createHash("sha256").update(accepted).digest("hex")
+    });
+    await expect(adapter.refreshTimestamp(
+      metadata(1, "timestamp", { expires: "2030-01-01T00:00:00Z" })
+    )).rejects.toThrow("same-version TUF timestamp replacement or equivocation rejected");
+    expect(trusted.updateTimestamp).toHaveBeenCalledTimes(1);
+    expect(records.get("timestamp")?.data).toEqual(accepted);
+  });
+
   it("reconstructs the trusted set from durable metadata after restart", async () => {
     const { store, records } = memoryStore();
     const firstTrusted = {
