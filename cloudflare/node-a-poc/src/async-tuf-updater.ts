@@ -20,6 +20,7 @@ export interface AsyncTufUpdaterConfig {
   readonly timestampMaxLength?: number;
   readonly snapshotMaxLength?: number;
   readonly targetsMaxLength?: number;
+  readonly targetMaxLength?: number;
   readonly prefixTargetsWithHash?: boolean;
 }
 
@@ -36,6 +37,7 @@ const DEFAULTS = {
   timestampMaxLength: 16_384,
   snapshotMaxLength: 2_000_000,
   targetsMaxLength: 5_000_000,
+  targetMaxLength: 1_073_741_824,
   prefixTargetsWithHash: true
 };
 
@@ -76,6 +78,7 @@ export class AsyncTufUpdater {
       timestampMaxLength: config.timestampMaxLength ?? DEFAULTS.timestampMaxLength,
       snapshotMaxLength: config.snapshotMaxLength ?? DEFAULTS.snapshotMaxLength,
       targetsMaxLength: config.targetsMaxLength ?? DEFAULTS.targetsMaxLength,
+      targetMaxLength: config.targetMaxLength ?? DEFAULTS.targetMaxLength,
       prefixTargetsWithHash: config.prefixTargetsWithHash ?? DEFAULTS.prefixTargetsWithHash
     };
     this.metadataBaseUrl = ensureTrailingSlash(config.metadataBaseUrl);
@@ -137,7 +140,14 @@ export class AsyncTufUpdater {
       if (!signed) continue;
 
       const target = signed.targets?.[targetPath] as TargetInfo | undefined;
-      if (target) return target;
+      if (target) {
+        if (!Number.isSafeInteger(target.length) || target.length < 0 ||
+            target.length > this.config.targetMaxLength ||
+            !target.hashes || Object.keys(target.hashes).length === 0) {
+          throw new Error("TUF target length or digest descriptor is outside the configured bounds");
+        }
+        return target;
+      }
 
       visited.add(roleName);
       const childRoles = signed.delegations?.rolesForTarget?.(targetPath) ?? [];
