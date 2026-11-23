@@ -200,11 +200,16 @@ export class AsyncTufUpdater {
     const info = await this.getTargetInfo(targetPath);
     if (!info) return null;
 
-    const cached = await this.targets.openCommittedTarget(targetPath);
+    const expected: TufTargetDescriptor = {
+      targetPath,
+      length: info.length,
+      hashes: info.hashes
+    };
+    const cached = await this.targets.openCommittedTarget(targetPath, expected);
     if (cached) return cached;
 
     await this.downloadTarget(info);
-    const committed = await this.targets.openCommittedTarget(targetPath);
+    const committed = await this.targets.openCommittedTarget(targetPath, expected);
     if (!committed) throw new Error("TUF target was committed but its immutable pointer cannot be reopened");
     return committed;
   }
