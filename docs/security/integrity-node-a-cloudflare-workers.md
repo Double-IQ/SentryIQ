@@ -81,10 +81,13 @@ Both options use:
   policy maps as the PHP `PrivateHostAttestationGate`. Node A must not accept an
   unsigned or self-described approval. **Current blocker:** the Node A client
   calls `/private-host-attestation`, but the PHP request handler is framework-
-  neutral and the production webroot currently has no HTTP entry-point or
-  `.htaccess` route for it. A separate owner-approved host adapter, route,
-  private nonce-store provisioning and A/B credential/key setup are required
-  before this exchange can run end to end.
+  neutral and the production webroot has no HTTP entry-point or `.htaccess`
+  route for it. The collector must run outside the public application request
+  path under a dedicated OS identity; its signing key must be inaccessible to
+  PHP-FPM, and a public PHP endpoint holding that key is not acceptable. An
+  owner-approved isolated host service, TLS/reverse-proxy route, private
+  nonce-store provisioning, and A/B credential/key setup are required before
+  this exchange can run end to end.
 
 The Worker is an independent observer, not an authority to rewrite the
 release policy or trust root.
