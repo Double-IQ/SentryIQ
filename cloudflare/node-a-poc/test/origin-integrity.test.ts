@@ -7,8 +7,9 @@ const digest = "b".repeat(64);
 const manifest = parseAndValidateReleaseManifest(new TextEncoder().encode(JSON.stringify({
   format: 2, repository: "Double-IQ/SentryIQ", repository_id: "1345956206",
   version: "0.1.3", commit, workflow_path: ".github/workflows/release.yml",
-  public_files: ["assets/app.js"], runtime_files: ["config.php"],
+  public_files: ["VERSION", "assets/app.js"], runtime_files: ["config.php"],
   files: [
+    { path: "VERSION", size: 6, sha256: "b9b9e4c6e8a4e2c7c9d6b8a0f2f0a9e4c1d8b7a6f5e4d3c2b1a09876543210ff" },
     { path: "assets/app.js", size: 3, sha256: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" },
     { path: "runtime/config.php", size: 1, sha256: digest }
   ]
@@ -30,11 +31,12 @@ describe("Node A canonical-origin integrity", () => {
       const url = String(input);
       calls.push([url, init]);
       if (url.endsWith("/assets/app.js")) return new Response("abc", { status: 200 });
+      if (url.endsWith("/VERSION")) return new Response("0.1.3\\n", { status: 200, headers });
       return new Response("1.2.3", { status: 200, headers });
     };
     const result = await verifyCanonicalOrigin(NODE_A_CANONICAL_ORIGIN, manifest, request);
     expect(result.approved).toBe(true);
-    expect(result.checkedPaths).toEqual(["assets/app.js", "@origin-headers"]);
+    expect(result.checkedPaths).toEqual(["VERSION", "assets/app.js", "@origin-headers"]);
     expect(calls.every(([, init]) => init?.redirect === "error")).toBe(true);
   });
 
