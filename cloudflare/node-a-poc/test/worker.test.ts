@@ -12,6 +12,7 @@ import { genuineV012TrustedRootJson } from "./fixtures/genuine-v012-trusted-root
 import { tufRootBase64 } from "./fixtures/tuf-root";
 import { GuardedTufUpdater, TufPersistenceCommitError, TufStateMutationError, TufUpdaterPoisonedError } from "../src/guarded-tuf-updater";
 import { DurableObjectTufMetadataStore } from "../src/durable-tuf-metadata-store";
+import { TufMetadataReadError } from "../src/tuf-storage-contract";
 import type { TufTargetDescriptor, TufTargetStage } from "../src/tuf-storage-contract";
 import { describe, expect, it } from "vitest";
 
@@ -473,8 +474,14 @@ describe("Node A Workers runtime proof", () => {
       null,
       { version: 1, sha256: staleDigest, data: staleData },
       fence
-    )).rejects.toThrow("valid active Node A run fence required");
+    )).rejects.toBeInstanceOf(TufPersistenceCommitError);
     await state.releaseRunLock(replacement);
+
+    const unavailableStore = new DurableObjectTufMetadataStore({
+      readTufMetadata: () => { throw new Error("simulated Durable Object read outage"); },
+      commitVerifiedTufMetadata: () => { throw new Error("not used"); }
+    }, () => replacement);
+    await expect(unavailableStore.readRole("timestamp")).rejects.toBeInstanceOf(TufMetadataReadError);
   });
 
 });
