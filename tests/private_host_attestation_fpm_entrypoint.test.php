@@ -20,7 +20,7 @@ $required = [
     'posix_geteuid',
     'Cache-Control',
     'X-Content-Type-Options',
-    "stream_get_contents($input, 4097)",
+    'stream_get_contents($input, 4097)',
     'privateHostRespond(503',
 ];
 foreach ($required as $contract) {
