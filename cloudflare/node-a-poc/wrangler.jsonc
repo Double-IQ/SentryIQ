@@ -3,7 +3,9 @@
   "name": "sentryiq-node-a-poc",
   "main": "src/index.ts",
   "compatibility_date": "2026-11-21",
-  "compatibility_flags": ["nodejs_als"],
+  "compatibility_flags": [
+    "nodejs_als"
+  ],
   "observability": {
     "enabled": false
   },
@@ -24,7 +26,14 @@
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["NodeAState"]
+      "new_sqlite_classes": [
+        "NodeAState"
+      ]
     }
-  ]
+  ],
+  "triggers": {
+    "crons": [
+      "*/15 * * * *"
+    ]
+  }
 }
