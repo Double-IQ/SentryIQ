@@ -56,7 +56,7 @@ This checklist is the execution record for completing Node A in Phase 2. Mark an
 - [ ] Configure approved file and private-configuration inventories.
 - [ ] Test the complete Cloudflare-to-host attestation exchange.
 
-**Security constraint:** The existing contract requires isolation from the public application process. Do not implement a public PHP route that holds or can access the collector signing key. Host-specific service installation, credentials, ACLs, TLS and routing require owner-controlled infrastructure access and approval.
+**Security constraint:** The existing contract requires isolation from the public application process. Do not implement a public PHP route that holds or can access the collector signing key. The recorded production host is cPanel with no shell/SSH access confirmed; provider capability for a persistent daemon under a separate OS identity, read-only ACLs, private socket/loopback listener, and HTTPS reverse proxy is unverified. The provider must confirm these capabilities before a deployable adapter can be selected. If unsupported, this host cannot meet the required boundary and an independently approved isolated host/service is needed. Host-specific service installation, credentials, ACLs, TLS and routing require owner-controlled infrastructure access and approval.
 
 ## 4. Release and supply-chain verification
 
