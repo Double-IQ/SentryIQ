@@ -185,6 +185,22 @@ describe("R2 TUF target store", () => {
     await expect(store.openCommittedTarget(descriptor.targetPath)).resolves.not.toBeNull();
   });
 
+  it("treats missing or truncated immutable R2 objects as cache misses", async () => {
+    const bucket = new MemoryR2Bucket();
+    const pointers = memoryPointers();
+    const objectKey = "objects/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    pointers.pointers.set(descriptor.targetPath, {
+      ...descriptor, objectKey, fence: lock1.fence, committedAt: 1
+    });
+    const store = new R2TufTargetStore(bucket, pointers, () => lock1);
+
+    await expect(store.openCommittedTarget(descriptor.targetPath, descriptor)).resolves.toBeNull();
+    bucket.objects.set(objectKey, bytes.slice(0, bytes.byteLength - 1));
+    await expect(store.openCommittedTarget(descriptor.targetPath, descriptor)).resolves.toBeNull();
+    bucket.objects.set(objectKey, bytes.slice());
+    await expect(store.openCommittedTarget(descriptor.targetPath, descriptor)).resolves.not.toBeNull();
+  });
+
   it("stops accepting target chunks immediately after lease takeover", async () => {
     const bucket = new MemoryR2Bucket();
     const pointers = memoryPointers();
