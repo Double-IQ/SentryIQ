@@ -41,6 +41,8 @@ jobs:
           node-version: "24.15.0"
       - name: Generate exact dependency lockfile
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Verify pinned dependency lockfile digest
+        run: sha256sum --check package-lock.sha256
       - name: Install from generated lockfile
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Apply pinned Sigstore crypto compatibility patch
