@@ -134,7 +134,7 @@ export class NodeAReleaseMonitor {
         await this.dependencies.notifyOwnerDirectly("scheduled_integrity_run_failed", {
           node_id: "integrity-a",
           phase: execution.phase,
-          release_version: execution.version,
+          ...(execution.version !== "unknown" ? { release_version: execution.version } : {}),
           exception: error instanceof Error ? error.name : "UnknownError"
         });
       } catch (alertError) {
