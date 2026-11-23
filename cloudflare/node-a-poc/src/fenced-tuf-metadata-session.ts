@@ -4,7 +4,6 @@ import type {
   TufMetadataStore,
   TufRunFence
 } from "./tuf-storage-contract";
-import { TufMetadataReadError } from "./tuf-storage-contract";
 import {
   TufPersistenceCommitError,
   TufStateMutationError,
