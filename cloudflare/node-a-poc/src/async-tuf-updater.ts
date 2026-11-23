@@ -189,6 +189,7 @@ export class AsyncTufUpdater {
     validateTargetPath(targetPath);
     if (this.trusted.root.signed.consistentSnapshot &&
         this.config.prefixTargetsWithHash) {
+      // Preserve tuf-js 6.0.3's signed hash ordering and prefix selection.
       const hash = Object.values(targetInfo.hashes)[0];
       if (!hash) throw new Error("verified TUF target has no digest for consistent snapshot naming");
       const parts = targetPath.split("/");
