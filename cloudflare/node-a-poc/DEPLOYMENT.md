@@ -25,7 +25,7 @@ This is an operational checklist, not evidence of a completed production deploym
    npx wrangler secret put TUF_TARGET_URL
    ```
 
-   - `NODE_A_API_TOKEN`: a high-entropy bearer token held by the trusted caller.
+   - `NODE_A_API_TOKEN`: a high-entropy bearer token held by the trusted caller; the Worker rejects configured values shorter than 32 bytes, longer than 512 bytes, or containing control characters.
    - `TUF_ROOT_B64`: canonical base64 (no line breaks) of the explicitly provisioned TUF root metadata bytes. Verify its provenance and digest out of band before setting it.
    - `TUF_METADATA_URL`: HTTPS metadata mirror base URL, ending in `/`.
    - `TUF_TARGET_URL`: HTTPS target mirror base URL, ending in `/`.
