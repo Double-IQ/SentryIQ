@@ -56,7 +56,7 @@ describe("Node A Workers runtime proof", () => {
       new Request("https://node-a-poc.test/internal/monitor/run", { method: "POST" }),
       env, {} as ExecutionContext
     );
-    expect(routeResponse.status).toBe(503);
+    expect(routeResponse.status).toBe(401);
 
     const missing = requiredNodeAMonitorConfiguration({} as Parameters<typeof requiredNodeAMonitorConfiguration>[0]);
     expect(missing).toContain("NODE_A_GITHUB_TOKEN");
