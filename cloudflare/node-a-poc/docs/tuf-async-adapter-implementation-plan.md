@@ -175,3 +175,24 @@ export interface AsyncTufFetcher {
 ```
 
 The interfaces above are a design proposal, not code already wired into `tuf-js`. The first implementation slice should land in a maintained fork/patch with compile-time types and upstream tests, then the Sigstore wrapper should be migrated against that new API. The existing filesystem-based `Updater` API must remain available to non-Worker consumers unless upstream chooses a major-version breaking change; the Worker adapter should use a separate explicit async factory/entry point rather than silently changing the package-wide contract.
+
+
+## Persistence ordering audit: awaits and mutation boundaries
+
+A line-by-line review of pinned `updater.ts` identified a critical conversion hazard: all current `persistMetadata(...)` callsites are synchronous and none is awaited. Once persistence becomes asynchronous, simply changing its return type to `Promise<void>` would let `loadRoot`, `loadTimestamp`, `loadSnapshot`, and delegated `loadTargets` report success before the durable write completes. Every callsite must become `await persistVerifiedMetadata(...)`, and the enclosing method must not expose the newly accepted role as durable until that await resolves.
+
+| Workflow | Upstream acceptance point | Required durable boundary |
+|---|---|---|
+| Root rotation | `trustedSet.updateRoot(bytesData)` | Immediately await commit of exactly that root version before the loop requests the next version |
+| Timestamp remote update | `trustedSet.updateTimestamp(bytesData)` | Await timestamp commit before `loadTimestamp` returns |
+| Snapshot remote update | `trustedSet.updateSnapshot(bytesData)` | Await snapshot commit before `loadSnapshot` returns; storage errors must escape the current `RuntimeError` wrapper unchanged |
+| Delegated targets role | `trustedSet.updateDelegatedTargets(bytesData, role, parentRole)` | Await role commit before returning the trusted role; storage errors must escape the current `RuntimeError` wrapper unchanged |
+
+Two separate atomicity concerns must not be conflated:
+
+1. Candidate validation inside `TrustedMetadataStore` must complete before the candidate is assigned into the in-memory trusted set. The existing atomicity patch addresses the final timestamp and snapshot checks.
+2. A valid candidate is then accepted in memory, after which the fenced durable commit can still fail. That failure must poison the updater instance; it is not safe to retry on the same trusted set. The next updater must bootstrap from the last committed durable bytes.
+
+The `forceCache` path has an additional ordering requirement: the local timestamp read and validation must be awaited, but a typed durable read failure must not enter the broad catch that falls back to a remote refresh. A genuinely absent/corrupt/expired cached role may follow the existing TUF recovery path; an unavailable Durable Object is an infrastructure failure and must propagate. The same distinction is required in snapshot and delegated-role cache recovery.
+
+This ordering review is source-derived and does not change runtime code. It is now an explicit acceptance checklist for the async fork so a mechanical Promise conversion cannot accidentally introduce fire-and-forget persistence or swallow durable commit failures.
