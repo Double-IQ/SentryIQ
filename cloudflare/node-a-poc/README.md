@@ -1,6 +1,6 @@
 # Node A Cloudflare Workers proof of concept
 
-**Status: Worker-native implementation and authenticated manual monitor routes are in draft PR #145; not production-deployed or operationally accepted.**
+**Status: Worker-native implementation, authenticated manual monitor routes, and a 15-minute scheduled monitor handler are in draft PR #145; not production-deployed or operationally accepted.**
 
 This directory is deliberately separate from the PHP production application. Node A's owner-confirmed platform is Cloudflare Workers. The implementation uses a Worker-native TypeScript TUF runtime, Durable Object fencing/metadata persistence, private R2 target staging, and a release-integrity monitor composition.
 
@@ -24,7 +24,7 @@ Direct dependencies are exact-version pinned in `package.json`. The CI workflow 
 - **Node 4 exchange:** challenge request, A-only Ed25519 report signing, bounded report submission, and acknowledgement validation.
 - **Independent owner alert:** generic HTTPS webhook transport pinned to an exact external hostname, with redirects rejected and a strict non-sensitive event context.
 - **Monitor composition:** TUF refresh and trusted-root loading, deployed VERSION and release assets, GitHub release evidence, canonical-origin checks, private-host attestation, Node 4 report, direct owner alerts, and release-pin advancement under a Durable Object run lease.
-- **Worker routes:** `POST /internal/monitor/run` performs a manual monitor run after baseline initialization. `POST /internal/baseline/initialize` performs the same verification and can initialize the immutable baseline only with both the normal API bearer token and a separate one-time baseline approval token. Both routes fail closed when configuration is absent.
+- **Worker orchestration:** `POST /internal/monitor/run` performs a manual monitor run after baseline initialization. `POST /internal/baseline/initialize` performs the same verification and can initialize the immutable baseline only with both the normal API bearer token and a separate one-time baseline approval token. The scheduled handler runs the same monitor every 15 minutes under the Durable Object run lease; it never initializes the baseline. It records only minimal success/rejection/failure outcomes. All monitor entry points fail closed when required configuration is absent.
 
 The Worker suite passes **128/128 tests across 21 files** on exact head `f94faef1ac6aecc88b4f0d3521d9af97d08b1303`; the pinned upstream TUF trusted-state atomicity job and Worker bundle scan also pass ([CI run 45182533408](https://github.com/Double-IQ/SentryIQ/actions/runs/45182533408)). The CI test job also retrieves the genuine published v0.1.2 release asset and GitHub attestation bundle and injects the current Sigstore trusted root into the workerd integration tests.
 
@@ -32,7 +32,7 @@ The Worker suite passes **128/128 tests across 21 files** on exact head `f94faef
 
 - The published v0.1.2 release predates the required embedded canonical manifest and has no `release-manifest.json`; the new monitor intentionally cannot accept it. A new manifest-bearing release is required before a live monitor run can pass.
 - The stock `@sigstore/tuf@5.0.1` filesystem-backed wrapper remains in isolated compatibility tests only. It is removed from the Worker production dependency path. The Worker uses the async `tuf-js` adapter and the pinned upstream atomicity patch.
-- The new monitor routes are **manual only**. No Cron trigger, production schedule, or background monitoring is configured.
+- The Worker entry point includes a `*/15 * * * *` Cron trigger in `wrangler.jsonc`, but it has not been deployed or activated in a Cloudflare account. The service owner must confirm the cadence and alert routing before a production deployment.
 - The baseline has not been initialized. No one-time baseline approval token has been provisioned.
 - No Cloudflare production account/bucket, TUF bootstrap secret/mirror, GitHub API token, Node 4 token, report signing key, private-host token/collector key, expected inventory maps, independent alert endpoint, or production Worker deployment has been provisioned or verified.
 - The generic direct-alert transport is implemented, but its external endpoint and credential must be selected and provisioned by the owner. It must be independently controlled and not hosted on the SentryIQ application origin.
@@ -46,7 +46,7 @@ The Worker suite passes **128/128 tests across 21 files** on exact head `f94faef
 2. Provision the intended Cloudflare account, R2 bucket, Durable Object, TUF bootstrap/mirror configuration, GitHub/Node 4/private-host credentials, pinned inventories, and independent owner-alert webhook.
 3. Independently review the current manifest-bearing release and initialize the immutable baseline through the one-time approval route. Do not use v0.1.2 for this path.
 4. Exercise the manual monitor against the live non-production Worker and verify the actual Node 4, private-host collector, and owner-alert provider acknowledgements.
-5. Select and approve the monitoring cadence, then configure and test the Cron trigger. No schedule is assumed by this PoC.
+5. Confirm the proposed 15-minute monitoring cadence and independent alert routing with the service owner, then deploy to non-production and verify actual Cron invocations, failure recording, and alert delivery.
 6. Complete account-backed R2 fault injection, lease takeover, stale-owner rejection, target digest comparison, restart/eviction, rollback rehearsal, and deployment evidence.
 7. Only then consider production readiness and merge/deploy approval.
 
