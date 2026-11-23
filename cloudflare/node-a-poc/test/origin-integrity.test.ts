@@ -56,7 +56,7 @@ describe("Node A canonical-origin integrity", () => {
     hostileHeaders.set("permissions-policy",
       "camera=(), camera=(self), microphone=(), geolocation=()");
     const request: typeof fetch = async (input) => new Response(
-      String(input).endsWith("/assets/app.js") ? "abc" : "0.1.3\\n",
+      String(input).endsWith("/assets/app.js") ? "abc" : "0.1.3\n",
       { status: 200, headers: hostileHeaders }
     );
     const result = await verifyCanonicalOrigin(NODE_A_CANONICAL_ORIGIN, manifest, request);
