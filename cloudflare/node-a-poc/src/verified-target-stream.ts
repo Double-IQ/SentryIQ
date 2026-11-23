@@ -5,6 +5,7 @@ import type {
   TufTargetDescriptor,
   TufTargetStore
 } from "./tuf-storage-contract";
+import { TufTargetCommitAmbiguousError } from "./tuf-storage-contract";
 
 export class TufTargetIntegrityError extends Error {
   constructor(message: string) {
@@ -43,6 +44,7 @@ export async function stageVerifiedTufTarget(
 
   let received = 0;
   let completed = false;
+  let preserveStageForReconciliation = false;
   try {
     reader = body.getReader();
     while (true) {
@@ -78,6 +80,7 @@ export async function stageVerifiedTufTarget(
     completed = true;
     return committed;
   } catch (error) {
+    preserveStageForReconciliation = error instanceof TufTargetCommitAmbiguousError;
     if (reader) {
       try {
         await reader.cancel(error);
@@ -87,7 +90,7 @@ export async function stageVerifiedTufTarget(
     }
     throw error;
   } finally {
-    if (!completed) {
+    if (!completed && !preserveStageForReconciliation) {
       try {
         await store.abortTarget(stage);
       } catch {
