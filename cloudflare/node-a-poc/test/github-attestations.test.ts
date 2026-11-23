@@ -42,7 +42,7 @@ describe("GitHub release attestation retrieval", () => {
     await expect(fetchGithubReleaseAttestationBundles("not-a-digest")).rejects.toThrow("SHA-256");
     await expect(fetchGithubReleaseAttestationBundles(digest, fetch, "short")).rejects.toThrow("token");
     const request: typeof fetch = async () => new Response(JSON.stringify({ attestations: [
-      { repository_id: "1345956206", bundle_url: "https://attacker.example/bundle" }
+      { repository_id: 1345956206, bundle_url: "https://attacker.example/bundle" }
     ] }), { status: 200 });
     await expect(fetchGithubReleaseAttestationBundles(digest, request)).rejects.toThrow("repository-scoped HTTPS blob boundary");
     const wrongRepositoryPath: typeof fetch = async () => new Response(JSON.stringify({ attestations: [
@@ -56,7 +56,7 @@ describe("GitHub release attestation retrieval", () => {
     await expect(fetchGithubReleaseAttestationBundles(digest, redirect)).rejects.toThrow("non-200");
     const malformed: typeof fetch = async (input) => String(input).startsWith("https://api.github.com/")
       ? new Response(JSON.stringify({ attestations: [
-          { repository_id: "1345956206", bundle_url: "https://sentryiq.blob.core.windows.net/attestations/1345956206/2026/11/23/4.json.sn?sig=opaque&se=2026-11-24T00%3A00%3A00Z&sp=r" }
+          { repository_id: 1345956206, bundle_url: "https://sentryiq.blob.core.windows.net/attestations/1345956206/2026/11/23/4.json.sn?sig=opaque&se=2026-11-24T00%3A00%3A00Z&sp=r" }
         ] }), { status: 200 })
       : new Response(new Uint8Array([2, 0, 1]), { status: 200 });
     await expect(fetchGithubReleaseAttestationBundles(digest, malformed)).rejects.toThrow("No repository-bound");
