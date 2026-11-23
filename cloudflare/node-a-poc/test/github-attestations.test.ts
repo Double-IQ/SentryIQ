@@ -24,7 +24,7 @@ describe("GitHub release attestation retrieval", () => {
       if (url.startsWith("https://api.github.com/")) {
         return new Response(JSON.stringify({ attestations: [
           { repository_id: "0", bundle_url: "https://evil.blob.core.windows.net/bundle" },
-          { repository_id: "1345956206", bundle_url: "https://sentryiq.blob.core.windows.net/container/bundle?sig=opaque" }
+          { repository_id: "1345956206", bundle_url: "https://sentryiq.blob.core.windows.net/attestations/1345956206/2026/11/23/4.json.sn?sig=opaque&se=2026-11-24T00%3A00%3A00Z&sp=r" }
         ] }), { status: 200 });
       }
       return new Response(rawSnappyLiteral(bundle), { status: 200 });
@@ -44,7 +44,11 @@ describe("GitHub release attestation retrieval", () => {
     const request: typeof fetch = async () => new Response(JSON.stringify({ attestations: [
       { repository_id: "1345956206", bundle_url: "https://attacker.example/bundle" }
     ] }), { status: 200 });
-    await expect(fetchGithubReleaseAttestationBundles(digest, request)).rejects.toThrow("outside the approved HTTPS blob host boundary");
+    await expect(fetchGithubReleaseAttestationBundles(digest, request)).rejects.toThrow("repository-scoped HTTPS blob boundary");
+    const wrongRepositoryPath: typeof fetch = async () => new Response(JSON.stringify({ attestations: [
+      { repository_id: 1345956206, bundle_url: "https://sentryiq.blob.core.windows.net/attestations/999/2026/11/23/4.json.sn?sig=opaque&se=2026-11-24T00%3A00%3A00Z&sp=r" }
+    ] }), { status: 200 });
+    await expect(fetchGithubReleaseAttestationBundles(digest, wrongRepositoryPath)).rejects.toThrow("repository-scoped HTTPS blob boundary");
   });
 
   it("rejects API redirects and malformed/oversized bundle responses", async () => {
@@ -52,7 +56,7 @@ describe("GitHub release attestation retrieval", () => {
     await expect(fetchGithubReleaseAttestationBundles(digest, redirect)).rejects.toThrow("non-200");
     const malformed: typeof fetch = async (input) => String(input).startsWith("https://api.github.com/")
       ? new Response(JSON.stringify({ attestations: [
-          { repository_id: "1345956206", bundle_url: "https://sentryiq.blob.core.windows.net/bundle" }
+          { repository_id: "1345956206", bundle_url: "https://sentryiq.blob.core.windows.net/attestations/1345956206/2026/11/23/4.json.sn?sig=opaque&se=2026-11-24T00%3A00%3A00Z&sp=r" }
         ] }), { status: 200 })
       : new Response(new Uint8Array([2, 0, 1]), { status: 200 });
     await expect(fetchGithubReleaseAttestationBundles(digest, malformed)).rejects.toThrow("No repository-bound");
