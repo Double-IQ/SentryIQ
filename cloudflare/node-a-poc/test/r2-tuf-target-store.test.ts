@@ -120,6 +120,21 @@ describe("R2 TUF target store", () => {
     expect(Array.from(result.value!)).toEqual(Array.from(bytes));
   });
 
+  it("cleans crash-orphaned private R2 stages after a newer fencing epoch takes over", async () => {
+    const bucket = new MemoryR2Bucket();
+    const pointers = memoryPointers();
+    const stageId = "33333333-3333-4333-8333-333333333333";
+    const objectKey = "objects/44444444-4444-4444-8444-444444444444";
+    pointers.registerTufTargetStage(stageId, objectKey, lock1);
+    bucket.objects.set(objectKey, bytes.slice());
+
+    const replacementStore = new R2TufTargetStore(bucket, pointers, () => lock2);
+    await expect(replacementStore.cleanupStaleStages(lock2)).resolves.toBe(1);
+
+    expect(bucket.objects.has(objectKey)).toBe(false);
+    expect(pointers.stages.has(stageId)).toBe(false);
+  });
+
   it("treats a committed pointer from an older TUF descriptor as a cache miss", async () => {
     const bucket = new MemoryR2Bucket();
     const pointers = memoryPointers();
