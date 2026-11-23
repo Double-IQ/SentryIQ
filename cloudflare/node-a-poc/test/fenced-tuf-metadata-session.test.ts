@@ -26,25 +26,26 @@ function role(version: number, type = "root"): Uint8Array {
 }
 
 function fakeStore(initial: StoredTufMetadata | null = null) {
-  let current = initial;
+  const records = new Map<string, StoredTufMetadata>();
+  if (initial) records.set("root", initial);
   const store: TufMetadataStore = {
-    readRole: vi.fn(async () => current),
+    readRole: vi.fn(async (name: string) => records.get(name) ?? null),
     commitVerifiedRole: vi.fn(async (
-      _name: string,
+      name: string,
       expected: TufMetadataIdentity | null,
       next: StoredTufMetadata
     ) => {
+      const current = records.get(name) ?? null;
       if (expected === null ? current !== null : !current ||
           current.version !== expected.version || current.sha256 !== expected.sha256) {
         throw new Error("CAS mismatch");
       }
-      current = { ...next, data: next.data.slice() };
+      records.set(name, { ...next, data: next.data.slice() });
       return { version: next.version, sha256: next.sha256 };
     })
   };
-  return { store, getCurrent: () => current };
+  return { store, getCurrent: (name = "root") => records.get(name) ?? null };
 }
-
 describe("fenced asynchronous TUF metadata session", () => {
   it("verifies the explicit bootstrap root before its first durable write", async () => {
     const { store, getCurrent } = fakeStore();
