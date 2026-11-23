@@ -155,6 +155,32 @@ describe("async TUF updater workflow", () => {
     expect(fetchMock).toHaveBeenCalledWith("https://mirror.test/targets/release%252Fbundle.bin");
   });
 
+  it("uses the first signed target digest for consistent-snapshot naming like pinned tuf-js", async () => {
+    const trusted = makeTrustedAdapter();
+    trusted.root.signed.consistentSnapshot = true;
+    const hashes = {
+      sha512: createHash("sha512").update(payload).digest("hex"),
+      sha256: createHash("sha256").update(payload).digest("hex")
+    };
+    const { store } = fakeTargetStore();
+    const fetchMock = vi.fn(async () => new Response(payload));
+    vi.stubGlobal("fetch", fetchMock);
+    const updater = new AsyncTufUpdater(
+      trusted as unknown as AsyncTufTrustedStateAdapter,
+      store,
+      fence,
+      {
+        metadataBaseUrl: "https://mirror.test/metadata/",
+        targetBaseUrl: "https://mirror.test/targets/"
+      }
+    );
+
+    await updater.downloadTarget({ path: "release.bin", length: payload.byteLength, hashes });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://mirror.test/targets/" + hashes.sha512 + ".release.bin"
+    );
+  });
+
   it("rejects traversal and query-bearing target paths before making a request", async () => {
     const { store } = fakeTargetStore();
     const trusted = makeTrustedAdapter() as unknown as AsyncTufTrustedStateAdapter;
