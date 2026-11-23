@@ -72,6 +72,11 @@ jobs:
           NODE
       - name: Run workerd integration tests
         run: npm test
+      - name: Build Worker and inspect bundle for filesystem TUF fallback
+        run: |
+          OUTDIR="$RUNNER_TEMP/node-a-worker-bundle"
+          npx wrangler deploy --dry-run --outdir "$OUTDIR"
+          node scripts/check-worker-bundle.mjs "$OUTDIR"
       - name: Export genuine v0.1.2 bundle for review
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
