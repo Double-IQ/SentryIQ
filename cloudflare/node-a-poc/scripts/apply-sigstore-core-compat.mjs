@@ -105,7 +105,7 @@ if (modelsVerifySource.includes(verifyMarker)) {
 const modelsKeyMarker = "SENTRYIQ_TUF_MODELS_WORKER_NAMED_CRYPTO_KEY_PATCH";
 let modelsKeyRuntimeSource = fs.readFileSync(modelsKeyPath, "utf8");
 if (modelsKeyRuntimeSource.includes(modelsKeyMarker)) {
-  process.stdout.write("SentryIQ @tufjs/models named crypto key patch already applied\\n");
+  process.stdout.write("SentryIQ @tufjs/models named crypto key patch already applied\n");
 } else {
   const esmKeyImport = "import crypto from 'crypto';";
   const cjsKeyImport = 'const crypto_1 = __importDefault(require("crypto"));';
@@ -124,7 +124,7 @@ if (modelsKeyRuntimeSource.includes(modelsKeyMarker)) {
   } else {
     throw new Error("Could not identify the pinned @tufjs/models 5.0.3 crypto key import; refusing an unknown build");
   }
-  modelsKeyRuntimeSource = "/* " + modelsKeyMarker + " */\\n" + modelsKeyRuntimeSource;
+  modelsKeyRuntimeSource = "/* " + modelsKeyMarker + " */\n" + modelsKeyRuntimeSource;
   fs.writeFileSync(modelsKeyPath, modelsKeyRuntimeSource);
-  process.stdout.write("Applied SentryIQ @tufjs/models named node:crypto key patch\\n");
+  process.stdout.write("Applied SentryIQ @tufjs/models named node:crypto key patch\n");
 }
