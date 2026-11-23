@@ -117,7 +117,7 @@ export class AsyncTufUpdater {
       : "snapshot.json";
     const snapshotBytes = await this.fetchMetadata(
       this.metadataUrl(snapshotFile),
-      snapshotMeta.length || this.config.snapshotMaxLength
+      snapshotMeta.length ?? this.config.snapshotMaxLength
     );
     await this.trusted.refreshSnapshot(snapshotBytes);
     this.refreshed = true;
@@ -233,7 +233,7 @@ export class AsyncTufUpdater {
       : encodedRole + ".json";
     const bytes = await this.fetchMetadata(
       this.metadataUrl(fileName),
-      meta.length || this.config.targetsMaxLength
+      meta.length ?? this.config.targetsMaxLength
     );
     await this.trusted.refreshDelegatedTargets(roleName, parentRoleName, bytes);
     return this.trusted.getRole(roleName);
