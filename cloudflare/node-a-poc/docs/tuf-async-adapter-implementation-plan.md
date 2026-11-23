@@ -113,3 +113,16 @@ The complete target-stage contract now retains its immutable descriptor through 
 `src/durable-tuf-metadata-store.ts` now implements `TufMetadataStore` over the existing Node A Durable Object RPC surface. It delegates metadata reads and compare-and-set commits to the authoritative DO methods, validates the supplied run ID/fence/token against the active run lock, and does not duplicate rollback or root-rotation policy outside the DO transaction. A workerd test verifies read-after-commit and rejects a mismatched fence. On latest exact-head CI, workerd passed **21/21** and upstream TUF CLIENT passed **8 suites / 43 tests** ([run 45080395120](https://github.com/Double-IQ/SentryIQ/actions/runs/45080395120)).
 
 This is a concrete metadata-store implementation slice only. It is not yet passed into `tuf-js`; the async updater factory/refactor, R2 target-store implementation, and full refresh/rotation/restart acceptance matrix remain open.
+
+## Newly identified fail-closed integration requirement
+
+The pinned upstream `updater.ts` has broad recovery catches in `loadTimestamp`, `loadSnapshot`, and `loadTargets`. Those catches intentionally permit a corrupt or expired *cached metadata record* to be replaced from the remote repository. They must not also swallow a Durable Object/R2 read failure, because silently converting an unavailable or unauthorized durable store into a remote cache miss weakens the persistence boundary and can conceal a storage outage.
+
+The async adapter must therefore distinguish:
+- a missing role (`readRole` returns `null`);
+- cached metadata bytes that fail upstream TUF parsing/verification (the updater may follow the TUF-defined remote-refresh path);
+- a durable-store operation failure (typed storage error, propagated immediately).
+
+Do not identify storage failures by message text or by treating every thrown error as recoverable. The adapter must wrap RPC failures in a stable typed error, and the patched updater's catch blocks must explicitly rethrow it. This is a prerequisite to wiring `DurableObjectTufMetadataStore` into the updater.
+
+The same rule applies to persistence: after the upstream trusted set accepts a candidate, a failed fenced commit must emit the dedicated persistence-commit error and poison that updater instance. The next attempt must instantiate a new updater from the last durable metadata snapshot; it must never retry against the already-advanced in-memory trusted set.
