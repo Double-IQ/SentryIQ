@@ -104,6 +104,29 @@ describe("R2 TUF target store", () => {
     expect(Array.from(result.value!)).toEqual(Array.from(bytes));
   });
 
+  it("treats a committed pointer from an older TUF descriptor as a cache miss", async () => {
+    const bucket = new MemoryR2Bucket();
+    const pointers = memoryPointers();
+    const objectKey = "objects/old-target-version";
+    bucket.objects.set(objectKey, bytes.slice());
+    pointers.pointers.set(descriptor.targetPath, {
+      ...descriptor,
+      objectKey,
+      fence: lock1.fence,
+      committedAt: 1
+    });
+    const store = new R2TufTargetStore(bucket, pointers, () => lock1);
+    const currentDescriptor: TufTargetDescriptor = {
+      ...descriptor,
+      hashes: { sha256: "0".repeat(64) }
+    };
+
+    await expect(
+      store.openCommittedTarget(descriptor.targetPath, currentDescriptor)
+    ).resolves.toBeNull();
+    await expect(store.openCommittedTarget(descriptor.targetPath)).resolves.not.toBeNull();
+  });
+
   it("rejects stale-owner publication and deletes the private R2 object", async () => {
     const bucket = new MemoryR2Bucket();
     const pointers = memoryPointers();
