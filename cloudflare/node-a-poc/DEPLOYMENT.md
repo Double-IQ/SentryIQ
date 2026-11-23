@@ -1,6 +1,6 @@
 # Node A Cloudflare Worker deployment and acceptance
 
-**This is an operational runbook, not evidence of a completed deployment.** PR #145 contains the Worker-native implementation, authenticated manual monitor/baseline routes, and a 15-minute Cron trigger in `wrangler.jsonc`. No production Cloudflare account, secrets, baseline, or live deployment has been provisioned. The Cron trigger is repository configuration only; it is not active until an approved deployment. Keep the PR draft and do not deploy without explicit owner approval.
+**This is an operational runbook, not evidence of a completed deployment.** PR #145 contains the Worker-native runtime, authenticated manual baseline/monitor routes, and a scheduled monitor handler. Wrangler currently declares a 15-minute Cron trigger (`*/15 * * * *`), but no production Cloudflare account, secrets, baseline, or deployment has been provisioned. The service owner must confirm the 15-minute cadence and alert destination before deployment. Keep the PR draft and do not deploy without explicit owner approval.
 
 ## Current control-plane behavior
 
@@ -12,22 +12,24 @@ The Worker exposes:
 - `GET /internal/tuf/targets/<URL-encoded-target-path>` — bearer-authenticated retrieval of a target matching the currently trusted TUF descriptor.
 - `POST /internal/baseline/initialize` — one-time baseline initialization after the complete release, origin, private-host and Node 4 evidence flow succeeds. Requires both the normal API bearer token and a separate one-time approval header. The request has no body; the baseline candidate is derived from verified live release evidence, never from caller-supplied hashes.
 - `POST /internal/monitor/run` — manual monitor execution after an immutable baseline exists. The release pin advances only after the signed Node 4 report is acknowledged.
+- **Scheduled handler:** Wrangler declares `*/15 * * * *`. It runs the same monitor under the Durable Object run lease, records only minimal approved/rejected/failed outcomes, and never initializes the baseline. If the baseline is absent or the monitor fails, the run fails closed and attempts the independent owner-alert path when that path is configured.
 
-The Worker has an `async scheduled` entry point configured for `*/15 * * * *` in `wrangler.jsonc`. It executes the same full monitor under the Durable Object run lease and records only a minimal outcome; it never initializes the baseline. The 15-minute cadence is proposed, not owner-approved or live. Confirm the cadence and independent alert destination with the service owner before deploying the Worker. No production Cron invocation has been observed or accepted.
+The Cron expression is code/configuration only. It has not been activated against a production Worker. Confirm the 15-minute cadence with the service owner before deploying.
 
 ## Provisioning prerequisites
 
 1. Confirm the intended Cloudflare account and that its administrative/failure boundary is independent of the SentryIQ application host.
-2. Review `wrangler.jsonc`, the Durable Object binding `NODE_A_STATE`, and R2 binding `NODE_A_TARGETS`.
-3. Authenticate Wrangler only after the account owner approves:
+2. Confirm the service owner approves the 15-minute Cron cadence and the independent alert destination.
+3. Review `wrangler.jsonc`, the Durable Object binding `NODE_A_STATE`, the R2 binding `NODE_A_TARGETS`, and the migration.
+4. Authenticate Wrangler only after the account owner approves:
    ```sh
    npx wrangler login
    ```
-4. Create the R2 bucket declared in `wrangler.jsonc`:
+5. Create the R2 bucket declared in `wrangler.jsonc`:
    ```sh
    npx wrangler r2 bucket create sentryiq-node-a-targets
    ```
-5. Provision the secrets and pinned configuration below through Wrangler's secret/variable interface. Never commit them, place them in checked-in `.dev.vars`, or paste them into a PR/issue.
+6. Provision the secrets and pinned configuration below through Wrangler's secret/variable interface. Never commit them, place them in checked-in `.dev.vars`, or paste them into a PR/issue.
 
 ## Required Worker secrets
 
@@ -124,10 +126,12 @@ The Worker sends only a constrained operational context (node ID, phase/release 
 
 ## Cron and production acceptance
 
-Do not add or enable a Cron trigger until the owner chooses the cadence and confirms the independent alert path. Before production sign-off, complete all of the following in a non-production Cloudflare account:
+The configured Cron expression is `*/15 * * * *` (every 15 minutes). Do not activate it in production until the service owner confirms this cadence, the external alert destination, and the intended Cloudflare administrative boundary. The scheduled handler never creates or resets a baseline. If no baseline exists, it records a failed outcome and alerts through the independent path when configured.
+
+Before production sign-off, complete all of the following in a non-production Cloudflare account:
 
 - Confirm the deployed Worker belongs to the intended account and has the intended Durable Object and private R2 bindings.
-- Verify the new manifest-bearing release and its GitHub/Sigstore attestations against the refreshed Sigstore trusted root.
+- Verify a new manifest-bearing release and its GitHub/Sigstore attestations against the refreshed Sigstore trusted root. The currently published v0.1.2 release predates the manifest requirement.
 - Confirm the canonical origin's public assets match the signed manifest and all required security headers are present.
 - Confirm the private-host collector verifies the challenge nonce, release identity, all pinned deployed-file digests, and all approved private-config policy entries.
 - Confirm Node 4 has the matching Node A public signing key and accepts the challenge/report contract.
