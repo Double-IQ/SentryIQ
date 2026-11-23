@@ -23,8 +23,12 @@ export interface R2BucketLike {
 }
 
 export interface DurableTargetPointerClient {
+  registerTufTargetStage(stageId: string, objectKey: string, fence: RunLock): Promise<void> | void;
+  listStaleTufTargetStages(fence: RunLock, limit?: number): Promise<Array<{ stageId: string; objectKey: string; fence: number }>> | Array<{ stageId: string; objectKey: string; fence: number }>;
+  deleteTufTargetStage(stageId: string, objectKey: string, fence: RunLock): Promise<void> | void;
   commitTufTargetPointer(
     descriptor: TufTargetDescriptor,
+    stageId: string,
     objectKey: string,
     fence: RunLock
   ): Promise<CommittedTufTarget> | CommittedTufTarget;
@@ -67,11 +71,17 @@ export class R2TufTargetStore implements TufTargetStore {
       objectKey,
       fence: fence.fence
     };
-    const channel = new TransformStream<Uint8Array, Uint8Array>();
-    const writer = channel.writable.getWriter();
-    const upload = this.bucket.put(objectKey, channel.readable);
-    this.active.set(stageId, { stage, runFence: fence, writer, upload });
-    return stage;
+    await this.state.registerTufTargetStage(stageId, objectKey, lock);
+    try {
+      const channel = new TransformStream<Uint8Array, Uint8Array>();
+      const writer = channel.writable.getWriter();
+      const upload = this.bucket.put(objectKey, channel.readable);
+      this.active.set(stageId, { stage, runFence: fence, writer, upload });
+      return stage;
+    } catch (error) {
+      try { await this.state.deleteTufTargetStage(stageId, objectKey, this.currentLock()); } catch { /* future stale-stage sweep retries */ }
+      throw error;
+    }
   }
 
   async writeTargetChunk(stage: TufTargetStage, chunk: Uint8Array): Promise<void> {
@@ -96,6 +106,7 @@ export class R2TufTargetStore implements TufTargetStore {
       }
       const committed = await this.state.commitTufTargetPointer(
         stage.descriptor,
+        stage.stageId,
         stage.objectKey,
         this.currentLock()
       );
@@ -105,7 +116,8 @@ export class R2TufTargetStore implements TufTargetStore {
       this.active.delete(stage.stageId);
       try { await upload.writer.abort(error); } catch { /* preserve original failure */ }
       try { await upload.upload; } catch { /* upload may already have failed */ }
-      try { await this.bucket.delete(stage.objectKey); } catch { /* orphan cleanup is best-effort */ }
+      await this.bucket.delete(stage.objectKey);
+      try { await this.state.deleteTufTargetStage(stage.stageId, stage.objectKey, this.currentLock()); } catch { /* future stale-stage sweep retries */ }
       throw error;
     }
   }
@@ -133,6 +145,18 @@ export class R2TufTargetStore implements TufTargetStore {
       try { await upload.upload; } catch { /* failed upload is expected during abort */ }
     }
     await this.bucket.delete(stage.objectKey);
+    await this.state.deleteTufTargetStage(stage.stageId, stage.objectKey, this.currentLock());
+  }
+
+  async cleanupStaleStages(lock: RunLock, limit = 100): Promise<number> {
+    const stale = await this.state.listStaleTufTargetStages(lock, limit);
+    let removed = 0;
+    for (const stage of stale) {
+      await this.bucket.delete(stage.objectKey);
+      await this.state.deleteTufTargetStage(stage.stageId, stage.objectKey, lock);
+      removed += 1;
+    }
+    return removed;
   }
 
   private requireActive(stage: TufTargetStage): ActiveUpload {
