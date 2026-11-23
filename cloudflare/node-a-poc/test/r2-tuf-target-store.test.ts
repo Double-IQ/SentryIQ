@@ -108,15 +108,21 @@ describe("R2 TUF target store", () => {
     const bucket = new MemoryR2Bucket();
     const pointers = memoryPointers();
     let activeLock = lock1;
+    const originalPut = bucket.put.bind(bucket);
+    bucket.put = async (key, body) => {
+      const result = await originalPut(key, body);
+      activeLock = lock2;
+      return result;
+    };
     const store = new R2TufTargetStore(bucket, pointers, () => activeLock);
 
     await expect(stageVerifiedTufTarget(store, {
       descriptor,
       body: readable(bytes),
       fence
-    }).then((result) => {
-      // The store's current lock is changed by the upload completion hook below.
-      return result;
-    })).resolves.toBeDefined();
+    })).rejects.toThrow("does not match the active Node A run lock");
+
+    expect(pointers.pointers.size).toBe(0);
+    expect(bucket.objects.size).toBe(0);
   });
 });
