@@ -48,6 +48,23 @@ describe("Node A canonical-origin integrity", () => {
     expect(result.mismatches.some((item) => item.reason === "fetch_failed")).toBe(true);
   });
 
+  it("rejects lookalike and duplicate CSP or Permissions-Policy directives", async () => {
+    const hostileHeaders = new Headers(headers);
+    hostileHeaders.set("content-security-policy",
+      "default-src 'self'; x-frame-ancestors 'none'; frame-ancestors https://attacker.example; " +
+      "frame-ancestors 'none'; base-uri 'self'; object-src 'none'");
+    hostileHeaders.set("permissions-policy",
+      "camera=(), camera=(self), microphone=(), geolocation=()");
+    const request: typeof fetch = async (input) => new Response(
+      String(input).endsWith("/assets/app.js") ? "abc" : "0.1.3\\n",
+      { status: 200, headers: hostileHeaders }
+    );
+    const result = await verifyCanonicalOrigin(NODE_A_CANONICAL_ORIGIN, manifest, request);
+    expect(result.approved).toBe(false);
+    expect(result.headerMismatches).toContain("content-security-policy:frame-ancestors");
+    expect(result.headerMismatches).toContain("permissions-policy:camera");
+  });
+
   it("rejects asset body length/digest mismatch and missing required headers", async () => {
     const request: typeof fetch = async (input) => String(input).endsWith("/assets/app.js")
       ? new Response("abd", { status: 200 })
