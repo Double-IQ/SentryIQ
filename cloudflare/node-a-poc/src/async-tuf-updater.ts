@@ -289,7 +289,7 @@ function normalizeHttpsBaseUrl(value: string, label: string): string {
 function validateTargetPath(targetPath: string): void {
   if (typeof targetPath !== "string" || targetPath.length === 0 ||
       targetPath.length > 1024 || targetPath.startsWith("/") || targetPath.includes("\\") ||
-      /[\\u0000-\\u001f\\u007f?#]/.test(targetPath) ||
+      /[\u0000-\u001f\u007f?#]/.test(targetPath) ||
       targetPath.split("/").some((part) => part === "" || part === "." || part === "..")) {
     throw new Error("TUF target path is invalid");
   }
