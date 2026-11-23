@@ -77,3 +77,27 @@ if (modelsKeySource.includes(modelsMarker)) {
   fs.writeFileSync(modelsKeyPath, modelsKeySource.replace(modelsTarget, modelsReplacement));
   process.stdout.write("Applied SentryIQ @tufjs/models Workerd EC key-detail compatibility patch\n");
 }
+
+const modelsVerifyPath = path.join(path.dirname(modelsEntry), "utils", "verify.js");
+let modelsVerifySource = fs.readFileSync(modelsVerifyPath, "utf8");
+const verifyMarker = "SENTRYIQ_TUF_MODELS_WORKER_NAMED_CRYPTO_VERIFY_PATCH";
+if (modelsVerifySource.includes(verifyMarker)) {
+  process.stdout.write("SentryIQ @tufjs/models named crypto verify patch already applied\\n");
+} else {
+  const esmImport = "import crypto from 'crypto';";
+  const esmCall = "return crypto.verify(";
+  const cjsImport = 'const crypto_1 = __importDefault(require("crypto"));';
+  const cjsCall = "return crypto_1.default.verify(";
+  if (modelsVerifySource.includes(esmImport) && modelsVerifySource.includes(esmCall)) {
+    modelsVerifySource = modelsVerifySource.replace(esmImport, "import { verify as nodeCryptoVerify } from 'node:crypto';").replace(esmCall, "return nodeCryptoVerify(");
+  } else if (modelsVerifySource.includes('import crypto from "crypto";') && modelsVerifySource.includes(esmCall)) {
+    modelsVerifySource = modelsVerifySource.replace('import crypto from "crypto";', 'import { verify as nodeCryptoVerify } from "node:crypto";').replace(esmCall, "return nodeCryptoVerify(");
+  } else if (modelsVerifySource.includes(cjsImport) && modelsVerifySource.includes(cjsCall)) {
+    modelsVerifySource = modelsVerifySource.replace(cjsImport, 'const nodeCryptoVerify = require("node:crypto").verify;').replace(cjsCall, "return nodeCryptoVerify(");
+  } else {
+    throw new Error("Could not identify the pinned @tufjs/models 5.0.3 crypto.verify import/call; refusing an unknown build");
+  }
+  modelsVerifySource = "/* " + verifyMarker + " */\\n" + modelsVerifySource;
+  fs.writeFileSync(modelsVerifyPath, modelsVerifySource);
+  process.stdout.write("Applied SentryIQ @tufjs/models named node:crypto.verify compatibility patch\\n");
+}
