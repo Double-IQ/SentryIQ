@@ -2,6 +2,8 @@ import { Buffer } from "node:buffer";
 import { createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
 import { canonicalize } from "@tufjs/canonical-json";
 import { Metadata, MetadataKind } from "@tufjs/models";
+import { getPublicKey } from "@tufjs/models/dist/utils/key.js";
+import { verifySignature as verifyTufSignature } from "@tufjs/models/dist/utils/verify.js";
 import { describe, expect, it } from "vitest";
 import { createNodeAAsyncTufUpdater } from "../src/node-a-tuf-runtime";
 import { AsyncTufUpdater } from "../src/async-tuf-updater";
@@ -104,7 +106,30 @@ describe("Node A async TUF runtime assembly", () => {
       }
     }
     expect(valid.length).toBeGreaterThanOrEqual(3);
-    expect(modelValid, modelErrors.join("; ")).toBeGreaterThanOrEqual(3);
+    const first = root.signatures[0];
+    const parsedKey = parsed.signed.keys[first.keyid];
+    const parsedPublicKey = getPublicKey({
+      keyType: parsedKey.keyType,
+      scheme: parsedKey.scheme,
+      keyVal: parsedKey.keyVal.public
+    });
+    const parsedSignature = parsed.signatures[first.keyid].sig;
+    const parsedRawVerify = verify(
+      "sha256",
+      Buffer.from(canonicalize(parsed.signed.toJSON())),
+      parsedPublicKey.key,
+      Buffer.from(parsedSignature, "hex")
+    );
+    const tufVerify = verifyTufSignature(
+      parsed.signed.toJSON(),
+      parsedPublicKey,
+      parsedSignature
+    );
+    expect({ modelValid, modelErrors, parsedRawVerify, tufVerify }).toMatchObject({
+      modelValid: 5,
+      parsedRawVerify: true,
+      tufVerify: true
+    });
   });
 
   it("constructs the real pinned upstream TrustedMetadataStore from the explicit root", async () => {
