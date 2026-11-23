@@ -1,3 +1,4 @@
+import { TrustedMetadataStore } from "tuf-js/dist/store.js";
 import { Buffer } from "node:buffer";
 import type {
   StoredTufMetadata,
@@ -42,6 +43,11 @@ export type PinnedTufTrustedMetadataStoreFactory = (
   trustedRootBytes: Buffer
 ) => PinnedTufTrustedMetadataStore;
 
+/** Construct the pinned upstream verifier directly from explicit root bytes. */
+export const createPinnedTufTrustedMetadataStore: PinnedTufTrustedMetadataStoreFactory = (
+  trustedRootBytes
+) => new TrustedMetadataStore(trustedRootBytes) as unknown as PinnedTufTrustedMetadataStore;
+
 export class AsyncTufTrustedStateAdapter {
   private operationQueue: Promise<void> = Promise.resolve();
 
@@ -60,14 +66,16 @@ export class AsyncTufTrustedStateAdapter {
     metadata: TufMetadataStore,
     fence: TufRunFence,
     bootstrapRoot: Uint8Array,
-    createTrustedStore: PinnedTufTrustedMetadataStoreFactory
+    createTrustedStore: PinnedTufTrustedMetadataStoreFactory = createPinnedTufTrustedMetadataStore
   ): Promise<AsyncTufTrustedStateAdapter> {
     let trusted: PinnedTufTrustedMetadataStore | undefined;
+    let durableRootBytes: Uint8Array | undefined;
     const { session } = await FencedTufMetadataSession.create(
       metadata,
       fence,
       bootstrapRoot,
       (rootBytes) => {
+        durableRootBytes = rootBytes.slice();
         trusted = createTrustedStore(Buffer.from(rootBytes));
       }
     );
@@ -85,8 +93,11 @@ export class AsyncTufTrustedStateAdapter {
         // therefore be discarded safely and replaced by a fresh remote one.
         trusted.updateTimestamp(Buffer.from(timestamp.data));
       } catch {
-        // A bad local cache is recoverable. Durable read outages are not:
-        // those are raised by readRole above and never enter this branch.
+        // Upstream may mutate before a later validation error. Recreate the
+        // verifier from the last durable root before continuing with remote
+        // timestamp recovery; never reuse the ambiguous instance.
+        if (!durableRootBytes) throw new Error("durable TUF root bytes are unavailable for cache recovery");
+        trusted = createTrustedStore(Buffer.from(durableRootBytes));
       }
     }
 
