@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { AsyncTufTrustedStateAdapter } from "../src/async-tuf-trusted-state";
@@ -50,7 +51,8 @@ describe("async adapter over pinned TUF trusted metadata store", () => {
       updateRoot: vi.fn(),
       updateTimestamp: vi.fn(),
       updateSnapshot: vi.fn(),
-      updateDelegatedTargets: vi.fn()
+      updateDelegatedTargets: vi.fn(),
+      getRole: vi.fn(() => undefined)
     };
     const factory = vi.fn(() => upstream);
     const adapter = await AsyncTufTrustedStateAdapter.create(
@@ -59,7 +61,7 @@ describe("async adapter over pinned TUF trusted metadata store", () => {
 
     const timestamp = metadata(1, "timestamp");
     await adapter.refreshTimestamp(timestamp);
-    expect(upstream.updateTimestamp).toHaveBeenCalledWith(timestamp);
+    expect(upstream.updateTimestamp).toHaveBeenCalledWith(Buffer.from(timestamp));
     expect(records.get("timestamp")?.data).toEqual(timestamp);
     expect(store.commitVerifiedRole).toHaveBeenCalledTimes(2);
   });
@@ -70,7 +72,8 @@ describe("async adapter over pinned TUF trusted metadata store", () => {
       updateRoot: vi.fn(),
       updateTimestamp: vi.fn(),
       updateSnapshot: vi.fn(),
-      updateDelegatedTargets: vi.fn()
+      updateDelegatedTargets: vi.fn(),
+      getRole: vi.fn(() => undefined)
     };
     const first = await AsyncTufTrustedStateAdapter.create(
       store, fence, metadata(1, "root"), () => firstTrusted
@@ -82,7 +85,8 @@ describe("async adapter over pinned TUF trusted metadata store", () => {
       updateRoot: vi.fn(),
       updateTimestamp: vi.fn(),
       updateSnapshot: vi.fn(),
-      updateDelegatedTargets: vi.fn()
+      updateDelegatedTargets: vi.fn(),
+      getRole: vi.fn(() => undefined)
     };
     await AsyncTufTrustedStateAdapter.create(
       store, fence, metadata(1, "root"), () => restartedTrusted
@@ -90,8 +94,8 @@ describe("async adapter over pinned TUF trusted metadata store", () => {
 
     expect(records.has("timestamp")).toBe(true);
     expect(records.has("snapshot")).toBe(true);
-    expect(restartedTrusted.updateTimestamp).toHaveBeenCalledWith(records.get("timestamp")?.data);
-    expect(restartedTrusted.updateSnapshot).toHaveBeenCalledWith(records.get("snapshot")?.data);
+    expect(restartedTrusted.updateTimestamp).toHaveBeenCalledWith(Buffer.from(records.get("timestamp")!.data));
+    expect(restartedTrusted.updateSnapshot).toHaveBeenCalledWith(Buffer.from(records.get("snapshot")!.data));
   });
 
   it("rotates roots sequentially through upstream validation and durable commits", async () => {
@@ -100,7 +104,8 @@ describe("async adapter over pinned TUF trusted metadata store", () => {
       updateRoot: vi.fn(),
       updateTimestamp: vi.fn(),
       updateSnapshot: vi.fn(),
-      updateDelegatedTargets: vi.fn()
+      updateDelegatedTargets: vi.fn(),
+      getRole: vi.fn(() => undefined)
     };
     const adapter = await AsyncTufTrustedStateAdapter.create(
       store, fence, metadata(1, "root"), () => upstream
@@ -129,7 +134,8 @@ describe("async adapter over pinned TUF trusted metadata store", () => {
       updateRoot: vi.fn(),
       updateTimestamp: vi.fn(() => { throw new Error("signature threshold failed"); }),
       updateSnapshot: vi.fn(),
-      updateDelegatedTargets: vi.fn()
+      updateDelegatedTargets: vi.fn(),
+      getRole: vi.fn(() => undefined)
     };
     const adapter = await AsyncTufTrustedStateAdapter.create(
       store, fence, metadata(1, "root"), () => upstream
@@ -150,7 +156,8 @@ describe("async adapter over pinned TUF trusted metadata store", () => {
       updateRoot: vi.fn(),
       updateTimestamp: vi.fn(),
       updateSnapshot: vi.fn(),
-      updateDelegatedTargets: vi.fn()
+      updateDelegatedTargets: vi.fn(),
+      getRole: vi.fn(() => undefined)
     };
     const adapter = await AsyncTufTrustedStateAdapter.create(
       store, fence, metadata(1, "root"), () => upstream
@@ -170,7 +177,8 @@ describe("async adapter over pinned TUF trusted metadata store", () => {
       updateRoot: vi.fn(),
       updateTimestamp: vi.fn(),
       updateSnapshot: vi.fn(),
-      updateDelegatedTargets: vi.fn()
+      updateDelegatedTargets: vi.fn(),
+      getRole: vi.fn(() => undefined)
     };
     const adapter = await AsyncTufTrustedStateAdapter.create(
       store, fence, metadata(1, "root"), () => upstream
