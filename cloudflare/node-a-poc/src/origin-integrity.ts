@@ -105,14 +105,33 @@ function checkSecurityHeaders(headers: Headers): string[] {
   if ((headers.get("referrer-policy") ?? "").toLowerCase() !== "strict-origin-when-cross-origin") mismatches.push("referrer-policy");
 
   const permissions = (headers.get("permissions-policy") ?? "").toLowerCase();
+  const permissionDirectives = permissions.split(",").map((item) => item.trim());
   for (const feature of ["camera", "microphone", "geolocation"]) {
-    if (!new RegExp("(?:^|,)\\s*" + feature + "\\s*=\\s*\\(\\)").test(permissions)) {
-      mismatches.push("permissions-policy:" + feature);
-    }
+    const matches = permissionDirectives.filter((item) =>
+      new RegExp("^" + feature + "\\s*=\\s*\\(\\s*\\)$").test(item)
+    );
+    if (matches.length !== 1) mismatches.push("permissions-policy:" + feature);
   }
+
+  // Parse CSP as directives, not substrings: a similarly named directive or
+  // a duplicate with a weaker value must never satisfy the integrity check.
   const csp = (headers.get("content-security-policy") ?? "").toLowerCase();
-  for (const directive of ["frame-ancestors 'none'", "base-uri 'self'", "object-src 'none'"]) {
-    if (!csp.includes(directive)) mismatches.push("content-security-policy:" + directive);
+  const cspDirectives = new Map<string, string[]>();
+  for (const rawDirective of csp.split(";")) {
+    const tokens = rawDirective.trim().split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) continue;
+    const name = tokens[0]!;
+    cspDirectives.set(name, [...(cspDirectives.get(name) ?? []), tokens.slice(1).join(" ")]);
+  }
+  for (const [name, expectedValue] of [
+    ["frame-ancestors", "'none'"],
+    ["base-uri", "'self'"],
+    ["object-src", "'none'"]
+  ]) {
+    const values = cspDirectives.get(name);
+    if (!values || values.length !== 1 || values[0] !== expectedValue) {
+      mismatches.push("content-security-policy:" + name);
+    }
   }
   return mismatches;
 }
