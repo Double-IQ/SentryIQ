@@ -233,3 +233,16 @@ diff --git a/packages/client/src/index.ts b/packages/client/src/index.ts
 +export { TrustedMetadataStore } from './store';
  export { BaseFetcher } from './fetcher';
  export { Updater } from './updater';
+
+diff --git a/packages/models/src/utils/key.ts b/packages/models/src/utils/key.ts
+--- a/packages/models/src/utils/key.ts
++++ b/packages/models/src/utils/key.ts
+@@ -105,7 +105,8 @@ function getECDCSAPublicKey(keyInfo: KeyInfo): PublicKey {
+   if (
+     key.asymmetricKeyType !== 'ec' ||
+-    key.asymmetricKeyDetails?.namedCurve !== namedCurve
++    (key.asymmetricKeyDetails?.namedCurve !== undefined &&
++      key.asymmetricKeyDetails.namedCurve !== namedCurve)
+   ) {
+     throw new CryptoError('ECDSA key curve does not match scheme');
+   }
