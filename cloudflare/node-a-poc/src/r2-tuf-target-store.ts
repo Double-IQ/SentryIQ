@@ -5,7 +5,8 @@ import type {
   TufRunFence,
   TufTargetDescriptor,
   TufTargetStage,
-  TufTargetStore
+  TufTargetStore,
+  TufTargetCommitAmbiguousError
 } from "./tuf-storage-contract";
 
 export interface R2ObjectLike {
@@ -108,6 +109,16 @@ export class R2TufTargetStore implements TufTargetStore {
       if (!stored || stored.size !== stage.descriptor.length) {
         throw new Error("R2 staged target size does not match the verified TUF length");
       }
+    } catch (error) {
+      this.active.delete(stage.stageId);
+      try { await upload.writer.abort(error); } catch { /* preserve original failure */ }
+      try { await upload.upload; } catch { /* upload may already have failed */ }
+      try { await this.bucket.delete(stage.objectKey); } catch { /* stale-stage sweep retries */ }
+      try { await this.state.deleteTufTargetStage(stage.stageId, stage.objectKey, this.currentLock()); } catch { /* stale-stage sweep retries */ }
+      throw error;
+    }
+
+    try {
       const committed = await this.state.commitTufTargetPointer(
         stage.descriptor,
         stage.stageId,
@@ -118,10 +129,26 @@ export class R2TufTargetStore implements TufTargetStore {
       return committed;
     } catch (error) {
       this.active.delete(stage.stageId);
-      try { await upload.writer.abort(error); } catch { /* preserve original failure */ }
-      try { await upload.upload; } catch { /* upload may already have failed */ }
-      await this.bucket.delete(stage.objectKey);
-      try { await this.state.deleteTufTargetStage(stage.stageId, stage.objectKey, this.currentLock()); } catch { /* future stale-stage sweep retries */ }
+      // Durable Object RPC failures can be ambiguous: the transaction may
+      // have committed even if the response was lost. Reconcile before
+      // deleting the object, or a successful pointer could be left dangling.
+      let pointer: CommittedTufTarget | null;
+      try {
+        pointer = await this.state.readTufTargetPointer(stage.descriptor.targetPath);
+      } catch (readError) {
+        throw new TufTargetCommitAmbiguousError(
+          "target pointer publication outcome is unknown; preserve the R2 object for later reconciliation",
+          readError
+        );
+      }
+      if (pointer && pointer.objectKey === stage.objectKey &&
+          pointer.fence === fence.fence &&
+          targetDescriptorMatches(pointer, stage.descriptor)) {
+        return pointer;
+      }
+
+      try { await this.bucket.delete(stage.objectKey); } catch { /* stale-stage sweep retries */ }
+      try { await this.state.deleteTufTargetStage(stage.stageId, stage.objectKey, this.currentLock()); } catch { /* stale-stage sweep retries */ }
       throw error;
     }
   }
