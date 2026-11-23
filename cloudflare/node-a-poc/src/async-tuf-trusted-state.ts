@@ -80,16 +80,19 @@ export class AsyncTufTrustedStateAdapter {
   rotateRoots(
     firstVersion: number,
     maxRotations: number,
-    fetchRoot: (version: number) => Promise<Uint8Array>,
-    current: TufMetadataIdentity
+    fetchRoot: (version: number) => Promise<Uint8Array>
   ): Promise<TufMetadataIdentity> {
-    return this.serialize(() => this.session.rotateRoots(
-      firstVersion,
-      maxRotations,
-      fetchRoot,
-      (bytes) => this.trusted.updateRoot(bytes),
-      current
-    ));
+    return this.serialize(async () => {
+      const current: StoredTufMetadata | null = await this.metadata.readRole("root");
+      if (!current) throw new Error("durable TUF root is missing; recreate the trusted-state adapter");
+      return this.session.rotateRoots(
+        firstVersion,
+        maxRotations,
+        fetchRoot,
+        (bytes) => this.trusted.updateRoot(bytes),
+        { version: current.version, sha256: current.sha256 }
+      );
+    });
   }
 
   private serialize<T>(operation: () => Promise<T>): Promise<T> {
