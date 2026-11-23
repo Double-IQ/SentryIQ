@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
-import { createHash, generateKeyPairSync, randomBytes, sign, verify } from "node:crypto";
+import { Buffer } from "node:buffer";
+import { createHash, generateKeyPairSync, randomBytes, sign, timingSafeEqual, verify } from "node:crypto";
 import * as tufFs from "./tuf-fs";
 import * as tufFsPromises from "./tuf-fs-promises";
 import * as nativeFs from "node:fs";
@@ -13,6 +14,10 @@ import type { CommittedTufTarget, TufTargetDescriptor } from "./tuf-storage-cont
 export interface Env {
   NODE_A_STATE: DurableObjectNamespace<NodeAState>;
   NODE_A_TARGETS: R2Bucket;
+  NODE_A_API_TOKEN?: string;
+  TUF_ROOT_B64?: string;
+  TUF_METADATA_URL?: string;
+  TUF_TARGET_URL?: string;
 }
 
 export interface ReleasePin {
@@ -582,8 +587,117 @@ export default {
           asyncTufUpdaterLoaded && durableMetadataBindingLoaded && r2TargetBindingLoaded ? 200 : 503
       });
     }
+    if (url.pathname === "/internal/tuf/refresh" || url.pathname.startsWith("/internal/tuf/targets/")) {
+      const authorization = authorizeNodeATufRequest(request, env.NODE_A_API_TOKEN);
+      if (authorization) return authorization;
+
+      if (!env.TUF_ROOT_B64 || !env.TUF_METADATA_URL || !env.TUF_TARGET_URL) {
+        return Response.json({ error: "Node A TUF runtime is not fully configured" }, { status: 503 });
+      }
+      if (url.pathname === "/internal/tuf/refresh" && request.method !== "POST") {
+        return new Response("method not allowed", { status: 405, headers: { Allow: "POST" } });
+      }
+      if (url.pathname.startsWith("/internal/tuf/targets/") && request.method !== "GET") {
+        return new Response("method not allowed", { status: 405, headers: { Allow: "GET" } });
+      }
+
+      try {
+        const trustAnchor = Buffer.from(env.TUF_ROOT_B64, "base64");
+        if (trustAnchor.byteLength === 0 || trustAnchor.toString("base64") !== env.TUF_ROOT_B64) {
+          return Response.json({ error: "configured TUF trust anchor is not valid base64" }, { status: 503 });
+        }
+        const metadataUrl = new URL(env.TUF_METADATA_URL);
+        const targetUrl = new URL(env.TUF_TARGET_URL);
+        if (metadataUrl.protocol !== "https:" || targetUrl.protocol !== "https:") {
+          return Response.json({ error: "TUF metadata and target URLs must use HTTPS" }, { status: 503 });
+        }
+
+        const stateId = env.NODE_A_STATE.idFromName("node-a-async-tuf-runtime");
+        const state = env.NODE_A_STATE.get(stateId);
+        return await withNodeARunLease(state, async (currentLock) => {
+          const updater = await createNodeAAsyncTufUpdater({
+            state,
+            bucket: env.NODE_A_TARGETS,
+            currentLock,
+            trustAnchor: new Uint8Array(trustAnchor),
+            metadataBaseUrl: metadataUrl.toString(),
+            targetBaseUrl: targetUrl.toString()
+          });
+
+          if (url.pathname === "/internal/tuf/refresh") {
+            await updater.refresh();
+            return Response.json({ ok: true });
+          }
+
+          let targetPath: string;
+          try {
+            targetPath = decodeURIComponent(url.pathname.slice("/internal/tuf/targets/".length));
+          } catch {
+            return new Response("invalid target path", { status: 400 });
+          }
+          if (!targetPath) return new Response("target path required", { status: 400 });
+          const body = await updater.getTarget(targetPath);
+          if (!body) return new Response("target not found", { status: 404 });
+          return new Response(body, {
+            headers: {
+              "Content-Type": "application/octet-stream",
+              "Cache-Control": "private, no-store",
+              "X-Content-Type-Options": "nosniff"
+            }
+          });
+        });
+      } catch {
+        return Response.json({ error: "Node A TUF operation failed" }, { status: 502 });
+      }
+    }
     return new Response("not found", { status: 404 });
   }
 };
 
 export { createNodeAAsyncTufUpdater };
+
+function authorizeNodeATufRequest(request: Request, expectedToken: string | undefined): Response | null {
+  if (!expectedToken) return Response.json({ error: "Node A API token is not configured" }, { status: 503 });
+  const provided = request.headers.get("authorization") ?? "";
+  const expected = "Bearer " + expectedToken;
+  const left = Buffer.from(provided);
+  const right = Buffer.from(expected);
+  if (left.byteLength !== right.byteLength || !timingSafeEqual(left, right)) {
+    return Response.json({ error: "unauthorized" }, { status: 401 });
+  }
+  return null;
+}
+
+async function withNodeARunLease<T>(
+  state: DurableObjectStub<NodeAState>,
+  operation: (currentLock: () => RunLock) => Promise<T>
+): Promise<T> {
+  let activeLock = await state.acquireRunLock(60_000);
+  let stopped = false;
+  let renewalError: unknown;
+  let renewalQueue: Promise<void> = Promise.resolve();
+
+  const timer = setInterval(() => {
+    renewalQueue = renewalQueue.then(async () => {
+      if (!stopped && !renewalError) {
+        activeLock = await state.renewRunLock(activeLock, 60_000);
+      }
+    }).catch((error) => {
+      renewalError = error;
+    });
+  }, 20_000);
+
+  const currentLock = (): RunLock => {
+    if (renewalError) throw renewalError;
+    return activeLock;
+  };
+
+  try {
+    return await operation(currentLock);
+  } finally {
+    stopped = true;
+    clearInterval(timer);
+    await renewalQueue;
+    try { await state.releaseRunLock(activeLock); } catch { /* expired or taken over; stale owner cannot commit */ }
+  }
+}
