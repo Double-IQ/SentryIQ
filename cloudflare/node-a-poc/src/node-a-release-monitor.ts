@@ -9,6 +9,10 @@ import type { NodeAReleaseAssetFetcher } from "./release-assets";
 
 const CANONICAL_ORIGIN = "https://sentryiq.bichet.co.za";
 
+export class NodeAReleaseMonitorAlertAttemptedError extends Error {
+  constructor(message: string, options?: ErrorOptions) { super(message, options); }
+}
+
 export interface NodeAReleasePinCandidate {
   readonly version: string;
   readonly commit: string;
@@ -139,7 +143,8 @@ export class NodeAReleaseMonitor {
         };
       });
     } catch (error) {
-      if (error instanceof NodeAEventAlreadyAlertedError) throw error;
+      if (error instanceof NodeAEventAlreadyAlertedError ||
+          error instanceof NodeAReleaseMonitorAlertAttemptedError) throw error;
       try {
         await this.dependencies.notifyOwnerDirectly("scheduled_integrity_run_failed", {
           node_id: "integrity-a",
@@ -148,9 +153,9 @@ export class NodeAReleaseMonitor {
           exception: error instanceof Error ? error.name : "UnknownError"
         });
       } catch (alertError) {
-        throw new Error("Node A scheduled run and independent owner alert both failed", { cause: alertError });
+        throw new NodeAReleaseMonitorAlertAttemptedError("Node A scheduled run and independent owner alert both failed", { cause: alertError });
       }
-      throw new Error("Node A scheduled release monitor failed after independent owner alert delivery", { cause: error });
+      throw new NodeAReleaseMonitorAlertAttemptedError("Node A scheduled release monitor failed after independent owner alert attempt", { cause: error });
     }
   }
 }
