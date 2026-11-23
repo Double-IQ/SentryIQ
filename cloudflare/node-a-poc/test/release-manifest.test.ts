@@ -3,7 +3,7 @@ import { assertNoDuplicateJsonKeys, parseAndValidateReleaseManifest } from "../s
 
 const commit = "a".repeat(40);
 const digest = "b".repeat(64);
-const versionDigest = "b9b9e4c6e8a4e2c7c9d6b8a0f2f0a9e4c1d8b7a6f5e4d3c2b1a09876543210ff";
+const versionDigest = "2d2454ef0edeb462a6ce8b25d387aaa74df08093d5cea0428a10ce55510c6326";
 
 function manifest() {
   return {
@@ -31,7 +31,7 @@ describe("Node A signed release manifest policy", () => {
       new TextEncoder().encode(JSON.stringify(manifest())), "0.1.3", commit
     );
     expect(result.publicHttpFiles.map((entry) => entry.path)).toEqual(["VERSION", "assets/app.js", "assets/site.css"]);
-    expect(result.files).toHaveLength(4);
+    expect(result.files).toHaveLength(5);
   });
 
   it("rejects duplicate JSON object keys including escaped-equivalent keys", () => {
