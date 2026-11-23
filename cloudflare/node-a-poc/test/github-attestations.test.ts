@@ -49,6 +49,10 @@ describe("GitHub release attestation retrieval", () => {
       { repository_id: 1345956206, bundle_url: "https://sentryiq.blob.core.windows.net/attestations/999/2026/11/23/4.json.sn?sig=opaque&se=2026-11-24T00%3A00%3A00Z&sp=r" }
     ] }), { status: 200 });
     await expect(fetchGithubReleaseAttestationBundles(digest, wrongRepositoryPath)).rejects.toThrow("repository-scoped HTTPS blob boundary");
+    const writableSas: typeof fetch = async () => new Response(JSON.stringify({ attestations: [
+      { repository_id: 1345956206, bundle_url: "https://sentryiq.blob.core.windows.net/attestations/1345956206/2026/11/23/4.json.sn?sig=opaque&se=2026-11-24T00%3A00%3A00Z&sp=rw" }
+    ] }), { status: 200 });
+    await expect(fetchGithubReleaseAttestationBundles(digest, writableSas)).rejects.toThrow("repository-scoped HTTPS blob boundary");
   });
 
   it("rejects API redirects and malformed/oversized bundle responses", async () => {
