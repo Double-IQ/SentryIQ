@@ -107,10 +107,15 @@ function checkSecurityHeaders(headers: Headers): string[] {
   const permissions = (headers.get("permissions-policy") ?? "").toLowerCase();
   const permissionDirectives = permissions.split(",").map((item) => item.trim());
   for (const feature of ["camera", "microphone", "geolocation"]) {
-    const matches = permissionDirectives.filter((item) =>
+    const entries = permissionDirectives.filter((item) =>
+      new RegExp("^" + feature + "\\s*=").test(item)
+    );
+    const matches = entries.filter((item) =>
       new RegExp("^" + feature + "\\s*=\\s*\\(\\s*\\)$").test(item)
     );
-    if (matches.length !== 1) mismatches.push("permissions-policy:" + feature);
+    if (entries.length !== 1 || matches.length !== 1) {
+      mismatches.push("permissions-policy:" + feature);
+    }
   }
 
   // Parse CSP as directives, not substrings: a similarly named directive or
