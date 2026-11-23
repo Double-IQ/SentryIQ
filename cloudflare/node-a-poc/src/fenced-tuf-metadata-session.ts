@@ -102,10 +102,16 @@ export class FencedTufMetadataSession {
       try {
         await acceptance.acceptIntoTrustedSet(bytes);
       } catch (error) {
-        // A verifier callback may have mutated its trusted set before throwing.
-        // The caller must classify only proven pre-mutation errors as ordinary.
-        if (error instanceof TufStateMutationError) throw error;
-        throw error;
+        // Unless the upstream adapter can prove it rolled back every mutation,
+        // a verifier failure is ambiguous: it may have advanced trusted state
+        // before a later validation step threw. Conservatively poison the
+        // session so no subsequent role can use a possibly divergent trust set.
+        throw error instanceof TufStateMutationError
+          ? error
+          : new TufStateMutationError(
+              "upstream TUF acceptance failed; discard the possibly mutated trusted-state instance",
+              error
+            );
       }
       try {
         return await this.store.commitVerifiedRole(
@@ -156,8 +162,14 @@ export class FencedTufMetadataSession {
         try {
           await acceptRoot(bytes);
         } catch (error) {
-          if (error instanceof TufStateMutationError) throw error;
-          throw error;
+          // Root acceptance can mutate the upstream trusted set before a
+          // later validation error. Never continue rotations on ambiguity.
+          throw error instanceof TufStateMutationError
+            ? error
+            : new TufStateMutationError(
+                `upstream root ${version} acceptance failed; discard the possibly mutated trusted-state instance`,
+                error
+              );
         }
         try {
           identity = await this.store.commitVerifiedRole("root", identity, candidate, this.fence);
