@@ -124,6 +124,7 @@ export class AsyncTufUpdater {
   }
 
   async getTargetInfo(targetPath: string): Promise<TargetInfo | undefined> {
+    validateTargetPath(targetPath);
     if (!this.trusted.snapshot) await this.refresh();
 
     const stack: Array<{ roleName: string; parentRoleName: string }> = [
