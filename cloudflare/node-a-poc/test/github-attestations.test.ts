@@ -5,8 +5,13 @@ const digest = "a".repeat(64);
 
 function rawSnappyLiteral(text: string): Uint8Array {
   const bytes = new TextEncoder().encode(text);
-  if (bytes.length >= 60) throw new Error("test helper only supports short literals");
-  return new Uint8Array([bytes.length, (bytes.length - 1) << 2, ...bytes]);
+  const prefix = bytes.length < 128
+    ? [bytes.length]
+    : [bytes.length & 0x7f, (bytes.length >>> 7) | 0x80];
+  const literal = bytes.length < 60
+    ? [(bytes.length - 1) << 2]
+    : [60 << 2, (bytes.length - 1) & 0xff];
+  return new Uint8Array([...prefix, ...literal, ...bytes]);
 }
 
 describe("GitHub release attestation retrieval", () => {
@@ -38,7 +43,7 @@ describe("GitHub release attestation retrieval", () => {
     const request: typeof fetch = async () => new Response(JSON.stringify({ attestations: [
       { repository_id: "1345956206", bundle_url: "https://attacker.example/bundle" }
     ] }), { status: 200 });
-    await expect(fetchGithubReleaseAttestationBundles(digest, request)).rejects.toThrow("no attestation bundle");
+    await expect(fetchGithubReleaseAttestationBundles(digest, request)).rejects.toThrow("outside the approved HTTPS blob host boundary");
   });
 
   it("rejects API redirects and malformed/oversized bundle responses", async () => {
