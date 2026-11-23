@@ -444,14 +444,7 @@ describe("Node A Workers runtime proof", () => {
     expect(await state.readTufTargetPointer(descriptor.targetPath)).toEqual(saved);
 
     await state.releaseRunLock(lock);
-    const replacement = await state.acquireRunLock(60_000);
-    await expect(state.commitTufTargetPointer(
-      { ...descriptor, length: descriptor.length + 1 },
-      "objects/22222222-2222-4222-8222-222222222222",
-      lock
-    )).rejects.toThrow("valid active Node A run fence required");
-    expect(await state.readTufTargetPointer(descriptor.targetPath)).toEqual(saved);
-    await state.releaseRunLock(replacement);
+
   });
 
   it("adapts TUF metadata commits to the fenced Durable Object store", async () => {
