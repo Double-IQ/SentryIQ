@@ -3,6 +3,13 @@ import { Buffer } from "node:buffer";
 import { createHash, generateKeyPairSync, randomBytes, sign, timingSafeEqual, verify } from "node:crypto";
 import { Verifier } from "@sigstore/verify";
 import { createNodeAAsyncTufUpdater } from "./node-a-tuf-runtime";
+import { NodeAReleaseAssetFetcher } from "./release-assets";
+import { NodeAReleaseMonitor } from "./node-a-release-monitor";
+import { Node4EventClient } from "./node4-event-client";
+import { NodeAReportSigner } from "./node-a-report-signer";
+import { NodeAPrivateHostGate } from "./private-host-attestation";
+import { NodeAEventRunner } from "./node-a-event-runner";
+import { NodeAOwnerAlertWebhook } from "./node-a-owner-alert";
 import type { CommittedTufTarget, TufTargetDescriptor } from "./tuf-storage-contract";
 
 export interface Env {
@@ -12,6 +19,17 @@ export interface Env {
   TUF_ROOT_B64?: string;
   TUF_METADATA_URL?: string;
   TUF_TARGET_URL?: string;
+  NODE_A_GITHUB_TOKEN?: string;
+  NODE_A_EVENT_TOKEN?: string;
+  NODE_A_REPORT_PRIVATE_KEY_B64?: string;
+  NODE_A_PRIVATE_HOST_TOKEN?: string;
+  NODE_A_COLLECTOR_PUBLIC_KEY_B64?: string;
+  NODE_A_EXPECTED_FILES_JSON?: string;
+  NODE_A_EXPECTED_PRIVATE_CONFIG_JSON?: string;
+  NODE_A_ALERT_URL?: string;
+  NODE_A_ALERT_HOST?: string;
+  NODE_A_ALERT_TOKEN?: string;
+  NODE_A_BASELINE_APPROVAL_TOKEN?: string;
 }
 
 export interface ReleasePin {
@@ -602,6 +620,55 @@ export default {
           asyncTufUpdaterLoaded && durableMetadataBindingLoaded && r2TargetBindingLoaded ? 200 : 503
       });
     }
+    if (url.pathname === "/internal/monitor/run" || url.pathname === "/internal/baseline/initialize") {
+      const authorization = authorizeNodeATufRequest(request, env.NODE_A_API_TOKEN);
+      if (authorization) return authorization;
+      const initializeBaseline = url.pathname === "/internal/baseline/initialize";
+      if (request.method !== "POST") {
+        return new Response("method not allowed", { status: 405, headers: { Allow: "POST" } });
+      }
+      if (initializeBaseline) {
+        const baselineAuthorization = authorizeBaselineInitialization(
+          request, env.NODE_A_BASELINE_APPROVAL_TOKEN
+        );
+        if (baselineAuthorization) return baselineAuthorization;
+      }
+
+      const missing = requiredNodeAMonitorConfiguration(env);
+      if (missing.length > 0) {
+        return Response.json({
+          error: "Node A monitor is not fully configured",
+          missing
+        }, { status: 503 });
+      }
+
+      try {
+        const stateId = env.NODE_A_STATE.idFromName("node-a-async-tuf-runtime");
+        const state = env.NODE_A_STATE.get(stateId);
+        const result = await runNodeAReleaseMonitor(env, state, initializeBaseline);
+        return Response.json({
+          ok: result.event.approved && result.pin_advanced,
+          mode: initializeBaseline ? "baseline_initialized" : "monitor_run",
+          release_version: result.release_version,
+          release_commit: result.release_commit,
+          release_manifest_sha256: result.release_manifest_sha256,
+          release_artifact_sha256: result.release_artifact_sha256,
+          approved: result.event.approved,
+          pin_advanced: result.pin_advanced,
+          mismatch_count: result.event.mismatches.length,
+          node4_acknowledged: result.event.event_acknowledgement.status === "accepted"
+        }, {
+          status: result.event.approved ? 200 : 409,
+          headers: { "Cache-Control": "private, no-store" }
+        });
+      } catch {
+        return Response.json(
+          { error: "Node A monitor failed; independent owner alert was attempted" },
+          { status: 502, headers: { "Cache-Control": "private, no-store" } }
+        );
+      }
+    }
+
     if (url.pathname === "/internal/tuf/refresh" || url.pathname.startsWith("/internal/tuf/targets/")) {
       const authorization = authorizeNodeATufRequest(request, env.NODE_A_API_TOKEN);
       if (authorization) return authorization;
@@ -670,6 +737,149 @@ export default {
 };
 
 export { createNodeAAsyncTufUpdater };
+
+function requiredNodeAMonitorConfiguration(env: Env): string[] {
+  const required: Array<[keyof Env, string]> = [
+    ["NODE_A_GITHUB_TOKEN", "NODE_A_GITHUB_TOKEN"],
+    ["NODE_A_EVENT_TOKEN", "NODE_A_EVENT_TOKEN"],
+    ["NODE_A_REPORT_PRIVATE_KEY_B64", "NODE_A_REPORT_PRIVATE_KEY_B64"],
+    ["NODE_A_PRIVATE_HOST_TOKEN", "NODE_A_PRIVATE_HOST_TOKEN"],
+    ["NODE_A_COLLECTOR_PUBLIC_KEY_B64", "NODE_A_COLLECTOR_PUBLIC_KEY_B64"],
+    ["NODE_A_EXPECTED_FILES_JSON", "NODE_A_EXPECTED_FILES_JSON"],
+    ["NODE_A_EXPECTED_PRIVATE_CONFIG_JSON", "NODE_A_EXPECTED_PRIVATE_CONFIG_JSON"],
+    ["NODE_A_ALERT_URL", "NODE_A_ALERT_URL"],
+    ["NODE_A_ALERT_HOST", "NODE_A_ALERT_HOST"],
+    ["NODE_A_ALERT_TOKEN", "NODE_A_ALERT_TOKEN"],
+    ["TUF_ROOT_B64", "TUF_ROOT_B64"],
+    ["TUF_METADATA_URL", "TUF_METADATA_URL"],
+    ["TUF_TARGET_URL", "TUF_TARGET_URL"]
+  ];
+  return required.filter(([key]) => {
+    const value = env[key];
+    return typeof value !== "string" || value.length === 0;
+  }).map(([, label]) => label);
+}
+
+function parseNodeADigestMap(source: string, label: string): Record<string, string> {
+  let parsed: unknown;
+  try { parsed = JSON.parse(source); }
+  catch { throw new Error(label + " must be valid JSON"); }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error(label + " must be a JSON object");
+  }
+  return parsed as Record<string, string>;
+}
+
+function authorizeBaselineInitialization(
+  request: Request,
+  expectedToken: string | undefined
+): Response | null {
+  if (!expectedToken) {
+    return Response.json({ error: "one-time baseline approval token is not configured" }, { status: 503 });
+  }
+  const expected = Buffer.from(expectedToken);
+  const provided = Buffer.from(request.headers.get("x-node-a-baseline-approval") ?? "");
+  if (expected.byteLength < 32 || expected.byteLength > 512 ||
+      /[\\u0000-\\u001f\\u007f]/.test(expectedToken)) {
+    return Response.json({ error: "baseline approval token configuration is invalid" }, { status: 503 });
+  }
+  if (provided.byteLength !== expected.byteLength || !timingSafeEqual(provided, expected)) {
+    return Response.json({ error: "baseline approval required" }, { status: 401 });
+  }
+  return null;
+}
+
+async function runNodeAReleaseMonitor(
+  env: Env,
+  state: DurableObjectStub<NodeAState>,
+  initializeBaseline: boolean
+) {
+  if (!env.TUF_ROOT_B64 || !env.TUF_METADATA_URL || !env.TUF_TARGET_URL ||
+      !env.NODE_A_GITHUB_TOKEN || !env.NODE_A_EVENT_TOKEN ||
+      !env.NODE_A_REPORT_PRIVATE_KEY_B64 || !env.NODE_A_PRIVATE_HOST_TOKEN ||
+      !env.NODE_A_COLLECTOR_PUBLIC_KEY_B64 || !env.NODE_A_EXPECTED_FILES_JSON ||
+      !env.NODE_A_EXPECTED_PRIVATE_CONFIG_JSON || !env.NODE_A_ALERT_URL ||
+      !env.NODE_A_ALERT_HOST || !env.NODE_A_ALERT_TOKEN) {
+    throw new Error("Node A monitor configuration is incomplete");
+  }
+  const trustAnchor = Buffer.from(env.TUF_ROOT_B64, "base64");
+  if (trustAnchor.byteLength === 0 || trustAnchor.toString("base64") !== env.TUF_ROOT_B64) {
+    throw new Error("configured TUF root is not canonical base64");
+  }
+  const metadataUrl = new URL(env.TUF_METADATA_URL);
+  const targetUrl = new URL(env.TUF_TARGET_URL);
+  if (metadataUrl.protocol !== "https:" || targetUrl.protocol !== "https:" ||
+      metadataUrl.username !== "" || metadataUrl.password !== "" ||
+      targetUrl.username !== "" || targetUrl.password !== "" ||
+      metadataUrl.search !== "" || metadataUrl.hash !== "" ||
+      targetUrl.search !== "" || targetUrl.hash !== "") {
+    throw new Error("TUF metadata and target base URLs must be clean HTTPS URLs");
+  }
+
+  const expectedFiles = parseNodeADigestMap(env.NODE_A_EXPECTED_FILES_JSON, "NODE_A_EXPECTED_FILES_JSON");
+  const expectedPrivateConfig = parseNodeADigestMap(
+    env.NODE_A_EXPECTED_PRIVATE_CONFIG_JSON, "NODE_A_EXPECTED_PRIVATE_CONFIG_JSON"
+  );
+  const alertWebhook = new NodeAOwnerAlertWebhook(
+    env.NODE_A_ALERT_URL, env.NODE_A_ALERT_HOST, env.NODE_A_ALERT_TOKEN
+  );
+  const notifyOwnerDirectly = (reason: string, context: Record<string, unknown>) =>
+    alertWebhook.send(reason, context);
+  const privateHost = new NodeAPrivateHostGate(
+    env.NODE_A_PRIVATE_HOST_TOKEN,
+    env.NODE_A_COLLECTOR_PUBLIC_KEY_B64,
+    expectedFiles,
+    expectedPrivateConfig
+  );
+  const eventRunner = new NodeAEventRunner(
+    new Node4EventClient(env.NODE_A_EVENT_TOKEN),
+    new NodeAReportSigner("integrity-a", env.NODE_A_REPORT_PRIVATE_KEY_B64),
+    privateHost,
+    notifyOwnerDirectly
+  );
+
+  let currentLock: (() => RunLock) | undefined;
+  let updater: Awaited<ReturnType<typeof createNodeAAsyncTufUpdater>> | undefined;
+  const monitor = new NodeAReleaseMonitor({
+    fetcher: new NodeAReleaseAssetFetcher(),
+    assertBaseline: initializeBaseline ? undefined : async () => {
+      if (!await state.getPin()) throw new Error("independent release baseline has not been initialized");
+    },
+    refreshTuf: async () => {
+      if (!currentLock) throw new Error("Node A run fence is unavailable");
+      updater = await createNodeAAsyncTufUpdater({
+        state,
+        bucket: env.NODE_A_TARGETS,
+        currentLock: () => {
+          if (!currentLock) throw new Error("Node A run fence is unavailable");
+          return currentLock();
+        },
+        trustAnchor: new Uint8Array(trustAnchor),
+        metadataBaseUrl: metadataUrl.toString(),
+        targetBaseUrl: targetUrl.toString()
+      });
+      await updater.refresh();
+    },
+    loadTrustedRoot: async () => {
+      if (!updater) throw new Error("Sigstore TUF updater was not initialized");
+      const target = await updater.getTarget("trusted_root.json");
+      if (!target) throw new Error("verified Sigstore trusted_root.json target is unavailable");
+      return new TextDecoder("utf-8", { fatal: true }).decode(target);
+    },
+    eventRunner,
+    advancePin: (candidate) => initializeBaseline
+      ? state.initializeBaseline(candidate)
+      : state.advancePin(candidate, currentLock ? currentLock() : (() => { throw new Error("Node A run fence is unavailable"); })()),
+    notifyOwnerDirectly,
+    withRunLease: async <T>(operation: () => Promise<T>) =>
+      withNodeARunLease(state, (lock) => {
+        currentLock = lock;
+        return operation();
+      }),
+    apiToken: env.NODE_A_GITHUB_TOKEN
+  });
+  return monitor.run();
+}
 
 function authorizeNodeATufRequest(request: Request, expectedToken: string | undefined): Response | null {
   if (!expectedToken) return Response.json({ error: "Node A API token is not configured" }, { status: 503 });
