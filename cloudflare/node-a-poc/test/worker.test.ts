@@ -91,6 +91,16 @@ describe("Node A Workers runtime proof", () => {
 
   });
 
+  it("executes the scheduled monitor fail-closed and never initializes the release baseline", async () => {
+    await workerExports.default.scheduled({} as ScheduledController, env, {} as ExecutionContext);
+    const state = env.NODE_A_STATE.get(env.NODE_A_STATE.idFromName("node-a-async-tuf-runtime"));
+    expect(state.getPin()).toBeNull();
+    expect(state.getRecentOutcomes()[0]).toMatchObject({
+      outcome: "failed",
+      releaseVersion: null
+    });
+  });
+
   it("preserves Ed25519 verification when applying EC/RSA digest inference", () => {
     const data = Buffer.from("SentryIQ Ed25519 inference regression");
     const pair = generateKeyPairSync("ed25519");
