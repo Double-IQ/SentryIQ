@@ -72,20 +72,6 @@ export class NodeAEventRunner {
       throw new Error("Node A event runner received an invalid canonical-origin result");
     }
 
-    let challenge;
-    try {
-      challenge = await this.node4.requestChallenge({
-        targetOrigin: "https://sentryiq.bichet.co.za",
-        releaseVersion: manifest.version,
-        commit: manifest.commit,
-        artifactSha256: release.zipSha256,
-        manifestSha256: manifest.sha256
-      });
-    } catch (error) {
-      await this.alert("node4_challenge_unavailable", manifest.version, manifest.commit, 0);
-      throw new NodeAEventAlreadyAlertedError("Node 4 challenge failed after independent owner alert delivery", { cause: error });
-    }
-
     let privateResult: PrivateHostResult | undefined;
     let privateHostFailed = false;
     try {
@@ -113,6 +99,22 @@ export class NodeAEventRunner {
       }
     } catch {
       privateHostFailed = true;
+    }
+
+    // The private-host check is performed independently of Node 4 availability.
+    // Node 4's nonce is reserved for the signed event-plane report only.
+    let challenge;
+    try {
+      challenge = await this.node4.requestChallenge({
+        targetOrigin: "https://sentryiq.bichet.co.za",
+        releaseVersion: manifest.version,
+        commit: manifest.commit,
+        artifactSha256: release.zipSha256,
+        manifestSha256: manifest.sha256
+      });
+    } catch (error) {
+      await this.alert("node4_challenge_unavailable", manifest.version, manifest.commit, 0);
+      throw new NodeAEventAlreadyAlertedError("Node 4 challenge failed after independent owner alert delivery", { cause: error });
     }
 
     const checkedPaths = [...new Set([...input.origin.checkedPaths, "@private-host-attestation"])];
