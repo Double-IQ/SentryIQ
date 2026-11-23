@@ -683,7 +683,7 @@ export default {
         });
       } catch {
         return Response.json(
-          { error: "Node A monitor failed; independent owner alert was attempted" },
+          { error: "Node A monitor failed; verify monitor configuration and independent alert delivery" },
           { status: 502, headers: { "Cache-Control": "private, no-store" } }
         );
       }
