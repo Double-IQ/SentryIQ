@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 const MAX_MANIFEST_BYTES = 5_000_000;
 const MAX_DEPTH = 64;
 const MAX_FILES = 100_000;
@@ -113,7 +115,7 @@ export function parseAndValidateReleaseManifest(
     runtime_files: runtimeFiles,
     files: [...entries.values()],
     publicHttpFiles,
-    sha256: awaitlessSha256(bytes)
+    sha256: createHash("sha256").update(bytes).digest("hex")
   };
 }
 
@@ -141,12 +143,6 @@ function isSafeManifestPath(path: string): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function awaitlessSha256(bytes: Uint8Array): string {
-  // Web Crypto is available in Workers; this helper is intentionally replaced
-  // by the async wrapper below so callers cannot accidentally use sync crypto.
-  throw new Error("unreachable");
 }
 
 /** Reject duplicate object keys before JSON.parse can silently keep the last value. */
