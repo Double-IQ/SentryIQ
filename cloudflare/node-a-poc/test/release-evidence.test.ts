@@ -36,6 +36,36 @@ describe("complete release evidence gate", () => {
     expect(called).toBe(false);
   });
 
+  it("rejects a release tag that resolves to a different commit before attestation lookup", async () => {
+    const commit = "a".repeat(40);
+    const manifestBytes = new TextEncoder().encode(JSON.stringify({
+      format: 2,
+      repository: "Double-IQ/SentryIQ",
+      repository_id: "1345956206",
+      version: "0.1.3",
+      commit,
+      workflow_path: ".github/workflows/release.yml",
+      public_files: ["VERSION"],
+      runtime_files: ["config.php"],
+      files: [
+        { path: "VERSION", size: 6, sha256: "2d2454ef0edeb462a6ce8b25d387aaa74df08093d5cea0428a10ce55510c6326" },
+        { path: "runtime/config.php", size: 1, sha256: "b".repeat(64) }
+      ]
+    }));
+    const request: typeof fetch = async () => new Response(JSON.stringify({
+      ref: "refs/tags/v0.1.3",
+      object: { type: "commit", sha: "c".repeat(40) }
+    }), { status: 200 });
+    await expect(verifyReleaseEvidence({
+      manifestBytes,
+      zipBytes: new Uint8Array([1, 2, 3]),
+      expectedVersion: "0.1.3",
+      expectedCommit: commit,
+      trustedRootJson: "{}",
+      request
+    })).rejects.toThrow("tag commit does not match");
+  });
+
   it("rejects a manifest identity mismatch before contacting GitHub", async () => {
     let called = false;
     const request: typeof fetch = async () => {
