@@ -75,6 +75,23 @@ function makeTrustedAdapter() {
   return adapter;
 }
 
+function stubMetadataRefresh(): ReturnType<typeof vi.fn> {
+  const snapshotDocument = { signed: { _type: "snapshot", version: 7, meta: {} } };
+  const snapshotLength = new TextEncoder().encode(JSON.stringify(snapshotDocument)).byteLength;
+  const timestampDocument = {
+    signed: { _type: "timestamp", version: 4, snapshotMeta: { version: 7, length: snapshotLength } }
+  };
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/2.root.json")) return new Response("not found", { status: 404 });
+    if (url.endsWith("/timestamp.json")) return json(timestampDocument);
+    if (url.endsWith("/snapshot.json")) return json(snapshotDocument);
+    return new Response("unexpected URL " + url, { status: 500 });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
 function fakeTargetStore() {
   const stage: TufTargetStage = {
     stageId: "stage-1",
@@ -278,6 +295,8 @@ describe("async TUF updater workflow", () => {
       }
     );
 
+    await updater.refresh();
+
     await expect(updater.getTargetInfo("release.bin")).rejects.toThrow(
       "TUF delegation traversal exceeded the configured role limit"
     );
@@ -301,6 +320,8 @@ describe("async TUF updater workflow", () => {
       }
     );
 
+    await updater.refresh();
+
     await expect(updater.getTargetInfo("release.bin")).rejects.toThrow("configured bounds");
     expect(store.beginTarget).not.toHaveBeenCalled();
   });
@@ -322,6 +343,8 @@ describe("async TUF updater workflow", () => {
       fence,
       { metadataBaseUrl: "https://example.test/metadata", targetBaseUrl: "https://example.test/targets" }
     );
+
+    await updater.refresh();
 
     const reader = await updater.getTarget("release.bin");
     expect(reader).not.toBeNull();
