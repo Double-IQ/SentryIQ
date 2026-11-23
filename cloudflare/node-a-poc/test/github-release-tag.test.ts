@@ -42,6 +42,16 @@ describe("GitHub release tag resolution", () => {
       ref: "refs/tags/v1.2.3", object: { type: "tree", sha: commit }
     }), { status: 200 });
     await expect(resolveGithubReleaseTagCommit("1.2.3", wrongType)).rejects.toThrow("commit or annotated tag");
+    const wrongAnnotatedName: typeof fetch = async (input) => String(input).endsWith("/git/ref/tags/v1.2.3")
+      ? new Response(JSON.stringify({
+          ref: "refs/tags/v1.2.3",
+          object: { type: "tag", sha: tagObject }
+        }), { status: 200 })
+      : new Response(JSON.stringify({
+          tag: "v9.9.9",
+          object: { type: "commit", sha: commit }
+        }), { status: 200 });
+    await expect(resolveGithubReleaseTagCommit("1.2.3", wrongAnnotatedName)).rejects.toThrow("malformed");
     const redirect: typeof fetch = async () => new Response(null, { status: 302 });
     await expect(resolveGithubReleaseTagCommit("1.2.3", redirect)).rejects.toThrow("non-200");
   });
