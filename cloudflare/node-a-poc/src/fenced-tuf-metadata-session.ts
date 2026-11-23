@@ -169,8 +169,13 @@ export class FencedTufMetadataSession {
         try {
           bytes = await fetchRoot(version);
         } catch (error) {
-          // The caller handles the repository's normal 403/404 end-of-chain
-          // condition. Other fetch errors are not converted to cache misses.
+          // TUF specifies 403/404 as the normal end of sequential root
+          // rotation. Network, authorization, and storage errors still fail.
+          if (typeof error === "object" && error !== null &&
+              "statusCode" in error &&
+              (error.statusCode === 403 || error.statusCode === 404)) {
+            break;
+          }
           throw error;
         }
         const candidate = await makeStoredRole(bytes, "root");
