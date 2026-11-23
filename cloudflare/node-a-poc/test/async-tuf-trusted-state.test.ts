@@ -117,6 +117,35 @@ describe("async adapter over pinned TUF trusted metadata store", () => {
     );
   });
 
+  it("recovers from an expired cached timestamp without weakening durable rollback checks", async () => {
+    const { store, records } = memoryStore();
+    const seed = await AsyncTufTrustedStateAdapter.create(store, fence, metadata(1, "root"), () => ({
+      updateRoot: vi.fn(),
+      updateTimestamp: vi.fn(),
+      updateSnapshot: vi.fn(),
+      updateDelegatedTargets: vi.fn(),
+      getRole: vi.fn(() => undefined)
+    }));
+    await seed.refreshTimestamp(metadata(1, "timestamp"));
+
+    const recoveredUpstream = {
+      updateRoot: vi.fn(),
+      updateTimestamp: vi.fn()
+        .mockImplementationOnce(() => { throw new Error("cached timestamp expired"); })
+        .mockImplementation(() => undefined),
+      updateSnapshot: vi.fn(),
+      updateDelegatedTargets: vi.fn(),
+      getRole: vi.fn(() => undefined)
+    };
+    const recovered = await AsyncTufTrustedStateAdapter.create(
+      store, fence, metadata(1, "root"), () => recoveredUpstream
+    );
+    await recovered.refreshTimestamp(metadata(2, "timestamp"));
+
+    expect(recoveredUpstream.updateTimestamp).toHaveBeenCalledTimes(2);
+    expect(records.get("timestamp")?.version).toBe(2);
+  });
+
   it("rotates roots sequentially through upstream validation and durable commits", async () => {
     const { store, records } = memoryStore();
     const upstream = {
