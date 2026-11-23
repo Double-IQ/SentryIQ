@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 import { createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
 import { canonicalize } from "@tufjs/canonical-json";
+import { Metadata, MetadataKind } from "@tufjs/models";
 import { describe, expect, it } from "vitest";
 import { createNodeAAsyncTufUpdater } from "../src/node-a-tuf-runtime";
 import { AsyncTufUpdater } from "../src/async-tuf-updater";
@@ -68,6 +69,12 @@ describe("Node A async TUF runtime assembly", () => {
     const data = Buffer.from(canonicalize(signed));
     const signature = sign("sha256", data, privateKey);
     expect(verify("sha256", data, publicKey, signature)).toBe(true);
+  });
+
+  it("preserves the canonical signed root through the upstream TUF model parser", () => {
+    const raw = JSON.parse(Buffer.from(tufRootBase64, "base64").toString("utf8"));
+    const parsed = Metadata.fromJSON(MetadataKind.Root, raw);
+    expect(canonicalize(parsed.signed.toJSON())).toBe(canonicalize(raw.signed));
   });
 
   it("verifies the provisioned Sigstore TUF root signatures with Workerd crypto", () => {
