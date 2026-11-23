@@ -472,18 +472,18 @@ describe("Node A Workers runtime proof", () => {
     const stageId = "55555555-5555-4555-8555-555555555555";
     const objectKey = "objects/66666666-6666-4666-8666-666666666666";
     first.registerTufTargetStage(stageId, objectKey, lock1);
-    expect(first.listStaleTufTargetStages(lock1)).toEqual([]);
+    await expect(first.listStaleTufTargetStages(lock1)).resolves.toEqual([]);
 
     await first.releaseRunLock(lock1);
     const second = env.NODE_A_STATE.get(id);
     const lock2 = await second.acquireRunLock(60_000);
     expect(lock2.fence).toBe(lock1.fence + 1);
-    expect(second.listStaleTufTargetStages(lock2)).toEqual([
+    await expect(second.listStaleTufTargetStages(lock2)).resolves.toEqual([
       { stageId, objectKey, fence: lock1.fence }
     ]);
-    expect(() => second.deleteTufTargetStage(stageId, objectKey, lock1)).toThrow();
-    second.deleteTufTargetStage(stageId, objectKey, lock2);
-    expect(second.listStaleTufTargetStages(lock2)).toEqual([]);
+    await expect(second.deleteTufTargetStage(stageId, objectKey, lock1)).rejects.toThrow();
+    await second.deleteTufTargetStage(stageId, objectKey, lock2);
+    await expect(second.listStaleTufTargetStages(lock2)).resolves.toEqual([]);
     await second.releaseRunLock(lock2);
   });
 
