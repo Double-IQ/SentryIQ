@@ -432,6 +432,23 @@ describe("Node A Workers runtime proof", () => {
     });
   });
 
+  it("rejects control characters in the configured API token", async () => {
+    const protectedEnv = Object.create(env) as typeof env & { NODE_A_API_TOKEN: string };
+    protectedEnv.NODE_A_API_TOKEN = "a".repeat(31) + "\n";
+    const response = await workerExports.default.fetch(
+      new Request("https://node-a.test/internal/tuf/refresh", {
+        method: "POST",
+        headers: { authorization: "Bearer " + "a".repeat(32) }
+      }),
+      protectedEnv,
+      {} as ExecutionContext
+    );
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Node A API token must be 32-512 bytes and contain no control characters"
+    });
+  });
+
   it("rejects an invalid bearer token before touching TUF or storage", async () => {
     const protectedEnv = Object.create(env) as typeof env & { NODE_A_API_TOKEN: string };
     protectedEnv.NODE_A_API_TOKEN = "a".repeat(64);
