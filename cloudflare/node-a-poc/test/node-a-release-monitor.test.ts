@@ -117,7 +117,7 @@ describe("Node A scheduled release monitor composition", () => {
         })
       }
     });
-    await expect(new NodeAReleaseMonitor(f.deps).run()).rejects.toThrow("acknowledged by Node 4");
+    await expect(new NodeAReleaseMonitor(f.deps).run()).rejects.toThrow("scheduled release monitor failed");
     expect(f.pins).toHaveLength(0);
     expect(f.alerts[0]?.[1]).toMatchObject({ phase: "private_host_and_node4_challenge_report_exchange" });
   });
