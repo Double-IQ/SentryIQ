@@ -28,8 +28,7 @@ export class AsyncTufTrustedStateAdapter {
   private constructor(
     private readonly trusted: PinnedTufTrustedMetadataStore,
     private readonly session: FencedTufMetadataSession,
-    private readonly metadata: TufMetadataStore,
-    private readonly fence: TufRunFence
+    private readonly metadata: TufMetadataStore
   ) {}
 
   /**
@@ -43,7 +42,7 @@ export class AsyncTufTrustedStateAdapter {
     createTrustedStore: PinnedTufTrustedMetadataStoreFactory
   ): Promise<AsyncTufTrustedStateAdapter> {
     let trusted: PinnedTufTrustedMetadataStore | undefined;
-    const { session, root } = await FencedTufMetadataSession.create(
+    const { session } = await FencedTufMetadataSession.create(
       metadata,
       fence,
       bootstrapRoot,
@@ -54,7 +53,7 @@ export class AsyncTufTrustedStateAdapter {
       }
     );
     if (!trusted) throw new Error("pinned tuf-js trusted metadata store was not initialized");
-    return new AsyncTufTrustedStateAdapter(trusted, session, metadata, fence);
+    return new AsyncTufTrustedStateAdapter(trusted, session, metadata);
   }
 
   refreshRoot(bytes: Uint8Array): Promise<TufMetadataIdentity> {
