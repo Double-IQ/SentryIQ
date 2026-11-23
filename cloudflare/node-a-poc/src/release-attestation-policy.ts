@@ -116,8 +116,12 @@ export function verifyReleaseAttestationBundle(
     throw new Error("SLSA source commit does not match GitHub's independently resolved release tag");
   }
 
-  const certificate = bundle.verificationMaterial?.x509CertificateChain?.certificates?.[0]?.rawBytes
-    ?? bundle.verificationMaterial?.certificate?.rawBytes;
+  const verificationMaterial = bundle.verificationMaterial?.content;
+  const certificate = verificationMaterial?.$case === "certificate"
+    ? verificationMaterial.certificate.rawBytes
+    : verificationMaterial?.$case === "x509CertificateChain"
+      ? verificationMaterial.x509CertificateChain.certificates[0]?.rawBytes
+      : undefined;
   if (!(certificate instanceof Uint8Array)) {
     throw new Error("verified Sigstore bundle does not contain the authenticated Fulcio leaf certificate");
   }
