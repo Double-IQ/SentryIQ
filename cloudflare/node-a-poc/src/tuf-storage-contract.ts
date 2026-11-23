@@ -29,6 +29,7 @@ export interface TufRunFence {
  * metadata only for a missing/corrupt cached record, never for this error.
  */
 export class TufMetadataReadError extends Error {
+  readonly code = "TUF_METADATA_READ_FAILED";
   readonly causeValue: unknown;
 
   constructor(message: string, causeValue?: unknown) {
