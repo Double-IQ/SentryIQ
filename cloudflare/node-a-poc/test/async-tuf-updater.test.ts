@@ -157,19 +157,27 @@ describe("async TUF updater workflow", () => {
   it("refreshes root, timestamp, snapshot, and delegated targets in TUF order", async () => {
     const trusted = makeTrustedAdapter();
     const calls: string[] = [];
+    const targetsDocument = {
+      signed: { _type: "targets", version: 1, targets: {
+        "release.bin": { length: targetInfo.length, hashes: targetInfo.hashes }
+      } }
+    };
+    const targetsLength = new TextEncoder().encode(JSON.stringify(targetsDocument)).byteLength;
+    const snapshotDocument = {
+      signed: { _type: "snapshot", version: 7, meta: {
+        "targets.json": { version: 1, length: targetsLength }
+      } }
+    };
+    const snapshotLength = new TextEncoder().encode(JSON.stringify(snapshotDocument)).byteLength;
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       calls.push(url);
       if (url.endsWith("/2.root.json")) return new Response("not found", { status: 404 });
       if (url.endsWith("/timestamp.json")) {
-        return json({ signed: { _type: "timestamp", version: 4, snapshotMeta: { version: 7, length: 2048 } } });
+        return json({ signed: { _type: "timestamp", version: 4, snapshotMeta: { version: 7, length: snapshotLength } } });
       }
-      if (url.endsWith("/snapshot.json")) {
-        return json({ signed: { _type: "snapshot", version: 7, meta: { "targets.json": { version: 1, length: 1024 } } } });
-      }
-      if (url.endsWith("/targets.json")) {
-        return json({ signed: { _type: "targets", version: 1, targets: { "release.bin": { length: targetInfo.length, hashes: targetInfo.hashes } } } });
-      }
+      if (url.endsWith("/snapshot.json")) return json(snapshotDocument);
+      if (url.endsWith("/targets.json")) return json(targetsDocument);
       return new Response("unexpected URL", { status: 500 });
     }));
 
@@ -194,6 +202,52 @@ describe("async TUF updater workflow", () => {
     expect(trusted.refreshDelegatedTargets).toHaveBeenCalledWith(
       "targets", "root", expect.any(Uint8Array)
     );
+  });
+
+  it("rejects a signed snapshot length above the configured metadata cap before fetching it", async () => {
+    const trusted = makeTrustedAdapter();
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.endsWith("/2.root.json")) return new Response("not found", { status: 404 });
+      if (url.endsWith("/timestamp.json")) {
+        return json({ signed: { _type: "timestamp", version: 4, snapshotMeta: { version: 7, length: 4096 } } });
+      }
+      return new Response("unexpected URL", { status: 500 });
+    }));
+    const { store } = fakeTargetStore();
+    const updater = new AsyncTufUpdater(
+      trusted as unknown as AsyncTufTrustedStateAdapter,
+      store,
+      fence,
+      {
+        metadataBaseUrl: "https://example.test/metadata",
+        targetBaseUrl: "https://example.test/targets",
+        snapshotMaxLength: 1024
+      }
+    );
+
+    await expect(updater.getTargetInfo("release.bin")).rejects.toThrow("declared length is invalid or exceeds");
+    expect(calls).toEqual([
+      "https://example.test/metadata/2.root.json",
+      "https://example.test/metadata/timestamp.json"
+    ]);
+  });
+
+  it("rejects invalid updater resource limits at construction", () => {
+    const { store } = fakeTargetStore();
+    const trusted = makeTrustedAdapter() as unknown as AsyncTufTrustedStateAdapter;
+    expect(() => new AsyncTufUpdater(trusted, store, fence, {
+      metadataBaseUrl: "https://example.test/metadata",
+      targetBaseUrl: "https://example.test/targets",
+      targetsMaxLength: Number.MAX_SAFE_INTEGER + 1
+    })).toThrow("targetsMaxLength");
+    expect(() => new AsyncTufUpdater(trusted, store, fence, {
+      metadataBaseUrl: "https://example.test/metadata",
+      targetBaseUrl: "https://example.test/targets",
+      maxDelegations: -1
+    })).toThrow("maxDelegations");
   });
 
   it("rejects a target larger than the configured staging bound before download", async () => {
