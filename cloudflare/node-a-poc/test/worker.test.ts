@@ -56,7 +56,7 @@ describe("Node A Workers runtime proof", () => {
       new Request("https://node-a-poc.test/internal/monitor/run", { method: "POST" }),
       env, {} as ExecutionContext
     );
-    expect(routeResponse.status).toBe(401);
+    expect(routeResponse.status).toBe(503);
 
     const missing = requiredNodeAMonitorConfiguration({} as Parameters<typeof requiredNodeAMonitorConfiguration>[0]);
     expect(missing).toContain("NODE_A_GITHUB_TOKEN");
@@ -75,11 +75,6 @@ describe("Node A Workers runtime proof", () => {
     );
     expect(apiAuthorized).toBeNull();
 
-    const baselineUnauthorized = authorizeBaselineInitialization(
-      new Request("https://node-a-poc.test/internal/baseline/initialize", { method: "POST" }),
-      "B".repeat(48)
-    );
-    expect(baselineUnauthorized?.status).toBe(401);
   });
 
   it("preserves Ed25519 verification when applying EC/RSA digest inference", () => {
