@@ -1,0 +1,82 @@
+import { Buffer } from "node:buffer";
+import { describe, expect, it } from "vitest";
+import { createNodeAAsyncTufUpdater } from "../src/node-a-tuf-runtime";
+import { AsyncTufUpdater } from "../src/async-tuf-updater";
+import { tufRootBase64 } from "./fixtures/tuf-root";
+import type { RunLock } from "../src/index";
+import type { CommittedTufTarget, StoredTufMetadata } from "../src/tuf-storage-contract";
+
+const lock: RunLock = {
+  runId: "a".repeat(32),
+  fence: 2,
+  token: "b".repeat(64),
+  expiresAt: Date.now() + 60_000
+};
+
+function fakeState() {
+  const metadata = new Map<string, StoredTufMetadata>();
+  const pointers = new Map<string, CommittedTufTarget>();
+  return {
+    metadata,
+    async readTufMetadata(roleName: string) {
+      return metadata.get(roleName) ?? null;
+    },
+    listTufMetadataRoles() {
+      return [...metadata.keys()];
+    },
+    commitVerifiedTufMetadata(
+      roleName: string,
+      expected: { version: number; sha256: string } | null,
+      next: StoredTufMetadata,
+      receivedLock: RunLock
+    ) {
+      if (receivedLock.runId !== lock.runId || receivedLock.fence !== lock.fence ||
+          receivedLock.token !== lock.token) throw new Error("stale lock");
+      const current = metadata.get(roleName) ?? null;
+      if (expected === null ? current !== null : !current ||
+          current.version !== expected.version || current.sha256 !== expected.sha256) {
+        throw new Error("metadata CAS mismatch");
+      }
+      metadata.set(roleName, { ...next, data: next.data.slice() });
+      return { version: next.version, sha256: next.sha256 };
+    },
+    commitTufTargetPointer(
+      descriptor: { targetPath: string; length: number; hashes: Readonly<Record<string, string>> },
+      objectKey: string,
+      receivedLock: RunLock
+    ) {
+      if (receivedLock.runId !== lock.runId || receivedLock.fence !== lock.fence ||
+          receivedLock.token !== lock.token) throw new Error("stale lock");
+      const pointer = {
+        ...descriptor, objectKey, fence: receivedLock.fence, committedAt: Date.now()
+      };
+      pointers.set(descriptor.targetPath, pointer);
+      return pointer;
+    },
+    readTufTargetPointer(targetPath: string) {
+      return pointers.get(targetPath) ?? null;
+    }
+  };
+}
+
+describe("Node A async TUF runtime assembly", () => {
+  it("constructs the real pinned upstream TrustedMetadataStore from the explicit root", async () => {
+    const state = fakeState();
+    const bucket = {
+      async put() { return { size: 0 }; },
+      async get() { return null; },
+      async delete() {}
+    };
+    const updater = await createNodeAAsyncTufUpdater({
+      state,
+      bucket,
+      currentLock: () => lock,
+      trustAnchor: new Uint8Array(Buffer.from(tufRootBase64, "base64")),
+      metadataBaseUrl: "https://tuf.example.test/metadata",
+      targetBaseUrl: "https://tuf.example.test/targets"
+    });
+
+    expect(updater).toBeInstanceOf(AsyncTufUpdater);
+    expect(state.metadata.get("root")?.version).toBeGreaterThan(0);
+  });
+});
