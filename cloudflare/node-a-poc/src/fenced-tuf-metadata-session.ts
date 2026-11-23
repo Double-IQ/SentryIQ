@@ -45,17 +45,26 @@ export class FencedTufMetadataSession {
   static async create(
     store: TufMetadataStore,
     fence: TufRunFence,
-    trustAnchor: Uint8Array
+    trustAnchor: Uint8Array,
+    verifyTrustedRoot: (rootBytes: Uint8Array) => void | Promise<void>
   ): Promise<{ session: FencedTufMetadataSession; root: StoredTufMetadata }> {
     if (!(trustAnchor instanceof Uint8Array) || trustAnchor.byteLength === 0 || trustAnchor.byteLength > 4 * 1024 * 1024) {
       throw new Error("explicit TUF trust anchor must be 1 byte to 4 MiB");
     }
     const session = new FencedTufMetadataSession(store, fence);
     const existing = await store.readRole("root");
-    if (existing) return { session, root: existing };
+    if (existing) {
+      // Durable bytes are untrusted input until the pinned upstream verifier
+      // has validated the self-signed root and constructed its trusted set.
+      await verifyTrustedRoot(existing.data.slice());
+      return { session, root: existing };
+    }
 
     const candidate = await makeStoredRole(trustAnchor, "root");
     if (candidate.version !== 1) throw new Error("initial TUF trust anchor must be root version 1");
+    // Never persist a caller-supplied bootstrap anchor merely because its JSON
+    // envelope says root v1. The upstream TUF implementation must validate it.
+    await verifyTrustedRoot(candidate.data.slice());
     try {
       await store.commitVerifiedRole("root", null, candidate, fence);
     } catch (error) {
