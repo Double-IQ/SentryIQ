@@ -147,6 +147,8 @@ describe("async TUF updater workflow", () => {
       targetBaseUrl: "https://mirror.test/targets/"
     });
 
+    await expect(updater.getTargetInfo("../secret")).rejects.toThrow("TUF target path is invalid");
+    await expect(updater.getTargetInfo("release.bin?redirect=1")).rejects.toThrow("TUF target path is invalid");
     await expect(updater.downloadTarget({ ...targetInfo, path: "../secret" })).rejects.toThrow("TUF target path is invalid");
     await expect(updater.downloadTarget({ ...targetInfo, path: "release.bin?redirect=1" })).rejects.toThrow("TUF target path is invalid");
     expect(fetchMock).not.toHaveBeenCalled();
