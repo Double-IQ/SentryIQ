@@ -488,7 +488,7 @@ describe("Node A Workers runtime proof", () => {
       "targets\\\\secret",
       "targets/file?redirect=1",
       "targets/file#fragment",
-      "targets/invalid\\u0000name"
+      "targets/invalid" + String.fromCharCode(0) + "name"
     ]) {
       expect(() => state.readTufTargetPointer(targetPath)).toThrow("TUF target path is invalid");
     }
