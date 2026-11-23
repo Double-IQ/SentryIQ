@@ -3,9 +3,9 @@ import type {
   StoredTufMetadata,
   TufMetadataIdentity,
   TufMetadataStore,
-  TufMetadataReadError,
   TufRunFence
 } from "./tuf-storage-contract";
+import { TufMetadataReadError } from "./tuf-storage-contract";
 import { TufPersistenceCommitError } from "./guarded-tuf-updater";
 
 export interface DurableMetadataStateClient {
