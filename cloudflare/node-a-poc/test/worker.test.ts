@@ -17,7 +17,7 @@ import type { TufTargetDescriptor, TufTargetStage } from "../src/tuf-storage-con
 import { R2TufTargetStore } from "../src/r2-tuf-target-store";
 import { stageVerifiedTufTarget } from "../src/verified-target-stream";
 import { describe, expect, it } from "vitest";
-import { authorizeNodeATufRequest, requiredNodeAMonitorConfiguration } from "../src/index";
+import { authorizeBaselineInitialization, authorizeNodeATufRequest, requiredNodeAMonitorConfiguration } from "../src/index";
 
 async function expectRemoteRejection(promise: Promise<unknown>, message: string): Promise<void> {
   let caught = false;
@@ -74,6 +74,12 @@ describe("Node A Workers runtime proof", () => {
       "A".repeat(48)
     );
     expect(apiAuthorized).toBeNull();
+
+    const baselineUnauthorized = authorizeBaselineInitialization(
+      new Request("https://node-a-poc.test/internal/baseline/initialize", { method: "POST" }),
+      "B".repeat(48)
+    );
+    expect(baselineUnauthorized?.status).toBe(401);
 
   });
 
