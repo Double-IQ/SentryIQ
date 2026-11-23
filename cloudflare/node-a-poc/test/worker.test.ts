@@ -415,13 +415,30 @@ describe("Node A Workers runtime proof", () => {
     });
   });
 
-  it("rejects an invalid bearer token before touching TUF or storage", async () => {
+  it("rejects an undersized configured API token before accepting any request", async () => {
     const protectedEnv = Object.create(env) as typeof env & { NODE_A_API_TOKEN: string };
-    protectedEnv.NODE_A_API_TOKEN = "expected-secret";
+    protectedEnv.NODE_A_API_TOKEN = "short-secret";
     const response = await workerExports.default.fetch(
       new Request("https://node-a.test/internal/tuf/refresh", {
         method: "POST",
-        headers: { authorization: "Bearer wrong-secret" }
+        headers: { authorization: "Bearer short-secret" }
+      }),
+      protectedEnv,
+      {} as ExecutionContext
+    );
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Node A API token must be 32-512 bytes and contain no control characters"
+    });
+  });
+
+  it("rejects an invalid bearer token before touching TUF or storage", async () => {
+    const protectedEnv = Object.create(env) as typeof env & { NODE_A_API_TOKEN: string };
+    protectedEnv.NODE_A_API_TOKEN = "a".repeat(64);
+    const response = await workerExports.default.fetch(
+      new Request("https://node-a.test/internal/tuf/refresh", {
+        method: "POST",
+        headers: { authorization: "Bearer " + "b".repeat(64) }
       }),
       protectedEnv,
       {} as ExecutionContext
@@ -435,7 +452,7 @@ describe("Node A Workers runtime proof", () => {
     const response = await workerExports.default.fetch(
       new Request("https://node-a.test/internal/tuf/refresh", {
         method: "POST",
-        headers: { authorization: "Bearer expected-secret" }
+        headers: { authorization: "Bearer " + "a".repeat(64) }
       }),
       protectedEnv,
       {} as ExecutionContext
