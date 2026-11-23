@@ -3,7 +3,7 @@
 **Workstream:** SentryIQ Node A — Cloudflare Workers security monitoring and asynchronous TUF update service  
 **Tracking PR:** #145  
 **Working branch:** `feat/node-a-async-target-staging`  
-**Status:** Implementation and automated verification are progressing; production readiness is not established.
+**Status:** Repository implementation and automated verification are complete for the current branch; external integration and operational acceptance remain outstanding. Production readiness is not established.
 
 This checklist is the execution record for completing Node A in Phase 2. Mark an item complete only when supported by repository evidence, test output, or recorded owner-approved operational evidence. Do not repeat completed work. Do not claim production readiness from unit tests or a Wrangler dry-run.
 
