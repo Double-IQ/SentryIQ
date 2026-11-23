@@ -81,6 +81,13 @@ export class AsyncTufUpdater {
       targetMaxLength: config.targetMaxLength ?? DEFAULTS.targetMaxLength,
       prefixTargetsWithHash: config.prefixTargetsWithHash ?? DEFAULTS.prefixTargetsWithHash
     };
+    assertPositiveLimit(this.config.maxRootRotations, 256, "maxRootRotations");
+    assertPositiveLimit(this.config.maxDelegations, 256, "maxDelegations", true);
+    assertPositiveLimit(this.config.rootMaxLength, Number.MAX_SAFE_INTEGER, "rootMaxLength");
+    assertPositiveLimit(this.config.timestampMaxLength, Number.MAX_SAFE_INTEGER, "timestampMaxLength");
+    assertPositiveLimit(this.config.snapshotMaxLength, Number.MAX_SAFE_INTEGER, "snapshotMaxLength");
+    assertPositiveLimit(this.config.targetsMaxLength, Number.MAX_SAFE_INTEGER, "targetsMaxLength");
+    assertPositiveLimit(this.config.targetMaxLength, Number.MAX_SAFE_INTEGER, "targetMaxLength");
     this.metadataBaseUrl = normalizeHttpsBaseUrl(config.metadataBaseUrl, "metadata");
     this.targetBaseUrl = normalizeHttpsBaseUrl(config.targetBaseUrl, "target");
   }
@@ -117,7 +124,8 @@ export class AsyncTufUpdater {
       : "snapshot.json";
     const snapshotBytes = await this.fetchMetadata(
       this.metadataUrl(snapshotFile),
-      snapshotMeta.length ?? this.config.snapshotMaxLength
+      this.config.snapshotMaxLength,
+      snapshotMeta.length
     );
     await this.trusted.refreshSnapshot(snapshotBytes);
     this.refreshed = true;
@@ -240,7 +248,8 @@ export class AsyncTufUpdater {
       : encodedRole + ".json";
     const bytes = await this.fetchMetadata(
       this.metadataUrl(fileName),
-      meta.length ?? this.config.targetsMaxLength
+      this.config.targetsMaxLength,
+      meta.length
     );
     await this.trusted.refreshDelegatedTargets(roleName, parentRoleName, bytes);
     return this.trusted.getRole(roleName);
@@ -250,7 +259,16 @@ export class AsyncTufUpdater {
     return new URL(fileName, this.metadataBaseUrl).toString();
   }
 
-  private async fetchMetadata(url: string, maxLength: number): Promise<Uint8Array> {
+  private async fetchMetadata(
+    url: string,
+    maxLength: number,
+    expectedLength?: number
+  ): Promise<Uint8Array> {
+    if (!Number.isSafeInteger(maxLength) || maxLength < 1 ||
+        (expectedLength !== undefined &&
+          (!Number.isSafeInteger(expectedLength) || expectedLength < 0 || expectedLength > maxLength))) {
+      throw new Error("TUF metadata declared length is invalid or exceeds its configured bound: " + url);
+    }
     const response = await fetch(url);
     if (!response.ok) throw new TufMetadataHttpError(response.status, url);
     if (!response.body) throw new Error("TUF metadata response has no readable body: " + url);
@@ -274,7 +292,17 @@ export class AsyncTufUpdater {
     } finally {
       reader.releaseLock();
     }
+    if (expectedLength !== undefined && total !== expectedLength) {
+      throw new Error("TUF metadata response length does not match its signed descriptor: " + url);
+    }
     return new Uint8Array(Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))));
+  }
+}
+
+
+function assertPositiveLimit(value: number, maximum: number, label: string, allowZero = false): void {
+  if (!Number.isSafeInteger(value) || value > maximum || value < (allowZero ? 0 : 1)) {
+    throw new Error("TUF updater " + label + " must be a safe integer within its supported bounds");
   }
 }
 
