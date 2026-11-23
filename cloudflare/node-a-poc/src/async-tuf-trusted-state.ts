@@ -55,6 +55,38 @@ export class AsyncTufTrustedStateAdapter {
       }
     );
     if (!trusted) throw new Error("pinned tuf-js trusted metadata store was not initialized");
+
+    // Rehydrate the complete durable trusted set in TUF dependency order.
+    // Every role is re-parsed and re-verified by the pinned upstream store;
+    // these are not trusted merely because they came from durable storage.
+    const roleNames = await metadata.listRoles();
+    if (!roleNames.includes("root")) {
+      throw new Error("durable TUF role index is missing the trusted root");
+    }
+    const timestamp = roleNames.includes("timestamp")
+      ? await metadata.readRole("timestamp")
+      : null;
+    if (timestamp) {
+      await assertStoredRoleIdentity("timestamp", timestamp);
+      trusted.updateTimestamp(timestamp.data.slice());
+    }
+    const snapshot = roleNames.includes("snapshot")
+      ? await metadata.readRole("snapshot")
+      : null;
+    if (snapshot) {
+      await assertStoredRoleIdentity("snapshot", snapshot);
+      trusted.updateSnapshot(snapshot.data.slice());
+    }
+    const delegatedRoles = roleNames
+      .filter((name) => name !== "root" && name !== "timestamp" && name !== "snapshot")
+      .sort((a, b) => a.split("/").length - b.split("/").length || a.localeCompare(b));
+    for (const roleName of delegatedRoles) {
+      const stored = await metadata.readRole(roleName);
+      if (!stored) throw new Error("durable delegated TUF role disappeared during recovery: " + roleName);
+      await assertStoredRoleIdentity(roleName, stored);
+      trusted.updateDelegatedTargets(roleName, stored.data.slice());
+    }
+
     return new AsyncTufTrustedStateAdapter(trusted, session, metadata);
   }
 
@@ -119,5 +151,33 @@ export class AsyncTufTrustedStateAdapter {
         acceptIntoTrustedSet: upstreamAccept
       });
     });
+  }
+}
+
+
+async function assertStoredRoleIdentity(
+  roleName: string,
+  stored: StoredTufMetadata
+): Promise<void> {
+  const digest = await crypto.subtle.digest("SHA-256", stored.data);
+  const sha256 = Array.from(new Uint8Array(digest), (value) =>
+    value.toString(16).padStart(2, "0")
+  ).join("");
+  if (sha256 !== stored.sha256) {
+    throw new Error("durable TUF role digest mismatch during trusted-state recovery: " + roleName);
+  }
+  let envelope: { signed?: { _type?: unknown; type?: unknown; version?: unknown } };
+  try {
+    envelope = JSON.parse(new TextDecoder().decode(stored.data)) as typeof envelope;
+  } catch {
+    throw new Error("durable TUF role is not valid JSON during recovery: " + roleName);
+  }
+  const expectedType = roleName === "root" || roleName === "timestamp" || roleName === "snapshot"
+    ? roleName
+    : "targets";
+  if (!envelope.signed ||
+      (envelope.signed._type ?? envelope.signed.type) !== expectedType ||
+      envelope.signed.version !== stored.version) {
+    throw new Error("durable TUF role identity mismatch during recovery: " + roleName);
   }
 }
