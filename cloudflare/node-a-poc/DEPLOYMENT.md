@@ -36,7 +36,7 @@ The Cron expression is code/configuration only. It has not been activated agains
 | Secret | Purpose and validation |
 |---|---|
 | `NODE_A_API_TOKEN` | 32–512-byte high-entropy bearer credential for internal Worker routes |
-| `NODE_A_GITHUB_TOKEN` | Least-privilege read-only GitHub credential for SentryIQ release/tag and attestation evidence |
+| `NODE_A_GITHUB_TOKEN` | Least-privilege fine-grained GitHub credential with repository `Contents: read` and `Attestations: read` permissions for SentryIQ release/tag and attestation evidence; no write permissions |
 | `NODE_A_EVENT_TOKEN` | A-only Node 4 challenge/report API credential |
 | `NODE_A_REPORT_PRIVATE_KEY_B64` | Canonical base64 of the Node A Ed25519 64-byte secret-key representation (32-byte seed + matching 32-byte public key); verify the public key against Node 4's registered Node A key |
 | `NODE_A_PRIVATE_HOST_TOKEN` | A-only bearer credential for the private-host collector |
