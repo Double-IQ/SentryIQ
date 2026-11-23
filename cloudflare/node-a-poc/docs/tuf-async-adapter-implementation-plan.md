@@ -138,3 +138,40 @@ The workerd regression verifies the metadata adapter's read/write round trip, re
 The pinned `tuf-js@6.0.3` patch now includes `isTufStorageError`, which recognizes the stable read and commit error codes emitted by the Node A adapter. Updater recovery catches in force-cache bootstrap, timestamp cache loading, snapshot cache loading, delegated-target cache loading, remote snapshot/targets error wrapping, and metadata persistence now rethrow these errors rather than converting them into ordinary cache misses or generic runtime/persistence wrappers. This preserves the distinction between a missing/corrupt cached record and a failed durable storage operation.
 
 The new upstream `storage-error.test.ts` regression verifies both codes are classified as non-recoverable and ordinary parse errors remain recoverable. Exact-head CI passed **9 upstream CLIENT suites / 44 tests** and **21/21 workerd tests** ([CI run 45106120596](https://github.com/Double-IQ/SentryIQ/actions/runs/45106120596)). This is still the fail-closed error-propagation slice; the full asynchronous updater factory, metadata read/commit integration, R2 target streaming and end-to-end TUF refresh matrix remain outstanding.
+
+
+## Stream-native fetcher and Sigstore consumer contract (source-audited)
+
+The pinned fetcher and wrapper were inspected at their exact commits. The adapter boundary must change the public target result, not merely replace the backing filesystem:
+
+- `BaseFetcher.downloadFile(url, maxLength, handler)` currently writes every target to `tempFile()` and passes a filename to the handler. Replace this path-based callback with a stream consumer or a target-stage sink. The fetcher must count bytes before forwarding each chunk, cancel the reader immediately on overflow, propagate fetch/stream failures, and require exact final length before the stage can be committed.
+- Metadata `downloadBytes` remains bounded by the metadata role limit and can collect chunks into a `Uint8Array`/`Buffer`; it must not route through a temporary file. Enforce the byte limit while collecting, not after concatenation.
+- Target integrity verification must cover every algorithm in `TargetFile.hashes`. Since the upstream model owns the trusted descriptor, the adapter must feed the same bytes to upstream verification and the R2 stage (or perform equivalent incremental digest checks using the complete descriptor). Do not publish a target pointer until both upstream verification and the storage completion checks succeed.
+- `Updater.downloadTarget` must return a target handle/descriptor, not a string path. `findCachedTarget` must return the same abstraction or `undefined`; it must treat only explicit not-found and integrity mismatch as cache misses. The adapter's stream/open errors remain fatal.
+- The current `@sigstore/tuf` `readTarget()` calls `fs.readFile(path, 'utf-8')` after `getTargetPath()`. Replace both with a target-reader API. The Sigstore package currently consumes trust metadata and target payload as text; decode UTF-8 only at this final consumer boundary, with a documented maximum target size for string consumers. For larger targets, expose a stream API rather than silently buffering.
+- The current `TUFClient` constructor performs cache directory creation and seed copying synchronously. Replace it with `static async create(options, storage)` (or equivalent), with an explicit trust-anchor byte input and no implicit `seeds.json` filesystem writes. Any bundled seed target must enter through the same immutable target-store verification/publish protocol or be removed from the Worker adapter mode.
+- The adapter-mode build must fail if `node:fs`, `node:path`, `tempFile`, `createReadStream`, `createWriteStream`, `readFileSync`, `writeFileSync`, `copyFileSync`, `existsSync`, `mkdirSync`, or path-returning target APIs remain reachable from runtime entry points. Test this with a runtime trap as well as a source-level forbidden-import scan; a scan alone is insufficient because transitive dependencies may reintroduce filesystem access.
+
+### Proposed narrow API shape
+
+```ts
+export interface TufTargetHandle {
+  readonly path: string;
+  readonly length: number;
+  readonly hashes: Readonly<Record<string, string>>;
+  open(): Promise<ReadableStream<Uint8Array>>;
+}
+
+export interface AsyncTufFetcher {
+  fetch(url: string): Promise<ReadableStream<Uint8Array>>;
+  fetchMetadata(url: string, maxBytes: number): Promise<Uint8Array>;
+  stageTarget(
+    url: string,
+    descriptor: TufTargetDescriptor,
+    store: TufTargetStore,
+    fence: TufRunFence
+  ): Promise<CommittedTufTarget>;
+}
+```
+
+The interfaces above are a design proposal, not code already wired into `tuf-js`. The first implementation slice should land in a maintained fork/patch with compile-time types and upstream tests, then the Sigstore wrapper should be migrated against that new API. The existing filesystem-based `Updater` API must remain available to non-Worker consumers unless upstream chooses a major-version breaking change; the Worker adapter should use a separate explicit async factory/entry point rather than silently changing the package-wide contract.
