@@ -454,8 +454,10 @@ describe("Node A Workers runtime proof", () => {
       length: content.byteLength,
       hashes: { sha256: createHash("sha256").update(content).digest("hex") }
     };
+    const stageId = "22222222-2222-4222-8222-222222222222";
     const objectKey = "objects/11111111-1111-4111-8111-111111111111";
-    const saved = await state.commitTufTargetPointer(descriptor, objectKey, lock);
+    await state.registerTufTargetStage(stageId, objectKey, lock);
+    const saved = await state.commitTufTargetPointer(descriptor, stageId, objectKey, lock);
     expect(saved.objectKey).toBe(objectKey);
     expect(await state.readTufTargetPointer(descriptor.targetPath)).toEqual(saved);
 
