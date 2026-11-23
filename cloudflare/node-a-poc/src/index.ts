@@ -11,6 +11,7 @@ import type { CommittedTufTarget, TufTargetDescriptor } from "./tuf-storage-cont
 
 export interface Env {
   NODE_A_STATE: DurableObjectNamespace<NodeAState>;
+  NODE_A_TARGETS: R2Bucket;
 }
 
 export interface ReleasePin {
@@ -574,3 +575,5 @@ export default {
     return new Response("not found", { status: 404 });
   }
 };
+
+export { createNodeAAsyncTufUpdater } from "./node-a-tuf-runtime";
