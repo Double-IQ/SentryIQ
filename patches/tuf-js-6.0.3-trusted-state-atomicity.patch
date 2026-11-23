@@ -303,7 +303,7 @@ diff --git a/packages/models/src/utils/verify.ts b/packages/models/src/utils/ver
 +import { verify, type KeyObject } from 'node:crypto';
  import { JSONObject } from '../utils/types';
  import { PublicKey } from './key';
-@@ -10,7 +10,12 @@ export const verifySignature = (
+@@ -10,9 +10,14 @@ export const verifySignature = (
  ): boolean => {
    const canonicalData = Buffer.from(canonicalize(metaDataSignedData));
  
