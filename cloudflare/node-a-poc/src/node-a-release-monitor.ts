@@ -18,6 +18,7 @@ export interface NodeAReleasePinCandidate {
 
 export interface NodeAReleaseMonitorDependencies {
   readonly fetcher: Pick<NodeAReleaseAssetFetcher, "fetchDeployedVersion" | "fetchReleaseAssets">;
+  readonly assertBaseline?: () => Promise<void> | void;
   readonly refreshTuf: () => Promise<void>;
   readonly loadTrustedRoot: () => Promise<string>;
   readonly eventRunner: Pick<NodeAEventRunner, "run">;
@@ -64,6 +65,9 @@ export class NodeAReleaseMonitor {
     const execution = { phase: "acquire_run_lease", version: "unknown" };
     try {
       return await this.dependencies.withRunLease(async () => {
+        execution.phase = "assert_independent_release_baseline";
+        await this.dependencies.assertBaseline?.();
+
         execution.phase = "refresh_sigstore_tuf";
         await this.dependencies.refreshTuf();
 
