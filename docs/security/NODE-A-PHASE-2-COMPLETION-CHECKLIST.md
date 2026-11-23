@@ -46,7 +46,8 @@ This checklist is the execution record for completing Node A in Phase 2. Mark an
 ## 3. Private-host attestation service — integration blocker
 
 - [x] Collector core, framework-neutral authenticated request handler, durable single-use nonce store, Ed25519 response signing, and regression tests (integrated into main by PR #99).
-- [ ] Implement the production HTTPS listener/reverse-proxy adapter for `/private-host-attestation`; no adapter may expose the signing key through the public PHP-FPM identity.
+- [x] Add a reference PHP-FPM entrypoint and deployment template requiring a dedicated FPM pool, owner-only config outside the webroot, a 0700 private directory, bounded request bodies and no-store responses (`deploy/private-host-attestation/`).
+- [ ] Provision and verify the provider-specific HTTPS listener/reverse-proxy route for `/private-host-attestation`; the reference Nginx/FPM template is not a live host configuration and must not expose the signing key through the public PHP-FPM identity.
 - [ ] Run the collector under a dedicated OS identity, separate from PHP-FPM.
 - [ ] Restrict that identity to approved read-only inspection paths.
 - [ ] Provision and protect the isolated Ed25519 signing key.
