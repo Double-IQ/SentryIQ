@@ -26,6 +26,8 @@ export interface DurableTargetPointerClient {
   registerTufTargetStage(stageId: string, objectKey: string, fence: RunLock): Promise<void> | void;
   listStaleTufTargetStages(fence: RunLock, limit?: number): Promise<Array<{ stageId: string; objectKey: string; fence: number }>> | Array<{ stageId: string; objectKey: string; fence: number }>;
   deleteTufTargetStage(stageId: string, objectKey: string, fence: RunLock): Promise<void> | void;
+  listRetiredTufTargetObjects(fence: RunLock, limit?: number): Promise<string[]> | string[];
+  deleteRetiredTufTargetObject(objectKey: string, fence: RunLock): Promise<void> | void;
   commitTufTargetPointer(
     descriptor: TufTargetDescriptor,
     stageId: string,
@@ -156,6 +158,21 @@ export class R2TufTargetStore implements TufTargetStore {
     for (const stage of stale) {
       await this.bucket.delete(stage.objectKey);
       await this.state.deleteTufTargetStage(stage.stageId, stage.objectKey, lock);
+      removed += 1;
+    }
+    return removed;
+  }
+
+  async cleanupRetiredObjects(lock: RunLock, limit = 100): Promise<number> {
+    assertFenceMatchesLock(
+      { runId: lock.runId, fence: lock.fence, token: lock.token },
+      this.currentLock()
+    );
+    const retired = await this.state.listRetiredTufTargetObjects(lock, limit);
+    let removed = 0;
+    for (const objectKey of retired) {
+      await this.bucket.delete(objectKey);
+      await this.state.deleteRetiredTufTargetObject(objectKey, this.currentLock());
       removed += 1;
     }
     return removed;
