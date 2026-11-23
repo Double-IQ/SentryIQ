@@ -428,6 +428,32 @@ describe("Node A Workers runtime proof", () => {
     expect(stage.descriptor).toBe(descriptor);
   });
 
+  it("publishes and reads immutable R2 target pointers only under the active fence", async () => {
+    const id = env.NODE_A_STATE.idFromName("node-a-tuf-target-pointer-test");
+    const state = env.NODE_A_STATE.get(id);
+    const lock = await state.acquireRunLock(60_000);
+    const content = new TextEncoder().encode("abc");
+    const descriptor: TufTargetDescriptor = {
+      targetPath: "targets/do-pointer.bin",
+      length: content.byteLength,
+      hashes: { sha256: createHash("sha256").update(content).digest("hex") }
+    };
+    const objectKey = "objects/11111111-1111-4111-8111-111111111111";
+    const saved = await state.commitTufTargetPointer(descriptor, objectKey, lock);
+    expect(saved.objectKey).toBe(objectKey);
+    expect(await state.readTufTargetPointer(descriptor.targetPath)).toEqual(saved);
+
+    await state.releaseRunLock(lock);
+    const replacement = await state.acquireRunLock(60_000);
+    await expect(state.commitTufTargetPointer(
+      { ...descriptor, length: descriptor.length + 1 },
+      "objects/22222222-2222-4222-8222-222222222222",
+      lock
+    )).rejects.toThrow("valid active Node A run fence required");
+    expect(await state.readTufTargetPointer(descriptor.targetPath)).toEqual(saved);
+    await state.releaseRunLock(replacement);
+  });
+
   it("adapts TUF metadata commits to the fenced Durable Object store", async () => {
     const id = env.NODE_A_STATE.idFromName("node-a-tuf-metadata-store-adapter-test");
     const state = env.NODE_A_STATE.get(id);
