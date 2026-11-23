@@ -175,6 +175,23 @@ diff --git a/packages/client/src/updater.ts b/packages/client/src/updater.ts
 +        if (isTufStorageError(error)) throw error;
 @@ -466,0 +489,1 @@
 +      if (isTufStorageError(error)) throw error;
+diff --git a/packages/client/tests/storage-error.test.ts b/packages/client/tests/storage-error.test.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/client/tests/storage-error.test.ts
+@@ -0,0 +1,15 @@
++import { isTufStorageError } from '../src/updater';
++
++describe('durable TUF storage errors', () => {
++  it('classifies durable read and commit failures as non-recoverable', () => {
++    expect(isTufStorageError({ code: 'TUF_METADATA_READ_FAILED' })).toBe(true);
++    expect(isTufStorageError({ code: 'TUF_METADATA_COMMIT_FAILED' })).toBe(true);
++    expect(isTufStorageError(new Error('ordinary cache parse failure'))).toBe(
++      false
++    );
++    expect(isTufStorageError(null)).toBe(false);
++  });
++});
 diff --git a/packages/models/src/index.ts b/packages/models/src/index.ts
 --- a/packages/models/src/index.ts
 +++ b/packages/models/src/index.ts
