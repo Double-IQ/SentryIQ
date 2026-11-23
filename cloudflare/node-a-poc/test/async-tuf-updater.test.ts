@@ -152,7 +152,7 @@ describe("async TUF updater workflow", () => {
       path: "release%2Fbundle.bin"
     });
 
-    expect(fetchMock).toHaveBeenCalledWith("https://mirror.test/targets/release%252Fbundle.bin");
+    expect(fetchMock).toHaveBeenCalledWith("https://mirror.test/targets/release%252Fbundle.bin", { redirect: "error" });
   });
 
   it("uses the first signed target digest for consistent-snapshot naming like pinned tuf-js", async () => {
@@ -177,7 +177,8 @@ describe("async TUF updater workflow", () => {
 
     await updater.downloadTarget({ path: "release.bin", length: payload.byteLength, hashes });
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://mirror.test/targets/" + hashes.sha512 + ".release.bin"
+      "https://mirror.test/targets/" + hashes.sha512 + ".release.bin",
+      { redirect: "error" }
     );
   });
 
@@ -346,6 +347,7 @@ describe("async TUF updater workflow", () => {
 
     await expect(updater.getTargetInfo("release.bin")).resolves.toEqual(targetInfo);
     expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledWith("https://example.test/metadata/timestamp.json", { redirect: "error" });
     expect(trusted.refreshTimestamp).toHaveBeenCalledOnce();
     expect(trusted.refreshSnapshot).toHaveBeenCalledOnce();
   });
