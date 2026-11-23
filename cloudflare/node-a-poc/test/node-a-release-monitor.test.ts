@@ -97,7 +97,7 @@ describe("Node A scheduled release monitor composition", () => {
     await expect(new NodeAReleaseMonitor(failed.deps).run()).rejects.toThrow("after independent owner alert");
     expect(failed.alerts).toEqual([["scheduled_integrity_run_failed", {
       node_id: "integrity-a", phase: "refresh_sigstore_tuf",
-      release_version: "unknown", exception: "Error"
+      exception: "Error"
     }]]);
 
     const alreadyAlerted = dependencies({
