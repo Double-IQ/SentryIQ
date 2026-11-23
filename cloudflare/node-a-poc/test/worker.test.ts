@@ -753,6 +753,7 @@ describe("fenced asynchronous TUF metadata session", () => {
       2,
       async (version) => {
         events.push(`fetch:${version}`);
+        if (version === 4) throw Object.assign(new Error("not found"), { statusCode: 404 });
         return roleBytes("root", version);
       },
       async (bytes) => {
@@ -762,7 +763,7 @@ describe("fenced asynchronous TUF metadata session", () => {
       { version: 1, sha256: root.sha256 }
     );
     expect(identity.version).toBe(3);
-    expect(events).toEqual(["fetch:2", "accept:2", "fetch:3", "accept:3"]);
+    expect(events).toEqual(["fetch:2", "accept:2", "fetch:3", "accept:3", "fetch:4"]);
     expect((await store.readRole("root"))?.version).toBe(3);
   });
 
