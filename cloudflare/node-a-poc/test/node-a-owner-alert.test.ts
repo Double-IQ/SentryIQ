@@ -38,6 +38,16 @@ describe("Node A independent direct owner-alert webhook", () => {
       .toThrow("independent HTTPS host");
   });
 
+  it("refuses to send credentials or arbitrary caller-supplied fields in alert context", async () => {
+    const webhook = new NodeAOwnerAlertWebhook(
+      "https://alerts.example.net/hooks/sentryiq", "alerts.example.net", token,
+      async () => new Response(null, { status: 204 })
+    );
+    await expect(webhook.send("integrity_mismatch", {
+      node_id: "integrity-a", release_version: "1.2.3", token: "do-not-send"
+    })).rejects.toThrow("non-alert data");
+  });
+
   it("surfaces delivery failure, redirect rejection and oversized payloads", async () => {
     const failed = new NodeAOwnerAlertWebhook(
       "https://alerts.example.net/hooks/sentryiq", "alerts.example.net", token,
