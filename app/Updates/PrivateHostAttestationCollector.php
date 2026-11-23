@@ -362,7 +362,9 @@ final class PrivateHostAttestationCollector
                     if (isset($seen[$relative])) continue;
                     $seen[$relative] = true;
                     if ($this->safeRelativePath($relative) && isset($expected[$relative])) continue;
-                    if ($item->isLink() || $item->isFile()) {
+                    // Any non-directory entry outside the pinned inventory is unexpected,
+                    // including FIFOs, sockets and device nodes (not only regular files).
+                    if ($item->isLink() || !$item->isDir()) {
                         // Preserve detection without emitting an unsafe or secret-bearing filename.
                         $evidencePath = $this->safeRelativePath($relative)
                             ? $relative
