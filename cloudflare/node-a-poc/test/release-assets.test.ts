@@ -46,7 +46,7 @@ describe("Node A bounded release asset fetcher", () => {
     await expect(badRedirect.fetchReleaseAssets("1.2.3")).rejects.toThrow("allowlist");
 
     const oversized = new NodeAReleaseAssetFetcher(async (input) => String(input).endsWith("/release-manifest.json")
-      ? new Response(new Uint8Array(100), { status: 200, headers: { "content-length": "100" } })
+      ? new Response(new Uint8Array(100), { status: 200, headers: { "content-length": "5000001" } })
       : new Response(new Uint8Array([1]), { status: 200 }));
     await expect(oversized.fetchReleaseAssets("1.2.3")).rejects.toThrow("size limit");
     await expect(oversized.fetchReleaseAssets("../1.2.3")).rejects.toThrow("canonical");
