@@ -7,6 +7,12 @@
   "observability": {
     "enabled": false
   },
+  "r2_buckets": [
+    {
+      "binding": "NODE_A_TARGETS",
+      "bucket_name": "sentryiq-node-a-targets"
+    }
+  ],
   "durable_objects": {
     "bindings": [
       {
