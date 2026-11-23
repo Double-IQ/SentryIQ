@@ -131,7 +131,7 @@ describe("R2 TUF target store", () => {
     const pointers = memoryPointers();
     const originalCommit = pointers.commitTufTargetPointer.bind(pointers);
     pointers.commitTufTargetPointer = async (...args) => {
-      const committed = await originalCommit(...args);
+      await originalCommit(...args);
       throw new Error("simulated lost DO RPC response after commit");
     };
     const store = new R2TufTargetStore(bucket, pointers, () => lock1);
