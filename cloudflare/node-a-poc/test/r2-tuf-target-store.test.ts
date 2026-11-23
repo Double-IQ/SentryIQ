@@ -126,6 +126,50 @@ describe("R2 TUF target store", () => {
     expect(Array.from(result.value!)).toEqual(Array.from(bytes));
   });
 
+  it("reconciles a lost Durable Object publication response without deleting a committed object", async () => {
+    const bucket = new MemoryR2Bucket();
+    const pointers = memoryPointers();
+    const originalCommit = pointers.commitTufTargetPointer.bind(pointers);
+    pointers.commitTufTargetPointer = async (...args) => {
+      const committed = await originalCommit(...args);
+      throw new Error("simulated lost DO RPC response after commit");
+      return committed;
+    };
+    const store = new R2TufTargetStore(bucket, pointers, () => lock1);
+
+    const committed = await stageVerifiedTufTarget(store, {
+      descriptor,
+      body: readable(bytes),
+      fence
+    });
+
+    expect(committed.objectKey).toMatch(/^objects\\//);
+    expect(pointers.pointers.get(descriptor.targetPath)?.objectKey).toBe(committed.objectKey);
+    expect(bucket.objects.has(committed.objectKey)).toBe(true);
+  });
+
+  it("preserves the staged R2 object when publication outcome cannot be read", async () => {
+    const bucket = new MemoryR2Bucket();
+    const pointers = memoryPointers();
+    const originalCommit = pointers.commitTufTargetPointer.bind(pointers);
+    pointers.commitTufTargetPointer = async (...args) => {
+      await originalCommit(...args);
+      throw new Error("simulated lost DO RPC response after commit");
+    };
+    pointers.readTufTargetPointer = () => { throw new Error("simulated DO read outage"); };
+    const store = new R2TufTargetStore(bucket, pointers, () => lock1);
+
+    await expect(stageVerifiedTufTarget(store, {
+      descriptor,
+      body: readable(bytes),
+      fence
+    })).rejects.toMatchObject({ name: "TufTargetCommitAmbiguousError" });
+
+    const committed = [...pointers.pointers.values()][0];
+    expect(committed).toBeDefined();
+    expect(bucket.objects.has(committed.objectKey)).toBe(true);
+  });
+
   it("garbage-collects superseded immutable R2 objects after pointer replacement", async () => {
     const bucket = new MemoryR2Bucket();
     const pointers = memoryPointers();
