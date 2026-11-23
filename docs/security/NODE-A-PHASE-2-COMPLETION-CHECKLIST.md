@@ -45,15 +45,15 @@ This checklist is the execution record for completing Node A in Phase 2. Mark an
 
 ## 3. Private-host attestation service — integration blocker
 
-- [ ] Implement the isolated private-host attestation service.
-- [ ] Implement its HTTPS/reverse-proxy adapter for `/private-host-attestation`.
-- [ ] Run it under a dedicated OS identity, separate from PHP-FPM.
-- [ ] Restrict filesystem access to approved read-only inspection paths.
+- [x] Collector core, framework-neutral authenticated request handler, durable single-use nonce store, Ed25519 response signing, and regression tests (integrated into main by PR #99).
+- [ ] Implement the production HTTPS listener/reverse-proxy adapter for `/private-host-attestation`; no adapter may expose the signing key through the public PHP-FPM identity.
+- [ ] Run the collector under a dedicated OS identity, separate from PHP-FPM.
+- [ ] Restrict that identity to approved read-only inspection paths.
 - [ ] Provision and protect the isolated Ed25519 signing key.
 - [ ] Provision separate Node A and collector bearer credentials.
-- [ ] Configure nonce storage with the required directory/file permissions.
+- [ ] Provision nonce storage with the required directory/file permissions.
 - [ ] Pin and verify the collector public key in Cloudflare.
-- [ ] Configure approved file and private-configuration inventories.
+- [ ] Configure independently approved file and private-configuration inventories.
 - [ ] Test the complete Cloudflare-to-host attestation exchange.
 
 **Security constraint:** The existing contract requires isolation from the public application process. Do not implement a public PHP route that holds or can access the collector signing key. The recorded production host is cPanel with no shell/SSH access confirmed; provider capability for a persistent daemon under a separate OS identity, read-only ACLs, private socket/loopback listener, and HTTPS reverse proxy is unverified. The provider must confirm these capabilities before a deployable adapter can be selected. If unsupported, this host cannot meet the required boundary and an independently approved isolated host/service is needed. Host-specific service installation, credentials, ACLs, TLS and routing require owner-controlled infrastructure access and approval.
