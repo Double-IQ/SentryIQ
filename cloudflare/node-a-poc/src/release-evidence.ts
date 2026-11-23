@@ -4,13 +4,14 @@ import { resolveGithubReleaseTagCommit } from "./github-release-tag";
 import { parseAndValidateReleaseManifest, type VerifiedReleaseManifest } from "./release-manifest";
 import { verifyReleaseAttestationBundle, type VerifiedReleaseClaims } from "./release-attestation-policy";
 
-const MAX_RELEASE_ZIP_BYTES = 100_000_000;
+const MAX_RELEASE_ZIP_BYTES = 250_000_000;
 
 export interface VerifiedReleaseEvidence {
   readonly manifest: VerifiedReleaseManifest;
   readonly manifestClaims: VerifiedReleaseClaims;
   readonly zipClaims: VerifiedReleaseClaims;
   readonly zipSha256: string;
+  readonly zipSize: number;
   readonly tagCommit: string;
 }
 
@@ -22,16 +23,37 @@ export interface VerifiedReleaseEvidence {
  */
 export async function verifyReleaseEvidence(input: {
   readonly manifestBytes: Uint8Array;
-  readonly zipBytes: Uint8Array;
+  readonly zipBytes?: Uint8Array;
+  readonly zipSha256?: string;
+  readonly zipSize?: number;
   readonly expectedVersion: string;
   readonly expectedCommit: string;
   readonly trustedRootJson: string;
   readonly request?: typeof fetch;
   readonly apiToken?: string;
 }): Promise<VerifiedReleaseEvidence> {
-  if (!(input.zipBytes instanceof Uint8Array) || input.zipBytes.byteLength < 1 ||
-      input.zipBytes.byteLength > MAX_RELEASE_ZIP_BYTES) {
-    throw new Error("release ZIP is empty or exceeds the 100 MB verification limit");
+  let zipSha256: string;
+  let zipSize: number;
+  if (input.zipBytes instanceof Uint8Array) {
+    zipSize = input.zipBytes.byteLength;
+    if (zipSize < 1 || zipSize > MAX_RELEASE_ZIP_BYTES) {
+      throw new Error("release ZIP is empty or exceeds the 250 MB verification limit");
+    }
+    zipSha256 = createHash("sha256").update(input.zipBytes).digest("hex");
+    if (input.zipSha256 !== undefined && input.zipSha256 !== zipSha256) {
+      throw new Error("streamed and in-memory release ZIP digests do not match");
+    }
+    if (input.zipSize !== undefined && input.zipSize !== zipSize) {
+      throw new Error("streamed and in-memory release ZIP lengths do not match");
+    }
+  } else {
+    if (typeof input.zipSha256 !== "string" || !/^[a-f0-9]{64}$/.test(input.zipSha256) ||
+        !Number.isSafeInteger(input.zipSize) || (input.zipSize as number) < 1 ||
+        (input.zipSize as number) > MAX_RELEASE_ZIP_BYTES) {
+      throw new Error("streamed release ZIP digest or size is missing or outside its 250 MB bound");
+    }
+    zipSha256 = input.zipSha256;
+    zipSize = input.zipSize as number;
   }
   if (typeof input.trustedRootJson !== "string" ||
       input.trustedRootJson.length < 2 || input.trustedRootJson.length > 8_000_000) {
@@ -41,7 +63,6 @@ export async function verifyReleaseEvidence(input: {
   const manifest = parseAndValidateReleaseManifest(
     input.manifestBytes, input.expectedVersion, input.expectedCommit
   );
-  const zipSha256 = createHash("sha256").update(input.zipBytes).digest("hex");
   const request = input.request ?? fetch;
   const tagCommit = await resolveGithubReleaseTagCommit(input.expectedVersion, request, input.apiToken);
   if (tagCommit !== input.expectedCommit) {
@@ -62,7 +83,7 @@ export async function verifyReleaseEvidence(input: {
     input.expectedCommit, "sentryiq-" + input.expectedVersion + ".zip", zipSha256
   );
 
-  return { manifest, manifestClaims, zipClaims, zipSha256, tagCommit };
+  return { manifest, manifestClaims, zipClaims, zipSha256, zipSize, tagCommit };
 }
 
 function verifyAnyBundle(
