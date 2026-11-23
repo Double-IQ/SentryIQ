@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { createPublicKey, verify } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { createNodeAAsyncTufUpdater } from "../src/node-a-tuf-runtime";
 import { AsyncTufUpdater } from "../src/async-tuf-updater";
@@ -60,6 +61,24 @@ function fakeState() {
 }
 
 describe("Node A async TUF runtime assembly", () => {
+  it("verifies the provisioned Sigstore TUF root signatures with Workerd crypto", () => {
+    const root = JSON.parse(Buffer.from(tufRootBase64, "base64").toString("utf8")) as {
+      signed: Record<string, unknown> & { keys: Record<string, { keyval: { public: string } }> };
+      signatures: Array<{ keyid: string; sig: string }>;
+    };
+    const data = Buffer.from(canonicalJson(root.signed));
+    const valid = root.signatures.filter((signature) => {
+      const key = root.signed.keys[signature.keyid];
+      return verify(
+        "sha256",
+        data,
+        createPublicKey(key.keyval.public),
+        Buffer.from(signature.sig, "hex")
+      );
+    });
+    expect(valid.length).toBeGreaterThanOrEqual(3);
+  });
+
   it("constructs the real pinned upstream TrustedMetadataStore from the explicit root", async () => {
     const state = fakeState();
     const bucket = {
@@ -80,3 +99,16 @@ describe("Node A async TUF runtime assembly", () => {
     expect(state.metadata.get("root")?.version).toBeGreaterThan(0);
   });
 });
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    return "[" + value.map(canonicalJson).join(",") + "]";
+  }
+  if (value !== null && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return "{" + Object.keys(record).sort().map((key) =>
+      JSON.stringify(key) + ":" + canonicalJson(record[key])
+    ).join(",") + "}";
+  }
+  return JSON.stringify(value);
+}
