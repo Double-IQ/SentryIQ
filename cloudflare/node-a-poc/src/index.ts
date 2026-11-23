@@ -627,6 +627,13 @@ export default {
       if (request.method !== "POST") {
         return new Response("method not allowed", { status: 405, headers: { Allow: "POST" } });
       }
+      const requestLength = request.headers.get("content-length");
+      if (requestLength !== null && requestLength !== "0") {
+        return Response.json({ error: "monitor routes do not accept request bodies" }, { status: 400 });
+      }
+      if (request.body) {
+        try { await request.body.cancel(); } catch { /* body is deliberately unused */ }
+      }
       if (initializeBaseline) {
         const baselineAuthorization = authorizeBaselineInitialization(
           request, env.NODE_A_BASELINE_APPROVAL_TOKEN
@@ -811,6 +818,8 @@ async function runNodeAReleaseMonitor(
   if (metadataUrl.protocol !== "https:" || targetUrl.protocol !== "https:" ||
       metadataUrl.username !== "" || metadataUrl.password !== "" ||
       targetUrl.username !== "" || targetUrl.password !== "" ||
+      (metadataUrl.port !== "" && metadataUrl.port !== "443") ||
+      (targetUrl.port !== "" && targetUrl.port !== "443") ||
       metadataUrl.search !== "" || metadataUrl.hash !== "" ||
       targetUrl.search !== "" || targetUrl.hash !== "") {
     throw new Error("TUF metadata and target base URLs must be clean HTTPS URLs");
