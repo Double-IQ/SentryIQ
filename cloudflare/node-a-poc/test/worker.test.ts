@@ -80,6 +80,14 @@ describe("Node A Workers runtime proof", () => {
       "B".repeat(48)
     );
     expect(baselineUnauthorized?.status).toBe(401);
+    expect(authorizeBaselineInitialization(
+      new Request("https://node-a-poc.test/internal/baseline/initialize"),
+      "B".repeat(24)
+    )?.status).toBe(503);
+    expect(authorizeBaselineInitialization(
+      new Request("https://node-a-poc.test/internal/baseline/initialize"),
+      "B".repeat(48) + "\n"
+    )?.status).toBe(503);
 
   });
 
