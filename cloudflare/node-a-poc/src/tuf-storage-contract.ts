@@ -41,6 +41,8 @@ export class TufMetadataReadError extends Error {
 
 export interface TufMetadataStore {
   readRole(roleName: string): Promise<StoredTufMetadata | null>;
+  /** Enumerate durable role names for verified trusted-state reconstruction. */
+  listRoles(): Promise<string[]>;
 
   /**
    * Compare-and-set one already-upstream-verified role version.
