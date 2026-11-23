@@ -76,6 +76,12 @@ Configure these JSON values as Worker vars or secrets, according to the operator
 
 The Worker rejects invalid paths, missing inventory entries, digest mismatches, stale/nonced collector responses, invalid signatures, and collector decisions inconsistent with the signed evidence.
 
+## Private-host collector transport blocker
+
+The Node A client currently calls `https://sentryiq.bichet.co.za/private-host-attestation`. The repository contains the PHP `PrivateHostAttestationCollector`, `PrivateHostAttestationRequestHandler`, and durable nonce-store classes, but the request handler is framework-neutral: it explicitly leaves the HTTP listener/reverse-proxy adapter host-specific. The current production `.htaccess` has no `private-host-attestation` route, and there is no dedicated public PHP entry-point file for this endpoint. Therefore the Node A private-host HTTP exchange is **not yet deployable end to end**; do not treat the collector library classes or Workerd mocks as proof that the endpoint exists.
+
+Before any live Node A monitor run, the owner must approve and provision a host-specific HTTPS adapter/route that invokes the request handler, loads the collector from the private runtime configuration, and uses the existing nonce store with its operator-provisioned private directory and lock file. That integration must configure distinct A/B bearer credentials, the collector's Ed25519 signing key and pinned public key, exact file/private-config inventories, and must expose no secret-bearing diagnostics. This requires a separate production-host code/configuration review and deployment; it is deliberately not performed by this Worker-only PR.
+
 ## One-time baseline approval
 
 The baseline initializer additionally requires:
@@ -133,7 +139,7 @@ Before production sign-off, complete all of the following in a non-production Cl
 - Confirm the deployed Worker belongs to the intended account and has the intended Durable Object and private R2 bindings.
 - Verify a new manifest-bearing release and its GitHub/Sigstore attestations against the refreshed Sigstore trusted root. The currently published v0.1.2 release predates the manifest requirement.
 - Confirm the canonical origin's public assets match the signed manifest and all required security headers are present.
-- Confirm the private-host collector verifies the challenge nonce, release identity, all pinned deployed-file digests, and all approved private-config policy entries.
+- First implement and owner-approve the missing host-specific `/private-host-attestation` HTTP adapter/route; then confirm it invokes the existing PHP request handler and nonce store and verifies the challenge nonce, release identity, all pinned deployed-file digests, and all approved private-config policy entries.
 - Confirm Node 4 has the matching Node A public signing key and accepts the challenge/report contract.
 - Confirm the independent owner-alert provider acknowledges success and that a simulated failure reaches the owner independently of Node 4.
 - Exercise TUF root rotation, timestamp rollback/equivocation, metadata expiry, delegated-role failures, and failed refresh preserving last-known-good state.
