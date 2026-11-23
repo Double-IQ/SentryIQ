@@ -108,9 +108,13 @@ export class R2TufTargetStore implements TufTargetStore {
     }
   }
 
-  async openCommittedTarget(targetPath: string): Promise<ReadableStream<Uint8Array> | null> {
+  async openCommittedTarget(
+    targetPath: string,
+    expected?: TufTargetDescriptor
+  ): Promise<ReadableStream<Uint8Array> | null> {
     const pointer = await this.state.readTufTargetPointer(targetPath);
     if (!pointer) return null;
+    if (expected && !targetDescriptorMatches(pointer, expected)) return null;
     const object = await this.bucket.get(pointer.objectKey);
     if (!object) throw new Error("committed TUF target object is missing from R2");
     if (object.size !== pointer.length) {
@@ -143,4 +147,18 @@ function assertFenceMatchesLock(fence: TufRunFence, lock: RunLock): void {
   if (fence.runId !== lock.runId || fence.fence !== lock.fence || fence.token !== lock.token) {
     throw new Error("TUF target storage fence does not match the active Node A run lock");
   }
+}
+
+function targetDescriptorMatches(
+  actual: TufTargetDescriptor,
+  expected: TufTargetDescriptor
+): boolean {
+  if (actual.targetPath !== expected.targetPath || actual.length !== expected.length) return false;
+  const actualAlgorithms = Object.keys(actual.hashes).sort();
+  const expectedAlgorithms = Object.keys(expected.hashes).sort();
+  if (actualAlgorithms.length !== expectedAlgorithms.length) return false;
+  return actualAlgorithms.every((algorithm, index) =>
+    algorithm === expectedAlgorithms[index] &&
+    actual.hashes[algorithm] === expected.hashes[algorithm]
+  );
 }
