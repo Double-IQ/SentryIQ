@@ -49,6 +49,9 @@ export async function createNodeAAsyncTufUpdater(
     options.state,
     options.currentLock
   );
+  // A newer fencing epoch proves every older stage belongs to a superseded
+  // or crashed owner. Remove those private R2 objects before doing new work.
+  await targetStore.cleanupStaleStages(initialLock);
   const trustedState = await AsyncTufTrustedStateAdapter.create(
     metadataStore,
     fence,
