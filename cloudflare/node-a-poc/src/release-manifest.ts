@@ -98,7 +98,7 @@ export function parseAndValidateReleaseManifest(
   }
 
   const versionEntry = entries.get("VERSION");
-  const expectedVersionBytes = new TextEncoder().encode(expectedVersion + "\\n");
+  const expectedVersionBytes = new TextEncoder().encode(expectedVersion + "\n");
   if (!publicSet.has("VERSION") || !versionEntry ||
       versionEntry.size !== expectedVersionBytes.byteLength ||
       versionEntry.sha256 !== createHash("sha256").update(expectedVersionBytes).digest("hex")) {
