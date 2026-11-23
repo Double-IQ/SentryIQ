@@ -73,7 +73,9 @@ export class R2TufTargetStore implements TufTargetStore {
     };
     await this.state.registerTufTargetStage(stageId, objectKey, lock);
     try {
-      const channel = new TransformStream<Uint8Array, Uint8Array>();
+      // R2 requires a known-length stream. FixedLengthStream preserves
+      // streaming/backpressure while enforcing the signed TUF target length.
+      const channel = new FixedLengthStream(descriptor.length);
       const writer = channel.writable.getWriter();
       const upload = this.bucket.put(objectKey, channel.readable);
       this.active.set(stageId, { stage, runFence: fence, writer, upload });
