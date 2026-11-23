@@ -784,13 +784,15 @@ export function authorizeBaselineInitialization(
   if (!expectedToken) {
     return Response.json({ error: "one-time baseline approval token is not configured" }, { status: 503 });
   }
-  const expected = Buffer.from(expectedToken);
-  const provided = Buffer.from(request.headers.get("x-node-a-baseline-approval") ?? "");
-  if (expected.byteLength < 32 || expected.byteLength > 512 ||
-      /[\\u0000-\\u001f\\u007f]/.test(expectedToken)) {
+  if (expectedToken.length < 32 || expectedToken.length > 512 ||
+      /[\\x00-\\x1f\\x7f]/.test(expectedToken)) {
     return Response.json({ error: "baseline approval token configuration is invalid" }, { status: 503 });
   }
-  if (provided.byteLength !== expected.byteLength || !timingSafeEqual(provided, expected)) {
+  const expected = Buffer.from(expectedToken, "utf8");
+  const providedText = request.headers.get("x-node-a-baseline-approval") ?? "";
+  const provided = Buffer.from(providedText, "utf8");
+  if (providedText.length !== expectedToken.length ||
+      provided.byteLength !== expected.byteLength || !timingSafeEqual(provided, expected)) {
     return Response.json({ error: "baseline approval required" }, { status: 401 });
   }
   return null;
