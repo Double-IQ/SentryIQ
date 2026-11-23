@@ -107,6 +107,21 @@ describe("Node A scheduled release monitor composition", () => {
     expect(alreadyAlerted.alerts).toHaveLength(0);
   });
 
+  it("does not advance the pin unless the event is bound and acknowledged by Node 4", async () => {
+    const f = dependencies({
+      eventRunner: {
+        run: async () => ({
+          approved: true, report: "signed", checked_paths: ["VERSION"],
+          mismatches: [], manifest_sha256: manifestSha, artifact_sha256: zipSha,
+          event_acknowledgement: { status: "pending" }
+        })
+      }
+    });
+    await expect(new NodeAReleaseMonitor(f.deps).run()).rejects.toThrow("acknowledged by Node 4");
+    expect(f.pins).toHaveLength(0);
+    expect(f.alerts[0]?.[1]).toMatchObject({ phase: "private_host_and_node4_challenge_report_exchange" });
+  });
+
   it("alerts and preserves the old pin if the atomic pin write fails", async () => {
     const f = dependencies({ advancePin: async () => { throw new Error("pin CAS rejected"); } });
     await expect(new NodeAReleaseMonitor(f.deps).run()).rejects.toThrow("after independent owner alert");
