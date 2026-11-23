@@ -73,59 +73,13 @@ export class AsyncTufTrustedStateAdapter {
     );
     if (!trusted) throw new Error("pinned tuf-js trusted metadata store was not initialized");
 
-    const roleNames = await metadata.listRoles();
-    if (!roleNames.includes("root")) {
-      throw new Error("durable TUF role index is missing the trusted root");
-    }
-
-    const timestamp = roleNames.includes("timestamp")
-      ? await metadata.readRole("timestamp")
-      : null;
+    // Restore timestamp first so the upstream verifier retains rollback
+    // protection across process restarts. Snapshot and targets are loaded only
+    // after the next timestamp refresh, matching the TUF client workflow.
+    const timestamp = await metadata.readRole("timestamp");
     if (timestamp) {
       await assertStoredRoleIdentity("timestamp", timestamp);
       trusted.updateTimestamp(Buffer.from(timestamp.data));
-    }
-
-    const snapshot = roleNames.includes("snapshot")
-      ? await metadata.readRole("snapshot")
-      : null;
-    if (snapshot) {
-      await assertStoredRoleIdentity("snapshot", snapshot);
-      trusted.updateSnapshot(Buffer.from(snapshot.data));
-    }
-
-    if (snapshot) {
-      const snapshotMeta = parseSnapshotRoleNames(snapshot.data);
-      const pending = new Set(
-        snapshotMeta.filter((name) => name !== "root" &&
-          name !== "timestamp" && name !== "snapshot" && roleNames.includes(name))
-      );
-      const loaded = new Set<string>(["root"]);
-      while (pending.size > 0) {
-        let progressed = false;
-        for (const roleName of [...pending]) {
-          const delegatorName = roleName === "targets"
-            ? "root"
-            : findDelegator(trusted, loaded, roleName);
-          if (!delegatorName) continue;
-
-          const stored = await metadata.readRole(roleName);
-          if (!stored) {
-            throw new Error("durable delegated TUF role disappeared during recovery: " + roleName);
-          }
-          await assertStoredRoleIdentity(roleName, stored);
-          trusted.updateDelegatedTargets(Buffer.from(stored.data), roleName, delegatorName);
-          loaded.add(roleName);
-          pending.delete(roleName);
-          progressed = true;
-        }
-        if (!progressed) {
-          throw new Error(
-            "durable delegated TUF roles cannot be rehydrated from verified delegation parents: " +
-            [...pending].join(", ")
-          );
-        }
-      }
     }
 
     return new AsyncTufTrustedStateAdapter(trusted, session, metadata);
@@ -152,6 +106,13 @@ export class AsyncTufTrustedStateAdapter {
   }
 
   refreshTimestamp(bytes: Uint8Array): Promise<TufMetadataIdentity> {
+    const incomingVersion = readSignedVersion(bytes);
+    if (this.trusted.timestamp?.signed.version === incomingVersion) {
+      return this.metadata.readRole("timestamp").then((current) => {
+        if (!current) throw new Error("trusted timestamp exists without a durable record");
+        return { version: current.version, sha256: current.sha256 };
+      });
+    }
     return this.accept("timestamp", bytes, () => this.trusted.updateTimestamp(Buffer.from(bytes)));
   }
 
@@ -272,4 +233,17 @@ async function assertStoredRoleIdentity(
       envelope.signed.version !== stored.version) {
     throw new Error("durable TUF role identity mismatch during recovery: " + roleName);
   }
+}
+
+function readSignedVersion(bytes: Uint8Array): number {
+  let envelope: { signed?: { version?: unknown } };
+  try {
+    envelope = JSON.parse(new TextDecoder().decode(bytes)) as typeof envelope;
+  } catch {
+    throw new Error("TUF metadata is not valid JSON");
+  }
+  if (!Number.isSafeInteger(envelope.signed?.version) || (envelope.signed!.version as number) < 1) {
+    throw new Error("TUF metadata version is invalid");
+  }
+  return envelope.signed!.version as number;
 }
