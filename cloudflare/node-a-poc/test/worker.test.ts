@@ -43,6 +43,9 @@ describe("Node A Workers runtime proof", () => {
     expect(body.cryptoOk).toBe(true);
     expect(body.sigstoreVerifierLoaded).toBe(true);
     expect(body.tufClientLoaded).toBe(true);
+    expect(body.asyncTufUpdaterLoaded).toBe(true);
+    expect(body.durableMetadataBindingLoaded).toBe(true);
+    expect(body.r2TargetBindingLoaded).toBe(true);
     expect(body.tufNetworkOrCacheInitialized).toBe(false);
     expect(body.productionReady).toBe(false);
   });
