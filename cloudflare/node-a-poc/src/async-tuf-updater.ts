@@ -133,7 +133,9 @@ export class AsyncTufUpdater {
 
   async getTargetInfo(targetPath: string): Promise<TargetInfo | undefined> {
     validateTargetPath(targetPath);
-    if (!this.trusted.snapshot) await this.refresh();
+    // A restored snapshot is only a cache, not proof that this updater has
+    // checked for newer timestamp/snapshot metadata in the current run.
+    if (!this.refreshed) await this.refresh();
 
     const stack: Array<{ roleName: string; parentRoleName: string }> = [
       { roleName: "targets", parentRoleName: "root" }
