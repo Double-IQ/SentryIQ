@@ -124,6 +124,21 @@ describe("streaming TUF target verification", () => {
     expect(store.beginTarget).not.toHaveBeenCalled();
   });
 
+  it("aborts private staging when the input stream is already locked", async () => {
+    const { store } = fakeStore();
+    const body = stream([bytes]);
+    const heldReader = body.getReader();
+    await expect(stageVerifiedTufTarget(store, {
+      descriptor: descriptor(),
+      body,
+      fence
+    })).rejects.toThrow();
+
+    expect(store.commitTarget).not.toHaveBeenCalled();
+    expect(store.abortTarget).toHaveBeenCalledTimes(1);
+    heldReader.releaseLock();
+  });
+
   it("aborts private staging when the durable chunk write fails", async () => {
     const { store } = fakeStore();
     vi.mocked(store.writeTargetChunk).mockRejectedValueOnce(new Error("R2 unavailable"));
