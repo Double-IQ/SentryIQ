@@ -166,7 +166,7 @@ describe("async TUF updater workflow", () => {
     const reader = await updater.getTarget("release.bin");
     expect(reader).not.toBeNull();
     const result = await reader!.getReader().read();
-    expect(result.value).toEqual(payload);
+    expect(Array.from(result.value!)).toEqual(Array.from(payload));
     expect(chunks).toHaveLength(1);
     expect(store.commitTarget).toHaveBeenCalledOnce();
     expect(store.openCommittedTarget).toHaveBeenCalledTimes(2);
