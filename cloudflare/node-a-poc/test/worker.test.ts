@@ -516,6 +516,21 @@ describe("fenced asynchronous TUF metadata session", () => {
 
   const fence = { runId: "a".repeat(32), fence: 1, token: "b".repeat(64) };
 
+  it("rejects a durable root whose recorded digest does not match its bytes", async () => {
+    const root1 = roleBytes("root", 1);
+    const { store } = memoryStore();
+    const valid = { version: 1, sha256: createHash("sha256").update(root1).digest("hex"), data: root1 };
+    const corruptStore: TufMetadataStore = {
+      async readRole() { return { ...valid, sha256: "0".repeat(64), data: valid.data.slice() }; },
+      async commitVerifiedRole() { throw new Error("not used"); }
+    };
+    let verifierCalls = 0;
+    await expect(FencedTufMetadataSession.create(corruptStore, fence, root1, () => { verifierCalls++; }))
+      .rejects.toThrow("durable TUF root identity does not match its stored bytes");
+    expect(verifierCalls).toBe(0);
+    expect(await store.readRole("root")).toBeNull();
+  });
+
   it("does not persist a bootstrap root until the upstream verifier accepts it", async () => {
     const { store } = memoryStore();
     const root1 = roleBytes("root", 1);
