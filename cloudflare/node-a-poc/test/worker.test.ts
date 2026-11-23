@@ -50,6 +50,34 @@ describe("Node A Workers runtime proof", () => {
     expect(body.productionReady).toBe(false);
   });
 
+  it("keeps the new monitor and baseline routes authenticated and fail-closed when secrets are absent", async () => {
+    const configuredEnv = { ...env, NODE_A_API_TOKEN: "A".repeat(48), NODE_A_BASELINE_APPROVAL_TOKEN: "B".repeat(48) };
+    const unauthorized = await workerExports.default.fetch(
+      new Request("https://node-a-poc.test/internal/monitor/run", { method: "POST" }),
+      configuredEnv, {} as ExecutionContext
+    );
+    expect(unauthorized.status).toBe(401);
+
+    const missingConfig = await workerExports.default.fetch(
+      new Request("https://node-a-poc.test/internal/monitor/run", {
+        method: "POST", headers: { Authorization: "Bearer " + "A".repeat(48) }
+      }),
+      configuredEnv, {} as ExecutionContext
+    );
+    expect(missingConfig.status).toBe(503);
+    const missingBody = await missingConfig.json() as { missing: string[] };
+    expect(missingBody.missing).toContain("NODE_A_GITHUB_TOKEN");
+    expect(missingBody.missing).toContain("NODE_A_REPORT_PRIVATE_KEY_B64");
+
+    const baselineUnauthorized = await workerExports.default.fetch(
+      new Request("https://node-a-poc.test/internal/baseline/initialize", {
+        method: "POST", headers: { Authorization: "Bearer " + "A".repeat(48) }
+      }),
+      configuredEnv, {} as ExecutionContext
+    );
+    expect(baselineUnauthorized.status).toBe(401);
+  });
+
   it("preserves Ed25519 verification when applying EC/RSA digest inference", () => {
     const data = Buffer.from("SentryIQ Ed25519 inference regression");
     const pair = generateKeyPairSync("ed25519");
