@@ -48,7 +48,7 @@ const modelsKeyPath = path.join(path.dirname(modelsEntry), "utils", "key.js");
 const modelsKeySource = fs.readFileSync(modelsKeyPath, "utf8");
 const modelsMarker = "SENTRYIQ_TUF_MODELS_WORKER_EC_KEY_DETAILS_PATCH";
 if (modelsKeySource.includes(modelsMarker)) {
-  process.stdout.write("SentryIQ @tufjs/models Workerd key compatibility patch already applied\\n");
+  process.stdout.write("SentryIQ @tufjs/models Workerd key compatibility patch already applied\n");
 } else {
   const modelsTarget = "key.asymmetricKeyDetails?.namedCurve !== namedCurve";
   const modelsReplacement = [
