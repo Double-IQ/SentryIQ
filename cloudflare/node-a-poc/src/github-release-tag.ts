@@ -53,7 +53,7 @@ export async function resolveGithubReleaseTagCommit(
       headers,
       request
     );
-    if (!isRecord(tag) || typeof tag.tag !== "string" || tag.tag.length < 1 ||
+    if (!isRecord(tag) || tag.tag !== tagName ||
         tag.tag.length > 256 || !isRecord(tag.object)) {
       throw new Error("GitHub annotated release tag object is malformed");
     }
