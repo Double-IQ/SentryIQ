@@ -30,6 +30,7 @@ function fakeStore(initial: StoredTufMetadata | null = null) {
   if (initial) records.set("root", initial);
   const store: TufMetadataStore = {
     readRole: vi.fn(async (name: string) => records.get(name) ?? null),
+    listRoles: vi.fn(async () => [...records.keys()]),
     commitVerifiedRole: vi.fn(async (
       name: string,
       expected: TufMetadataIdentity | null,
