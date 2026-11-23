@@ -1,6 +1,6 @@
 # Integrity Node A — Cloudflare Workers implementation boundary
 
-**Status:** platform selected; implementation and runtime acceptance not yet complete.  
+**Status:** Worker-native TypeScript implementation track selected; isolated Workerd runtime and async TUF/R2 integration demonstrated; production/account acceptance remains incomplete.  
 **Owner-confirmed platform:** Cloudflare Workers.  
 **Canonical target:** `https://sentryiq.bichet.co.za`.  
 **Identity:** `integrity-a`.
@@ -21,11 +21,9 @@ must not weaken checks merely to fit the platform.
 
 ## 2. Intended Worker composition
 
-Use a Cloudflare Worker as the independent control plane. Two execution
-shapes are viable and must be compared in a small proof of concept before
-choosing the final one:
+Use a Cloudflare Worker as the independent control plane. The selected implementation track is **Option B: Worker-native TypeScript**. The Node A PoC now demonstrates the Workerd runtime, pinned Sigstore/TUF integration, fenced Durable Object metadata, and R2 target staging. The Container alternative below is retained as historical architecture context only; it is not the active delivery path.
 
-### Option A — Worker + Cloudflare Container (preferred first PoC)
+### Option A — Worker + Cloudflare Container (not selected)
 
 A Worker Cron Trigger invokes a SQLite-backed Durable Object, which starts or
 routes to a Cloudflare Container running the existing PHP CLI verifier. This
@@ -46,7 +44,7 @@ ephemeral container directory and called durable. A FUSE/R2 mount is not
 accepted for lock/rename/fsync-sensitive security state unless those exact
 semantics are adversarially tested.
 
-### Option B — Worker-native TypeScript
+### Option B — Worker-native TypeScript (selected)
 
 A dedicated TypeScript Worker reimplements the scheduled-runner orchestration,
 Sigstore/TUF adapter, release policy, origin checks, private-host attestation
@@ -95,20 +93,7 @@ Worker. The Worker needs a separately pinned JavaScript implementation based
 on the maintained Sigstore JavaScript client and its TUF support, or a
 reviewed Worker-compatible adapter around those maintained libraries.
 
-This is **not yet proven**, and source inspection has identified a concrete
-portability obstacle: the current upstream `@sigstore/tuf` client builds a
-filesystem cache using synchronous `fs.existsSync`, `mkdirSync`,
-`writeFileSync` and `copyFileSync`, and derives a cache path from
-`os.homedir()`/process environment. That is not a Durable Object storage
-adapter. Do not assume that enabling `nodejs_compat` makes this cache durable
-or compatible. The implementation must either provide a reviewed, maintained
-TUF storage/fetch adapter that persists all metadata and targets through
-Durable Object storage, or select another maintained Worker-compatible
-Sigstore/TUF implementation. For the PHP-container option, separately prove
-that the existing PHP TUF library's filesystem operations can be backed by a
-durable store without changing its trust/atomicity guarantees; otherwise the
-container approach still needs a TUF storage adapter or must be rejected. Any fork/patch must be narrowly scoped, pinned,
-reviewed and covered by upstream-equivalence tests; bypassing TUF is prohibited.
+The initial feasibility obstacle is now addressed in the Node A PoC: the stock filesystem-backed @sigstore/tuf wrapper and initTUF path were removed from the Worker dependency graph, and the Worker directly uses pinned tuf-js@6.0.3 TrustedMetadataStore through an explicit async adapter. Trusted metadata is persisted through fenced Durable Object transactions; target bytes are streamed into private R2 staging and published through fenced immutable pointers. The version-pinned Workerd crypto compatibility patch and genuine Sigstore root verification pass in Workerd CI. This proves the isolated implementation path, not production acceptance: account-backed R2 behavior, full deployment fault injection, secret/configuration validation and operational rollback still require live Cloudflare resources. Keep the upstream TUF verifier as the authority for signatures, thresholds, expiry, rollback, snapshot linkage and delegation; no trust checks may be bypassed. Any fork/patch remains narrowly scoped, pinned, reviewed and covered by upstream-equivalence tests.
 
 The upstream package manifests also declare modern Node.js engine ranges.
 Cloudflare's Node compatibility layer exposes a subset of Node APIs, not a
@@ -255,24 +240,15 @@ Before production acceptance, record and verify:
 A Cron Trigger is a scheduler, not an independent trust anchor. Node A must
 remain operationally independent of Node B and Node 4.
 
-## 8. Current status and explicit non-claims
+## 8. Current status and explicit non-claims (updated 2026-11-23)
 
-- Cloudflare Workers is the confirmed Node A platform.
-- Existing PHP Node A code and tests define the reference behavior, but are
-  not directly deployable as a plain Worker. Cloudflare Containers may allow
-  the PHP runtime to be packaged under the Workers platform, subject to paid
-  plan entitlement and a proven durable-state/TUF adapter.
-- The first implementation task is a bounded A/B proof of concept: run the
-  exact PHP dependency set inside a Cloudflare Container and, independently,
-  run the maintained Sigstore JS/TUF stack in a plain Worker. Compare actual
-  compatibility, state durability, resource cost and golden attestation
-  results before committing to either implementation.
-- No Worker implementation, account binding, Durable Object, Cron Trigger,
-  secret, TUF adapter, alert integration or production deployment is claimed
-  by this document.
-- Node A remains **not deployed / not accepted** until the runtime, golden
-  attestation, state durability, independent alerting and end-to-end scheduled
-  report gates above pass.
+- Cloudflare Workers is the owner-confirmed Node A platform; Worker-native TypeScript is the selected implementation track. Node A = Cloudflare Workers.
+- Draft PR [#145](https://github.com/Double-IQ/SentryIQ/pull/145), stacked on draft PR [#143](https://github.com/Double-IQ/SentryIQ/pull/143), implements the pinned async TUF workflow, fenced Durable Object metadata persistence, Workerd crypto compatibility, R2 target streaming/staging, immutable pointer publication, stale-stage cleanup and retired-object garbage collection.
+- Latest exact implementation-head CI [#45139619832](https://github.com/Double-IQ/SentryIQ/actions/runs/45139619832) passed 79/79 Workerd/DO tests and the pinned upstream tuf-js trusted-state atomicity suite; Wrangler dry-run and the Worker bundle filesystem-fallback scan passed.
+- The stock filesystem-backed @sigstore/tuf wrapper, initTUF, node:fs import and unused filesystem fallback modules have been removed from the Worker dependency path.
+- This is isolated implementation/test-double evidence only. No target Cloudflare account, R2 bucket, production API token, trust-anchor secret or mirror configuration has been provisioned or live-tested. No production deployment, Cron schedule, direct alert integration, or end-to-end Node 4/private-host report flow is claimed complete by this PoC.
+- Remaining gates: account-backed R2 acceptance; live refresh and independent target digest verification; real-account fault injection for interrupted upload, lease takeover, stale-owner rejection, pointer replacement and cleanup; operational secret/configuration validation; deployment/rollback evidence; and the remaining end-to-end Node A control-plane/report integrations.
+- Node A remains **not deployed / not accepted** until the runtime, golden attestation, durable state, independent alerting and end-to-end scheduled report gates above pass.
 
 ## References
 
