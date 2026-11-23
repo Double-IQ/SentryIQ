@@ -9,7 +9,7 @@ const manifest = parseAndValidateReleaseManifest(new TextEncoder().encode(JSON.s
   version: "0.1.3", commit, workflow_path: ".github/workflows/release.yml",
   public_files: ["VERSION", "assets/app.js"], runtime_files: ["config.php"],
   files: [
-    { path: "VERSION", size: 6, sha256: "b9b9e4c6e8a4e2c7c9d6b8a0f2f0a9e4c1d8b7a6f5e4d3c2b1a09876543210ff" },
+    { path: "VERSION", size: 6, sha256: "2d2454ef0edeb462a6ce8b25d387aaa74df08093d5cea0428a10ce55510c6326" },
     { path: "assets/app.js", size: 3, sha256: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" },
     { path: "runtime/config.php", size: 1, sha256: digest }
   ]
