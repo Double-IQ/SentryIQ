@@ -80,6 +80,21 @@ Before either node is configured to rely on this capability, demonstrate on the 
 
 The current tests exercise the collector, A/B client, handler, replay store, signature verification, replay rejection, token/node binding, malformed requests, unexpected files, and mismatch rejection. CI passing demonstrates software regression coverage only; it does not prove production-host isolation, ownership, network reachability, or deployment readiness.
 
+## cPanel feasibility gate
+
+The currently recorded production deployment plan identifies the SentryIQ application host as a cPanel account with no shell/SSH access confirmed. That hosting model does not, by itself, establish that the account can run a persistent isolated service under a separate OS identity or configure an HTTPS reverse proxy to it. Do not treat cPanel Cron Jobs, PHP-FPM, or a normal PHP web route as equivalent to the required isolation boundary.
+
+Before implementation is considered deployable on this host, the hosting provider must explicitly confirm all of the following for the SentryIQ account:
+
+1. A persistent PHP CLI (or equivalent) service can run under a dedicated OS user distinct from the web/PHP-FPM identity, with automatic supervision and restart.
+2. That identity can be granted read-only access to only the approved application/private inspection paths, and cannot modify application code or the approved policy.
+3. The signing key and nonce state can be stored outside the document root with enforced owner-only permissions and inaccessible to the web identity.
+4. The service can listen on a private Unix socket or loopback-only port, not a public listener.
+5. The provider can route only POST /private-host-attestation over the canonical HTTPS vhost to that private upstream, preserving duplicate-header rejection and request-size limits.
+6. Service logs and failure/restart status can be inspected without exposing request credentials or signed payload contents.
+
+If any requirement is unavailable, the current cPanel host cannot safely host this attestor under the specified trust model. The alternatives are a separately approved isolated host/service or a revised architecture with an independently reviewed trust boundary. A public PHP endpoint, cron-triggered polling script, or signing key readable by PHP-FPM is not an acceptable workaround.
+
 ## Deployment boundary
 
 This contract applies only to the production SentryIQ application host. It is not a task for HelioHost Node C and does not describe BTM-SA / Node 4 as an independent host. The actual hosting platform's process identities, filesystem ACLs, scheduler, service/endpoint support, and TLS/reverse-proxy capabilities must be established before deployment. No host configuration or production deployment is performed by this repository change.
