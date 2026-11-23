@@ -251,7 +251,7 @@ diff --git a/packages/models/src/utils/key.ts b/packages/models/src/utils/key.ts
 diff --git a/packages/models/src/utils/verify.ts b/packages/models/src/utils/verify.ts
 --- a/packages/models/src/utils/verify.ts
 +++ b/packages/models/src/utils/verify.ts
-@@ -1,5 +1,5 @@
+@@ -1,4 +1,4 @@
  import { canonicalize } from '@tufjs/canonical-json';
 -import crypto from 'crypto';
 +import { verify } from 'node:crypto';
