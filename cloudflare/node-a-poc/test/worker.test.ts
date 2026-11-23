@@ -463,6 +463,17 @@ describe("Node A Workers runtime proof", () => {
     expect(saved.objectKey).toBe(objectKey);
     expect(await state.readTufTargetPointer(descriptor.targetPath)).toEqual(saved);
 
+    const replacementStageId = "77777777-7777-4777-8777-777777777777";
+    const replacementObjectKey = "objects/88888888-8888-4888-8888-888888888888";
+    await state.registerTufTargetStage(replacementStageId, replacementObjectKey, lock);
+    const replacement = await state.commitTufTargetPointer(
+      descriptor, replacementStageId, replacementObjectKey, lock
+    );
+    expect(await state.readTufTargetPointer(descriptor.targetPath)).toEqual(replacement);
+    await expect(state.listRetiredTufTargetObjects(lock)).resolves.toEqual([objectKey]);
+    await state.deleteRetiredTufTargetObject(objectKey, lock);
+    await expect(state.listRetiredTufTargetObjects(lock)).resolves.toEqual([]);
+
     await state.releaseRunLock(lock);
 
   });
