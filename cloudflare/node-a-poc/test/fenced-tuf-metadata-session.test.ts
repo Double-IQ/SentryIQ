@@ -66,8 +66,8 @@ describe("fenced asynchronous TUF metadata session", () => {
   it("does not seed an invalid bootstrap root", async () => {
     const { store, getCurrent } = fakeStore();
     await expect(FencedTufMetadataSession.create(
-      store, fence, role(2), vi.fn()
-    )).rejects.toThrow("version 1");
+      store, fence, role(0), vi.fn()
+    )).rejects.toThrow("signed role/version envelope is invalid");
     expect(store.commitVerifiedRole).not.toHaveBeenCalled();
     expect(getCurrent()).toBeNull();
   });
