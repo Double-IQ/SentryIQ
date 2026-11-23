@@ -75,7 +75,7 @@ function makeTrustedAdapter() {
   return adapter;
 }
 
-function stubMetadataRefresh(): ReturnType<typeof vi.fn> {
+function stubMetadataRefresh(targetBytes?: Uint8Array): ReturnType<typeof vi.fn> {
   const snapshotDocument = { signed: { _type: "snapshot", version: 7, meta: {} } };
   const snapshotLength = new TextEncoder().encode(JSON.stringify(snapshotDocument)).byteLength;
   const timestampDocument = {
@@ -86,6 +86,7 @@ function stubMetadataRefresh(): ReturnType<typeof vi.fn> {
     if (url.endsWith("/2.root.json")) return new Response("not found", { status: 404 });
     if (url.endsWith("/timestamp.json")) return json(timestampDocument);
     if (url.endsWith("/snapshot.json")) return json(snapshotDocument);
+    if (targetBytes && url.endsWith("/release.bin")) return new Response(targetBytes);
     return new Response("unexpected URL " + url, { status: 500 });
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -281,8 +282,7 @@ describe("async TUF updater workflow", () => {
       : undefined;
     trusted.setTimestamp({ signed: { version: 4, snapshotMeta: { version: 7, length: 0 } } });
     trusted.setSnapshot({ signed: { version: 7, meta: { "child.json": { version: 1, length: 1 } } } });
-    const fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubMetadataRefresh();
     const { store } = fakeTargetStore();
     const updater = new AsyncTufUpdater(
       trusted as unknown as AsyncTufTrustedStateAdapter,
@@ -300,15 +300,15 @@ describe("async TUF updater workflow", () => {
     await expect(updater.getTargetInfo("release.bin")).rejects.toThrow(
       "TUF delegation traversal exceeded the configured role limit"
     );
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).not.toHaveBeenCalledWith("https://example.test/metadata/child.json");
   });
 
   it("rejects a target larger than the configured staging bound before download", async () => {
     const trusted = makeTrustedAdapter();
     trusted.getRole = () => ({ signed: { targets: { "release.bin": targetInfo } } });
-    trusted.setTimestamp({ signed: { version: 4, snapshotMeta: { version: 7, length: 2048 } } });
-    trusted.setSnapshot({ signed: { version: 7, meta: {} } });
     const { store } = fakeTargetStore();
+    stubMetadataRefresh();
     const updater = new AsyncTufUpdater(
       trusted as unknown as AsyncTufTrustedStateAdapter,
       store,
@@ -329,14 +329,8 @@ describe("async TUF updater workflow", () => {
   it("streams a target into private storage and returns only its committed reader", async () => {
     const trusted = makeTrustedAdapter();
     trusted.getRole = () => ({ signed: { targets: { "release.bin": targetInfo } } });
-    trusted.setTimestamp({ signed: { version: 4, snapshotMeta: { version: 7, length: 2048 } } });
-    trusted.setSnapshot({ signed: { version: 7, meta: {} } });
     const { store, chunks, committed } = fakeTargetStore();
-    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
-      if (url.endsWith("/release.bin")) return new Response(payload);
-      throw new Error("unexpected fetch " + url);
-    }));
+    stubMetadataRefresh(payload);
     const updater = new AsyncTufUpdater(
       trusted as unknown as AsyncTufTrustedStateAdapter,
       store,
