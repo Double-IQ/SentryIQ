@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
-import { createPublicKey, verify } from "node:crypto";
+import { createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
+import { canonicalize } from "@tufjs/canonical-json";
 import { describe, expect, it } from "vitest";
 import { createNodeAAsyncTufUpdater } from "../src/node-a-tuf-runtime";
 import { AsyncTufUpdater } from "../src/async-tuf-updater";
@@ -61,12 +62,20 @@ function fakeState() {
 }
 
 describe("Node A async TUF runtime assembly", () => {
+  it("supports the ECDSA verification primitive required by TUF", () => {
+    const { publicKey, privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+    const signed = { _type: "root", version: 1, expires: "2030-01-01T00:00:00Z" };
+    const data = Buffer.from(canonicalize(signed));
+    const signature = sign("sha256", data, privateKey);
+    expect(verify("sha256", data, publicKey, signature)).toBe(true);
+  });
+
   it("verifies the provisioned Sigstore TUF root signatures with Workerd crypto", () => {
     const root = JSON.parse(Buffer.from(tufRootBase64, "base64").toString("utf8")) as {
       signed: Record<string, unknown> & { keys: Record<string, { keyval: { public: string } }> };
       signatures: Array<{ keyid: string; sig: string }>;
     };
-    const data = Buffer.from(canonicalJson(root.signed));
+    const data = Buffer.from(canonicalize(root.signed));
     const valid = root.signatures.filter((signature) => {
       const key = root.signed.keys[signature.keyid];
       return verify(
