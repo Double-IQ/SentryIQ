@@ -154,6 +154,27 @@ diff --git a/packages/client/src/updater.ts b/packages/client/src/updater.ts
 +      }
 +      throw error;
 +    }
+@@ -29,0 +30,6 @@
++export function isTufStorageError(error: unknown): boolean {
++  return typeof error === 'object' && error !== null && 'code' in error &&
++    (error.code === 'TUF_METADATA_READ_FAILED' ||
++      error.code === 'TUF_METADATA_COMMIT_FAILED');
++}
++
+@@ -92,0 +99,1 @@
++        if (isTufStorageError(error)) throw error;
+@@ -238,0 +256,1 @@
++      if (isTufStorageError(error)) throw error;
+@@ -276,0 +295,1 @@
++      if (isTufStorageError(error)) throw error;
+@@ -305,0 +325,1 @@
++        if (isTufStorageError(error)) throw error;
+@@ -332,0 +353,1 @@
++      if (isTufStorageError(error)) throw error;
+@@ -370,0 +392,1 @@
++        if (isTufStorageError(error)) throw error;
+@@ -466,0 +489,1 @@
++      if (isTufStorageError(error)) throw error;
 diff --git a/packages/models/src/index.ts b/packages/models/src/index.ts
 --- a/packages/models/src/index.ts
 +++ b/packages/models/src/index.ts
