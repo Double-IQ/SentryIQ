@@ -99,7 +99,7 @@ function isSafeAlertContext(value: unknown): value is Record<string, unknown> {
   const allowed = new Set(["node_id", "phase", "release_version", "commit", "mismatch_count", "exception"]);
   if (Object.keys(context).some((key) => !allowed.has(key)) || context.node_id !== "integrity-a") return false;
   if (context.phase !== undefined && (typeof context.phase !== "string" || !/^[a-z0-9_]{1,80}$/.test(context.phase))) return false;
-  if (context.release_version !== undefined && (typeof context.release_version !== "string" || !/^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$/.test(context.release_version))) return false;
+  if (context.release_version !== undefined && (typeof context.release_version !== "string" || !/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(context.release_version))) return false;
   if (context.commit !== undefined && (typeof context.commit !== "string" || !/^[a-f0-9]{40}$/.test(context.commit))) return false;
   if (context.mismatch_count !== undefined && (!Number.isSafeInteger(context.mismatch_count) || (context.mismatch_count as number) < 0 || (context.mismatch_count as number) > 100)) return false;
   if (context.exception !== undefined && (typeof context.exception !== "string" || !/^[A-Za-z][A-Za-z0-9]{0,79}$/.test(context.exception))) return false;
