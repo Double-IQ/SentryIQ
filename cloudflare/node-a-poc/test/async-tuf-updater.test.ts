@@ -145,6 +145,27 @@ describe("async TUF updater workflow", () => {
     );
   });
 
+  it("rejects a target larger than the configured staging bound before download", async () => {
+    const trusted = makeTrustedAdapter();
+    trusted.getRole = () => ({ signed: { targets: { "release.bin": targetInfo } } });
+    trusted.setTimestamp({ signed: { version: 4, snapshotMeta: { version: 7, length: 2048 } } });
+    trusted.setSnapshot({ signed: { version: 7, meta: {} } });
+    const { store } = fakeTargetStore();
+    const updater = new AsyncTufUpdater(
+      trusted as unknown as AsyncTufTrustedStateAdapter,
+      store,
+      fence,
+      {
+        metadataBaseUrl: "https://example.test/metadata",
+        targetBaseUrl: "https://example.test/targets",
+        targetMaxLength: 2
+      }
+    );
+
+    await expect(updater.getTargetInfo("release.bin")).rejects.toThrow("configured bounds");
+    expect(store.beginTarget).not.toHaveBeenCalled();
+  });
+
   it("streams a target into private storage and returns only its committed reader", async () => {
     const trusted = makeTrustedAdapter();
     trusted.getRole = () => ({ signed: { targets: { "release.bin": targetInfo } } });
