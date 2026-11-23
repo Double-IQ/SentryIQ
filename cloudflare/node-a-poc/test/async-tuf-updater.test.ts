@@ -45,6 +45,8 @@ function makeTrustedAdapter() {
     root: { signed: { version: 1, consistentSnapshot: false } },
     get timestamp() { return timestamp; },
     get snapshot() { return snapshot; },
+    setTimestamp(value: typeof timestamp) { timestamp = value; },
+    setSnapshot(value: typeof snapshot) { snapshot = value; },
     getRole: (name: string) => roles.get(name),
     rotateRoots: vi.fn(async (
       _first: number,
@@ -92,7 +94,7 @@ function fakeTargetStore() {
     beginTarget: vi.fn(async () => stage),
     writeTargetChunk: vi.fn(async (_stage, chunk) => { chunks.push(chunk.slice()); }),
     commitTarget: vi.fn(async () => { published = true; return committed; }),
-    openCommittedTarget: vi.fn(async () => published ? stream(Buffer.concat(chunks.map(Buffer.from))) : null),
+    openCommittedTarget: vi.fn(async () => published ? stream(Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)))) : null),
     abortTarget: vi.fn(async () => undefined)
   };
   return { store, chunks, committed };
@@ -146,8 +148,8 @@ describe("async TUF updater workflow", () => {
   it("streams a target into private storage and returns only its committed reader", async () => {
     const trusted = makeTrustedAdapter();
     trusted.getRole = () => ({ signed: { targets: { "release.bin": targetInfo } } });
-    trusted.timestamp = { signed: { version: 4, snapshotMeta: { version: 7, length: 2048 } } };
-    trusted.snapshot = { signed: { version: 7, meta: {} } };
+    trusted.setTimestamp({ signed: { version: 4, snapshotMeta: { version: 7, length: 2048 } } });
+    trusted.setSnapshot({ signed: { version: 7, meta: {} } });
     const { store, chunks, committed } = fakeTargetStore();
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
