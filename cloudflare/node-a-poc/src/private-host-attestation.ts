@@ -83,6 +83,7 @@ export class NodeAPrivateHostGate {
     const response = await this.request(PRIVATE_HOST_ENDPOINT, {
       method: "POST",
       redirect: "error",
+      signal: AbortSignal.timeout(10_000),
       headers: {
         Authorization: "Bearer " + this.bearerToken,
         "Content-Type": "application/json",
