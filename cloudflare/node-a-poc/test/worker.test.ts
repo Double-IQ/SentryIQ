@@ -463,10 +463,15 @@ describe("Node A Workers runtime proof", () => {
     await state.releaseRunLock(lock);
     const replacement = await state.acquireRunLock(60_000);
     expect(replacement.fence).toBe(lock.fence + 1);
+    const staleData = new TextEncoder().encode(JSON.stringify({
+      signed: { type: "timestamp", version: 1 },
+      signatures: []
+    }));
+    const staleDigest = createHash("sha256").update(staleData).digest("hex");
     await expect(store.commitVerifiedRole(
       "timestamp",
       null,
-      { version: 1, sha256, data },
+      { version: 1, sha256: staleDigest, data: staleData },
       fence
     )).rejects.toThrow("valid active Node A run fence required");
     await state.releaseRunLock(replacement);
