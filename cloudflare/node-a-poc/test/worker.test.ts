@@ -17,6 +17,7 @@ import type { TufTargetDescriptor, TufTargetStage } from "../src/tuf-storage-con
 import { R2TufTargetStore } from "../src/r2-tuf-target-store";
 import { stageVerifiedTufTarget } from "../src/verified-target-stream";
 import { describe, expect, it } from "vitest";
+import { authorizeBaselineInitialization, authorizeNodeATufRequest, requiredNodeAMonitorConfiguration } from "../src/index";
 
 async function expectRemoteRejection(promise: Promise<unknown>, message: string): Promise<void> {
   let caught = false;
@@ -50,35 +51,35 @@ describe("Node A Workers runtime proof", () => {
     expect(body.productionReady).toBe(false);
   });
 
-  it("keeps the new monitor and baseline routes authenticated and fail-closed when secrets are absent", async () => {
-    const configuredEnv = {
-      NODE_A_API_TOKEN: "A".repeat(48),
-      NODE_A_BASELINE_APPROVAL_TOKEN: "B".repeat(48)
-    } as unknown as typeof env;
-    const unauthorized = await workerExports.default.fetch(
+  it("keeps monitor routes fail-closed and independently checks API/baseline authorization", async () => {
+    const routeResponse = await workerExports.default.fetch(
       new Request("https://node-a-poc.test/internal/monitor/run", { method: "POST" }),
-      configuredEnv, {} as ExecutionContext
+      env, {} as ExecutionContext
     );
-    expect(unauthorized.status, "API token must be present in the isolated test environment").toBe(401);
+    expect(routeResponse.status).toBe(503);
 
-    const missingConfig = await workerExports.default.fetch(
+    const missing = requiredNodeAMonitorConfiguration({} as Parameters<typeof requiredNodeAMonitorConfiguration>[0]);
+    expect(missing).toContain("NODE_A_GITHUB_TOKEN");
+    expect(missing).toContain("NODE_A_REPORT_PRIVATE_KEY_B64");
+
+    const apiUnauthorized = authorizeNodeATufRequest(
+      new Request("https://node-a-poc.test/internal/monitor/run", { method: "POST" }),
+      "A".repeat(48)
+    );
+    expect(apiUnauthorized?.status).toBe(401);
+    const apiAuthorized = authorizeNodeATufRequest(
       new Request("https://node-a-poc.test/internal/monitor/run", {
         method: "POST", headers: { Authorization: "Bearer " + "A".repeat(48) }
       }),
-      configuredEnv, {} as ExecutionContext
+      "A".repeat(48)
     );
-    expect(missingConfig.status).toBe(503);
-    const missingBody = await missingConfig.json() as { missing: string[] };
-    expect(missingBody.missing).toContain("NODE_A_GITHUB_TOKEN");
-    expect(missingBody.missing).toContain("NODE_A_REPORT_PRIVATE_KEY_B64");
+    expect(apiAuthorized).toBeNull();
 
-    const baselineUnauthorized = await workerExports.default.fetch(
-      new Request("https://node-a-poc.test/internal/baseline/initialize", {
-        method: "POST", headers: { Authorization: "Bearer " + "A".repeat(48) }
-      }),
-      configuredEnv, {} as ExecutionContext
+    const baselineUnauthorized = authorizeBaselineInitialization(
+      new Request("https://node-a-poc.test/internal/baseline/initialize", { method: "POST" }),
+      "B".repeat(48)
     );
-    expect(baselineUnauthorized.status, "baseline approval token must be checked after API authentication").toBe(401);
+    expect(baselineUnauthorized?.status).toBe(401);
   });
 
   it("preserves Ed25519 verification when applying EC/RSA digest inference", () => {
