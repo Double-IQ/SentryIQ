@@ -41,6 +41,9 @@ describe("Node A signed release manifest policy", () => {
     const wrong = manifest();
     wrong.repository_id = "0";
     expect(() => parseAndValidateReleaseManifest(new TextEncoder().encode(JSON.stringify(wrong)), "0.1.3", commit)).toThrow();
+    const numericRepositoryId = manifest();
+    (numericRepositoryId as unknown as { repository_id: number }).repository_id = 1345956206;
+    expect(() => parseAndValidateReleaseManifest(new TextEncoder().encode(JSON.stringify(numericRepositoryId)), "0.1.3", commit)).toThrow();
     const duplicate = manifest();
     duplicate.files.push({ ...duplicate.files[0]! });
     expect(() => parseAndValidateReleaseManifest(new TextEncoder().encode(JSON.stringify(duplicate)), "0.1.3", commit)).toThrow("duplicate");
