@@ -1,5 +1,6 @@
 import { TrustedMetadataStore } from "tuf-js/dist/store.js";
 import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 import type {
   StoredTufMetadata,
   TufMetadataIdentity,
@@ -127,8 +128,12 @@ export class AsyncTufTrustedStateAdapter {
   refreshTimestamp(bytes: Uint8Array): Promise<TufMetadataIdentity> {
     const incomingVersion = readSignedVersion(bytes);
     if (this.trusted.timestamp?.signed.version === incomingVersion) {
+      const incomingDigest = createHash("sha256").update(bytes).digest("hex");
       return this.metadata.readRole("timestamp").then((current) => {
         if (!current) throw new Error("trusted timestamp exists without a durable record");
+        if (current.version !== incomingVersion || current.sha256 !== incomingDigest) {
+          throw new Error("same-version TUF timestamp replacement or equivocation rejected");
+        }
         return { version: current.version, sha256: current.sha256 };
       });
     }
