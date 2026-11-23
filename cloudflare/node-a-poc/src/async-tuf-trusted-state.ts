@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import type {
   StoredTufMetadata,
   TufMetadataIdentity,
@@ -7,21 +8,27 @@ import type {
 import { FencedTufMetadataSession } from "./fenced-tuf-metadata-session";
 
 /**
- * Structural surface of tuf-js 6.0.3 TrustedMetadataStore.
- *
- * The pinned upstream implementation remains responsible for all TUF
- * cryptographic and semantic validation. This adapter only sequences its
- * mutating acceptance methods with durable fenced commits.
+ * Structural surface of tuf-js 6.0.3 TrustedMetadataStore. The parameter
+ * order deliberately matches upstream: updateDelegatedTargets(bytes, role,
+ * delegator). Buffer is required because upstream decodes metadata via
+ * Buffer.toString("utf8").
  */
 export interface PinnedTufTrustedMetadataStore {
-  updateRoot(bytes: Uint8Array): void;
-  updateTimestamp(bytes: Uint8Array): void;
-  updateSnapshot(bytes: Uint8Array): void;
-  updateDelegatedTargets(roleName: string, bytes: Uint8Array): void;
+  updateRoot(bytes: Buffer): unknown;
+  updateTimestamp(bytes: Buffer): unknown;
+  updateSnapshot(bytes: Buffer): unknown;
+  updateDelegatedTargets(bytes: Buffer, roleName: string, delegatorName: string): unknown;
+  getRole(roleName: string): {
+    signed?: {
+      delegations?: {
+        roles?: Array<{ name?: string }>;
+      };
+    };
+  } | undefined;
 }
 
 export type PinnedTufTrustedMetadataStoreFactory = (
-  trustedRootBytes: Uint8Array
+  trustedRootBytes: Buffer
 ) => PinnedTufTrustedMetadataStore;
 
 export class AsyncTufTrustedStateAdapter {
@@ -34,8 +41,9 @@ export class AsyncTufTrustedStateAdapter {
   ) {}
 
   /**
-   * Construct the actual pinned upstream trusted set from the explicit
-   * durable root. No path, filesystem cache, or implicit root lookup is used.
+   * Construct the upstream trusted set from the explicit durable root, then
+   * replay durable roles through upstream verification in dependency order.
+   * No path, filesystem cache, or implicit root lookup is used.
    */
   static async create(
     metadata: TufMetadataStore,
@@ -49,64 +57,93 @@ export class AsyncTufTrustedStateAdapter {
       fence,
       bootstrapRoot,
       (rootBytes) => {
-        // The upstream constructor verifies the supplied root and creates
-        // the trusted set. It is invoked for durable restore and bootstrap.
-        trusted = createTrustedStore(rootBytes);
+        trusted = createTrustedStore(Buffer.from(rootBytes));
       }
     );
     if (!trusted) throw new Error("pinned tuf-js trusted metadata store was not initialized");
 
-    // Rehydrate the complete durable trusted set in TUF dependency order.
-    // Every role is re-parsed and re-verified by the pinned upstream store;
-    // these are not trusted merely because they came from durable storage.
     const roleNames = await metadata.listRoles();
     if (!roleNames.includes("root")) {
       throw new Error("durable TUF role index is missing the trusted root");
     }
+
     const timestamp = roleNames.includes("timestamp")
       ? await metadata.readRole("timestamp")
       : null;
     if (timestamp) {
       await assertStoredRoleIdentity("timestamp", timestamp);
-      trusted.updateTimestamp(timestamp.data.slice());
+      trusted.updateTimestamp(Buffer.from(timestamp.data));
     }
+
     const snapshot = roleNames.includes("snapshot")
       ? await metadata.readRole("snapshot")
       : null;
     if (snapshot) {
       await assertStoredRoleIdentity("snapshot", snapshot);
-      trusted.updateSnapshot(snapshot.data.slice());
+      trusted.updateSnapshot(Buffer.from(snapshot.data));
     }
-    const delegatedRoles = roleNames
-      .filter((name) => name !== "root" && name !== "timestamp" && name !== "snapshot")
-      .sort((a, b) => a.split("/").length - b.split("/").length || a.localeCompare(b));
-    for (const roleName of delegatedRoles) {
-      const stored = await metadata.readRole(roleName);
-      if (!stored) throw new Error("durable delegated TUF role disappeared during recovery: " + roleName);
-      await assertStoredRoleIdentity(roleName, stored);
-      trusted.updateDelegatedTargets(roleName, stored.data.slice());
+
+    if (snapshot) {
+      const snapshotMeta = parseSnapshotRoleNames(snapshot.data);
+      const pending = new Set(
+        snapshotMeta.filter((name) => name !== "root" &&
+          name !== "timestamp" && name !== "snapshot" && roleNames.includes(name))
+      );
+      const loaded = new Set<string>(["root"]);
+      while (pending.size > 0) {
+        let progressed = false;
+        for (const roleName of [...pending]) {
+          const delegatorName = roleName === "targets"
+            ? "root"
+            : findDelegator(trusted, loaded, roleName);
+          if (!delegatorName) continue;
+
+          const stored = await metadata.readRole(roleName);
+          if (!stored) {
+            throw new Error("durable delegated TUF role disappeared during recovery: " + roleName);
+          }
+          await assertStoredRoleIdentity(roleName, stored);
+          trusted.updateDelegatedTargets(Buffer.from(stored.data), roleName, delegatorName);
+          loaded.add(roleName);
+          pending.delete(roleName);
+          progressed = true;
+        }
+        if (!progressed) {
+          throw new Error(
+            "durable delegated TUF roles cannot be rehydrated from verified delegation parents: " +
+            [...pending].join(", ")
+          );
+        }
+      }
     }
 
     return new AsyncTufTrustedStateAdapter(trusted, session, metadata);
   }
 
   refreshRoot(bytes: Uint8Array): Promise<TufMetadataIdentity> {
-    return this.accept("root", bytes, () => this.trusted.updateRoot(bytes));
+    return this.accept("root", bytes, () => this.trusted.updateRoot(Buffer.from(bytes)));
   }
 
   refreshTimestamp(bytes: Uint8Array): Promise<TufMetadataIdentity> {
-    return this.accept("timestamp", bytes, () => this.trusted.updateTimestamp(bytes));
+    return this.accept("timestamp", bytes, () => this.trusted.updateTimestamp(Buffer.from(bytes)));
   }
 
   refreshSnapshot(bytes: Uint8Array): Promise<TufMetadataIdentity> {
-    return this.accept("snapshot", bytes, () => this.trusted.updateSnapshot(bytes));
+    return this.accept("snapshot", bytes, () => this.trusted.updateSnapshot(Buffer.from(bytes)));
   }
 
-  refreshDelegatedTargets(roleName: string, bytes: Uint8Array): Promise<TufMetadataIdentity> {
-    if (!roleName || roleName === "root" || roleName === "timestamp" || roleName === "snapshot") {
-      return Promise.reject(new Error("delegated TUF role name is invalid"));
+  refreshDelegatedTargets(
+    roleName: string,
+    delegatorName: string,
+    bytes: Uint8Array
+  ): Promise<TufMetadataIdentity> {
+    if (!roleName || roleName === "root" || roleName === "timestamp" ||
+        roleName === "snapshot" || !delegatorName) {
+      return Promise.reject(new Error("delegated TUF role or delegator name is invalid"));
     }
-    return this.accept(roleName, bytes, () => this.trusted.updateDelegatedTargets(roleName, bytes));
+    return this.accept(roleName, bytes, () =>
+      this.trusted.updateDelegatedTargets(Buffer.from(bytes), roleName, delegatorName)
+    );
   }
 
   rotateRoots(
@@ -121,7 +158,7 @@ export class AsyncTufTrustedStateAdapter {
         firstVersion,
         maxRotations,
         fetchRoot,
-        (bytes) => this.trusted.updateRoot(bytes),
+        (bytes) => this.trusted.updateRoot(Buffer.from(bytes)),
         { version: current.version, sha256: current.sha256 }
       );
     });
@@ -136,11 +173,9 @@ export class AsyncTufTrustedStateAdapter {
   private accept(
     roleName: string,
     bytes: Uint8Array,
-    upstreamAccept: () => void
+    upstreamAccept: () => unknown
   ): Promise<TufMetadataIdentity> {
     return this.serialize(async () => {
-      // Read the CAS identity inside the same adapter queue as acceptance.
-      // Concurrent refresh calls therefore cannot race on a stale identity.
       const current: StoredTufMetadata | null = await this.metadata.readRole(roleName);
       const expectedCurrent = current
         ? { version: current.version, sha256: current.sha256 }
@@ -154,6 +189,36 @@ export class AsyncTufTrustedStateAdapter {
   }
 }
 
+function findDelegator(
+  trusted: PinnedTufTrustedMetadataStore,
+  loadedRoleNames: Set<string>,
+  roleName: string
+): string | undefined {
+  for (const parentName of loadedRoleNames) {
+    const parent = trusted.getRole(parentName);
+    const delegates = parent?.signed?.delegations?.roles ?? [];
+    if (delegates.some((delegation) => delegation.name === roleName)) {
+      return parentName;
+    }
+  }
+  return undefined;
+}
+
+function parseSnapshotRoleNames(bytes: Uint8Array): string[] {
+  let envelope: { signed?: { meta?: Record<string, unknown> } };
+  try {
+    envelope = JSON.parse(new TextDecoder().decode(bytes)) as typeof envelope;
+  } catch {
+    throw new Error("durable TUF snapshot is not valid JSON");
+  }
+  const meta = envelope.signed?.meta;
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) {
+    throw new Error("durable TUF snapshot has no metadata index");
+  }
+  return Object.keys(meta)
+    .filter((fileName) => fileName.endsWith(".json"))
+    .map((fileName) => fileName.slice(0, -5));
+}
 
 async function assertStoredRoleIdentity(
   roleName: string,
