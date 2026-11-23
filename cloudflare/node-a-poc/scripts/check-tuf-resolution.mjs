@@ -26,7 +26,7 @@ const forbiddenWorkerImports = [
   /from ["']@sigstore\/tuf["']/,
   /from ["']node:fs(?:\/promises)?["']/,
   /from ["']node:path["']/,
-  /from ["']\\.\/tuf-fs(?:-promises|-context)?["']/
+  /from ["']\.\/tuf-fs(?:-promises|-context)?["']/
 ];
 for (const pattern of forbiddenWorkerImports) {
   if (pattern.test(workerEntry)) {
