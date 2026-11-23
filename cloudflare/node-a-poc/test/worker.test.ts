@@ -470,6 +470,7 @@ describe("Node A Workers runtime proof", () => {
       descriptor, replacementStageId, replacementObjectKey, lock
     );
     expect(await state.readTufTargetPointer(descriptor.targetPath)).toEqual(replacement);
+    await expect(state.listRetiredTufTargetObjects(lock)).resolves.toEqual([]);
     await expect(state.listRetiredTufTargetObjects(lock, 100, 0)).resolves.toEqual([objectKey]);
     await state.deleteRetiredTufTargetObject(objectKey, lock);
     await expect(state.listRetiredTufTargetObjects(lock, 100, 0)).resolves.toEqual([]);
