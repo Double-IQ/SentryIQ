@@ -92,7 +92,19 @@ describe("Node A async TUF runtime assembly", () => {
         Buffer.from(signature.sig, "hex")
       );
     });
+    const parsed = Metadata.fromJSON(MetadataKind.Root, root);
+    const modelErrors: string[] = [];
+    let modelValid = 0;
+    for (const signature of root.signatures) {
+      try {
+        parsed.signed.keys[signature.keyid].verifySignature(parsed);
+        modelValid++;
+      } catch (error) {
+        modelErrors.push(error instanceof Error ? error.message : String(error));
+      }
+    }
     expect(valid.length).toBeGreaterThanOrEqual(3);
+    expect(modelValid, modelErrors.join("; ")).toBeGreaterThanOrEqual(3);
   });
 
   it("constructs the real pinned upstream TrustedMetadataStore from the explicit root", async () => {
