@@ -111,6 +111,14 @@ export class NodeAState extends DurableObject<Env> {
         fence INTEGER NOT NULL CHECK (fence > 0),
         committed_at INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS tuf_target_staging (
+        stage_id TEXT PRIMARY KEY,
+        object_key TEXT NOT NULL UNIQUE,
+        run_id TEXT NOT NULL,
+        fence INTEGER NOT NULL CHECK (fence > 0),
+        token_hash TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS run_audit (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         outcome TEXT NOT NULL CHECK (outcome IN ('started', 'approved', 'rejected', 'failed')),
@@ -287,23 +295,79 @@ export class NodeAState extends DurableObject<Env> {
     });
   }
 
+  registerTufTargetStage(stageId: string, objectKey: string, lock: RunLock): void {
+    this.validateRunLock(lock);
+    if (!/^[a-f0-9-]{36}$/.test(stageId) || !/^objects\/[a-f0-9-]{36}$/.test(objectKey)) {
+      throw new Error("TUF target staging identity is invalid");
+    }
+    this.ctx.storage.transactionSync(() => {
+      this.assertRunLock(lock);
+      this.ctx.storage.sql.exec(
+        "INSERT INTO tuf_target_staging (stage_id, object_key, run_id, fence, token_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        stageId, objectKey, lock.runId, lock.fence,
+        createHash("sha256").update(lock.token).digest("hex"), Date.now()
+      );
+    });
+  }
+
+  listStaleTufTargetStages(lock: RunLock, limit = 100): Array<{ stageId: string; objectKey: string; fence: number }> {
+    this.validateRunLock(lock);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("TUF target cleanup limit is invalid");
+    this.assertRunLock(lock);
+    return this.ctx.storage.sql.exec<{ stage_id: string; object_key: string; fence: number }>(
+      "SELECT stage_id, object_key, fence FROM tuf_target_staging WHERE fence < ? ORDER BY created_at LIMIT ?",
+      lock.fence, limit
+    ).toArray().map((row) => ({ stageId: row.stage_id, objectKey: row.object_key, fence: row.fence }));
+  }
+
+  deleteTufTargetStage(stageId: string, objectKey: string, lock: RunLock): void {
+    this.validateRunLock(lock);
+    this.ctx.storage.transactionSync(() => {
+      this.assertRunLock(lock);
+      const stage = this.ctx.storage.sql.exec<{ run_id: string; fence: number; token_hash: string }>(
+        "SELECT run_id, fence, token_hash FROM tuf_target_staging WHERE stage_id = ? AND object_key = ?",
+        stageId, objectKey
+      ).toArray()[0];
+      if (!stage) return;
+      const tokenHash = createHash("sha256").update(lock.token).digest("hex");
+      if (stage.fence > lock.fence ||
+          (stage.fence === lock.fence && (stage.run_id !== lock.runId || stage.token_hash !== tokenHash))) {
+        throw new Error("TUF target staging record belongs to a different active run");
+      }
+      this.ctx.storage.sql.exec(
+        "DELETE FROM tuf_target_staging WHERE stage_id = ? AND object_key = ?",
+        stageId, objectKey
+      );
+    });
+  }
+
   commitTufTargetPointer(
     descriptor: TufTargetDescriptor,
+    stageId: string,
     objectKey: string,
     lock: RunLock
   ): CommittedTufTarget {
     this.validateRunLock(lock);
     this.validateTufTargetDescriptor(descriptor);
-    if (!/^objects\/[a-f0-9-]{36}$/.test(objectKey)) {
-      throw new Error("TUF target object key is invalid");
+    if (!/^[a-f0-9-]{36}$/.test(stageId) || !/^objects\/[a-f0-9-]{36}$/.test(objectKey)) {
+      throw new Error("TUF target object or staging identity is invalid");
     }
     return this.ctx.storage.transactionSync(() => {
       this.assertRunLock(lock);
+      const stage = this.ctx.storage.sql.exec<{ run_id: string; fence: number; token_hash: string }>(
+        "SELECT run_id, fence, token_hash FROM tuf_target_staging WHERE stage_id = ? AND object_key = ?",
+        stageId, objectKey
+      ).toArray()[0];
+      const tokenHash = createHash("sha256").update(lock.token).digest("hex");
+      if (!stage || stage.run_id !== lock.runId || stage.fence !== lock.fence || stage.token_hash !== tokenHash) {
+        throw new Error("TUF target staging record does not match the active run fence");
+      }
       const committedAt = Date.now();
       this.ctx.storage.sql.exec(
         "INSERT INTO tuf_target_pointers (target_path, object_key, length, hashes_json, fence, committed_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(target_path) DO UPDATE SET object_key = excluded.object_key, length = excluded.length, hashes_json = excluded.hashes_json, fence = excluded.fence, committed_at = excluded.committed_at",
         descriptor.targetPath, objectKey, descriptor.length, JSON.stringify(descriptor.hashes), lock.fence, committedAt
       );
+      this.ctx.storage.sql.exec("DELETE FROM tuf_target_staging WHERE stage_id = ?", stageId);
       return { ...descriptor, hashes: { ...descriptor.hashes }, objectKey, fence: lock.fence, committedAt };
     });
   }
