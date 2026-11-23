@@ -127,13 +127,23 @@ describe("Node A end-to-end event runner", () => {
     const f = fixtures();
     const alerts: string[] = [];
     const node4 = new Node4EventClient(token, async () => new Response(null, { status: 503 }));
+    let privateHostChecks = 0;
     const runner = new NodeAEventRunner(node4, f.signer,
-      { verify: async () => { throw new Error("should not run"); } },
-      async (reason) => { alerts.push(reason); });
+      { verify: async () => {
+        privateHostChecks++;
+        return {
+          approved: true, collectorId: "sentryiq-host-attestor" as const,
+          issuedAt: 1_800_000_000, expiresAt: 1_800_000_100,
+          filesChecked: 1, privateConfigChecked: 1, mismatches: []
+        };
+      } },
+      async (reason) => { alerts.push(reason); },
+      () => new Uint8Array(32).fill(0x6b));
     await expect(runner.run({
       release: f.release,
       origin: { approved: true, checkedPaths: ["VERSION", "@origin-headers"], mismatches: [], headerMismatches: [] }
     })).rejects.toThrow("challenge failed");
+    expect(privateHostChecks).toBe(1);
     expect(alerts).toEqual(["node4_challenge_unavailable"]);
   });
 });
