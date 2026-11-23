@@ -45,8 +45,12 @@ function fakeState() {
       metadata.set(roleName, { ...next, data: next.data.slice() });
       return { version: next.version, sha256: next.sha256 };
     },
+    registerTufTargetStage() {},
+    listStaleTufTargetStages() { return []; },
+    deleteTufTargetStage() {},
     commitTufTargetPointer(
       descriptor: { targetPath: string; length: number; hashes: Readonly<Record<string, string>> },
+      _stageId: string,
       objectKey: string,
       receivedLock: RunLock
     ) {
