@@ -205,14 +205,14 @@ async function makeStoredRole(bytes: Uint8Array, roleName: string): Promise<Stor
   if (!(bytes instanceof Uint8Array) || bytes.byteLength < 1 || bytes.byteLength > 4 * 1024 * 1024) {
     throw new Error("TUF metadata must be a non-empty Uint8Array no larger than 4 MiB");
   }
-  let envelope: { signed?: { type?: unknown; version?: unknown } };
+  let envelope: { signed?: { _type?: unknown; type?: unknown; version?: unknown } };
   try {
-    envelope = JSON.parse(new TextDecoder().decode(bytes)) as { signed?: { type?: unknown; version?: unknown } };
+    envelope = JSON.parse(new TextDecoder().decode(bytes)) as { signed?: { _type?: unknown; type?: unknown; version?: unknown } };
   } catch {
     throw new Error("TUF metadata is not valid JSON");
   }
   const expectedType = roleName === "root" || roleName === "timestamp" || roleName === "snapshot" ? roleName : "targets";
-  if (!envelope.signed || envelope.signed.type !== expectedType ||
+  if (!envelope.signed || (envelope.signed._type ?? envelope.signed.type) !== expectedType ||
       !Number.isSafeInteger(envelope.signed.version) || (envelope.signed.version as number) < 1) {
     throw new Error("TUF metadata signed role/version envelope is invalid");
   }
