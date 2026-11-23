@@ -119,6 +119,10 @@ export class NodeAState extends DurableObject<Env> {
         token_hash TEXT NOT NULL,
         created_at INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS tuf_target_gc (
+        object_key TEXT PRIMARY KEY,
+        queued_at INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS run_audit (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         outcome TEXT NOT NULL CHECK (outcome IN ('started', 'approved', 'rejected', 'failed')),
@@ -362,6 +366,17 @@ export class NodeAState extends DurableObject<Env> {
       if (!stage || stage.run_id !== lock.runId || stage.fence !== lock.fence || stage.token_hash !== tokenHash) {
         throw new Error("TUF target staging record does not match the active run fence");
       }
+      const previous = this.ctx.storage.sql.exec<{ object_key: string }>(
+        "SELECT object_key FROM tuf_target_pointers WHERE target_path = ?",
+        descriptor.targetPath
+      ).toArray()[0];
+      if (previous && previous.object_key !== objectKey) {
+        this.ctx.storage.sql.exec(
+          "INSERT OR IGNORE INTO tuf_target_gc (object_key, queued_at) VALUES (?, ?)",
+          previous.object_key,
+          Date.now()
+        );
+      }
       const committedAt = Date.now();
       this.ctx.storage.sql.exec(
         "INSERT INTO tuf_target_pointers (target_path, object_key, length, hashes_json, fence, committed_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(target_path) DO UPDATE SET object_key = excluded.object_key, length = excluded.length, hashes_json = excluded.hashes_json, fence = excluded.fence, committed_at = excluded.committed_at",
@@ -369,6 +384,24 @@ export class NodeAState extends DurableObject<Env> {
       );
       this.ctx.storage.sql.exec("DELETE FROM tuf_target_staging WHERE stage_id = ?", stageId);
       return { ...descriptor, hashes: { ...descriptor.hashes }, objectKey, fence: lock.fence, committedAt };
+    });
+  }
+
+  listRetiredTufTargetObjects(lock: RunLock, limit = 100): string[] {
+    this.validateRunLock(lock);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("TUF target garbage-collection limit is invalid");
+    this.assertRunLock(lock);
+    return this.ctx.storage.sql.exec<{ object_key: string }>(
+      "SELECT object_key FROM tuf_target_gc ORDER BY queued_at LIMIT ?", limit
+    ).toArray().map((row) => row.object_key);
+  }
+
+  deleteRetiredTufTargetObject(objectKey: string, lock: RunLock): void {
+    this.validateRunLock(lock);
+    if (!/^objects\/[a-f0-9-]{36}$/.test(objectKey)) throw new Error("retired TUF target object key is invalid");
+    this.ctx.storage.transactionSync(() => {
+      this.assertRunLock(lock);
+      this.ctx.storage.sql.exec("DELETE FROM tuf_target_gc WHERE object_key = ?", objectKey);
     });
   }
 
