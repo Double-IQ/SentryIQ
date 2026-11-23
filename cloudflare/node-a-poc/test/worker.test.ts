@@ -648,4 +648,28 @@ describe("fenced asynchronous TUF metadata session", () => {
     )).rejects.toBeInstanceOf(TufUpdaterPoisonedError);
   });
 
+
+  it("fails closed on a durable root read outage instead of treating it as a missing cache", async () => {
+    const root1 = roleBytes("root", 1);
+    let writes = 0;
+    const unavailable: TufMetadataStore = {
+      async readRole() {
+        throw new TufMetadataReadError("durable metadata store unavailable");
+      },
+      async commitVerifiedRole() {
+        writes++;
+        throw new Error("must not seed over an unavailable durable store");
+      }
+    };
+    let verifierCalls = 0;
+    await expect(FencedTufMetadataSession.create(
+      unavailable,
+      fence,
+      root1,
+      () => { verifierCalls++; }
+    )).rejects.toBeInstanceOf(TufMetadataReadError);
+    expect(writes).toBe(0);
+    expect(verifierCalls).toBe(0);
+  });
+
 });
