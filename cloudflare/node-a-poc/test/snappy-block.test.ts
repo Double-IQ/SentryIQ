@@ -15,5 +15,6 @@ describe("bounded raw Snappy block decoder", () => {
     expect(() => decodeSnappyBlock(new Uint8Array([3, 8, 97]), 16)).toThrow("truncated");
     expect(() => decodeSnappyBlock(new Uint8Array([1, 0xf0, 0]), 16)).toThrow();
     expect(() => decodeSnappyBlock(new Uint8Array([4, 1, 0]), 16)).toThrow("invalid");
+    expect(() => decodeSnappyBlock(new Uint8Array([1, 0, 97]), 8_000_001)).toThrow("invalid output limit");
   });
 });
