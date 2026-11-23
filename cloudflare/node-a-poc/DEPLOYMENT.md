@@ -1,6 +1,6 @@
 # Node A Cloudflare Worker deployment and acceptance
 
-**This is an operational runbook, not evidence of a completed deployment.** PR #145 contains the Worker-native implementation and authenticated manual monitor/baseline routes. No production Cloudflare account, secrets, baseline, Cron trigger, or deployment has been provisioned. Keep the PR draft and do not deploy without explicit owner approval.
+**This is an operational runbook, not evidence of a completed deployment.** PR #145 contains the Worker-native implementation, authenticated manual monitor/baseline routes, and a 15-minute Cron trigger in `wrangler.jsonc`. No production Cloudflare account, secrets, baseline, or live deployment has been provisioned. The Cron trigger is repository configuration only; it is not active until an approved deployment. Keep the PR draft and do not deploy without explicit owner approval.
 
 ## Current control-plane behavior
 
@@ -13,7 +13,7 @@ The Worker exposes:
 - `POST /internal/baseline/initialize` — one-time baseline initialization after the complete release, origin, private-host and Node 4 evidence flow succeeds. Requires both the normal API bearer token and a separate one-time approval header. The request has no body; the baseline candidate is derived from verified live release evidence, never from caller-supplied hashes.
 - `POST /internal/monitor/run` — manual monitor execution after an immutable baseline exists. The release pin advances only after the signed Node 4 report is acknowledged.
 
-There is **no Cron trigger or scheduled execution configured**. The monitoring cadence must be selected and approved by the owner before a Cron trigger is added. The baseline route is not a scheduled operation.
+The Worker has an `async scheduled` entry point configured for `*/15 * * * *` in `wrangler.jsonc`. It executes the same full monitor under the Durable Object run lease and records only a minimal outcome; it never initializes the baseline. The 15-minute cadence is proposed, not owner-approved or live. Confirm the cadence and independent alert destination with the service owner before deploying the Worker. No production Cron invocation has been observed or accepted.
 
 ## Provisioning prerequisites
 
