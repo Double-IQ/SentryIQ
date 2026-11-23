@@ -24,7 +24,7 @@ describe("GitHub release attestation retrieval", () => {
       if (url.startsWith("https://api.github.com/")) {
         return new Response(JSON.stringify({ attestations: [
           { repository_id: "0", bundle_url: "https://evil.blob.core.windows.net/bundle" },
-          { repository_id: "1345956206", bundle_url: "https://sentryiq.blob.core.windows.net/attestations/1345956206/2026/11/23/4.json.sn?sig=opaque&se=2026-11-24T00%3A00%3A00Z&sp=r" }
+          { repository_id: 1345956206, bundle_url: "https://sentryiq.blob.core.windows.net/attestations/1345956206/2026/11/23/4.json.sn?sig=opaque&se=2026-11-24T00%3A00%3A00Z&sp=r" }
         ] }), { status: 200 });
       }
       return new Response(rawSnappyLiteral(bundle), { status: 200 });
