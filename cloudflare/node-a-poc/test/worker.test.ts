@@ -480,6 +480,7 @@ describe("Node A Workers runtime proof", () => {
 
     const unavailableStore = new DurableObjectTufMetadataStore({
       readTufMetadata: () => { throw new Error("simulated Durable Object read outage"); },
+      listTufMetadataRoles: () => [],
       commitVerifiedTufMetadata: () => { throw new Error("not used"); }
     }, () => replacement);
     await expect(unavailableStore.readRole("timestamp")).rejects.toMatchObject({ code: "TUF_METADATA_READ_FAILED" });
@@ -496,6 +497,7 @@ describe("fenced asynchronous TUF metadata session", () => {
     const roles = new Map<string, StoredTufMetadata>();
     let failCommit = false;
     const store: TufMetadataStore = {
+      async listRoles() { return [...roles.keys()]; },
       async readRole(roleName) {
         const value = roles.get(roleName);
         return value ? { ...value, data: value.data.slice() } : null;
@@ -521,6 +523,7 @@ describe("fenced asynchronous TUF metadata session", () => {
     const { store } = memoryStore();
     const valid = { version: 1, sha256: createHash("sha256").update(root1).digest("hex"), data: root1 };
     const corruptStore: TufMetadataStore = {
+      async listRoles() { return ["root"]; },
       async readRole() { return { ...valid, sha256: "0".repeat(64), data: valid.data.slice() }; },
       async commitVerifiedRole() { throw new Error("not used"); }
     };
@@ -653,6 +656,7 @@ describe("fenced asynchronous TUF metadata session", () => {
     const root1 = roleBytes("root", 1);
     let writes = 0;
     const unavailable: TufMetadataStore = {
+      async listRoles() { throw new TufMetadataReadError("durable metadata store unavailable"); },
       async readRole() {
         throw new TufMetadataReadError("durable metadata store unavailable");
       },
