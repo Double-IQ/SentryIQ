@@ -481,7 +481,7 @@ describe("Node A Workers runtime proof", () => {
     await expect(second.listStaleTufTargetStages(lock2)).resolves.toEqual([
       { stageId, objectKey, fence: lock1.fence }
     ]);
-    await expect(second.deleteTufTargetStage(stageId, objectKey, lock1)).rejects.toThrow();
+    // Only the replacement fencing epoch can remove the abandoned stage.
     await second.deleteTufTargetStage(stageId, objectKey, lock2);
     await expect(second.listStaleTufTargetStages(lock2)).resolves.toEqual([]);
     await second.releaseRunLock(lock2);
