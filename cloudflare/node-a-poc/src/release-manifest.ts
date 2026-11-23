@@ -47,7 +47,7 @@ export function parseAndValidateReleaseManifest(
   const parsed: unknown = JSON.parse(source);
   if (!isRecord(parsed) || parsed.format !== 2 ||
       parsed.repository !== "Double-IQ/SentryIQ" ||
-      String(parsed.repository_id) !== "1345956206" ||
+      parsed.repository_id !== "1345956206" ||
       parsed.version !== expectedVersion ||
       parsed.commit !== expectedCommit ||
       parsed.workflow_path !== ".github/workflows/release.yml" ||
