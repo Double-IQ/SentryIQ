@@ -33,6 +33,7 @@ export interface DurableTargetPointerClient {
 
 interface ActiveUpload {
   readonly stage: TufTargetStage;
+  readonly runFence: TufRunFence;
   readonly writer: WritableStreamDefaultWriter<Uint8Array>;
   readonly upload: Promise<{ size: number } | null>;
 }
@@ -69,12 +70,13 @@ export class R2TufTargetStore implements TufTargetStore {
     const channel = new TransformStream<Uint8Array, Uint8Array>();
     const writer = channel.writable.getWriter();
     const upload = this.bucket.put(objectKey, channel.readable);
-    this.active.set(stageId, { stage, writer, upload });
+    this.active.set(stageId, { stage, runFence: fence, writer, upload });
     return stage;
   }
 
   async writeTargetChunk(stage: TufTargetStage, chunk: Uint8Array): Promise<void> {
     const upload = this.requireActive(stage);
+    assertFenceMatchesLock(upload.runFence, this.currentLock());
     await upload.writer.write(chunk.slice());
   }
 
