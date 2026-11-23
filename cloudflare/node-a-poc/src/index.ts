@@ -373,6 +373,13 @@ export class NodeAState extends DurableObject<Env> {
     });
   }
 
+  listTufMetadataRoles(): string[] {
+    return this.ctx.storage.sql
+      .exec<{ role_name: string }>("SELECT role_name FROM tuf_metadata ORDER BY role_name")
+      .toArray()
+      .map((row) => row.role_name);
+  }
+
   readTufMetadata(roleName: string): { version: number; sha256: string; data: Uint8Array } | null {
     this.validateTufRoleName(roleName);
     const row = this.ctx.storage.sql.exec<{
