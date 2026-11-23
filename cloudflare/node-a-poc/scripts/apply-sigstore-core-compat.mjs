@@ -97,6 +97,19 @@ if (modelsVerifySource.includes(verifyMarker)) {
   } else {
     throw new Error("Could not identify the pinned @tufjs/models 5.0.3 crypto.verify import/call; refusing an unknown build");
   }
+  const verifyCallSingle = "return nodeCryptoVerify(key.hashAlgorithm, canonicalData, key, Buffer.from(signature, 'hex'));";
+  const verifyCallDouble = 'return nodeCryptoVerify(key.hashAlgorithm, canonicalData, key, Buffer.from(signature, "hex"));';
+  const verifyCallReplacement = [
+    "const publicKey = key.key;",
+    "const verificationKey = key.padding === undefined ? publicKey : { key: publicKey.export({ type: 'spki', format: 'pem' }), padding: key.padding };",
+    "return nodeCryptoVerify(key.hashAlgorithm, canonicalData, verificationKey, Buffer.from(signature, 'hex'));"
+  ].join("\n");
+  const singleCount = modelsVerifySource.split(verifyCallSingle).length - 1;
+  const doubleCount = modelsVerifySource.split(verifyCallDouble).length - 1;
+  if (singleCount + doubleCount !== 1) {
+    throw new Error("Expected one pinned @tufjs/models verifier call for key unwrapping; found " + (singleCount + doubleCount));
+  }
+  modelsVerifySource = modelsVerifySource.replace(singleCount ? verifyCallSingle : verifyCallDouble, verifyCallReplacement);
   modelsVerifySource = "/* " + verifyMarker + " */\n" + modelsVerifySource;
   fs.writeFileSync(modelsVerifyPath, modelsVerifySource);
   process.stdout.write("Applied SentryIQ @tufjs/models named node:crypto.verify compatibility patch\n");
