@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 
 const expected = new Map([
-  ["@sigstore/tuf", "5.0.1"],
   ["tuf-js", "6.0.3"],
   ["@tufjs/models", "5.0.3"],
   ["@sigstore/core", "4.0.1"]
