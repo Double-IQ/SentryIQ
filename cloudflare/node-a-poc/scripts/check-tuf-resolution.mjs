@@ -23,10 +23,10 @@ for (const [name, version] of expected) {
 
 const workerEntry = fs.readFileSync(path.join("src", "index.ts"), "utf8");
 const forbiddenWorkerImports = [
-  /from ["']@sigstore\\/tuf["']/,
-  /from ["']node:fs(?:\\/promises)?["']/,
+  /from ["']@sigstore\/tuf["']/,
+  /from ["']node:fs(?:\/promises)?["']/,
   /from ["']node:path["']/,
-  /from ["']\\.\\/tuf-fs(?:-promises|-context)?["']/
+  /from ["']\\.\/tuf-fs(?:-promises|-context)?["']/
 ];
 for (const pattern of forbiddenWorkerImports) {
   if (pattern.test(workerEntry)) {
