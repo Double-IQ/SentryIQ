@@ -28,14 +28,14 @@ if (original.includes(marker)) {
     "  }",
     "}",
     "return crypto_1.default.verify(verificationAlgorithm, data, key, signature);"
-  ].join("\\n");
+  ].join("\n");
 
   const occurrences = original.split(target).length - 1;
   if (occurrences !== 1) {
     throw new Error("Expected one known @sigstore/core 4.0.1 verification call; found " + occurrences + "; refusing to patch an unknown build");
   }
   fs.writeFileSync(cryptoPath, original.replace(target, replacement));
-  process.stdout.write("Applied SentryIQ @sigstore/core 4.0.1 EC/RSA SHA-256 compatibility patch\\n");
+  process.stdout.write("Applied SentryIQ @sigstore/core 4.0.1 EC/RSA SHA-256 compatibility patch\n");
 }
 
 const modelsPackagePath = fileURLToPath(import.meta.resolve("@tufjs/models/package.json"));
@@ -54,11 +54,11 @@ if (modelsKeySource.includes(modelsMarker)) {
   const modelsReplacement = [
     "/* " + modelsMarker + " */",
     "(key.asymmetricKeyDetails?.namedCurve !== undefined && key.asymmetricKeyDetails.namedCurve !== namedCurve)"
-  ].join("\\n");
+  ].join("\n");
   const modelsOccurrences = modelsKeySource.split(modelsTarget).length - 1;
   if (modelsOccurrences !== 1) {
     throw new Error("Expected one known @tufjs/models 5.0.3 EC curve check; found " + modelsOccurrences + "; refusing to patch an unknown build");
   }
   fs.writeFileSync(modelsKeyPath, modelsKeySource.replace(modelsTarget, modelsReplacement));
-  process.stdout.write("Applied SentryIQ @tufjs/models Workerd EC key-detail compatibility patch\\n");
+  process.stdout.write("Applied SentryIQ @tufjs/models Workerd EC key-detail compatibility patch\n");
 }
