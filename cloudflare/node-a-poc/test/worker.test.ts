@@ -516,10 +516,19 @@ describe("fenced asynchronous TUF metadata session", () => {
 
   const fence = { runId: "a".repeat(32), fence: 1, token: "b".repeat(64) };
 
+  it("does not persist a bootstrap root until the upstream verifier accepts it", async () => {
+    const { store } = memoryStore();
+    const root1 = roleBytes("root", 1);
+    await expect(FencedTufMetadataSession.create(store, fence, root1, () => {
+      throw new Error("root self-signature rejected");
+    })).rejects.toThrow("root self-signature rejected");
+    expect(await store.readRole("root")).toBeNull();
+  });
+
   it("seeds an explicit root and commits root rotations one-by-one before fetching the next", async () => {
     const { store } = memoryStore();
     const root1 = roleBytes("root", 1);
-    const { session, root } = await FencedTufMetadataSession.create(store, fence, root1);
+    const { session, root } = await FencedTufMetadataSession.create(store, fence, root1, () => undefined);
     expect(root.version).toBe(1);
     const events: string[] = [];
     const identity = await session.rotateRoots(
@@ -542,7 +551,7 @@ describe("fenced asynchronous TUF metadata session", () => {
 
   it("poisons the session when upstream acceptance succeeds but durable commit fails", async () => {
     const { store, fail } = memoryStore();
-    const { session } = await FencedTufMetadataSession.create(store, fence, roleBytes("root", 1));
+    const { session } = await FencedTufMetadataSession.create(store, fence, roleBytes("root", 1), () => undefined);
     fail();
     await expect(session.acceptVerifiedRole("timestamp", roleBytes("timestamp", 1), {
       expectedCurrent: null,
@@ -557,7 +566,7 @@ describe("fenced asynchronous TUF metadata session", () => {
 
   it("poisons the metadata session when upstream role acceptance fails ambiguously", async () => {
     const { store } = memoryStore();
-    const { session } = await FencedTufMetadataSession.create(store, fence, roleBytes("root", 1));
+    const { session } = await FencedTufMetadataSession.create(store, fence, roleBytes("root", 1), () => undefined);
     await expect(session.acceptVerifiedRole("timestamp", roleBytes("timestamp", 1), {
       expectedCurrent: null,
       acceptIntoTrustedSet: () => { throw new Error("validation failed after possible trusted-set mutation"); }
@@ -571,7 +580,7 @@ describe("fenced asynchronous TUF metadata session", () => {
 
   it("poisons root rotation after an ambiguous upstream root-acceptance failure", async () => {
     const { store } = memoryStore();
-    const { session, root } = await FencedTufMetadataSession.create(store, fence, roleBytes("root", 1));
+    const { session, root } = await FencedTufMetadataSession.create(store, fence, roleBytes("root", 1), () => undefined);
     let fetched = 0;
     await expect(session.rotateRoots(
       2,
