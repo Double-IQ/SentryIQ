@@ -34,7 +34,8 @@ describe("GitHub release attestation retrieval", () => {
     expect(calls).toHaveLength(2);
     expect(calls[0]![0]).toContain("/repos/Double-IQ/SentryIQ/attestations/sha256:");
     expect(calls.every(([, init]) => init?.redirect === "error")).toBe(true);
-    expect((calls[1]![1]?.headers as Headers).has("Authorization")).toBe(false);
+    const bundleHeaders = new Headers(calls[1]![1]?.headers);
+    expect(bundleHeaders.has("Authorization")).toBe(false);
   });
 
   it("rejects invalid digests, malformed token values, and untrusted blob URLs", async () => {
