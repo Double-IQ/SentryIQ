@@ -101,8 +101,14 @@ export interface TufTargetStore {
     fence: TufRunFence
   ): Promise<CommittedTufTarget>;
 
-  /** Readers can resolve committed pointers only, never staging objects. */
-  openCommittedTarget(targetPath: string): Promise<ReadableStream<Uint8Array> | null>;
+  /**
+   * Readers resolve committed pointers only. When an expected descriptor is
+   * supplied, stale pointers for an older TUF target version are cache misses.
+   */
+  openCommittedTarget(
+    targetPath: string,
+    expected?: TufTargetDescriptor
+  ): Promise<ReadableStream<Uint8Array> | null>;
 
   /** Best-effort cleanup for a stage that was never committed. */
   abortTarget(stage: TufTargetStage): Promise<void>;
