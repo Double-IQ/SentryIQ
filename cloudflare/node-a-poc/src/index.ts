@@ -601,6 +601,12 @@ export default {
     const stateId = env.NODE_A_STATE.idFromName("node-a-async-tuf-runtime");
     const state = env.NODE_A_STATE.get(stateId);
     try {
+      // A missing baseline is an expected bootstrap state, not a recurring alert.
+      // The scheduled monitor remains dormant until the owner-approved baseline route succeeds.
+      if (!await state.getPin()) {
+        await state.recordOutcome("failed", null);
+        return;
+      }
       const result = await runNodeAReleaseMonitor(env, state, false);
       await state.recordOutcome(result.event.approved && result.pin_advanced ? "approved" : "rejected", result.release_version);
     } catch (error) {
