@@ -68,7 +68,8 @@ export class FencedTufMetadataSession {
     }
 
     const candidate = await makeStoredRole(trustAnchor, "root");
-    if (candidate.version !== 1) throw new Error("initial TUF trust anchor must be root version 1");
+    // An explicitly provisioned trust anchor may be a later root version;
+    // its self-signature is validated by the upstream TrustedMetadataStore.
     // Never persist a caller-supplied bootstrap anchor merely because its JSON
     // envelope says root v1. The upstream TUF implementation must validate it.
     await verifyTrustedRoot(candidate.data.slice());
