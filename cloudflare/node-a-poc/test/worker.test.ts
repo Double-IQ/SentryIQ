@@ -457,6 +457,19 @@ describe("Node A Workers runtime proof", () => {
       { version: 1, sha256, data },
       { ...fence, fence: fence.fence + 1 }
     )).rejects.toThrow("TUF storage fence does not match the active Node A run lock");
+
+    // A caller retaining the old run identity must still be rejected by the
+    // Durable Object after lease release and a new fencing epoch is acquired.
+    await state.releaseRunLock(lock);
+    const replacement = await state.acquireRunLock(60_000);
+    expect(replacement.fence).toBe(lock.fence + 1);
+    await expect(store.commitVerifiedRole(
+      "timestamp",
+      null,
+      { version: 1, sha256, data },
+      fence
+    )).rejects.toThrow("valid active Node A run fence required");
+    await state.releaseRunLock(replacement);
   });
 
 });
