@@ -474,14 +474,14 @@ describe("Node A Workers runtime proof", () => {
       null,
       { version: 1, sha256: staleDigest, data: staleData },
       fence
-    )).rejects.toBeInstanceOf(TufPersistenceCommitError);
+    )).rejects.toMatchObject({ code: "TUF_METADATA_COMMIT_FAILED" });
     await state.releaseRunLock(replacement);
 
     const unavailableStore = new DurableObjectTufMetadataStore({
       readTufMetadata: () => { throw new Error("simulated Durable Object read outage"); },
       commitVerifiedTufMetadata: () => { throw new Error("not used"); }
     }, () => replacement);
-    await expect(unavailableStore.readRole("timestamp")).rejects.toBeInstanceOf(TufMetadataReadError);
+    await expect(unavailableStore.readRole("timestamp")).rejects.toMatchObject({ code: "TUF_METADATA_READ_FAILED" });
   });
 
 });
