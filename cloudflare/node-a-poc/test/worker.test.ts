@@ -554,4 +554,38 @@ describe("fenced asynchronous TUF metadata session", () => {
       acceptIntoTrustedSet: () => undefined
     })).rejects.toThrow("poisoned");
   });
+
+  it("poisons the metadata session when upstream role acceptance fails ambiguously", async () => {
+    const { store } = memoryStore();
+    const { session } = await FencedTufMetadataSession.create(store, fence, roleBytes("root", 1));
+    await expect(session.acceptVerifiedRole("timestamp", roleBytes("timestamp", 1), {
+      expectedCurrent: null,
+      acceptIntoTrustedSet: () => { throw new Error("validation failed after possible trusted-set mutation"); }
+    })).rejects.toBeInstanceOf(TufStateMutationError);
+    expect(session.isPoisoned).toBe(true);
+    await expect(session.acceptVerifiedRole("snapshot", roleBytes("snapshot", 1), {
+      expectedCurrent: null,
+      acceptIntoTrustedSet: () => undefined
+    })).rejects.toBeInstanceOf(TufUpdaterPoisonedError);
+  });
+
+  it("poisons root rotation after an ambiguous upstream root-acceptance failure", async () => {
+    const { store } = memoryStore();
+    const { session, root } = await FencedTufMetadataSession.create(store, fence, roleBytes("root", 1));
+    let fetched = 0;
+    await expect(session.rotateRoots(
+      2,
+      2,
+      async (version) => {
+        fetched++;
+        return roleBytes("root", version);
+      },
+      () => { throw new Error("root accepted partially before validation failure"); },
+      { version: 1, sha256: root.sha256 }
+    )).rejects.toBeInstanceOf(TufStateMutationError);
+    expect(session.isPoisoned).toBe(true);
+    expect(fetched).toBe(1);
+    expect((await store.readRole("root"))?.version).toBe(1);
+  });
+
 });
