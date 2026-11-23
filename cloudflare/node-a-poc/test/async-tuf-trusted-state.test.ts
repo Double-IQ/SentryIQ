@@ -197,11 +197,12 @@ describe("async adapter over pinned TUF trusted metadata store", () => {
     upstream.updateRoot.mockImplementation(() => { events.push("accept:root"); });
     await adapter.rotateRoots(2, 2, async (version) => {
       events.push("fetch:" + version);
+      if (version === 4) throw Object.assign(new Error("not found"), { statusCode: 404 });
       return metadata(version, "root");
     });
     expect(events).toEqual([
       "fetch:2", "accept:root", "commit:root:2",
-      "fetch:3", "accept:root", "commit:root:3"
+      "fetch:3", "accept:root", "commit:root:3", "fetch:4"
     ]);
     expect(records.get("root")?.version).toBe(3);
   });
