@@ -397,16 +397,16 @@ export class NodeAState extends DurableObject<Env> {
     }
     const actualDigest = createHash("sha256").update(Buffer.from(next.data)).digest("hex");
     if (actualDigest !== next.sha256) throw new Error("TUF metadata candidate digest mismatch");
-    let envelope: { signed?: { type?: unknown; version?: unknown } };
+    let envelope: { signed?: { _type?: unknown; type?: unknown; version?: unknown } };
     try {
-      envelope = JSON.parse(Buffer.from(next.data).toString("utf8")) as { signed?: { type?: unknown; version?: unknown } };
+      envelope = JSON.parse(Buffer.from(next.data).toString("utf8")) as { signed?: { _type?: unknown; type?: unknown; version?: unknown } };
     } catch {
       throw new Error("TUF metadata candidate is not valid JSON");
     }
     const expectedType = roleName === "root" || roleName === "timestamp" || roleName === "snapshot"
       ? roleName
       : "targets";
-    if (!envelope.signed || envelope.signed.type !== expectedType || envelope.signed.version !== next.version) {
+    if (!envelope.signed || (envelope.signed._type ?? envelope.signed.type) !== expectedType || envelope.signed.version !== next.version) {
       throw new Error("TUF metadata role or version does not match its signed envelope");
     }
     if (expectedCurrent !== null
