@@ -48,6 +48,8 @@ function fakeState() {
     registerTufTargetStage() {},
     listStaleTufTargetStages() { return []; },
     deleteTufTargetStage() {},
+    listRetiredTufTargetObjects() { return []; },
+    deleteRetiredTufTargetObject() {},
     commitTufTargetPointer(
       descriptor: { targetPath: string; length: number; hashes: Readonly<Record<string, string>> },
       _stageId: string,
