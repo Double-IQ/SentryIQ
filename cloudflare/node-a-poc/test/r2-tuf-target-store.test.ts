@@ -108,13 +108,12 @@ describe("R2 TUF target store", () => {
     const bucket = new MemoryR2Bucket();
     const pointers = memoryPointers();
     let activeLock = lock1;
-    const originalPut = bucket.put.bind(bucket);
-    bucket.put = async (key, body) => {
-      const result = await originalPut(key, body);
-      activeLock = lock2;
-      return result;
-    };
     const store = new R2TufTargetStore(bucket, pointers, () => activeLock);
+    const originalWrite = store.writeTargetChunk.bind(store);
+    store.writeTargetChunk = async (stage, chunk) => {
+      await originalWrite(stage, chunk);
+      activeLock = lock2;
+    };
 
     await expect(stageVerifiedTufTarget(store, {
       descriptor,
