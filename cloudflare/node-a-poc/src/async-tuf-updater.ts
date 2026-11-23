@@ -200,7 +200,7 @@ export class AsyncTufUpdater {
 
     const encodedTargetPath = targetPath.split("/").map((part) => encodeURIComponent(part)).join("/");
     const targetUrl = new URL(encodedTargetPath, this.targetBaseUrl).toString();
-    const response = await fetch(targetUrl);
+    const response = await fetch(targetUrl, { redirect: "error" });
     if (!response.ok) throw new TufMetadataHttpError(response.status, targetUrl);
     if (!response.body) throw new Error("TUF target response has no readable body");
 
@@ -275,7 +275,7 @@ export class AsyncTufUpdater {
           (!Number.isSafeInteger(expectedLength) || expectedLength < 0 || expectedLength > maxLength))) {
       throw new Error("TUF metadata declared length is invalid or exceeds its configured bound: " + url);
     }
-    const response = await fetch(url);
+    const response = await fetch(url, { redirect: "error" });
     if (!response.ok) throw new TufMetadataHttpError(response.status, url);
     if (!response.body) throw new Error("TUF metadata response has no readable body: " + url);
 
