@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { fetchGithubReleaseAttestationBundles } from "./github-attestations";
+import { resolveGithubReleaseTagCommit } from "./github-release-tag";
 import { parseAndValidateReleaseManifest, type VerifiedReleaseManifest } from "./release-manifest";
 import { verifyReleaseAttestationBundle, type VerifiedReleaseClaims } from "./release-attestation-policy";
 
@@ -10,6 +11,7 @@ export interface VerifiedReleaseEvidence {
   readonly manifestClaims: VerifiedReleaseClaims;
   readonly zipClaims: VerifiedReleaseClaims;
   readonly zipSha256: string;
+  readonly tagCommit: string;
 }
 
 /**
@@ -41,6 +43,10 @@ export async function verifyReleaseEvidence(input: {
   );
   const zipSha256 = createHash("sha256").update(input.zipBytes).digest("hex");
   const request = input.request ?? fetch;
+  const tagCommit = await resolveGithubReleaseTagCommit(input.expectedVersion, request, input.apiToken);
+  if (tagCommit !== input.expectedCommit) {
+    throw new Error("GitHub release tag commit does not match the manifest and expected release commit");
+  }
 
   const [manifestBundles, zipBundles] = await Promise.all([
     fetchGithubReleaseAttestationBundles(manifest.sha256, request, input.apiToken),
@@ -56,7 +62,7 @@ export async function verifyReleaseEvidence(input: {
     input.expectedCommit, "sentryiq-" + input.expectedVersion + ".zip", zipSha256
   );
 
-  return { manifest, manifestClaims, zipClaims, zipSha256 };
+  return { manifest, manifestClaims, zipClaims, zipSha256, tagCommit };
 }
 
 function verifyAnyBundle(
