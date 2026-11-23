@@ -224,3 +224,12 @@ diff --git a/packages/client/tests/updater.test.ts b/packages/client/tests/updat
 +  });
 +
 +  describe('#downloadTarget', () => {
+
+diff --git a/packages/client/src/index.ts b/packages/client/src/index.ts
+--- a/packages/client/src/index.ts
++++ b/packages/client/src/index.ts
+@@ -1,3 +1,4 @@
+ export { TargetFile } from '@tufjs/models';
++export { TrustedMetadataStore } from './store';
+ export { BaseFetcher } from './fetcher';
+ export { Updater } from './updater';
