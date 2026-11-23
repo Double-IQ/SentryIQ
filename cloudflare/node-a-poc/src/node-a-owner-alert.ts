@@ -33,8 +33,8 @@ export class NodeAOwnerAlertWebhook {
   }
 
   async send(reason: string, context: Record<string, unknown>): Promise<void> {
-    if (!/^[a-z0-9_]{1,80}$/.test(reason) || !isRecord(context)) {
-      throw new Error("owner-alert event identity or context is invalid");
+    if (!/^[a-z0-9_]{1,80}$/.test(reason) || !isSafeAlertContext(context)) {
+      throw new Error("owner-alert event identity or context is invalid or contains non-alert data");
     }
     const issuedAt = this.clock();
     if (!Number.isSafeInteger(issuedAt) || issuedAt < 1) {
@@ -91,6 +91,19 @@ function isLocalOrLiteralAddress(host: string): boolean {
   if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") ||
       host.startsWith("[") || /^[0-9.]+$/.test(host)) return true;
   return false;
+}
+
+function isSafeAlertContext(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const context = value as Record<string, unknown>;
+  const allowed = new Set(["node_id", "phase", "release_version", "commit", "mismatch_count", "exception"]);
+  if (Object.keys(context).some((key) => !allowed.has(key)) || context.node_id !== "integrity-a") return false;
+  if (context.phase !== undefined && (typeof context.phase !== "string" || !/^[a-z0-9_]{1,80}$/.test(context.phase))) return false;
+  if (context.release_version !== undefined && (typeof context.release_version !== "string" || !/^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$/.test(context.release_version))) return false;
+  if (context.commit !== undefined && (typeof context.commit !== "string" || !/^[a-f0-9]{40}$/.test(context.commit))) return false;
+  if (context.mismatch_count !== undefined && (!Number.isSafeInteger(context.mismatch_count) || (context.mismatch_count as number) < 0 || (context.mismatch_count as number) > 100)) return false;
+  if (context.exception !== undefined && (typeof context.exception !== "string" || !/^[A-Za-z][A-Za-z0-9]{0,79}$/.test(context.exception))) return false;
+  return true;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
