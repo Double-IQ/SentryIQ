@@ -387,12 +387,20 @@ export class NodeAState extends DurableObject<Env> {
     });
   }
 
-  listRetiredTufTargetObjects(lock: RunLock, limit = 100): string[] {
+  listRetiredTufTargetObjects(
+    lock: RunLock,
+    limit = 100,
+    minimumAgeMs = 24 * 60 * 60 * 1000
+  ): string[] {
     this.validateRunLock(lock);
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("TUF target garbage-collection limit is invalid");
+    if (!Number.isSafeInteger(minimumAgeMs) || minimumAgeMs < 0 || minimumAgeMs > 30 * 24 * 60 * 60 * 1000) {
+      throw new Error("TUF target garbage-collection retention is invalid");
+    }
     this.assertRunLock(lock);
     return this.ctx.storage.sql.exec<{ object_key: string }>(
-      "SELECT object_key FROM tuf_target_gc ORDER BY queued_at LIMIT ?", limit
+      "SELECT object_key FROM tuf_target_gc WHERE queued_at <= ? ORDER BY queued_at LIMIT ?",
+      Date.now() - minimumAgeMs, limit
     ).toArray().map((row) => row.object_key);
   }
 
