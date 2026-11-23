@@ -431,6 +431,44 @@ describe("Node A Workers runtime proof", () => {
     expect(stage.descriptor).toBe(descriptor);
   });
 
+  it("fails closed when the internal TUF route has no API token configured", async () => {
+    const response = await worker.fetch(
+      new Request("https://node-a.test/internal/tuf/refresh", { method: "POST" }),
+      env
+    );
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Node A API token is not configured"
+    });
+  });
+
+  it("rejects an invalid bearer token before touching TUF or storage", async () => {
+    const protectedEnv = { ...env, NODE_A_API_TOKEN: "expected-secret" };
+    const response = await worker.fetch(
+      new Request("https://node-a.test/internal/tuf/refresh", {
+        method: "POST",
+        headers: { authorization: "Bearer wrong-secret" }
+      }),
+      protectedEnv
+    );
+    expect(response.status).toBe(401);
+  });
+
+  it("requires explicit root and mirror configuration after authentication", async () => {
+    const protectedEnv = { ...env, NODE_A_API_TOKEN: "expected-secret" };
+    const response = await worker.fetch(
+      new Request("https://node-a.test/internal/tuf/refresh", {
+        method: "POST",
+        headers: { authorization: "Bearer expected-secret" }
+      }),
+      protectedEnv
+    );
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Node A TUF runtime is not fully configured"
+    });
+  });
+
   it("publishes and reads immutable R2 target pointers only under the active fence", async () => {
     const id = env.NODE_A_STATE.idFromName("node-a-tuf-target-pointer-test");
     const state = env.NODE_A_STATE.get(id);
