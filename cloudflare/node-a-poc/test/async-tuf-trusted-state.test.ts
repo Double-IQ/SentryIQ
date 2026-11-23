@@ -63,6 +63,36 @@ describe("async adapter over pinned TUF trusted metadata store", () => {
     expect(store.commitVerifiedRole).toHaveBeenCalledTimes(2);
   });
 
+  it("reconstructs the trusted set from durable metadata after restart", async () => {
+    const { store, records } = memoryStore();
+    const firstTrusted = {
+      updateRoot: vi.fn(),
+      updateTimestamp: vi.fn(),
+      updateSnapshot: vi.fn(),
+      updateDelegatedTargets: vi.fn()
+    };
+    const first = await AsyncTufTrustedStateAdapter.create(
+      store, fence, metadata(1, "root"), () => firstTrusted
+    );
+    await first.refreshTimestamp(metadata(1, "timestamp"));
+    await first.refreshSnapshot(metadata(1, "snapshot"));
+
+    const restartedTrusted = {
+      updateRoot: vi.fn(),
+      updateTimestamp: vi.fn(),
+      updateSnapshot: vi.fn(),
+      updateDelegatedTargets: vi.fn()
+    };
+    await AsyncTufTrustedStateAdapter.create(
+      store, fence, metadata(1, "root"), () => restartedTrusted
+    );
+
+    expect(records.has("timestamp")).toBe(true);
+    expect(records.has("snapshot")).toBe(true);
+    expect(restartedTrusted.updateTimestamp).toHaveBeenCalledWith(records.get("timestamp")?.data);
+    expect(restartedTrusted.updateSnapshot).toHaveBeenCalledWith(records.get("snapshot")?.data);
+  });
+
   it("does not persist when upstream TUF rejects a role", async () => {
     const { store, records } = memoryStore();
     const upstream = {
