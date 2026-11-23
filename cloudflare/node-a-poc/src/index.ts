@@ -673,6 +673,14 @@ export { createNodeAAsyncTufUpdater };
 
 function authorizeNodeATufRequest(request: Request, expectedToken: string | undefined): Response | null {
   if (!expectedToken) return Response.json({ error: "Node A API token is not configured" }, { status: 503 });
+  const tokenBytes = Buffer.from(expectedToken);
+  if (tokenBytes.byteLength < 32 || tokenBytes.byteLength > 512 ||
+      /[\\u0000-\\u001f\\u007f]/.test(expectedToken)) {
+    return Response.json(
+      { error: "Node A API token must be 32-512 bytes and contain no control characters" },
+      { status: 503 }
+    );
+  }
   const provided = request.headers.get("authorization") ?? "";
   const expected = "Bearer " + expectedToken;
   const left = Buffer.from(provided);
