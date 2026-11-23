@@ -18,8 +18,8 @@ export interface VerifiedReleaseEvidence {
 /**
  * Verify the exact manifest and ZIP bytes, then independently verify each
  * digest's GitHub/Sigstore provenance against the supplied pinned trusted root.
- * The caller must supply bytes obtained through a separately constrained
- * release-asset transport; this function never trusts adjacent checksum files.
+ * The caller supplies manifest bytes and a ZIP digest/size from a separately
+ * constrained streaming release-asset transport; adjacent checksum files are never trusted.
  */
 export async function verifyReleaseEvidence(input: {
   readonly manifestBytes: Uint8Array;
@@ -27,7 +27,7 @@ export async function verifyReleaseEvidence(input: {
   readonly zipSha256?: string;
   readonly zipSize?: number;
   readonly expectedVersion: string;
-  readonly expectedCommit: string;
+  readonly expectedCommit?: string;
   readonly trustedRootJson: string;
   readonly request?: typeof fetch;
   readonly apiToken?: string;
@@ -60,13 +60,25 @@ export async function verifyReleaseEvidence(input: {
     throw new Error("pinned Sigstore trusted root is missing or exceeds its size limit");
   }
 
-  const manifest = parseAndValidateReleaseManifest(
-    input.manifestBytes, input.expectedVersion, input.expectedCommit
-  );
   const request = input.request ?? fetch;
-  const tagCommit = await resolveGithubReleaseTagCommit(input.expectedVersion, request, input.apiToken);
-  if (tagCommit !== input.expectedCommit) {
-    throw new Error("GitHub release tag commit does not match the manifest and expected release commit");
+  let tagCommit: string;
+  let expectedCommit: string;
+  let manifest: VerifiedReleaseManifest;
+  if (input.expectedCommit !== undefined) {
+    expectedCommit = input.expectedCommit;
+    manifest = parseAndValidateReleaseManifest(
+      input.manifestBytes, input.expectedVersion, expectedCommit
+    );
+    tagCommit = await resolveGithubReleaseTagCommit(input.expectedVersion, request, input.apiToken);
+    if (tagCommit !== expectedCommit) {
+      throw new Error("GitHub release tag commit does not match the manifest and expected release commit");
+    }
+  } else {
+    tagCommit = await resolveGithubReleaseTagCommit(input.expectedVersion, request, input.apiToken);
+    expectedCommit = tagCommit;
+    manifest = parseAndValidateReleaseManifest(
+      input.manifestBytes, input.expectedVersion, expectedCommit
+    );
   }
 
   const [manifestBundles, zipBundles] = await Promise.all([
