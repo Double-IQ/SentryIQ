@@ -745,7 +745,7 @@ export default {
 
 export { createNodeAAsyncTufUpdater };
 
-function requiredNodeAMonitorConfiguration(env: Env): string[] {
+export function requiredNodeAMonitorConfiguration(env: Env): string[] {
   const required: Array<[keyof Env, string]> = [
     ["NODE_A_GITHUB_TOKEN", "NODE_A_GITHUB_TOKEN"],
     ["NODE_A_EVENT_TOKEN", "NODE_A_EVENT_TOKEN"],
@@ -777,7 +777,7 @@ function parseNodeADigestMap(source: string, label: string): Record<string, stri
   return parsed as Record<string, string>;
 }
 
-function authorizeBaselineInitialization(
+export function authorizeBaselineInitialization(
   request: Request,
   expectedToken: string | undefined
 ): Response | null {
@@ -890,7 +890,7 @@ async function runNodeAReleaseMonitor(
   return monitor.run();
 }
 
-function authorizeNodeATufRequest(request: Request, expectedToken: string | undefined): Response | null {
+export function authorizeNodeATufRequest(request: Request, expectedToken: string | undefined): Response | null {
   if (!expectedToken) return Response.json({ error: "Node A API token is not configured" }, { status: 503 });
   const tokenBytes = Buffer.from(expectedToken);
   if (tokenBytes.byteLength < 32 || tokenBytes.byteLength > 512 ||
