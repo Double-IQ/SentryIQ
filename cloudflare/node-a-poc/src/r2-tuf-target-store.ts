@@ -134,10 +134,9 @@ export class R2TufTargetStore implements TufTargetStore {
     if (!pointer) return null;
     if (expected && !targetDescriptorMatches(pointer, expected)) return null;
     const object = await this.bucket.get(pointer.objectKey);
-    if (!object) throw new Error("committed TUF target object is missing from R2");
-    if (object.size !== pointer.length) {
-      throw new Error("committed TUF target object length no longer matches its pointer");
-    }
+    // A missing or truncated immutable object is never served. Treat it as a
+    // cache miss so the signed target can be fetched and verified again.
+    if (!object || object.size !== pointer.length) return null;
     return object.body;
   }
 
