@@ -465,7 +465,7 @@ describe("Node A Workers runtime proof", () => {
 
   it("requires explicit root and mirror configuration after authentication", async () => {
     const protectedEnv = Object.create(env) as typeof env & { NODE_A_API_TOKEN: string };
-    protectedEnv.NODE_A_API_TOKEN = "expected-secret";
+    protectedEnv.NODE_A_API_TOKEN = "a".repeat(64);
     const response = await workerExports.default.fetch(
       new Request("https://node-a.test/internal/tuf/refresh", {
         method: "POST",
