@@ -3,8 +3,10 @@ import type {
   StoredTufMetadata,
   TufMetadataIdentity,
   TufMetadataStore,
+  TufMetadataReadError,
   TufRunFence
 } from "./tuf-storage-contract";
+import { TufPersistenceCommitError } from "./guarded-tuf-updater";
 
 export interface DurableMetadataStateClient {
   readTufMetadata(
@@ -33,7 +35,14 @@ export class DurableObjectTufMetadataStore implements TufMetadataStore {
   ) {}
 
   async readRole(roleName: string): Promise<StoredTufMetadata | null> {
-    return this.state.readTufMetadata(roleName);
+    try {
+      return await this.state.readTufMetadata(roleName);
+    } catch (error) {
+      throw new TufMetadataReadError(
+        "Durable Object TUF metadata read failed; do not treat this as a cache miss",
+        error
+      );
+    }
   }
 
   async commitVerifiedRole(
@@ -51,11 +60,20 @@ export class DurableObjectTufMetadataStore implements TufMetadataStore {
       throw new Error("TUF storage fence does not match the active Node A run lock");
     }
 
-    return this.state.commitVerifiedTufMetadata(
-      roleName,
-      expectedCurrent,
-      next,
-      lock
-    );
+    try {
+      return await this.state.commitVerifiedTufMetadata(
+        roleName,
+        expectedCurrent,
+        next,
+        lock
+      );
+    } catch (error) {
+      // Upstream has already accepted this metadata into its mutable trusted
+      // set. A failed durable CAS means this updater must never be reused.
+      throw new TufPersistenceCommitError(
+        "Durable Object TUF metadata commit failed; recreate the updater from durable state",
+        error
+      );
+    }
   }
 }
