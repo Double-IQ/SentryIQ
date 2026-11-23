@@ -45,7 +45,22 @@ if (modelsPackageInfo.version !== "5.0.3") {
 }
 const modelsEntry = fileURLToPath(import.meta.resolve("@tufjs/models"));
 const modelsKeyPath = path.join(path.dirname(modelsEntry), "utils", "key.js");
-const modelsKeySource = fs.readFileSync(modelsKeyPath, "utf8");
+let modelsKeySource = fs.readFileSync(modelsKeyPath, "utf8");
+const keyTypeMarker = "SENTRYIQ_TUF_MODELS_WORKER_EC_KEY_TYPE_PATCH";
+if (modelsKeySource.includes(keyTypeMarker)) {
+  process.stdout.write("SentryIQ @tufjs/models Workerd key-type compatibility patch already applied\\n");
+} else {
+  const keyTypeTarget = "key.asymmetricKeyType !== 'ec'";
+  const keyTypeReplacement = "/* " + keyTypeMarker + " */ (key.asymmetricKeyType !== undefined && key.asymmetricKeyType !== 'ec')";
+  const keyTypeOccurrences = modelsKeySource.split(keyTypeTarget).length - 1;
+  if (keyTypeOccurrences !== 1) {
+    throw new Error("Expected one known @tufjs/models 5.0.3 EC key-type check; found " + keyTypeOccurrences + "; refusing to patch an unknown build");
+  }
+  modelsKeySource = modelsKeySource.replace(keyTypeTarget, keyTypeReplacement);
+  fs.writeFileSync(modelsKeyPath, modelsKeySource);
+  process.stdout.write("Applied SentryIQ @tufjs/models Workerd EC key-type compatibility patch\\n");
+}
+
 const modelsMarker = "SENTRYIQ_TUF_MODELS_WORKER_EC_KEY_DETAILS_PATCH";
 if (modelsKeySource.includes(modelsMarker)) {
   process.stdout.write("SentryIQ @tufjs/models Workerd key compatibility patch already applied\n");
