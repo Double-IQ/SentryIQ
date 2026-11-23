@@ -432,9 +432,10 @@ describe("Node A Workers runtime proof", () => {
   });
 
   it("fails closed when the internal TUF route has no API token configured", async () => {
-    const response = await worker.fetch(
+    const response = await workerExports.default.fetch(
       new Request("https://node-a.test/internal/tuf/refresh", { method: "POST" }),
-      env
+      env,
+      {} as ExecutionContext
     );
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({
@@ -444,24 +445,26 @@ describe("Node A Workers runtime proof", () => {
 
   it("rejects an invalid bearer token before touching TUF or storage", async () => {
     const protectedEnv = { ...env, NODE_A_API_TOKEN: "expected-secret" };
-    const response = await worker.fetch(
+    const response = await workerExports.default.fetch(
       new Request("https://node-a.test/internal/tuf/refresh", {
         method: "POST",
         headers: { authorization: "Bearer wrong-secret" }
       }),
-      protectedEnv
+      protectedEnv,
+      {} as ExecutionContext
     );
     expect(response.status).toBe(401);
   });
 
   it("requires explicit root and mirror configuration after authentication", async () => {
     const protectedEnv = { ...env, NODE_A_API_TOKEN: "expected-secret" };
-    const response = await worker.fetch(
+    const response = await workerExports.default.fetch(
       new Request("https://node-a.test/internal/tuf/refresh", {
         method: "POST",
         headers: { authorization: "Bearer expected-secret" }
       }),
-      protectedEnv
+      protectedEnv,
+      {} as ExecutionContext
     );
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({
