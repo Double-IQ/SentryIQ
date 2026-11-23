@@ -512,8 +512,8 @@ export class NodeAState extends DurableObject<Env> {
         if (roleName === "root" && next.version !== current.version + 1) {
           throw new Error("TUF root rotation must advance exactly one version");
         }
-      } else if (roleName === "root" && next.version !== 1) {
-        throw new Error("initial TUF root must be version 1");
+      } else if (roleName === "root" && next.version < 1) {
+        throw new Error("initial TUF trust anchor version must be positive");
       }
 
       this.ctx.storage.sql.exec(
