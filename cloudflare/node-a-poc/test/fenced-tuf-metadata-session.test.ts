@@ -152,13 +152,13 @@ describe("fenced asynchronous TUF metadata session", () => {
 
   it("fails closed if another root exists beyond the configured rotation cap", async () => {
     const { store } = fakeStore();
-    const { session } = await FencedTufMetadataSession.create(
+    const { session, root } = await FencedTufMetadataSession.create(
       store, fence, role(1), vi.fn()
     );
     const fetch = vi.fn(async (version: number) => role(version));
     await expect(session.rotateRoots(2, 2, fetch, vi.fn(), {
       version: 1,
-      sha256: "1".repeat(64)
+      sha256: root.sha256
     })).rejects.toThrow("exceeded the configured maximum");
     expect(fetch.mock.calls.map(([version]) => version)).toEqual([2, 3, 4]);
     expect(store.commitVerifiedRole).toHaveBeenCalledTimes(3);
