@@ -111,6 +111,12 @@ export class NodeAReleaseMonitor {
 
         execution.phase = "private_host_and_node4_challenge_report_exchange";
         const event = await this.dependencies.eventRunner.run({ release, origin });
+        if (event.manifest_sha256 !== release.manifest.sha256 ||
+            event.artifact_sha256 !== release.zipSha256 ||
+            event.event_acknowledgement.status !== "accepted" ||
+            event.approved !== (event.mismatches.length === 0)) {
+          throw new Error("Node A event result is not bound to the verified release or acknowledged by Node 4");
+        }
 
         let pinAdvanced = false;
         if (event.approved) {
