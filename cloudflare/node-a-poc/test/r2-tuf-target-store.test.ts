@@ -127,6 +127,22 @@ describe("R2 TUF target store", () => {
     await expect(store.openCommittedTarget(descriptor.targetPath)).resolves.not.toBeNull();
   });
 
+  it("stops accepting target chunks immediately after lease takeover", async () => {
+    const bucket = new MemoryR2Bucket();
+    const pointers = memoryPointers();
+    let activeLock = lock1;
+    const store = new R2TufTargetStore(bucket, pointers, () => activeLock);
+    const stage = await store.beginTarget(descriptor, fence);
+    activeLock = lock2;
+
+    await expect(store.writeTargetChunk(stage, bytes)).rejects.toThrow(
+      "does not match the active Node A run lock"
+    );
+    await store.abortTarget(stage);
+    expect(pointers.pointers.size).toBe(0);
+    expect(bucket.objects.size).toBe(0);
+  });
+
   it("rejects stale-owner publication and deletes the private R2 object", async () => {
     const bucket = new MemoryR2Bucket();
     const pointers = memoryPointers();
