@@ -51,10 +51,10 @@ describe("Node A Workers runtime proof", () => {
   });
 
   it("keeps the new monitor and baseline routes authenticated and fail-closed when secrets are absent", async () => {
-    const configuredEnv = Object.assign(Object.create(env), {
+    const configuredEnv = {
       NODE_A_API_TOKEN: "A".repeat(48),
       NODE_A_BASELINE_APPROVAL_TOKEN: "B".repeat(48)
-    });
+    } as unknown as typeof env;
     const unauthorized = await workerExports.default.fetch(
       new Request("https://node-a-poc.test/internal/monitor/run", { method: "POST" }),
       configuredEnv, {} as ExecutionContext
