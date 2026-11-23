@@ -14,6 +14,8 @@ import { DurableObjectTufMetadataStore } from "../src/durable-tuf-metadata-store
 import { TufMetadataReadError, type TufMetadataIdentity, type TufMetadataStore, type StoredTufMetadata } from "../src/tuf-storage-contract";
 import { FencedTufMetadataSession } from "../src/fenced-tuf-metadata-session";
 import type { TufTargetDescriptor, TufTargetStage } from "../src/tuf-storage-contract";
+import { R2TufTargetStore } from "../src/r2-tuf-target-store";
+import { stageVerifiedTufTarget } from "../src/verified-target-stream";
 import { describe, expect, it } from "vitest";
 
 async function expectRemoteRejection(promise: Promise<unknown>, message: string): Promise<void> {
@@ -463,6 +465,47 @@ describe("Node A Workers runtime proof", () => {
 
     await state.releaseRunLock(lock);
 
+  });
+
+  it("streams a verified target through the Workerd R2 binding and publishes its DO pointer", async () => {
+    const id = env.NODE_A_STATE.idFromName("node-a-real-r2-target-stream-test");
+    const state = env.NODE_A_STATE.get(id);
+    const lock = await state.acquireRunLock(60_000);
+    const content = new TextEncoder().encode("workerd R2 verified target");
+    const descriptor: TufTargetDescriptor = {
+      targetPath: "targets/workerd-r2-integration.bin",
+      length: content.byteLength,
+      hashes: { sha256: createHash("sha256").update(content).digest("hex") }
+    };
+    const fence = { runId: lock.runId, fence: lock.fence, token: lock.token };
+    const store = new R2TufTargetStore(env.NODE_A_TARGETS, state, () => lock);
+    try {
+      const committed = await stageVerifiedTufTarget(store, {
+        descriptor,
+        body: new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(content.slice(0, 8));
+            controller.enqueue(content.slice(8));
+            controller.close();
+          }
+        }),
+        fence
+      });
+      expect(await state.readTufTargetPointer(descriptor.targetPath)).toEqual(committed);
+      const reader = await store.openCommittedTarget(descriptor.targetPath, descriptor);
+      expect(reader).not.toBeNull();
+      const chunks: Uint8Array[] = [];
+      const streamReader = reader!.getReader();
+      while (true) {
+        const { done, value } = await streamReader.read();
+        if (done) break;
+        chunks.push(value);
+      }
+      expect(Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)))).toEqual(Buffer.from(content));
+      await expect(state.listStaleTufTargetStages(lock)).resolves.toEqual([]);
+    } finally {
+      await state.releaseRunLock(lock);
+    }
   });
 
   it("records private target stages and permits cleanup only after a newer fence takes over", async () => {
