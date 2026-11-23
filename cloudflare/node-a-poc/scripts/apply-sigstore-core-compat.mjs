@@ -48,7 +48,7 @@ const modelsKeyPath = path.join(path.dirname(modelsEntry), "utils", "key.js");
 let modelsKeySource = fs.readFileSync(modelsKeyPath, "utf8");
 const keyTypeMarker = "SENTRYIQ_TUF_MODELS_WORKER_EC_KEY_TYPE_PATCH";
 if (modelsKeySource.includes(keyTypeMarker)) {
-  process.stdout.write("SentryIQ @tufjs/models Workerd key-type compatibility patch already applied\\n");
+  process.stdout.write("SentryIQ @tufjs/models Workerd key-type compatibility patch already applied\n");
 } else {
   const keyTypeTarget = "key.asymmetricKeyType !== 'ec'";
   const keyTypeReplacement = "/* " + keyTypeMarker + " */ (key.asymmetricKeyType !== undefined && key.asymmetricKeyType !== 'ec')";
@@ -58,7 +58,7 @@ if (modelsKeySource.includes(keyTypeMarker)) {
   }
   modelsKeySource = modelsKeySource.replace(keyTypeTarget, keyTypeReplacement);
   fs.writeFileSync(modelsKeyPath, modelsKeySource);
-  process.stdout.write("Applied SentryIQ @tufjs/models Workerd EC key-type compatibility patch\\n");
+  process.stdout.write("Applied SentryIQ @tufjs/models Workerd EC key-type compatibility patch\n");
 }
 
 const modelsMarker = "SENTRYIQ_TUF_MODELS_WORKER_EC_KEY_DETAILS_PATCH";
@@ -82,7 +82,7 @@ const modelsVerifyPath = path.join(path.dirname(modelsEntry), "utils", "verify.j
 let modelsVerifySource = fs.readFileSync(modelsVerifyPath, "utf8");
 const verifyMarker = "SENTRYIQ_TUF_MODELS_WORKER_NAMED_CRYPTO_VERIFY_PATCH";
 if (modelsVerifySource.includes(verifyMarker)) {
-  process.stdout.write("SentryIQ @tufjs/models named crypto verify patch already applied\\n");
+  process.stdout.write("SentryIQ @tufjs/models named crypto verify patch already applied\n");
 } else {
   const esmImport = "import crypto from 'crypto';";
   const esmCall = "return crypto.verify(";
@@ -97,7 +97,7 @@ if (modelsVerifySource.includes(verifyMarker)) {
   } else {
     throw new Error("Could not identify the pinned @tufjs/models 5.0.3 crypto.verify import/call; refusing an unknown build");
   }
-  modelsVerifySource = "/* " + verifyMarker + " */\\n" + modelsVerifySource;
+  modelsVerifySource = "/* " + verifyMarker + " */\n" + modelsVerifySource;
   fs.writeFileSync(modelsVerifyPath, modelsVerifySource);
-  process.stdout.write("Applied SentryIQ @tufjs/models named node:crypto.verify compatibility patch\\n");
+  process.stdout.write("Applied SentryIQ @tufjs/models named node:crypto.verify compatibility patch\n");
 }
