@@ -90,17 +90,19 @@ This checklist is the execution record for completing Node A in Phase 2. Mark an
 
 ## 7. Staging security and failure testing
 
-- [ ] Test TUF root rotation.
-- [ ] Test timestamp rollback and equivocation rejection.
-- [ ] Test expired and invalid metadata.
-- [ ] Test delegated-role failures.
-- [ ] Test interrupted R2 uploads.
-- [ ] Test Durable Object lease takeover and stale-owner rejection.
-- [ ] Test abandoned staging-object cleanup.
-- [ ] Test superseded-object grace periods and garbage collection.
-- [ ] Test recovery after Worker restart or cache eviction.
-- [ ] Verify last-known-good trusted state survives failed refresh.
-- [ ] Complete an end-to-end rollback rehearsal.
+- [x] Test TUF root rotation, sequential durable commits, and fail-closed rotation-cap exhaustion.
+- [x] Test timestamp rollback and same-version equivocation rejection.
+- [x] Test expired/corrupt cached metadata recovery and invalid trusted-role rejection.
+- [x] Test delegated-role authorization, traversal bounds, and upstream verifier failures.
+- [x] Test interrupted/short/oversized R2 target streams, digest failures, and durable chunk-write failures.
+- [x] Test Durable Object lease takeover, stale-owner chunk rejection, and stale-owner publication rejection.
+- [x] Test abandoned staging-object cleanup after a newer fencing epoch.
+- [x] Test superseded-object grace periods and garbage collection, including the 24-hour reader grace.
+- [x] Test trusted-state reconstruction from durable metadata after restart and cache-miss recovery for missing/truncated R2 objects.
+- [x] Verify last-known-good durable trusted state is not replaced by rejected metadata; poison ambiguous in-memory verifier state.
+- [ ] Complete an account-backed end-to-end rollback rehearsal.
+
+**Evidence boundary:** These code-level failure/recovery tests are covered by the Node A Workerd/DO suite and pinned upstream TUF client suite in CI run #45213844387 (132/132 tests across 21 files; 9 upstream suites / 44 tests). They do not substitute for live Cloudflare R2/DO fault injection, actual Worker restart/cache eviction, or a production-like rollback rehearsal.
 
 ## 8. Production acceptance
 
