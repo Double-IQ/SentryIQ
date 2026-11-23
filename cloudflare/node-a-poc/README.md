@@ -36,6 +36,7 @@ The Worker suite passes **129/129 tests across 21 files** on exact head `9fab78b
 - The baseline has not been initialized. No one-time baseline approval token has been provisioned.
 - No Cloudflare production account/bucket, TUF bootstrap secret/mirror, GitHub API token, Node 4 token, report signing key, private-host token/collector key, expected inventory maps, independent alert endpoint, or production Worker deployment has been provisioned or verified.
 - The generic direct-alert transport is implemented, but its external endpoint and credential must be selected and provisioned by the owner. It must be independently controlled and not hosted on the SentryIQ application origin.
+- The Node A client targets `/private-host-attestation`, but the PHP collector/request-handler/nonce-store classes currently have no production HTTP entry point or `.htaccess` route. A separate owner-approved host adapter, route, private nonce-store provisioning, A/B credentials, and collector key/inventory configuration are required before the private-host exchange can work end to end.
 - The Durable Object release pin is advanced only after the signed Node 4 report is acknowledged. A rejected or unacknowledged event does not advance the pin.
 - `GET /runtime-check` deliberately reports `productionReady: false` until account-backed acceptance is completed.
 - PRs #143 and #145 remain draft/unmerged. No production changes have been made.
