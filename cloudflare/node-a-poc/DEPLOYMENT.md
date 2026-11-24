@@ -18,18 +18,16 @@ The Cron expression is code/configuration only. It has not been activated agains
 
 ## Provisioning prerequisites
 
-1. Confirm the intended Cloudflare account and that its administrative/failure boundary is independent of the SentryIQ application host.
-2. Confirm the service owner approves the 15-minute Cron cadence and the independent alert destination.
-3. Review `wrangler.jsonc`, the Durable Object binding `NODE_A_STATE`, the R2 binding `NODE_A_TARGETS`, and the migration.
-4. Authenticate Wrangler only after the account owner approves:
+1. Confirm the intended Cloudflare account and that its administrative/failure boundary is independent of the SentryIQ application host. The current account is `SentryIQ` (`1c31fbcc3026514911a9ad08401c8daa`).
+2. Use the default Cloudflare `workers.dev` hostname for the Worker unless a custom hostname is separately required and approved. This Worker hostname is distinct from the canonical SentryIQ application origin used for release and host-attestation requests.
+3. Confirm the service owner approves the 15-minute Cron cadence and the independent alert destination.
+4. Review `wrangler.jsonc`, the Durable Object binding `NODE_A_STATE`, the target-storage binding, and the migration.
+5. Authenticate Wrangler only after the account owner approves:
    ```sh
    npx wrangler login
    ```
-5. Create the R2 bucket declared in `wrangler.jsonc`:
-   ```sh
-   npx wrangler r2 bucket create sentryiq-node-a-targets
-   ```
-6. Provision the secrets and pinned configuration below through Wrangler's secret/variable interface. Never commit them, place them in checked-in `.dev.vars`, or paste them into a PR/issue.
+6. **Storage activation blocker:** the selected account's R2 API returns HTTP 403 because R2 is not enabled, and the Dashboard activation flow requires payment-card details. The owner will not add a card. Do not attempt R2 bucket creation or treat it as an available resource. The current `R2TufTargetStore` streams staged objects and publishes fenced Durable Object pointers only after the object-store upload is confirmed; it also relies on immutable objects, crash-stage cleanup and a 24-hour reader grace period. Workers KV is not a drop-in replacement (eventual consistency and a 25 MiB value limit, versus the updater's configured 1 GiB target bound). A storage alternative must preserve the staging, consistency, fencing, streaming, reconciliation and reader-grace guarantees and must be separately reviewed before changing the binding or adapter.
+7. Provision secrets and pinned configuration below only after the storage design and non-production deployment are approved. Never commit them, place them in checked-in `.dev.vars`, or paste them into a PR/issue.
 
 ## Required Worker secrets
 
