@@ -19,7 +19,7 @@ This inventory prevents unsafe bulk deletion. A file is not removed merely becau
 | Node 4 endpoint | `integrity_event.php` and `app/Updates/IntegrityEvent*` | Node A/B challenge/report exchange | Existing endpoint may have other consumers. Do not delete until full repository-wide caller/config/test inventory is complete. |
 | Private-host contract | `docs/security/private-host-attestation-contract.md` | A/B verifiers; HelioHost described as Node C | Replaced as active contract; historical copy retained at `private-host-attestation-contract-archive.md`. |
 | Cloudflare runbooks | `cloudflare/node-a-poc/EXECUTION_PLAN.md`, `DEPLOYMENT.md`, `README.md` | Cloudflare deployment | Replaced with retirement notices; original content preserved in adjacent `*_ARCHIVE.md` files. |
-| Candidate workflow PR | PR #150, `ci/node-a-candidate-build-dispatch` | Builds a candidate from old Node A feature branch | Still open at initial inspection. Do not merge as-is; determine whether generic package-build steps should be retained in a new release workflow. |
+| Candidate workflow PR | PR #150, `ci/node-a-candidate-build-dispatch` | Builds a candidate from old Node A feature branch | Closed without merging on 2026-11-24. It targeted the retired Cloudflare Node A source branch; generic package-build steps may be reused after review. |
 
 ## Canonical origin audit
 
