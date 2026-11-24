@@ -30,9 +30,9 @@ Status: [ ] not done | [x] done with evidence | [!] blocked with exact reason.
 - [x] A1.5 Map migrations to classes. **Evidence:** `wrangler.jsonc` migration `v1` declares `new_sqlite_classes: ["NodeAState"]`, matching the class exported from `src/index.ts`.
 - [x] A1.6 Identify R2 binding/reference. **Evidence:** `wrangler.jsonc` binds `NODE_A_TARGETS` to bucket `sentryiq-node-a-targets`; `src/index.ts` declares `NODE_A_TARGETS: R2Bucket` and passes it to the async TUF updater.
 - [x] A1.7 Identify environment/secret names. **Evidence:** `Env` in `src/index.ts` declares `NODE_A_API_TOKEN`, `TUF_ROOT_B64`, `TUF_METADATA_URL`, `TUF_TARGET_URL`, `NODE_A_GITHUB_TOKEN`, `NODE_A_EVENT_TOKEN`, `NODE_A_REPORT_PRIVATE_KEY_B64`, `NODE_A_PRIVATE_HOST_TOKEN`, `NODE_A_COLLECTOR_PUBLIC_KEY_B64`, `NODE_A_EXPECTED_FILES_JSON`, `NODE_A_EXPECTED_PRIVATE_CONFIG_JSON`, `NODE_A_ALERT_URL`, `NODE_A_ALERT_HOST`, `NODE_A_ALERT_TOKEN`, and `NODE_A_BASELINE_APPROVAL_TOKEN`. Values intentionally not inspected or recorded.
-- [ ] A1.8 Identify all external service URLs and map caller/purpose. Need inspect deployment docs and client/attestation/alert modules; do not infer endpoints from variable names.
+- [x] A1.8 Identify external service URLs and map caller/purpose. **Evidence:** `src/release-assets.ts` calls canonical origin `https://sentryiq.bichet.co.za/VERSION` and GitHub release assets under `https://github.com/Double-IQ/SentryIQ/releases/download/`; `src/private-host-attestation.ts` calls `https://sentryiq.bichet.co.za/private-host-attestation`; `src/node4-event-client.ts` calls `https://sentryiq.bichet.co.za/integrity_event.php`; `src/node-a-owner-alert.ts` uses operator-supplied independent HTTPS endpoint/hostname. `DEPLOYMENT.md` confirms the private-host route has no deployed listener/adapter and the alert provider is not selected/provisioned. **Documentation defect:** the same deployment doc still says PR #145 is draft/unmerged, contradicted by the verified GitHub merge record; correct this during documentation reconciliation, not by repeating PR checks.
 - [x] A1.9 Identify cron handler/cadence. **Evidence:** Wrangler cron is every 15 minutes; `scheduled()` in `src/index.ts` checks for an initialized pin, records a minimal failed outcome and returns if absent, otherwise runs the release monitor and records outcome; uncaught failures invoke independent alert path.
-- [ ] A1.10 Consolidate A1.2–A1.9 into a source-backed inventory with file/line references. Complete only after A1.8.
+- [ ] A1.10 Consolidate A1.2–A1.9 into a source-backed inventory with file/line references.
 
 ## B. Deployment topology and gap analysis
 - [ ] B1.1 Extract intended topology from existing docs/code.
@@ -126,4 +126,4 @@ Status: [ ] not done | [x] done with evidence | [!] blocked with exact reason.
 - [ ] J1.8 Final acceptance report and owner sign-off.
 
 ## Current cursor
-**Next item: A1.8 — inspect deployment documentation and relevant client/attestation/alert modules to enumerate external service endpoints.**
+**Next item: A1.10 — consolidate the configuration inventory and evidence.**
