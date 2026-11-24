@@ -176,3 +176,40 @@ The direct source review confirms that Node C is the closest existing verifier b
 5. Preserve the generic release package and provenance workflows. Narrow or replace the old integrity-node workflows only after the replacement test suite passes.
 6. Confirm live cron entries, external event endpoint callers, and deployment hooks before removing old scripts or endpoint code.
 7. Keep deployment, baseline initialization, private-key generation, and release publication as separately approved operations.
+
+
+## Third-pass endpoint, public inventory and runtime policy findings (2026-11-24)
+
+### Node 4 endpoint and live app coupling
+
+- `integrity_event.php` is a dedicated POST-only HTTPS JSON endpoint. It loads `IntegrityNode4RuntimeConfig`, requires the canonical SentryIQ host, and authenticates the former A/B node tokens and signed reports. It is not included by the inspected normal `index.php`, `update.php`, `update_apply.php`, or `update_check.php` paths.
+- `IntegrityNode4RuntimeConfig` loads the public `sentryiq_config.php` pointer and then the private configuration from the data directory. When enabled, it requires the exact A/B identities, tokens and public keys. The endpoint and its private config schema are therefore old-topology-specific.
+- The endpoint is a direct public PHP entrypoint, not an application front-controller route. Its continued existence is not proof it is used. No live request logs, hosting cron table, provider panel, external caller list, or private `sentryiq_config.php` was inspected. Before retirement, check those operational sources; do not expose or request secret values.
+- The repository's `.htaccess` has explicit rewrite protection for private configuration and internal source directories, but no rule in the inspected file disables `integrity_event.php`. The endpoint itself enforces POST, HTTPS, canonical Host, content type, body size, bearer authentication and request schema. Retiring it requires checking external clients first.
+
+### Public asset coverage limitation
+
+- The release manifest builder inventories every packaged file and divides the inventory into `public_files` and `runtime_files`. The current format-2 builder does not emit a separate `public_http_files` list.
+- `IntegrityPublicAssetPolicy` therefore falls back to selecting static assets from the signed `public_files` inventory. Node C can hash the expected static public paths and reject missing/unavailable or byte-mismatched responses.
+- This HTTP strategy does not enumerate the live webroot. It cannot independently discover an unexpected extra file at an unknown path, and a configured subset can omit otherwise eligible assets. The architecture acceptance claim for detecting added public files needs a concrete mechanism (for example, an independently generated and protected deployed-path inventory or host-side read-only inventory), not just per-path HTTP hashing.
+- Public HTTP hashes still do not verify private PHP source or runtime configuration. The current private-host collector runs on the application host and uses the retired A/B challenge model; it is not yet an approved isolated HelioHost-to-host measurement channel.
+
+### Security-header policy consistency
+
+- `.htaccess` sets `Referrer-Policy: strict-origin-when-cross-origin`, which matches `IntegrityOriginSecurityHeaderVerifier`'s expected policy.
+- `app/Security/SecurityBootstrap.php` also sends `Referrer-Policy: no-referrer` from PHP for application requests. Depending on Apache/FPM header handling and the `Header always set` directive, the live response may expose one or conflicting duplicate values. The verifier probes `/VERSION`, not the PHP front-controller response, so this is not yet evidence of a live mismatch. Confirm the actual deployed response headers for both `/VERSION` and `/` before changing either policy.
+- The architecture's header acceptance test should explicitly define whether it checks the static VERSION endpoint, the application HTML response, or both. Avoid weakening the stricter application policy merely to satisfy a monitor expectation.
+
+### Dependency and runtime packaging notes
+
+- No root `composer.json` or tracked Composer autoload file appears in the branch tree. The native Sigstore adapter can load a Composer autoloader supplied at a private path, and the normal application updater likewise accepts a private vendor autoload path. The HelioHost runtime will therefore need a reproducible, pinned dependency provisioning process outside the application release package, or a reviewed self-contained verifier build.
+- Do not assume the app release ZIP contains the native Sigstore Composer dependencies. Keep those dependencies outside the public webroot and verify their exact versions, hashes/provenance and update policy independently.
+- The normal update routes inspected do not invoke the retired Node 4/report verifier classes. The old report-verifier family is not automatically part of the app updater's active request path; still trace all remaining CLI, test, configuration and dynamic-reference dependencies before deletion.
+
+### Open evidence items
+
+1. Obtain a read-only confirmation of live application host cron entries and any external caller/monitor configuration for `integrity_event.php` and the old CLI scripts.
+2. Probe actual response headers on `/VERSION` and `/` to resolve the Apache/PHP Referrer-Policy interaction.
+3. Define a defensible mechanism for detecting unexpected added public files, and test it against the deployed webroot inventory.
+4. Specify and pin the private HelioHost Sigstore verifier dependency bundle.
+5. Keep PWA manifest/service-worker absence as a repository finding only; verify the live deployed origin before deciding whether PWA shell work is missing or externally generated.
