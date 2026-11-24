@@ -38,17 +38,17 @@ jobs:
           ' "$RUNNER_TEMP/source-run.json" >/dev/null
           echo "SOURCE_SHA=$(jq -r .head_sha "$RUNNER_TEMP/source-run.json")" >> "$GITHUB_ENV"
 
-      - name: Checkout Node A feature branch
+      - name: Checkout Node A merged target branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: feat/node-a-async-target-staging
+          ref: feat/node-a-monotonic-run-fence
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Require artifact source to match current branch head
+      - name: Require artifact source commit to be included in merged target history
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git merge-base --is-ancestor "$SOURCE_SHA" HEAD
 
       - name: Download generated lockfile artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -75,4 +75,4 @@ jobs:
           git -C "$GITHUB_WORKSPACE" config user.name "github-actions[bot]"
           git -C "$GITHUB_WORKSPACE" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git -C "$GITHUB_WORKSPACE" commit -m "chore(node-a): commit verified dependency lockfile"
-          git -C "$GITHUB_WORKSPACE" push origin HEAD:feat/node-a-async-target-staging
+          git -C "$GITHUB_WORKSPACE" push origin HEAD:feat/node-a-monotonic-run-fence
