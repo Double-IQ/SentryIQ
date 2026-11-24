@@ -48,8 +48,8 @@ Status: [ ] not done | [x] done with evidence | [!] blocked with exact reason.
 - [!] C1.2 Read-only Cloudflare account inspection is blocked by C1.1; no authenticated account connection is available.
 - [!] C1.3 Actual bucket/namespace/deployment/route/cron/secret metadata cannot be verified until authorized account access is provided.
 - [x] C1.4 Record exact access needed. **Owner action required:** provide an approved Cloudflare account connection with read access to Workers scripts/deployments/routes/triggers, R2 buckets, Durable Object namespaces/migrations, and Worker secret/variable *names and presence metadata* (not values). For later non-production provisioning, separately authorize scoped writes for non-production Worker scripts, R2 bucket, DO namespace/migrations, routes, and cron. Do not send API tokens or secret values in chat; use an approved secure connection/secret channel.
-- [ ] C1.5 Prepare non-production-only change set.
-- [ ] C1.6 Review for production targets, destructive operations, secret exposure.
+- [x] C1.5 Prepare non-production-only change set (plan only; not applied). **Change set:** (1) create non-production R2 bucket `sentryiq-node-a-targets` if absent; (2) deploy Worker `sentryiq-node-a-poc` from `cloudflare/node-a-poc` with `wrangler.jsonc`; (3) apply migration `v1` for SQLite DO class `NodeAState` via the approved non-production deployment; (4) configure the 12 runtime secrets listed in `DEPLOYMENT.md` and the two pinned inventory values `NODE_A_EXPECTED_FILES_JSON` / `NODE_A_EXPECTED_PRIVATE_CONFIG_JSON` through the secure operator channel; (5) bind/record a non-production Worker hostname/route after owner confirms intended hostname; (6) activate 15-minute Cron only after explicit cadence approval. Do not configure baseline approval token until the owner is ready for baseline initialization. Account names/state still require C1.2/C1.3.
+- [x] C1.6 Review change set. **Evidence:** change set is explicitly non-production; no production resources targeted; no secrets/values embedded; R2 create is conditional on absence; DO migration is additive `v1`; route/hostname and Cron activation remain gated on owner confirmation; baseline approval token is excluded from routine provisioning.
 - [ ] C1.7 Obtain explicit owner approval before account mutations unless specifically pre-authorized.
 - [ ] C1.8 Apply approved non-production changes and capture identifiers/results.
 - [ ] C1.9 Run non-production configuration validation.
@@ -126,4 +126,4 @@ Status: [ ] not done | [x] done with evidence | [!] blocked with exact reason.
 - [ ] J1.8 Final acceptance report and owner sign-off.
 
 ## Current cursor
-**Next item: C1.5 — prepare the non-production-only Cloudflare change set from the confirmed repository delta. Cloudflare account inspection remains blocked pending the access described in C1.4; continue safe repository preparation meanwhile.**
+**Next item: D1.1 — inspect the repository's private-host collector, request handler, nonce store, and PHP-FPM entry point. Cloudflare account inspection/provisioning remains blocked pending the secure access described in C1.4.**
