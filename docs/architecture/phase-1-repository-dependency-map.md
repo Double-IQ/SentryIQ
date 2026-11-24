@@ -209,8 +209,13 @@ The matrix below records tracked non-test callers and direct test coverage. Work
 - No production config file, token, key, or external host was available or required for this source audit. No values were inferred.
 
 ### 10.3 CI evidence and limitations
-- The legacy workflow files define tests but their presence is not evidence that the current PR head passed them.
-- No successful workflow run has been verified for the current PR head in this audit. CI status must remain "not verified" until run records are fetched for the latest head.
+- Current PR head checked: `0811fc64252806c35c606cd92ac49dd0635e0057`. PR #151 remains open and unmerged.
+- At the evidence check, `Release Manifest Tests` completed successfully, including canonical manifest tests, package build, contents/inventory and checksum validation.
+- `Integrity Node Tests`: PHP 8.1, 8.3, 8.4 and 8.5 jobs completed successfully; PHP 8.2 was still in progress. The completed jobs ran the workflow's full legacy integrity regression command sequence.
+- `Native Sigstore Integrity Node Tests`: PHP 8.1, 8.2, 8.4 and 8.5 jobs completed successfully; PHP 8.3 was still finishing post-job cleanup after lint and native trust/runtime regression steps completed successfully.
+- `PHP Syntax Check` and `Gallery Security Checks` were still in progress at the time of inspection. The Gallery job had completed browser-side security/recovery checks and was progressing through PHP lint; its remaining storage, updater, auth, vault, and deployment checks were pending.
+- These are live snapshots, not final conclusions. Fetch the latest run status again before closing Phase 1.0. The PHP 8.2 legacy integrity job, PHP syntax workflow, and full Gallery security workflow must complete successfully; the Native Sigstore workflow must finish without a failed matrix job.
+- The legacy workflow files define tests but their presence alone is not evidence that the current PR head passed them. Do not mark any still-running workflow as passed.
 - The old integrity workflow path filters include duplicated entries and branch names that are historical; the two workflows' PR and push filters are not identical. These are migration/coverage issues, not reasons to delete them now.
 - The symbol matrix is complete for the legacy integrity and private-host cluster identified in the tracked source sweep. Generic updater, release and TUF primitives remain separately classified candidates; their complete cross-repository caller/test inventory belongs to the release-verification review, not a reason to widen this legacy matrix indefinitely.
 
