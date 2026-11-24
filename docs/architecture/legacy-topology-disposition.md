@@ -99,3 +99,33 @@ The tree and selected call sites have been inspected, but this is not yet a comp
 4. Confirm the new single verifier's minimal runtime can use the generic report, evidence, release-state, asset-policy and Sigstore primitives without pulling old topology dependencies.
 5. Replace CI workflow path filters and test commands before deleting old tests.
 6. Delete only in a separate reviewed PR after replacement tests pass and rollback is documented.
+
+
+## Runtime entrypoint and call-site trace (focused)
+
+The following entrypoints were inspected directly:
+
+- `index.php` loads the application security bootstrap, private application config, vault engine, auth flow and UI. It contains no direct reference to Integrity Node A/B/C, Node 4, the private-host attestation collector, or the integrity event endpoint.
+- `app/Security/SecurityBootstrap.php` loads application security and vault infrastructure. The inspected file contains no direct construction/reference of the old integrity-node classes or Node 4 services.
+- `bin/integrity-node-run.php` is the explicit CLI entrypoint for the old scheduled verifier. It loads A/B/C classes, Node 4 event runner, private-host A/B gate, Sigstore verifier, evidence store and release-state store; its private configuration must return an `IntegrityNodeScheduledRunner`.
+- `bin/integrity-node4-monitor.php` is a separate CLI entrypoint for the Node 4 event monitor and loads the old Node 4 runtime configuration, event store, correlator and alert dispatcher.
+- `bin/integrity-node-baseline.php` initialises monotonic release state using a private config and release-state store.
+- `bin/integrity-node-keygen.php` generates node-specific signing keys.
+- `integrity_event.php` is a dedicated public HTTP endpoint for the old Node 4 challenge/report protocol. It requires private runtime configuration and validates A/B identities and keys.
+
+### What this establishes — and what it does not
+
+- The old monitoring runtime is separated from the normal `index.php` request path in the inspected entrypoints; it is invoked through explicit CLI scripts and a dedicated event endpoint.
+- This focused trace did not inspect every dynamic include, external cron definition, hosting control-panel schedule, private runtime configuration, or deployment hook. Therefore it does not prove that the live host is not scheduling these scripts.
+- The repository does not contain the owner's private `sentryiq_config.php` or live hosting scheduler state. No credentials or private config values were accessed.
+- Before removing the Node 4 endpoint or CLI scripts, confirm whether the live HelioHost/application host has cron entries, direct URLs, monitoring integrations, or operational procedures that call them.
+- The existing private-host collector is on the application host. It is not proof of independent HelioHost-side filesystem access and must not be presented as such.
+
+### Current retirement recommendation
+
+1. Keep old A/B/C and Node 4 code quarantined from new production wiring while Phase 0.5 completes.
+2. Use Node C as the leading single-verifier prototype candidate, subject to full review of its verifier bootstrap and evidence schema.
+3. Extract or reuse generic signed-report, public-asset-policy, release-state-locking, evidence-retention, and native Sigstore verification primitives where appropriate.
+4. Design a new HelioHost-to-phone verification protocol; do not reuse the old Node 4 challenge/report endpoint by default.
+5. Design private PHP/config integrity separately. If the application host cannot provide a safely isolated read-only collector, report that limitation explicitly rather than claiming full server-side verification.
+6. Keep `integrity_event.php`, Node 4 classes, A/B private-host gate, and old CLI scripts until live scheduler and external caller dependencies are confirmed absent and replacement tests are in place.
