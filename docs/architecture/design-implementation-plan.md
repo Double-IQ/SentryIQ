@@ -31,7 +31,7 @@ This plan supersedes the former Cloudflare Node A operational deployment plan. I
 - [ ] 1.2 Classify protected data and define where plaintext may exist.
 - [ ] 1.3 Specify cryptographic algorithms, key sizes, key identifiers, rotation, versioning, and compromise response; use established libraries and protocols rather than custom cryptography.
 - [ ] 1.4 Specify distinct release-signing, verifier-signing, master-device, per-device, DEK, recovery, and session key roles.
-- [ ] 1.5 Decide how client keys are protected on supported phone/browser platforms; document WebCrypto non-extractability limitations and whether a native companion is required.
+- [ ] 1.5 Decide how client keys are protected on supported phone/browser platforms; document WebCrypto non-extractability limitations and whether a native companion is required. Confirm the actual deployed PWA manifest/service-worker assets before treating the application as a PWA.
 - [ ] 1.6 Define envelope encryption and per-purpose/per-vault DEK wrapping; ensure server stores ciphertext and wrapped keys only.
 - [ ] 1.7 Define device certificate format, permission scopes, expiry, registry epoch, enrolment and revocation protocol.
 - [ ] 1.8 Define offline recovery ceremony, recovery-material format, lost-phone revocation, key rotation, and unrecoverable-loss behaviour.
@@ -67,7 +67,7 @@ This plan supersedes the former Cloudflare Node A operational deployment plan. I
 - [ ] 4.6 Build and test a non-production verifier instance only after qualification and explicit approval.
 
 ## Phase 5 — Integration, acceptance, and migration
-- [ ] 5.1 Map existing SentryIQ vault encryption, passkeys, sessions, audit logging, first-run installer, and PWA/service-worker code to the target design.
+- [ ] 5.1 Map existing SentryIQ vault encryption, passkeys, sessions, audit logging, and first-run installer to the target design. The inspected repository tree currently contains no tracked web-app manifest or service-worker entrypoint; verify the live deployment and explicitly design/build the PWA shell if it is not already supplied externally.
 - [ ] 5.2 Reuse existing release-manifest, Sigstore, Ed25519, nonce, and file-inventory components only after reviewing trust assumptions and adapting contracts.
 - [ ] 5.3 Remove obsolete Cloudflare-specific deployment workflows, configs, dependencies, and docs only after confirming no active consumer; preserve a concise historical archive where needed.
 - [ ] 5.4 Update canonical origin and identity bindings consistently; add tests to prevent drift.
