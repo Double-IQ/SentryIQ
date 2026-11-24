@@ -99,3 +99,52 @@ No source files have been deleted or changed as part of this map. No production 
 - The Gallery passkey and recovery flows are cryptographically relevant but do not provide master-phone authority.
 - The legacy alert/event and private-host subsystems are strongly A/B/Node4-coupled and are not target design dependencies by default.
 - The broad tracked-PHP sweep remains incomplete: remaining endpoint, diagnostics, updater, cloud storage, private-data, and dynamic include/call-site consumers still require a complete matrix. Phase 1.0 remains in progress.
+
+
+## 9. Third-pass tracked PHP include and dynamic-dispatch audit (2026-11-24)
+
+### Scope and method
+- Reconciled the recursive Git tree at the audited branch head: 200 tracked PHP files, of which 68 are tests and 132 are non-test source, entrypoint, diagnostic, probe, and private-data PHP files.
+- Inspected the tracked non-test PHP source set for `include`, `include_once`, `require`, `require_once`, variable-based includes, runtime autoloading, reflection, variable class construction, callback dispatch, and optional-extension class checks.
+- This is a source-tree audit only. The repository does not contain the private `sentryiq_config.php` runtime file or private Composer vendor bundle, and the owner confirmed no nodes were provisioned. Their runtime values and external execution are therefore not asserted.
+
+### Dynamic include and runtime-loading inventory
+| Loading boundary | Source/caller | Target or dependency | Security/design significance |
+|---|---|---|---|
+| Application bootstrap | `index.php` → `security_bootstrap.php` → `SecurityBootstrap.php` | Private configured `vault_engine.php`; static Gallery `BackblazeB2Signer.php`; private `email_template.php`; `AuthFlow.php`; dashboard modules | Normal application runtime. Private data-dir path is config-derived; not a verifier entrypoint. |
+| Shared vault modules | `app/Vault/Actions.php`, `CategoryActions.php`, `FolderData.php`, `RecordActions.php`, `RecordsCategoryActions.php`, `RecordsViewData.php`; `SecurityLog.php`; `vault-icon.php`; `diagnostics/vault_save_diagnostic.php` | Configured private `vault_engine.php`; selected actions also load `vault_icon_cache.php` | Multiple app features load the private engine directly. Any engine move/version change must update these consumers and preserve path validation. |
+| First-run installer | `first_run.php` → `app/Security/FirstRun.php` | Computed `$engineTarget` and `$iconCacheTarget`; static `FirstRunPath.php` and `BoundedLog.php` | Installer writes/copies private runtime files then loads them. Review path derivation and containment checks before refactoring. |
+| Document endpoints | `app/Documents/Download.php`, `Upload.php` | Computed `$engine`; static `DocumentStore.php` | Dynamic private engine include is part of document operations, not an integrity-node path. |
+| Private updater dependencies | `update_apply.php` → `NativeSigstoreReleaseVerifier.php` | Private `sentryiq_config.php` field `sigstore_vendor_autoload`; pinned Sigstore/TUF classes | Runtime loads a private Composer autoloader only after absolute-path, non-symlink, readable-file and private-data-directory checks. Verifier checks required classes and exact package versions. |
+| Legacy scheduled verifier | `bin/integrity-node-run.php` | Private `SENTRYIQ_INTEGRITY_NODE_CONFIG` file; file must return an `IntegrityNodeScheduledRunner` | CLI-only legacy A/B/C + Node 4 runner. Config path is checked for private-directory containment, regular-file type, mode 0600, and open-time inode consistency. No configured node exists. |
+| Legacy Node 4 config | `integrity_event.php` and `bin/integrity-node4-monitor.php` → `IntegrityNode4RuntimeConfig.php` | Public config pointer then private `sentryiq_config.php` | Validates separation of public pointer and private config, path/type/mode and A/B tokens/keys. It is exclusively the retired dual-node event contract. |
+| Legacy event endpoint | `integrity_event.php` | Static event decoder, Node 4 config, file event store, A/B report verifier | Standalone POST entrypoint; does not enter normal app bootstrap. |
+| Legacy monitor | `bin/integrity-node4-monitor.php` | Static event store, correlator, alert dispatcher, monitor; private configured alert callbacks | CLI-only. Requires two distinct callable alert senders (`is_callable`) from private config. Those callbacks are dynamic behaviour that cannot be resolved from repository source alone. |
+| TUF persistence probe | `tools/heliohost-tuf-persistence-probe/httpdocs/{refresh-root,reload-root}.php` → `probe-common.php` | Probe-private `vendor/autoload.php` and local TUF root store | Test/probe tooling only; not the application runtime or the target security-node deployment. |
+
+### Dynamic dispatch and optional runtime capabilities
+- No `eval()`, variable-class `new $class`, `ReflectionMethod`, `forward_static_call`, or project-defined dynamic autoloader registration was found in the inspected non-test PHP source.
+- `NativeSigstoreReleaseVerifier` uses `class_exists()` to validate dependency classes, `call_user_func()` for Composer InstalledVersions lookups, and `ReflectionClass` to locate the bundled TUF root resource. These are bounded dependency-introspection operations, not arbitrary user-controlled dispatch.
+- `bin/integrity-node4-monitor.php` validates and invokes two private-config callables for alert delivery. The actual callback implementations are not in the tracked PHP tree and cannot be verified until a future, separately authorised runtime configuration is supplied.
+- Optional extension checks include `ZipArchive` in `UpdateManager.php`, `Imagick` in `ImageProcessor.php`, and `DOMDocument` in `vault_icon_cache.php`. These are capability gates, not project class-routing mechanisms.
+- `integrity_event.php` has a guarded `getallheaders()` fallback for Authorization header retrieval.
+
+### Legacy caller and test classification
+| Legacy component | Non-test source callers | Test/workflow evidence | Current classification |
+|---|---|---|---|
+| Node A / Node B / Node C | `bin/integrity-node-run.php` and verifier binding | Dedicated A/B/C tests; scheduled-runner tests; legacy integrity CI workflows | Legacy CLI-only verifier implementations; not loaded by normal app bootstrap. |
+| Scheduled runner / verifier binding | `bin/integrity-node-run.php` | Scheduled-runner and CLI bootstrap tests; legacy integrity CI workflows | Legacy CLI orchestration; binding is explicitly A/B/C-specific. |
+| Node event runner / event client | Scheduled runner; event client used by event runner | Event runner/client and scheduled-runner tests; legacy integrity CI workflows | Legacy A/B challenge/report transport. |
+| Node 4 runtime config / request decoder / event store / report verifier | `integrity_event.php`; Node 4 config also used by monitor CLI | Dedicated config, decoder, store, verifier tests; legacy integrity CI workflows | Separate legacy HTTP/CLI event plane; no provisioned external caller. |
+| Node 4 monitor / correlator / alert dispatcher | `bin/integrity-node4-monitor.php` | Dedicated monitor/correlator/dispatcher tests; legacy integrity CI workflows | CLI-only monitoring and alert outbox cluster. |
+| Private-host client / verifier / gate | A/B verifier implementations and legacy runner preload | Dedicated client/verifier/gate tests; legacy integrity CI workflows | A/B-specific protocol; not target HelioHost proof. |
+| Private-host collector / request handler / nonce store | No non-test caller found in tracked application/CLI entrypoints | Dedicated unit tests; legacy integrity CI workflow path filters | Test-covered protocol components without a tracked production entrypoint. Treat as unreferenced runtime code, not as an active service. |
+| Node key generator | `bin/integrity-node-keygen.php` | Key-generator tests; legacy integrity CI workflow | CLI-only key-management utility; do not run or generate production keys during design. |
+| Baseline initializer / release-state store | `bin/integrity-node-baseline.php`; scheduled runner | Baseline CLI and release-state tests; legacy integrity CI workflow | CLI-only legacy baseline utility and reusable anti-rollback candidate; no baseline initialized. |
+| Report signer / two-node report verifier | Signer loaded by legacy runner; verifier used by legacy report/event contracts | Dedicated signer/verifier tests; legacy integrity CI workflows | Signer primitive candidate; verifier policy remains fixed to two-node approval and is not target phone policy. |
+
+### Audit result and boundaries
+- The tracked non-test PHP sweep found no normal application bootstrap edge into Node A/B/C, Node 4, or the private-host gate. The only tracked non-test execution roots for that legacy subsystem are the dedicated CLI scripts and `integrity_event.php`.
+- All variable-based include sites found are tied to private vault/installer/updater runtime paths or private CLI configuration/autoload paths described above; no arbitrary request-controlled PHP include was identified in the inspected source.
+- The old collector/request-handler/nonce-store components have tests but no tracked non-test entrypoint caller. This is a repository-reference finding, not proof that an external runtime used them; no nodes were ever provisioned.
+- The PHP include/dynamic-dispatch sweep is now complete for the 132 tracked non-test PHP files at this branch head. The remaining Phase 1.0 work is the full symbol-to-caller/test/workflow matrix reconciliation, private configuration and workflow-path-filter review, and test-result reconciliation. Phase 1.0 remains open.
