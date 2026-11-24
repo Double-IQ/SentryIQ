@@ -1,53 +1,87 @@
-# Release trust policy and repository controls
+# Release trust policy — current architecture
 
-**Status:** Implemented in the updater's native Sigstore path when the private verifier dependencies are configured; production-host activation and the separate independent release-authorization layer remain pending.
+**Status:** Repository release-provenance controls and native updater verification exist in code/CI. Production-host activation is not verified. The independent release-authorization and HelioHost verifier trust layers remain design work; this policy does not claim they are deployed.
 
-## Repository identity
+**Application target:** `https://sentryiq.bichet.co.za`  
+**Canonical repository:** `Double-IQ/SentryIQ`  
+**Independent verifier target:** one specialised HelioHost verifier. It is not a release signer and is not a second application host.
 
-The updater currently names `BTM-SA/SentryIQ`, while active development and the release-provenance workflow use `Double-IQ/SentryIQ`. GitHub's API responds to the legacy owner/name route with a permanent redirect to repository ID `1345956206`, which is also the repository ID returned for the active `Double-IQ/SentryIQ` pull request. This indicates the names resolve to the same repository identity, rather than two separate repositories.
+## 1. Separate trust roles
 
-For new workflow configuration and documentation, use the canonical repository name `Double-IQ/SentryIQ`. Do not change the updater's repository constant as part of this provenance-only change; make that a separate compatibility-tested change after confirming the intended public release URL and any existing installations.
+These roles must remain cryptographically and operationally separate:
 
-## What counts as trusted release evidence
+1. **GitHub build provenance:** attests which repository, source ref/commit, workflow identity, and artifact digest produced a release artifact.
+2. **Release authorisation:** a separately controlled approval over the exact release identity/digest. This layer is not yet implemented as the final owner-controlled trust mechanism.
+3. **HelioHost verifier report:** independently measures the agreed deployed release/runtime surface and signs its own report with a dedicated verifier key. It must not inherit the old A/B/C identities or share the release-authority key.
+4. **Master-phone trust:** the owner's master device independently verifies/pins approved release and verifier trust roots. It is not a GitHub workflow identity.
+5. **Device and content keys:** master/device signing, key agreement, data roots, object DEKs, recovery materials, and session credentials are separate roles and never serve as release-signing keys.
 
-The release ZIP's adjacent SHA-256 file is an integrity check, not an independent trust anchor. An attacker who can replace both files through the same release channel can replace the checksum too.
+The Phase 1 cryptographic profile, key-role separation, trust boundaries, and threat model are authoritative for the target roles. See [cryptographic profile](../architecture/phase-1-cryptographic-profile.md), [key-role separation](../architecture/phase-1-key-role-separation.md), [trust boundaries](../architecture/phase-1-data-flow-and-trust-boundaries.md), and [runtime/supply-chain threat model](../architecture/phase-1-runtime-and-supply-chain-threat-model.md).
 
-The GitHub Actions build-provenance attestation added to the release workflow is a separate, cryptographically verifiable statement about the artifact's build provenance and workflow identity. A verifier must check at least:
+## 2. GitHub provenance verification requirements
 
-- The attestation is valid and chains to the expected GitHub/Sigstore trust roots.
-- The subject digest matches the exact downloaded ZIP.
-- The source repository identity is `Double-IQ/SentryIQ` (repository ID `1345956206`).
-- The source ref is the expected version tag and the source commit is the commit intended for release.
-- The signer workflow identity is this repository's approved release workflow, not an arbitrary workflow in the repository.
-- The workflow run completed successfully under the expected event and ref.
+A verifier consuming a GitHub/Sigstore attestation must check all of the following against explicit policy, not values copied from the artifact itself:
 
-A successful attestation check establishes provenance under the GitHub Actions trust model. It does not, by itself, prove that the source code is benign, that the workflow definition was reviewed, or that the artifact is safe to install.
+- Signature and certificate chain validate against the expected Sigstore/GitHub trust roots.
+- The attestation subject digest equals the exact downloaded artifact bytes.
+- Source repository identity is the canonical repository `Double-IQ/SentryIQ` (and immutable repository ID where supported).
+- Source ref is the approved immutable version tag and source commit is the commit intended for release.
+- Signer workflow identity is the reviewed release workflow path and approved repository identity.
+- Workflow event, run conclusion, and source ref satisfy the release policy.
+- ZIP and manifest subjects, where both are published, are individually digest-bound and mutually consistent.
 
-## Required repository controls before production release enforcement
+A SHA-256 sidecar is transport-integrity metadata, not an independent trust anchor. An attacker able to replace both an artifact and its adjacent checksum can replace both.
 
-The observed `main` branch metadata reports `protected: false`. Before relying on this repository as a release trust authority, an administrator should configure and verify:
+A valid build attestation proves provenance under the GitHub Actions/Sigstore trust model. It does not prove source code is benign, workflow policy was independently reviewed, a release was owner-authorised, or the deployed browser/runtime is uncompromised.
 
-1. Require pull requests before merging to `main`; do not permit direct pushes for routine changes.
-2. Require the `PHP Syntax Check / php-lint` and `Gallery Security Checks / gallery-security` checks to pass before merge.
-3. Require conversation resolution and dismiss stale approvals when review is enabled. Require at least one independent approval where a second qualified reviewer is available; do not create a self-approval deadlock for a single-maintainer repository.
-4. Block force pushes and branch deletion on `main`.
-5. Protect version tags matching `v*.*.*` against unauthorized creation, update, and deletion. Restrict release creation to the approved release process and maintainers.
-6. Keep the release workflow permissions minimal. Any workflow that receives `id-token: write`, `attestations: write`, or `contents: write` must be reviewed as security-sensitive.
-7. Recheck the effective branch protection/ruleset and required check names after configuration; do not treat a documentation checklist as proof that controls are active.
+## 3. Repository workflow disposition
 
-The current repository metadata showed branch protection disabled at the time of this review. The GitHub integration used for this repository could read the branch metadata but could not configure administrative branch-protection settings. An authorized repository administrator must apply and verify these controls in GitHub.
+- `.github/workflows/release.yml` remains the generic tag-triggered package and provenance workflow. Its `contents: write`, `id-token: write`, and `attestations: write` permissions are security-sensitive and must remain minimal.
+- `.github/workflows/release-manifest-tests.yml` remains generic PR/main validation for deterministic package inventory.
+- `.github/workflows/native-release-attestation.yml` remains native updater/Sigstore regression coverage. Its generic release-verification tests remain relevant; any legacy adapter fixture is compatibility regression coverage only, not a production multi-node topology.
+- `.github/workflows/native-sigstore-integrity-node.yml` remains temporarily as regression coverage for legacy verifier classes and native trust components while the replacement single-verifier contract is designed. It is not a deployment workflow and grants only read access. Its A/B/C, private-host, and Node 4 test cases must not be interpreted as live services or active deployment requirements.
+- `.github/workflows/integrity-node-tests.yml` remains legacy code regression coverage pending the reviewed replacement verifier/test suite. It does not provision or execute any remote node.
+- The obsolete `.github/workflows/node-a-commit-generated-lockfile.yml` workflow, which granted `contents: write` to push a generated lockfile to a retired Cloudflare branch, is removed from the active workflow set. Its historical contents are retained under `docs/security/archive/`.
 
-## Updater enforcement and remaining prerequisites
+No Cloudflare Worker, R2, Durable Object, Val Town service, A/B/C node, or Node 4 deployment is part of the current target. The owner confirmed none of those legacy nodes was provisioned.
 
-`UpdateManager` now enforces the native Sigstore verifier before extraction when its administrator-controlled private Composer autoload path is configured, and fails closed when no verifier is configured. The verifier binds the artifact digest to the approved repository, tag/ref, commit, workflow identity and TUF/Sigstore trust chain; the updater then validates the ZIP-bound manifest against the resolved release commit and extracted file inventory. This code-level enforcement does not establish that production hosting has been configured or that the current production installation is using it.
+## 4. Required repository controls
 
-Production activation and the complete release trust model must also establish:
+Before treating GitHub as a production release trust authority, an authorised repository administrator must configure and verify:
 
-- A monotonic release sequence or equivalent anti-rollback rule, including recovery from an intentionally approved rollback.
-- A maximum attestation age or release freshness policy, if applicable.
-- Trust-root and verifier updates, including key rotation and emergency revocation.
-- Fail-closed behaviour for missing, invalid, expired, wrong-repository, wrong-workflow, wrong-ref, digest-mismatched, or rollback evidence.
-- Safe handling of GitHub API/network outages without silently treating an unverifiable package as trusted.
-- Tests proving rejected packages cannot modify application or runtime files.
+1. Pull-request review and required CI checks on `main`.
+2. No routine direct pushes, force pushes, or branch deletion on `main`.
+3. Protected version tags matching the release naming convention.
+4. Restricted release creation and workflow modification permissions.
+5. Least privilege for every workflow receiving `contents: write`, `id-token: write`, or `attestations: write`.
+6. Independent review of release-workflow changes and CODEOWNERS/ruleset coverage for trust-critical paths.
 
-GitHub build provenance is the first provenance layer. The separately controlled release authorization and independently pinned Integrity Node trust roots remain required by the SentryIQ security roadmap. The current A/B/C observers share GitHub/Sigstore trust roots and the repository release workflow identity, so they are not independent release-authority approvals. Do not store a long-lived release-signing private key on the production host or in this repository.
+Repository configuration must be inspected live; a document or passing CI run is not proof that branch rules are enabled. The prior repository inspection found branch protection disabled at that time; this must be rechecked rather than assumed unchanged.
+
+## 5. Native updater enforcement boundary
+
+The repository contains a native Sigstore release-verifier path used by the updater when its private verifier dependencies/configuration are supplied. The code path is designed to verify the downloaded ZIP before extraction, bind it to repository/workflow/ref/commit provenance, and validate the embedded inventory against the extracted package. This is source-level capability, not evidence that the production host has the dependencies installed or that production is selecting the native path.
+
+Production activation remains unverified. Do not infer deployment, release publication, or successful production enforcement from CI, a built dependency artifact, or repository code.
+
+## 6. Fail-closed requirements
+
+The updater and future phone-side release gate must reject:
+- Missing, invalid, expired, wrong-repository, wrong-workflow, wrong-ref, or wrong-commit attestations.
+- Subject digest mismatch or inconsistent ZIP/manifest inventory.
+- Unsupported manifest/profile versions, downgrade attempts, or rollback below accepted monotonic state.
+- Missing or untrusted release-authorisation evidence.
+- Invalid, stale, replayed, incorrectly scoped, or incorrectly signed verifier reports.
+- Verifier outages or unavailable trust metadata when the operation requires fresh verification.
+
+A deliberately approved rollback must be a separately authenticated, auditable action with explicit version/digest binding; it must not disable general anti-rollback checks.
+
+## 7. Remaining gates
+
+1. Complete Phase 0.6 repository contract/workflow/document reconciliation.
+2. Complete Phase 2 release manifest, trust-root distribution, independent release-authorisation, HelioHost verifier, report freshness, and phone-side verification design.
+3. Qualify HelioHost isolation and key custody before any verifier key generation or deployment.
+4. Obtain owner decisions recorded in the [Phase 1 consolidated owner-review baseline](../architecture/phase-1-consolidated-owner-review-baseline.md).
+5. Separately authorise production key initialisation, release publication, migration, and deployment.
+
+**Safety boundary:** No production key, verifier identity, baseline, deployment, release, or trust-root change is authorised by this document.
