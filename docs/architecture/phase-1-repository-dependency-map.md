@@ -148,3 +148,71 @@ No source files have been deleted or changed as part of this map. No production 
 - All variable-based include sites found are tied to private vault/installer/updater runtime paths or private CLI configuration/autoload paths described above; no arbitrary request-controlled PHP include was identified in the inspected source.
 - The old collector/request-handler/nonce-store components have tests but no tracked non-test entrypoint caller. This is a repository-reference finding, not proof that an external runtime used them; no nodes were ever provisioned.
 - The PHP include/dynamic-dispatch sweep is now complete for the 132 tracked non-test PHP files at this branch head. The remaining Phase 1.0 work is the full symbol-to-caller/test/workflow matrix reconciliation, private configuration and workflow-path-filter review, and test-result reconciliation. Phase 1.0 remains open.
+
+
+## 10. Legacy symbol-to-caller, test, and workflow matrix (2026-11-24)
+
+The matrix below records tracked non-test callers and direct test coverage. Workflow names refer to tracked GitHub Actions definitions. "No production caller" means no tracked non-test application/CLI caller was found; it does not assert anything about an unprovisioned external runtime.
+
+| Symbol / group | Tracked non-test caller(s) | Direct test(s) | CI workflow(s) | Classification |
+|---|---|---|---|---|
+| `IntegrityNodeA` | `bin/integrity-node-run.php`; legacy runner binding | `integrity_node_a.test.php`; scheduled runner suite | `integrity-node-tests.yml`, `native-sigstore-integrity-node.yml`, `validate-v012-attestation.yml` | Legacy A verifier; replace for one-verifier target |
+| `IntegrityNodeB` | `bin/integrity-node-run.php`; legacy runner binding | `integrity_node_b.test.php`; scheduled runner suite | Same three legacy workflows | Legacy B verifier; replace |
+| `IntegrityNodeC` | `bin/integrity-node-run.php`; legacy runner binding | `integrity_node_c.test.php`; scheduled runner suite | Same three legacy workflows | Prototype with hard-coded C identity; do not promote unchanged |
+| `IntegrityNodeScheduledRunner` | `bin/integrity-node-run.php` | `integrity_node_scheduled_runner.test.php`, `integrity_node_cli_bootstrap.test.php` | `integrity-node-tests.yml`, `native-sigstore-integrity-node.yml` | Legacy orchestration; preserve lock/anti-rollback ideas after redesign |
+| `IntegrityNodeVerifierBinding` | Scheduled runner and CLI preload | Scheduled runner and CLI bootstrap tests | Both legacy integrity workflows | A/B/C-specific sealed binding; replace with one verifier binding |
+| `IntegrityNodeEventRunner` | Scheduled runner | `integrity_node_event_runner.test.php` | Both legacy integrity workflows | A/B challenge/report exchange; retire unless a new requirement appears |
+| `IntegrityEventClient` | Event runner | `integrity_event_client.test.php`, event-runner test | Both legacy integrity workflows | A/B-only HTTP client; retire with old event plane |
+| `IntegrityNode4RuntimeConfig` | `integrity_event.php`; `bin/integrity-node4-monitor.php` | `integrity_node4_runtime_config.test.php` | Both legacy integrity workflows | Legacy dual-node private config loader |
+| `IntegrityEventRequestDecoder` | `integrity_event.php`; private-host verifier dependency | `integrity_event_request_decoder.test.php` | Both legacy integrity workflows | Request parsing primitive; review if any target protocol reuses it |
+| `FileIntegrityEventStore` | `integrity_event.php`; Node 4 monitor CLI | `file_integrity_event_store.test.php`; monitor/dispatcher tests | Both legacy integrity workflows | Node 4 challenge/report persistence; not target event store by default |
+| `IntegrityEventReportVerifier` | `integrity_event.php` | `integrity_event_report_verifier.test.php`; file-store integration test | Both legacy integrity workflows | Enforces A/B signatures and event contract; replace policy |
+| `IntegrityNode4Monitor` | `bin/integrity-node4-monitor.php` | `integrity_node4_monitor.test.php` | Both legacy integrity workflows | CLI-only legacy monitor |
+| `IntegrityIncidentCorrelator` | Node 4 monitor CLI | `integrity_incident_correlator.test.php`; monitor test | Both legacy integrity workflows | Two-node freshness/release correlation; retire with Node 4 |
+| `IntegrityAlertDispatcher` | Node 4 monitor CLI | `integrity_alert_dispatcher.test.php`; monitor test | Both legacy integrity workflows | Legacy alert outbox; no target requirement established |
+| `PrivateHostAttestationClient` | A/B verifiers; legacy CLI preload | `private_host_attestation_client.test.php`; A/B and gate tests | Both legacy integrity workflows | A/B-specific protocol client |
+| `PrivateHostAttestationVerifier` | A/B verifiers; legacy CLI preload; collector test helper | `private_host_attestation_verifier.test.php`; client/collector/request-handler tests | Both legacy integrity workflows | Legacy report verifier; not proof of target HelioHost isolation |
+| `PrivateHostAttestationGate` | A/B verifiers; legacy CLI preload | `private_host_attestation_gate.test.php`; A/B tests | Both legacy integrity workflows | A/B gate; replace if target needs a host-side evidence gate |
+| `PrivateHostAttestationCollector` | No tracked non-test caller | `private_host_attestation_collector.test.php`; request-handler test | Both legacy integrity workflows | Test-covered, unreferenced collector implementation |
+| `PrivateHostAttestationRequestHandler` | No tracked non-test caller | `private_host_attestation_request_handler.test.php` | Both legacy integrity workflows | Test-covered handler; no tracked service entrypoint |
+| `PrivateHostAttestationNonceStore` | No tracked non-test caller | `private_host_attestation_nonce_store.test.php`; request-handler test | Both legacy integrity workflows | Test-covered nonce store; no tracked service entrypoint |
+| `IntegrityReportSigner` | Legacy scheduled runner; evidence store | `integrity_report_signer.test.php`; A/B/C/evidence tests | Both legacy integrity workflows; historical v0.1.2 workflow | Ed25519 primitive candidate; payload contract requires redesign |
+| `IntegrityReportVerifier` | No direct normal-app caller; legacy report test / historical validation | `integrity_report_verifier.test.php` | Both legacy integrity workflows; `validate-v012-attestation.yml` | Fixed two-node approval policy; not suitable for phone's single-verifier policy |
+| `IntegrityNodeKeyGenerator` | `bin/integrity-node-keygen.php` | `integrity_node_key_generator.test.php` | Both legacy integrity workflows | CLI-only A/B/C key generator; identity allowlist must be redesigned; do not run |
+| `IntegrityNodeReleaseStateStore` | Baseline CLI and scheduled runner | `integrity_node_release_state.test.php`; baseline CLI test | Both legacy integrity workflows | Anti-rollback store candidate; preserve after contract review |
+| `IntegrityNodeEvidenceStore` | Scheduled runner | `integrity_node_evidence_store.test.php` | Both legacy integrity workflows | Evidence persistence candidate; C-specific identity/schema requires redesign |
+| `IntegrityDeployedReleaseResolver` | Scheduled runner | `integrity_deployed_release_resolver.test.php` | Both legacy integrity workflows | Release-resolution helper candidate |
+| `IntegrityReleaseArtifactFetcher` | Scheduled runner and CLI preload | `integrity_release_artifact_fetcher.test.php`; scheduled runner tests | `integrity-node-tests.yml` (native workflow path filters runner dependencies) | Generic fetch helper candidate; review network and origin policy |
+| `NativeSigstoreReleaseVerifier` / `NativeSigstoreIntegrityAttestationVerifier` | Updater path; legacy CLI preload | `native_sigstore_integrity_adapter.test.php`, release trust/provenance and integration tests | Both legacy integrity workflows; `native-release-attestation.yml`; updater/release workflows | Generic release-verification candidate; retain pending independent trust-policy review |
+| `ReleaseArtifactVerifier`, `ReleaseTrustPolicy`, `SigstoreProvenance`, `TufRootStore` | Native verifier and updater | release trust, provenance, TUF root-store and updater tests | Legacy integrity workflows, `native-release-attestation.yml`, TUF workflows | Generic trust/release primitives; preserve and audit separately |
+| `PrivateHostAttestation*` archive/docs | No runtime caller | Contract tests above | Workflow path filters include current contract doc | Historical contract documentation; do not treat as target contract |
+
+### 10.1 Workflow coupling and disposition
+
+| Workflow | Trigger/path-filter and executed coverage | Target disposition |
+|---|---|---|
+| `.github/workflows/integrity-node-tests.yml` | PR branches include `main` and three historical feature branches; path filters span private-host, A/B/C, Node 4, report, event, keygen, scheduled runner, release helper and Sigstore code. Executes A/B/C, event/store/correlator/dispatcher, private-host, keygen/baseline, scheduled runner and release-policy tests on PHP 8.1–8.5. Push trigger on `main` is narrower (Node*.php, Report*.php, integrity tests, workflow file). | Legacy suite; replace with target single-verifier suite before deleting old tests/source. Narrow push filters currently do not mirror the broad PR coverage. |
+| `.github/workflows/native-sigstore-integrity-node.yml` | PR path filters include A/B, Node 4, private-host, TUF/Sigstore, release manifest builder and HTTP security headers. Push trigger includes `main` and historical feature branch and a large but not identical subset. Runs lint plus native trust, A/B/C, private-host, Node 4 and manifest/header tests on PHP 8.1–8.5. | Mixed legacy + reusable release suite; split legacy node tests from retained native release verification once replacement coverage exists. PR and push path lists differ. |
+| `.github/workflows/validate-v012-attestation.yml` | Main-only path filter includes GitHub CLI attestation, updater, A/B/C, two-node report signer/verifier and a historical v0.1.2 fixture. Executes fixture validation and legacy A/B/C/report tests. | Historical dual-node validation; archive/retire only after confirming no supported release process consumes the v0.1.2 fixture. |
+| `.github/workflows/native-release-attestation.yml` | Main plus historical security branch; updater, native verifier, TUF, FirstRun, update_apply and release integration tests. Builds isolated Composer dependency bundle with pinned package versions. | Preserve as candidate generic release-provenance workflow; audit pinning, lock/SBOM, provenance and trigger branch before accepting. |
+| `.github/workflows/release.yml` | Tag-driven release workflow; builds release manifest/package and provenance/attestation with write permissions. | Preserve; separately audit release identity, permissions, artifact completeness and publication. |
+| `.github/workflows/release-manifest-tests.yml` | PR and main validation for release manifest and package output. | Preserve generic manifest/package regression coverage. |
+| `.github/workflows/tuf-root-store.yml`, `tuf-patch-validation.yml` | TUF root persistence and patched dependency tests; some triggers remain on historical feature branches. | Preserve TUF tests, but reconcile branch triggers and dependency patch provenance before adopting the bundle. |
+
+### 10.2 Private configuration inventory
+- The recursive tracked tree contains no `sentryiq_config.php`, private runtime configuration template, `.env` file, or tracked application Composer root manifest. It contains only `docs/examples/gallery_b2.php.example`, private runtime PHP modules, and the probe's private helper.
+- `bin/integrity-node-run.php` expects a separately provisioned path from `SENTRYIQ_INTEGRITY_NODE_CONFIG`; the file must be a mode-0600 regular file under the exact mode-0700 private directory, outside the public webroot, and return an `IntegrityNodeScheduledRunner`.
+- `IntegrityNode4RuntimeConfig::load()` reads the public config pointer and private `sentryiq_config.php`, checks the data directory, file type/mode, symlink/race conditions, and validates exactly A/B tokens and Ed25519 keys.
+- `bin/integrity-node4-monitor.php` loads `sentryiq_config.php` from repository root path and expects enabled Node 4 event configuration, an in-data-dir storage path, canonical target origin, and two distinct callable alert senders.
+- `update_apply.php` uses the private config's `sigstore_vendor_autoload` path for the Composer vendor autoloader. The repository contains no private config instance, so actual paths, callbacks, and values are intentionally unknown.
+- The HelioHost TUF persistence probe has its own private `probe-common.php` and `vendor/autoload.php` assumptions; this is isolated test tooling, not target node config.
+- No production config file, token, key, or external host was available or required for this source audit. No values were inferred.
+
+### 10.3 CI evidence and limitations
+- The legacy workflow files define tests but their presence is not evidence that the current PR head passed them.
+- No successful workflow run has been verified for the current PR head in this audit. CI status must remain "not verified" until run records are fetched for the latest head.
+- The old integrity workflow path filters include duplicated entries and branch names that are historical; the two workflows' PR and push filters are not identical. These are migration/coverage issues, not reasons to delete them now.
+- The symbol matrix is complete for the legacy integrity and private-host cluster identified in the tracked source sweep. Generic updater, release and TUF primitives remain separately classified candidates; their complete cross-repository caller/test inventory belongs to the release-verification review, not a reason to widen this legacy matrix indefinitely.
+
+### Updated Phase 1.0 status
+The tracked PHP include/dynamic-dispatch sweep, legacy integrity symbol-to-caller/test/workflow matrix, workflow classification, and tracked private-config inventory are now documented. The only remaining closure check is to reconcile current test/CI evidence against the matrix and verify the latest PR head/workflow state. Do not mark Phase 1.0 complete until that evidence check is performed. No source code, production configuration, keys, baselines, or deployments were changed.
