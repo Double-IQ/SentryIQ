@@ -39,8 +39,8 @@ Status: [ ] not done | [x] done with evidence | [!] blocked with exact reason.
 - [x] B1.2 Compare required bindings with Wrangler configuration. **Evidence:** deployment prerequisites name `NODE_A_STATE` and `NODE_A_TARGETS`; `wrangler.jsonc` declares both matching bindings. The required Worker secrets and two pinned inventory values are documented in `DEPLOYMENT.md`; Wrangler does not inline these values (correctly). Account-side existence remains unverified and is handled in Section C.
 - [x] B1.3 Compare Durable Object classes with migrations/bindings. **Evidence:** deployment doc names `NODE_A_STATE`; Wrangler binds it to `NodeAState`; migration `v1` creates the same SQLite class; `src/index.ts` exports `NodeAState`.
 - [x] B1.4 Compare R2 use with configured bucket and documented bucket name. **Evidence:** deployment doc's provisioning command creates `sentryiq-node-a-targets`; Wrangler binds that exact bucket as `NODE_A_TARGETS`; Worker passes the binding to the async TUF updater.
-- [ ] B1.5 Compare routes, environments, and cron triggers with intended topology. (Route behavior and cron cadence are documented; account route/environment mapping remains to be reconciled.)
-- [ ] B1.6 Produce configured/missing/inconsistent/unknown delta.
+- [x] B1.5 Compare routes, environments, and cron triggers. **Evidence:** `wrangler.jsonc` declares no `routes`, `workers_dev`, or named `env` blocks; application path dispatch is implemented in `src/index.ts` (`/health`, `/runtime-check`, `/internal/monitor/run`, `/internal/baseline/initialize`, `/internal/tuf/refresh`, `/internal/tuf/targets/*`). Cron `*/15 * * * *` matches the documented 15-minute schedule, but `DEPLOYMENT.md` requires owner confirmation before production activation. Actual public hostname/route and account environment are not specified by repository config and remain account-side unknowns.
+- [x] B1.6 Produce configured/missing/inconsistent/unknown delta. **Evidence:** Configured in repo: Worker entry/compatibility settings, DO binding/class/migration, R2 binding/bucket name, 15-minute cron, route handlers, required secret names and pinned inventory variable names. Missing from repo config: explicit deployment routes/hostname, named Wrangler environments, observability enablement. Unknown until account inspection: actual R2 bucket existence, DO namespace/migration application, Worker deployment/hostname/routes, Cron activation, secret/var presence and values. No code/config contradiction found for DO/R2; the stale PR-state documentation was corrected.
 - [ ] B1.7 Separate repository-fixable gaps from account-access gaps.
 
 ## C. Cloudflare access and non-production preparation
@@ -126,4 +126,4 @@ Status: [ ] not done | [x] done with evidence | [!] blocked with exact reason.
 - [ ] J1.8 Final acceptance report and owner sign-off.
 
 ## Current cursor
-**Next item: B1.5 — reconcile the documented Worker route surface, cron cadence, and Wrangler environments against intended deployment topology.**
+**Next item: B1.7 — separate repository-fixable gaps from Cloudflare account-access gaps and record exact evidence.**
