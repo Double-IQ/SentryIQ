@@ -116,9 +116,9 @@ The following entrypoints were inspected directly:
 ### What this establishes — and what it does not
 
 - The old monitoring runtime is separated from the normal `index.php` request path in the inspected entrypoints; it is invoked through explicit CLI scripts and a dedicated event endpoint.
-- This focused trace did not inspect every dynamic include, external cron definition, hosting control-panel schedule, private runtime configuration, or deployment hook. Therefore it does not prove that the live host is not scheduling these scripts.
+- The focused trace did not inspect every dynamic include or repository consumer. External cron definitions, hosting schedules, private node configuration, and deployment hooks are not applicable to the former node topology: the owner confirmed no nodes were provisioned.
 - The repository does not contain the owner's private `sentryiq_config.php` or live hosting scheduler state. No credentials or private config values were accessed.
-- Before removing the Node 4 endpoint or CLI scripts, confirm whether the live HelioHost/application host has cron entries, direct URLs, monitoring integrations, or operational procedures that call them.
+- Before removing the Node 4 endpoint or CLI scripts, complete the in-repository reference/config/test/workflow trace. No live legacy-node schedule or external node caller exists to confirm because no nodes were provisioned.
 - The existing private-host collector is on the application host. It is not proof of independent HelioHost-side filesystem access and must not be presented as such.
 
 ### Current retirement recommendation
@@ -128,7 +128,7 @@ The following entrypoints were inspected directly:
 3. Extract or reuse generic signed-report, public-asset-policy, release-state-locking, evidence-retention, and native Sigstore verification primitives where appropriate.
 4. Design a new HelioHost-to-phone verification protocol; do not reuse the old Node 4 challenge/report endpoint by default.
 5. Design private PHP/config integrity separately. If the application host cannot provide a safely isolated read-only collector, report that limitation explicitly rather than claiming full server-side verification.
-6. Keep `integrity_event.php`, Node 4 classes, A/B private-host gate, and old CLI scripts until live scheduler and external caller dependencies are confirmed absent and replacement tests are in place.
+6. Keep `integrity_event.php`, Node 4 classes, A/B private-host gate, and old CLI scripts until in-repository dependencies are traced and replacement tests are in place. No live-node caller audit is required.
 
 
 
@@ -165,7 +165,7 @@ The direct source review confirms that Node C is the closest existing verifier b
 - `index.php` loads `security_bootstrap.php`, private application config, vault engine, auth flow and dashboard components; no direct reference to the old integrity node, scheduled runner, Node 4 or event endpoint appears in the inspected entrypoint.
 - `app/Security/SecurityBootstrap.php` is application session/security bootstrap logic and does not construct the old integrity verifier services in the inspected source.
 - `bin/integrity-node-run.php` is a CLI-only entrypoint. It explicitly preloads A/B/C, Node 4 event client/runner, private-host attestation classes, Sigstore/release trust, evidence and release-state classes before requiring the private runtime config. It enforces a mode-0700 private data directory, mode-0600 config, and config placement outside the public webroot.
-- This confirms separation from the inspected web request path only. It does not establish whether the live hosting scheduler invokes the CLI or whether an external service calls `integrity_event.php`. Those remain live-host operational dependencies and must be checked before retiring entrypoints.
+- This confirms separation from the inspected web request path. The owner confirmed no nodes were provisioned, so the CLI and `integrity_event.php` are not active legacy-node services; trace their repository references before retirement.
 
 ### Adaptation sequence (not yet authorized for production)
 
@@ -174,7 +174,7 @@ The direct source review confirms that Node C is the closest existing verifier b
 3. Add a real execution integration test around a local fixture origin and test double attestation verifier; retain a separate production Sigstore integration test.
 4. Test phone-side verification of signed reports, expiry, nonce replay, target origin, manifest/artifact digests, and device authorization/recovery.
 5. Preserve the generic release package and provenance workflows. Narrow or replace the old integrity-node workflows only after the replacement test suite passes.
-6. Confirm live cron entries, external event endpoint callers, and deployment hooks before removing old scripts or endpoint code.
+6. Complete repository-only call-site, configuration-template, test, and workflow tracing before removing old scripts or endpoint code.
 7. Keep deployment, baseline initialization, private-key generation, and release publication as separately approved operations.
 
 
@@ -184,7 +184,7 @@ The direct source review confirms that Node C is the closest existing verifier b
 
 - `integrity_event.php` is a dedicated POST-only HTTPS JSON endpoint. It loads `IntegrityNode4RuntimeConfig`, requires the canonical SentryIQ host, and authenticates the former A/B node tokens and signed reports. It is not included by the inspected normal `index.php`, `update.php`, `update_apply.php`, or `update_check.php` paths.
 - `IntegrityNode4RuntimeConfig` loads the public `sentryiq_config.php` pointer and then the private configuration from the data directory. When enabled, it requires the exact A/B identities, tokens and public keys. The endpoint and its private config schema are therefore old-topology-specific.
-- The endpoint is a direct public PHP entrypoint, not an application front-controller route. Its continued existence is not proof it is used. No live request logs, hosting cron table, provider panel, external caller list, or private `sentryiq_config.php` was inspected. Before retirement, check those operational sources; do not expose or request secret values.
+- The endpoint is a direct public PHP entrypoint, not an application front-controller route. Its presence is repository code only; the owner confirmed no legacy nodes were provisioned. Trace in-repository references and configuration templates before retirement.
 - The repository's `.htaccess` has explicit rewrite protection for private configuration and internal source directories, but no rule in the inspected file disables `integrity_event.php`. The endpoint itself enforces POST, HTTPS, canonical Host, content type, body size, bearer authentication and request schema. Retiring it requires checking external clients first.
 
 ### Public asset coverage limitation
@@ -223,7 +223,7 @@ The direct source review confirms that Node C is the closest existing verifier b
 - The repository also has Gallery-specific device inventory/removal and recovery tests. Those are scoped to Gallery credential envelopes and explicitly do not remove the global SentryIQ sign-in passkey; they must not be mistaken for global device authorisation.
 - Existing vault recovery and Gallery recovery are distinct mechanisms. Neither, by itself, implements the requested offline authority for replacing a lost master phone while preserving device enrolment trust.
 - Therefore the existing passkey system is useful authentication infrastructure, not proof that the new device-rooted security architecture is implemented. Phase 1 must design and test the global master-device role, device enrolment approvals, revocation, registry rollback protection, recovery authority, and the interaction with existing passkey-based vault unlock before modifying current passkey behaviour.
-- No general PWA manifest, service-worker entrypoint, or offline app-shell asset appears in the tracked branch tree. The current app has mobile viewport and Apple touch icon tags, but those do not establish installable PWA behaviour. Verify the live deployment and externally generated assets before concluding the deployed app lacks them.
+- The current branch tree contains no file path matching a web-app manifest, `.webmanifest`, service-worker entrypoint, or `sw.js`. The app has mobile viewport and Apple touch icon tags, but those do not establish installable PWA behaviour. A content-level scan of the browser JavaScript remains part of the repository sweep; do not assume externally generated assets.
 
 
 ### Additional single-verifier identity migration constraints
@@ -261,10 +261,20 @@ The workflow review confirms that the legacy design is not only historical docum
 
 ### Phase 0.5 disposition
 
-The repository review now provides enough evidence to freeze the legacy topology and design the replacement without deleting or deploying anything. The following are **not** asserted complete: live-host caller/scheduler audit, live response-header verification, private-file inspection feasibility, unexpected-public-file inventory mechanism, and production HelioHost dependency qualification. These are measurable acceptance gates for the next host-access step, not reasons to revive Cloudflare or the former multi-node architecture.
+The repository review provides enough evidence to freeze the legacy topology and design the replacement without deleting or deploying anything. Remaining repository work is the complete tracked PHP/dynamic-reference sweep, content-level PWA registration scan, source-level resolution and tests for the Apache/PHP Referrer-Policy disagreement, and a defensible unexpected-public-file inventory design. Live legacy-node caller/scheduler and private-node-config checks are not applicable because no nodes were provisioned. Live response-header measurement, private-file inspection feasibility, and HelioHost dependency/isolation qualification belong to later approved deployment qualification, not Phase 0.5.
 
 
 
 ## Owner clarification and audit boundary (2026-11-24)
 
 The owner explicitly confirmed that **nothing was ever set up on any legacy node and everything that exists in SentryIQ is in the repository**. This supersedes earlier notes that treated live cron entries, external A/B callers, deployment hooks, private node configuration, or deployed legacy endpoint use as unresolved blockers. Those checks are **not applicable** to the legacy-node retirement audit. The old A/B/C/Node 4 topology is code and documentation only, not deployed infrastructure. Continue with repository-only dependency tracing and source/test remediation. The planned HelioHost verifier is a future component; its provider capability, isolation, dependency, and runtime checks belong to its later qualification phase after explicit approval.
+
+
+## Sixth-pass repository boundary findings (2026-11-24)
+
+- The Git tree for this documentation branch contains 327 tracked paths, including 200 PHP files. A focused source trace of the main application entrypoints (`index.php`, `security_bootstrap.php`, `update.php`, `update_apply.php`, and `update_check.php`) found no direct include or construction of the legacy verifier, Node 4 event runner, or public `integrity_event.php` endpoint. `SecurityBootstrap` is the application session/security bootstrap; its inspected code does not load the legacy verifier family.
+- The dedicated legacy CLI remains explicitly coupled: `bin/integrity-node-run.php` preloads A/B/C verifiers, Node 4 event runner, A/B private-host gate/client/verifier, Sigstore/release trust, evidence store, and release-state store; its private config must return `IntegrityNodeScheduledRunner`. `bin/integrity-node4-monitor.php` separately loads the Node 4 event store, correlator, dispatcher, and monitor. These are repository-only entrypoints under the owner's clarification, not evidence of installed jobs.
+- `integrity_event.php` directly loads `IntegrityNode4RuntimeConfig`, request decoder, event store, and report verifier. It is legacy endpoint source, not an observed deployed service or external dependency.
+- The tracked branch tree has no filename matching `manifest.json`, `manifest.webmanifest`, `service-worker`, or `sw.js`. The current browser JavaScript content still needs a complete registration/reference scan before declaring PWA support absent; do not infer it from filenames alone.
+- Header-policy conflict is confirmed at source level: `.htaccess` sets `Referrer-Policy: strict-origin-when-cross-origin`, while `app/Security/SecurityBootstrap.php` sends `Referrer-Policy: no-referrer`. `tests/origin_security_headers.test.py` currently asserts the former Apache policy but does not assert consistency with PHP. The intended policy must be chosen once and covered by both configuration and application-header tests. No live wire-header claim is made.
+- The prior tree snapshot count of 355/360 paths was from a different inspection point; this current branch tree response returned 327 paths. Use the current branch tree as the basis for the remaining audit and reconcile any discrepancy before a final inventory count.
