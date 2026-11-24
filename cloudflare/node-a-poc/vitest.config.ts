@@ -3,7 +3,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   ssr: {
-    noExternal: ["@sigstore/tuf", "tuf-js"]
+    noExternal: ["tuf-js"]
   },
   plugins: [
     cloudflareTest({

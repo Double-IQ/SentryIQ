@@ -41,6 +41,8 @@ jobs:
           node-version: "24.15.0"
       - name: Generate exact dependency lockfile
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Verify pinned dependency lockfile digest
+        run: sha256sum --check package-lock.sha256
       - name: Install from generated lockfile
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Apply pinned Sigstore crypto compatibility patch
@@ -72,6 +74,11 @@ jobs:
           NODE
       - name: Run workerd integration tests
         run: npm test
+      - name: Build Worker and inspect bundle for filesystem TUF fallback
+        run: |
+          OUTDIR="$RUNNER_TEMP/node-a-worker-bundle"
+          npx wrangler deploy --dry-run --outdir "$OUTDIR"
+          node scripts/check-worker-bundle.mjs "$OUTDIR"
       - name: Export genuine v0.1.2 bundle for review
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

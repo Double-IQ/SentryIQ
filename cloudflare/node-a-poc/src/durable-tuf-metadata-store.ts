@@ -12,6 +12,7 @@ export interface DurableMetadataStateClient {
   readTufMetadata(
     roleName: string
   ): Promise<StoredTufMetadata | null> | StoredTufMetadata | null;
+  listTufMetadataRoles(): Promise<string[]> | string[];
 
   commitVerifiedTufMetadata(
     roleName: string,
@@ -40,6 +41,17 @@ export class DurableObjectTufMetadataStore implements TufMetadataStore {
     } catch (error) {
       throw new TufMetadataReadError(
         "Durable Object TUF metadata read failed; do not treat this as a cache miss",
+        error
+      );
+    }
+  }
+
+  async listRoles(): Promise<string[]> {
+    try {
+      return await this.state.listTufMetadataRoles();
+    } catch (error) {
+      throw new TufMetadataReadError(
+        "Durable Object TUF role enumeration failed; trusted-state recovery cannot continue",
         error
       );
     }

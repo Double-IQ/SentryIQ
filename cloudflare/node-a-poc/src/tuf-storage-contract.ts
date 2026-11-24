@@ -1,10 +1,9 @@
 /**
  * Explicit persistence boundary for the Node A TUF client integration.
  *
- * This is a contract only: the current PoC does not yet adapt tuf-js to it.
- * Implementations must never fall back to node:fs for durable metadata or
- * verified targets. Durable Objects own metadata and target-pointer commits;
- * object storage owns target bytes.
+ * The async Node A updater uses this explicit boundary. Implementations must
+ * never fall back to node:fs for durable metadata or verified targets. Durable
+ * Objects own metadata and target-pointer commits; object storage owns bytes.
  */
 
 export interface TufMetadataIdentity {
@@ -41,6 +40,8 @@ export class TufMetadataReadError extends Error {
 
 export interface TufMetadataStore {
   readRole(roleName: string): Promise<StoredTufMetadata | null>;
+  /** Enumerate durable role names for verified trusted-state reconstruction. */
+  listRoles(): Promise<string[]>;
 
   /**
    * Compare-and-set one already-upstream-verified role version.
@@ -54,6 +55,21 @@ export interface TufMetadataStore {
     next: StoredTufMetadata,
     fence: TufRunFence
   ): Promise<TufMetadataIdentity>;
+}
+
+/**
+ * The pointer-publication RPC failed and its commit outcome could not be
+ * determined by reading durable state. Preserve the staged object: deleting
+ * it could destroy a pointer whose transaction actually committed.
+ */
+export class TufTargetCommitAmbiguousError extends Error {
+  readonly causeValue: unknown;
+
+  constructor(message: string, causeValue?: unknown) {
+    super(message);
+    this.name = "TufTargetCommitAmbiguousError";
+    this.causeValue = causeValue;
+  }
 }
 
 export interface TufTargetDescriptor {
@@ -99,8 +115,14 @@ export interface TufTargetStore {
     fence: TufRunFence
   ): Promise<CommittedTufTarget>;
 
-  /** Readers can resolve committed pointers only, never staging objects. */
-  openCommittedTarget(targetPath: string): Promise<ReadableStream<Uint8Array> | null>;
+  /**
+   * Readers resolve committed pointers only. When an expected descriptor is
+   * supplied, stale pointers for an older TUF target version are cache misses.
+   */
+  openCommittedTarget(
+    targetPath: string,
+    expected?: TufTargetDescriptor
+  ): Promise<ReadableStream<Uint8Array> | null>;
 
   /** Best-effort cleanup for a stage that was never committed. */
   abortTarget(stage: TufTargetStage): Promise<void>;

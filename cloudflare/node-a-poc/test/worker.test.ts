@@ -9,13 +9,15 @@ import * as bundles from "./fixtures/bundles";
 import { trustedRoot } from "./fixtures/trust";
 import { genuineV012BundleJson } from "./fixtures/genuine-v012-bundle";
 import { genuineV012TrustedRootJson } from "./fixtures/genuine-v012-trusted-root";
-import { tufRootBase64 } from "./fixtures/tuf-root";
 import { GuardedTufUpdater, TufPersistenceCommitError, TufStateMutationError, TufUpdaterPoisonedError } from "../src/guarded-tuf-updater";
 import { DurableObjectTufMetadataStore } from "../src/durable-tuf-metadata-store";
 import { TufMetadataReadError, type TufMetadataIdentity, type TufMetadataStore, type StoredTufMetadata } from "../src/tuf-storage-contract";
 import { FencedTufMetadataSession } from "../src/fenced-tuf-metadata-session";
 import type { TufTargetDescriptor, TufTargetStage } from "../src/tuf-storage-contract";
+import { R2TufTargetStore } from "../src/r2-tuf-target-store";
+import { stageVerifiedTufTarget } from "../src/verified-target-stream";
 import { describe, expect, it } from "vitest";
+import { authorizeBaselineInitialization, authorizeNodeATufRequest, requiredNodeAMonitorConfiguration } from "../src/index";
 
 async function expectRemoteRejection(promise: Promise<unknown>, message: string): Promise<void> {
   let caught = false;
@@ -42,9 +44,61 @@ describe("Node A Workers runtime proof", () => {
     const body = await response.json() as Record<string, unknown>;
     expect(body.cryptoOk).toBe(true);
     expect(body.sigstoreVerifierLoaded).toBe(true);
-    expect(body.tufClientLoaded).toBe(true);
+    expect(body.asyncTufUpdaterLoaded).toBe(true);
+    expect(body.durableMetadataBindingLoaded).toBe(true);
+    expect(body.r2TargetBindingLoaded).toBe(true);
     expect(body.tufNetworkOrCacheInitialized).toBe(false);
     expect(body.productionReady).toBe(false);
+  });
+
+  it("keeps monitor routes fail-closed and independently checks API/baseline authorization", async () => {
+    const routeResponse = await workerExports.default.fetch(
+      new Request("https://node-a-poc.test/internal/monitor/run", { method: "POST" }),
+      env, {} as ExecutionContext
+    );
+    expect(routeResponse.status).toBe(503);
+
+    const missing = requiredNodeAMonitorConfiguration({} as Parameters<typeof requiredNodeAMonitorConfiguration>[0]);
+    expect(missing).toContain("NODE_A_GITHUB_TOKEN");
+    expect(missing).toContain("NODE_A_REPORT_PRIVATE_KEY_B64");
+
+    const apiUnauthorized = authorizeNodeATufRequest(
+      new Request("https://node-a-poc.test/internal/monitor/run", { method: "POST" }),
+      "A".repeat(48)
+    );
+    expect(apiUnauthorized?.status).toBe(401);
+    const apiAuthorized = authorizeNodeATufRequest(
+      new Request("https://node-a-poc.test/internal/monitor/run", {
+        method: "POST", headers: { Authorization: "Bearer " + "A".repeat(48) }
+      }),
+      "A".repeat(48)
+    );
+    expect(apiAuthorized).toBeNull();
+
+    const baselineUnauthorized = authorizeBaselineInitialization(
+      new Request("https://node-a-poc.test/internal/baseline/initialize", { method: "POST" }),
+      "B".repeat(48)
+    );
+    expect(baselineUnauthorized?.status).toBe(401);
+    expect(authorizeBaselineInitialization(
+      new Request("https://node-a-poc.test/internal/baseline/initialize"),
+      "B".repeat(24)
+    )?.status).toBe(503);
+    expect(authorizeBaselineInitialization(
+      new Request("https://node-a-poc.test/internal/baseline/initialize"),
+      "B".repeat(48) + "\n"
+    )?.status).toBe(503);
+
+  });
+
+  it("executes the scheduled monitor fail-closed and never initializes the release baseline", async () => {
+    await workerExports.default.scheduled({} as ScheduledController, env, {} as ExecutionContext);
+    const state = env.NODE_A_STATE.get(env.NODE_A_STATE.idFromName("node-a-async-tuf-runtime"));
+    expect(await state.getPin()).toBeNull();
+    expect((await state.getRecentOutcomes())[0]).toMatchObject({
+      outcome: "failed",
+      releaseVersion: null
+    });
   });
 
   it("preserves Ed25519 verification when applying EC/RSA digest inference", () => {
@@ -151,34 +205,6 @@ describe("Node A Workers runtime proof", () => {
       timestampThreshold: 1
     });
     expect(() => verifier.verify(toSignedEntity(bundle, bundles.ARTIFACT))).not.toThrow();
-  });
-
-  it("bootstraps the upstream Sigstore TUF cache through Durable Object SQLite", async () => {
-    const id = env.NODE_A_STATE.idFromName("node-a-upstream-tuf-bootstrap-test");
-    const stub = env.NODE_A_STATE.get(id);
-    const result = await stub.testUpstreamTufEphemeralCache(tufRootBase64);
-    expect(result.rootVersion).toBeGreaterThan(0);
-    expect(result.ephemeralCacheBootstrapped).toBe(true);
-    expect(result.persistentCacheRejected).toBe(true);
-    expect(result.expectedNetworkFailure).toBe(true);
-  });
-
-  it("uses Durable Object SQLite for persistent TUF files and request-local temporary files", async () => {
-    const id = env.NODE_A_STATE.idFromName("node-a-tuf-fs-adapter-test");
-    const first = env.NODE_A_STATE.get(id);
-    const result = await first.testTufFilesystemAdapter();
-    expect(result).toEqual({
-      persistentRead: "persistent-root-fixture",
-      copiedRead: "persistent-root-fixture",
-      temporaryRead: "request-scoped-target",
-      temporaryExistsAfterCleanup: false,
-      stagedWriteVisibleBeforeCommit: true,
-      discardedWriteAbsentAfterRollback: true
-    });
-
-    const second = env.NODE_A_STATE.get(id);
-    const contextCheck = await second.testTufFilesystemAdapter();
-    expect(contextCheck.persistentRead).toBe("persistent-root-fixture");
   });
 
   it("commits TUF metadata with a fenced compare-and-set and monotonic role versions", async () => {
@@ -428,6 +454,179 @@ describe("Node A Workers runtime proof", () => {
     expect(stage.descriptor).toBe(descriptor);
   });
 
+  it("fails closed when the internal TUF route has no API token configured", async () => {
+    const response = await workerExports.default.fetch(
+      new Request("https://node-a.test/internal/tuf/refresh", { method: "POST" }),
+      env,
+      {} as ExecutionContext
+    );
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Node A API token is not configured"
+    });
+  });
+
+  it("rejects an undersized configured API token before accepting any request", async () => {
+    const protectedEnv = Object.create(env) as typeof env & { NODE_A_API_TOKEN: string };
+    protectedEnv.NODE_A_API_TOKEN = "short-secret";
+    const response = await workerExports.default.fetch(
+      new Request("https://node-a.test/internal/tuf/refresh", {
+        method: "POST",
+        headers: { authorization: "Bearer short-secret" }
+      }),
+      protectedEnv,
+      {} as ExecutionContext
+    );
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Node A API token must be 32-512 bytes and contain no control characters"
+    });
+  });
+
+  it("rejects control characters in the configured API token", async () => {
+    const protectedEnv = Object.create(env) as typeof env & { NODE_A_API_TOKEN: string };
+    protectedEnv.NODE_A_API_TOKEN = "a".repeat(31) + "\n";
+    const response = await workerExports.default.fetch(
+      new Request("https://node-a.test/internal/tuf/refresh", {
+        method: "POST",
+        headers: { authorization: "Bearer " + "a".repeat(32) }
+      }),
+      protectedEnv,
+      {} as ExecutionContext
+    );
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Node A API token must be 32-512 bytes and contain no control characters"
+    });
+  });
+
+  it("rejects an invalid bearer token before touching TUF or storage", async () => {
+    const protectedEnv = Object.create(env) as typeof env & { NODE_A_API_TOKEN: string };
+    protectedEnv.NODE_A_API_TOKEN = "a".repeat(64);
+    const response = await workerExports.default.fetch(
+      new Request("https://node-a.test/internal/tuf/refresh", {
+        method: "POST",
+        headers: { authorization: "Bearer " + "b".repeat(64) }
+      }),
+      protectedEnv,
+      {} as ExecutionContext
+    );
+    expect(response.status).toBe(401);
+  });
+
+  it("requires explicit root and mirror configuration after authentication", async () => {
+    const protectedEnv = Object.create(env) as typeof env & { NODE_A_API_TOKEN: string };
+    protectedEnv.NODE_A_API_TOKEN = "a".repeat(64);
+    const response = await workerExports.default.fetch(
+      new Request("https://node-a.test/internal/tuf/refresh", {
+        method: "POST",
+        headers: { authorization: "Bearer " + "a".repeat(64) }
+      }),
+      protectedEnv,
+      {} as ExecutionContext
+    );
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Node A TUF runtime is not fully configured"
+    });
+  });
+
+  it("publishes and reads immutable R2 target pointers only under the active fence", async () => {
+    const id = env.NODE_A_STATE.idFromName("node-a-tuf-target-pointer-test");
+    const state = env.NODE_A_STATE.get(id);
+    const lock = await state.acquireRunLock(60_000);
+    const content = new TextEncoder().encode("abc");
+    const descriptor: TufTargetDescriptor = {
+      targetPath: "targets/do-pointer.bin",
+      length: content.byteLength,
+      hashes: { sha256: createHash("sha256").update(content).digest("hex") }
+    };
+    const stageId = "22222222-2222-4222-8222-222222222222";
+    const objectKey = "objects/11111111-1111-4111-8111-111111111111";
+    await state.registerTufTargetStage(stageId, objectKey, lock);
+    const saved = await state.commitTufTargetPointer(descriptor, stageId, objectKey, lock);
+    expect(saved.objectKey).toBe(objectKey);
+    expect(await state.readTufTargetPointer(descriptor.targetPath)).toEqual(saved);
+
+    const replacementStageId = "77777777-7777-4777-8777-777777777777";
+    const replacementObjectKey = "objects/88888888-8888-4888-8888-888888888888";
+    await state.registerTufTargetStage(replacementStageId, replacementObjectKey, lock);
+    const replacement = await state.commitTufTargetPointer(
+      descriptor, replacementStageId, replacementObjectKey, lock
+    );
+    expect(await state.readTufTargetPointer(descriptor.targetPath)).toEqual(replacement);
+    await expect(state.listRetiredTufTargetObjects(lock)).resolves.toEqual([]);
+    await expect(state.listRetiredTufTargetObjects(lock, 100, 0)).resolves.toEqual([objectKey]);
+    await state.deleteRetiredTufTargetObject(objectKey, lock);
+    await expect(state.listRetiredTufTargetObjects(lock, 100, 0)).resolves.toEqual([]);
+
+    await state.releaseRunLock(lock);
+
+  });
+
+  it("streams a verified target through the Workerd R2 binding and publishes its DO pointer", async () => {
+    const id = env.NODE_A_STATE.idFromName("node-a-real-r2-target-stream-test");
+    const state = env.NODE_A_STATE.get(id);
+    const lock = await state.acquireRunLock(60_000);
+    const content = new TextEncoder().encode("workerd R2 verified target");
+    const descriptor: TufTargetDescriptor = {
+      targetPath: "targets/workerd-r2-integration.bin",
+      length: content.byteLength,
+      hashes: { sha256: createHash("sha256").update(content).digest("hex") }
+    };
+    const fence = { runId: lock.runId, fence: lock.fence, token: lock.token };
+    const store = new R2TufTargetStore(env.NODE_A_TARGETS, state, () => lock);
+    try {
+      const committed = await stageVerifiedTufTarget(store, {
+        descriptor,
+        body: new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(content.slice(0, 8));
+            controller.enqueue(content.slice(8));
+            controller.close();
+          }
+        }),
+        fence
+      });
+      expect(await state.readTufTargetPointer(descriptor.targetPath)).toEqual(committed);
+      const reader = await store.openCommittedTarget(descriptor.targetPath, descriptor);
+      expect(reader).not.toBeNull();
+      const chunks: Uint8Array[] = [];
+      const streamReader = reader!.getReader();
+      while (true) {
+        const { done, value } = await streamReader.read();
+        if (done) break;
+        chunks.push(value);
+      }
+      expect(Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)))).toEqual(Buffer.from(content));
+      await expect(state.listStaleTufTargetStages(lock)).resolves.toEqual([]);
+    } finally {
+      await state.releaseRunLock(lock);
+    }
+  });
+
+  it("records private target stages and permits cleanup only after a newer fence takes over", async () => {
+    const id = env.NODE_A_STATE.idFromName("node-a-target-stage-registry-test");
+    const first = env.NODE_A_STATE.get(id);
+    const lock1 = await first.acquireRunLock(60_000);
+    const stageId = "55555555-5555-4555-8555-555555555555";
+    const objectKey = "objects/66666666-6666-4666-8666-666666666666";
+    first.registerTufTargetStage(stageId, objectKey, lock1);
+    await expect(first.listStaleTufTargetStages(lock1)).resolves.toEqual([]);
+
+    await first.releaseRunLock(lock1);
+    const second = env.NODE_A_STATE.get(id);
+    const lock2 = await second.acquireRunLock(60_000);
+    expect(lock2.fence).toBe(lock1.fence + 1);
+    await expect(second.listStaleTufTargetStages(lock2)).resolves.toEqual([
+      { stageId, objectKey, fence: lock1.fence }
+    ]);
+    // Only the replacement fencing epoch can remove the abandoned stage.
+    await second.deleteTufTargetStage(stageId, objectKey, lock2);
+    await expect(second.listStaleTufTargetStages(lock2)).resolves.toEqual([]);
+    await second.releaseRunLock(lock2);
+  });
+
   it("adapts TUF metadata commits to the fenced Durable Object store", async () => {
     const id = env.NODE_A_STATE.idFromName("node-a-tuf-metadata-store-adapter-test");
     const state = env.NODE_A_STATE.get(id);
@@ -480,6 +679,7 @@ describe("Node A Workers runtime proof", () => {
 
     const unavailableStore = new DurableObjectTufMetadataStore({
       readTufMetadata: () => { throw new Error("simulated Durable Object read outage"); },
+      listTufMetadataRoles: () => [],
       commitVerifiedTufMetadata: () => { throw new Error("not used"); }
     }, () => replacement);
     await expect(unavailableStore.readRole("timestamp")).rejects.toMatchObject({ code: "TUF_METADATA_READ_FAILED" });
@@ -496,6 +696,7 @@ describe("fenced asynchronous TUF metadata session", () => {
     const roles = new Map<string, StoredTufMetadata>();
     let failCommit = false;
     const store: TufMetadataStore = {
+      async listRoles() { return [...roles.keys()]; },
       async readRole(roleName) {
         const value = roles.get(roleName);
         return value ? { ...value, data: value.data.slice() } : null;
@@ -521,6 +722,7 @@ describe("fenced asynchronous TUF metadata session", () => {
     const { store } = memoryStore();
     const valid = { version: 1, sha256: createHash("sha256").update(root1).digest("hex"), data: root1 };
     const corruptStore: TufMetadataStore = {
+      async listRoles() { return ["root"]; },
       async readRole() { return { ...valid, sha256: "0".repeat(64), data: valid.data.slice() }; },
       async commitVerifiedRole() { throw new Error("not used"); }
     };
@@ -551,6 +753,7 @@ describe("fenced asynchronous TUF metadata session", () => {
       2,
       async (version) => {
         events.push(`fetch:${version}`);
+        if (version === 4) throw Object.assign(new Error("not found"), { statusCode: 404 });
         return roleBytes("root", version);
       },
       async (bytes) => {
@@ -560,7 +763,7 @@ describe("fenced asynchronous TUF metadata session", () => {
       { version: 1, sha256: root.sha256 }
     );
     expect(identity.version).toBe(3);
-    expect(events).toEqual(["fetch:2", "accept:2", "fetch:3", "accept:3"]);
+    expect(events).toEqual(["fetch:2", "accept:2", "fetch:3", "accept:3", "fetch:4"]);
     expect((await store.readRole("root"))?.version).toBe(3);
   });
 
@@ -653,6 +856,7 @@ describe("fenced asynchronous TUF metadata session", () => {
     const root1 = roleBytes("root", 1);
     let writes = 0;
     const unavailable: TufMetadataStore = {
+      async listRoles() { throw new TufMetadataReadError("durable metadata store unavailable"); },
       async readRole() {
         throw new TufMetadataReadError("durable metadata store unavailable");
       },

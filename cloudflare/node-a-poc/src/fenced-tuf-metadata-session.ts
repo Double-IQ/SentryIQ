@@ -68,7 +68,8 @@ export class FencedTufMetadataSession {
     }
 
     const candidate = await makeStoredRole(trustAnchor, "root");
-    if (candidate.version !== 1) throw new Error("initial TUF trust anchor must be root version 1");
+    // An explicitly provisioned trust anchor may be a later root version;
+    // its self-signature is validated by the upstream TrustedMetadataStore.
     // Never persist a caller-supplied bootstrap anchor merely because its JSON
     // envelope says root v1. The upstream TUF implementation must validate it.
     await verifyTrustedRoot(candidate.data.slice());
@@ -164,13 +165,21 @@ export class FencedTufMetadataSession {
         throw new Error("root rotation bound must be between 1 and 256");
       }
       let identity = current;
+      let rotations = 0;
+      let reachedEndOfRootChain = false;
       for (let version = firstVersion; version < firstVersion + maxRotations; version++) {
         let bytes: Uint8Array;
         try {
           bytes = await fetchRoot(version);
         } catch (error) {
-          // The caller handles the repository's normal 403/404 end-of-chain
-          // condition. Other fetch errors are not converted to cache misses.
+          // TUF specifies 403/404 as the normal end of sequential root
+          // rotation. Network, authorization, and storage errors still fail.
+          if (typeof error === "object" && error !== null &&
+              "statusCode" in error &&
+              (error.statusCode === 403 || error.statusCode === 404)) {
+            reachedEndOfRootChain = true;
+            break;
+          }
           throw error;
         }
         const candidate = await makeStoredRole(bytes, "root");
@@ -195,6 +204,28 @@ export class FencedTufMetadataSession {
             error
           );
         }
+        rotations += 1;
+      }
+
+      // Hitting the configured cap is not the same as reaching the end of
+      // the TUF root chain. Probe exactly one next version: 403/404 confirms
+      // normal completion; a present root means we must fail closed rather
+      // than silently continue with a stale trust root.
+      if (!reachedEndOfRootChain && rotations === maxRotations) {
+        try {
+          await fetchRoot(identity.version + 1);
+        } catch (error) {
+          if (typeof error === "object" && error !== null &&
+              "statusCode" in error &&
+              (error.statusCode === 403 || error.statusCode === 404)) {
+            reachedEndOfRootChain = true;
+          } else {
+            throw error;
+          }
+        }
+        if (!reachedEndOfRootChain) {
+          throw new Error("TUF root rotation exceeded the configured maximum; refusing to continue with a potentially stale root");
+        }
       }
       return identity;
     });
@@ -205,14 +236,14 @@ async function makeStoredRole(bytes: Uint8Array, roleName: string): Promise<Stor
   if (!(bytes instanceof Uint8Array) || bytes.byteLength < 1 || bytes.byteLength > 4 * 1024 * 1024) {
     throw new Error("TUF metadata must be a non-empty Uint8Array no larger than 4 MiB");
   }
-  let envelope: { signed?: { type?: unknown; version?: unknown } };
+  let envelope: { signed?: { _type?: unknown; type?: unknown; version?: unknown } };
   try {
-    envelope = JSON.parse(new TextDecoder().decode(bytes)) as { signed?: { type?: unknown; version?: unknown } };
+    envelope = JSON.parse(new TextDecoder().decode(bytes)) as { signed?: { _type?: unknown; type?: unknown; version?: unknown } };
   } catch {
     throw new Error("TUF metadata is not valid JSON");
   }
   const expectedType = roleName === "root" || roleName === "timestamp" || roleName === "snapshot" ? roleName : "targets";
-  if (!envelope.signed || envelope.signed.type !== expectedType ||
+  if (!envelope.signed || (envelope.signed._type ?? envelope.signed.type) !== expectedType ||
       !Number.isSafeInteger(envelope.signed.version) || (envelope.signed.version as number) < 1) {
     throw new Error("TUF metadata signed role/version envelope is invalid");
   }
