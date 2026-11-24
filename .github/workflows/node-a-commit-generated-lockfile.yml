@@ -1,0 +1,78 @@
+name: Commit verified Node A package lockfile
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Successful Node A Workers Runtime workflow run ID containing the lockfile artifact
+        required: true
+        type: string
+        default: "45307537194"
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: node-a-lockfile-commit
+  cancel-in-progress: false
+
+jobs:
+  commit-lockfile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate source run ID
+        env:
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]]
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}" > "$RUNNER_TEMP/source-run.json"
+          jq -e '
+            .status == "completed" and
+            .conclusion == "success" and
+            .head_branch == "feat/node-a-async-target-staging" and
+            .name == "Node A Workers Runtime PoC"
+          ' "$RUNNER_TEMP/source-run.json" >/dev/null
+          echo "SOURCE_SHA=$(jq -r .head_sha "$RUNNER_TEMP/source-run.json")" >> "$GITHUB_ENV"
+
+      - name: Checkout Node A feature branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/node-a-async-target-staging
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Require artifact source to match current branch head
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+
+      - name: Download generated lockfile artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: node-a-poc-package-lock
+          repository: Double-IQ/SentryIQ
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/node-a-lockfile-artifact
+
+      - name: Verify digest and commit only package-lock.json
+        working-directory: cloudflare/node-a-poc
+        run: |
+          set -euo pipefail
+          mapfile -t lockfiles < <(find "${RUNNER_TEMP}/node-a-lockfile-artifact" -type f -name package-lock.json -print)
+          test "${#lockfiles[@]}" -eq 1
+          cp "${lockfiles[0]}" package-lock.json
+          sha256sum --check package-lock.sha256
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo "Verified package-lock.json is already committed; no change needed."
+            exit 0
+          fi
+          git -C "$GITHUB_WORKSPACE" config user.name "github-actions[bot]"
+          git -C "$GITHUB_WORKSPACE" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$GITHUB_WORKSPACE" commit -m "chore(node-a): commit verified dependency lockfile"
+          git -C "$GITHUB_WORKSPACE" push origin HEAD:feat/node-a-async-target-staging
