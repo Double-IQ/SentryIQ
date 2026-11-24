@@ -213,3 +213,13 @@ The direct source review confirms that Node C is the closest existing verifier b
 3. Define a defensible mechanism for detecting unexpected added public files, and test it against the deployed webroot inventory.
 4. Specify and pin the private HelioHost Sigstore verifier dependency bundle.
 5. Keep PWA manifest/service-worker absence as a repository finding only; verify the live deployed origin before deciding whether PWA shell work is missing or externally generated.
+
+
+## Fourth-pass device-authority and recovery trace (2026-11-24)
+
+- The repository contains WebAuthn/passkey login and credential management (`app/Auth/PasskeyAuth.php`, `PasskeySetup.php`, `Passkeys.php`, `WebAuthnChallenge.php`). The passkey UI supports adding another passkey after fresh authentication and describes each credential as receiving a protected copy of the existing vault key.
+- This is not yet the owner-approved master-phone device-authority model. The inspected global passkey flow does not establish a distinguished master-device role, require approval signed by that master for each new device, maintain a separate authorised-device registry/epoch, or provide a master-loss replacement ceremony.
+- The repository also has Gallery-specific device inventory/removal and recovery tests. Those are scoped to Gallery credential envelopes and explicitly do not remove the global SentryIQ sign-in passkey; they must not be mistaken for global device authorisation.
+- Existing vault recovery and Gallery recovery are distinct mechanisms. Neither, by itself, implements the requested offline authority for replacing a lost master phone while preserving device enrolment trust.
+- Therefore the existing passkey system is useful authentication infrastructure, not proof that the new device-rooted security architecture is implemented. Phase 1 must design and test the global master-device role, device enrolment approvals, revocation, registry rollback protection, recovery authority, and the interaction with existing passkey-based vault unlock before modifying current passkey behaviour.
+- No general PWA manifest, service-worker entrypoint, or offline app-shell asset appears in the tracked branch tree. The current app has mobile viewport and Apple touch icon tags, but those do not establish installable PWA behaviour. Verify the live deployment and externally generated assets before concluding the deployed app lacks them.
