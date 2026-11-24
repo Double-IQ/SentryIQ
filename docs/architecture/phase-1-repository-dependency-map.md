@@ -209,15 +209,15 @@ The matrix below records tracked non-test callers and direct test coverage. Work
 - No production config file, token, key, or external host was available or required for this source audit. No values were inferred.
 
 ### 10.3 CI evidence and limitations
-- Current PR head checked: `0811fc64252806c35c606cd92ac49dd0635e0057`. PR #151 remains open and unmerged.
-- At the evidence check, `Release Manifest Tests` completed successfully, including canonical manifest tests, package build, contents/inventory and checksum validation.
-- `Integrity Node Tests`: PHP 8.1, 8.3, 8.4 and 8.5 jobs completed successfully; PHP 8.2 was still in progress. The completed jobs ran the workflow's full legacy integrity regression command sequence.
-- `Native Sigstore Integrity Node Tests`: PHP 8.1, 8.2, 8.4 and 8.5 jobs completed successfully; PHP 8.3 was still finishing post-job cleanup after lint and native trust/runtime regression steps completed successfully.
-- `PHP Syntax Check` and `Gallery Security Checks` were still in progress at the time of inspection. The Gallery job had completed browser-side security/recovery checks and was progressing through PHP lint; its remaining storage, updater, auth, vault, and deployment checks were pending.
-- These are live snapshots, not final conclusions. Fetch the latest run status again before closing Phase 1.0. The PHP 8.2 legacy integrity job, PHP syntax workflow, and full Gallery security workflow must complete successfully; the Native Sigstore workflow must finish without a failed matrix job.
-- The legacy workflow files define tests but their presence alone is not evidence that the current PR head passed them. Do not mark any still-running workflow as passed.
-- The old integrity workflow path filters include duplicated entries and branch names that are historical; the two workflows' PR and push filters are not identical. These are migration/coverage issues, not reasons to delete them now.
+- CI was fetched for source-audit commit `0811fc64252806c35c606cd92ac49dd0635e0057`. The two later commits through the current documentation head changed only the two audit/plan Markdown files; GitHub compare confirmed no application, test, workflow, or configuration source changed after the tested commit.
+- `Release Manifest Tests`: completed successfully; canonical manifest tests, release package build, package contents/inventory, and checksum validation passed.
+- `PHP Syntax Check`: completed successfully.
+- `Integrity Node Tests`: all five PHP matrix jobs (8.1, 8.2, 8.3, 8.4, 8.5) completed successfully.
+- `Native Sigstore Integrity Node Tests`: all five PHP matrix jobs (8.1, 8.2, 8.3, 8.4, 8.5) completed successfully.
+- `Gallery Security Checks`: completed successfully, including browser-side security/recovery, PHP lint, storage/authorization, Gallery keyring and rotation, document metadata, updater, private-data, auth, vault, CSP, deployment hardening, and diagnostic checks.
+- All five workflow runs returned conclusion `success`; all reported jobs completed with no failed steps. This is verified CI evidence for the audited source tree. The latest PR head is documentation-only relative to that tested source commit.
+- The old integrity workflow path filters include duplicated entries and branch names that are historical; the two workflows' PR and push filters are not identical. These are future migration/coverage issues, not blockers to completing the repository dependency map.
 - The symbol matrix is complete for the legacy integrity and private-host cluster identified in the tracked source sweep. Generic updater, release and TUF primitives remain separately classified candidates; their complete cross-repository caller/test inventory belongs to the release-verification review, not a reason to widen this legacy matrix indefinitely.
 
 ### Updated Phase 1.0 status
-The tracked PHP include/dynamic-dispatch sweep, legacy integrity symbol-to-caller/test/workflow matrix, workflow classification, and tracked private-config inventory are now documented. The only remaining closure check is to reconcile current test/CI evidence against the matrix and verify the latest PR head/workflow state. Do not mark Phase 1.0 complete until that evidence check is performed. No source code, production configuration, keys, baselines, or deployments were changed.
+The tracked PHP include/dynamic-dispatch sweep (132 non-test PHP files), legacy integrity symbol-to-caller/test/workflow matrix, workflow classification, tracked private-config inventory, and CI evidence reconciliation are complete. All five relevant PR workflow runs and all reported jobs passed on the audited source commit; subsequent commits changed only these documentation files. Phase 1.0 is complete. No application source, production configuration, keys, baselines, or deployments were changed.
