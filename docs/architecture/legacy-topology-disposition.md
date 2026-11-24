@@ -283,3 +283,8 @@ The owner explicitly confirmed that **nothing was ever set up on any legacy node
 ### Browser asset content scan closure
 
 The remaining 12 tracked `assets/js/*.js` files were scanned for service-worker registration, `navigator.serviceWorker`, web-app manifest references, and install-prompt hooks. Together with the prior 10 browser scripts, no such registration or installability references were found in the tracked JavaScript. Combined with the tree inventory showing no manifest, `.webmanifest`, service-worker entrypoint, or `sw.js`, the repository evidence supports the conclusion that **the current SentryIQ repository does not contain an installable PWA shell or service-worker implementation**. This is a repository finding; it is not a claim about a live deployment. Since the owner confirms the repository is the complete SentryIQ source, PWA shell work belongs in the implementation plan rather than being deferred to an external-assets check.
+
+
+## Phase 0.5 closure (2026-11-24)
+
+Phase 0.5 is closed as the repository baseline and legacy-topology disposition phase. This closure does **not** claim that every implementation-grade PHP dependency trace or source remediation is complete. Those tasks are explicitly carried into Phase 1 item 1.0 and the later implementation phases in `design-implementation-plan.md`. The owner confirmed no legacy nodes were provisioned; therefore live legacy-node operational evidence is not a prerequisite and is not outstanding. No source retirement, production deployment, key generation, or trust-baseline initialisation was performed.
