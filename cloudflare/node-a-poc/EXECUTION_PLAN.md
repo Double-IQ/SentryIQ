@@ -24,18 +24,18 @@ Status: [ ] not done | [x] done with evidence | [!] blocked with exact reason.
 
 ### A1. Configuration extraction
 - [x] A1.1 List relevant files. **Evidence:** GitHub directory listing of `cloudflare/node-a-poc` on `feat/node-a-monotonic-run-fence`: `wrangler.jsonc`, `src/`, `DEPLOYMENT.md`, `README.md`, `package.json`, `vitest.config.ts`, `scripts/`, `test/`, `docs/`.
-- [x] A1.2 Read Wrangler config. **Evidence:** `wrangler.jsonc` blob `ddc494d07cd424521a6abcb481495d82073cbbc6`: Worker `sentryiq-node-a-poc`; entry `src/index.ts`; compatibility date `2026-11-21`; flag `nodejs_als`; observability disabled; R2 binding `NODE_A_TARGETS` → `sentryiq-node-a-targets`; DO binding `NODE_A_STATE` → `NodeAState`; migration `v1` adds SQLite class `NodeAState`; cron `*/15 * * * *`; no routes, vars, or named environments declared in this file.
-- [x] A1.3 Read Worker entry point. **Evidence:** `src/index.ts` blob `8a86f14457138dd951321ba8c5dd8cc47446def5`: default export implements `scheduled` and `fetch`; `/health`, `/runtime-check`, authenticated internal monitor/baseline routes, and authenticated TUF refresh/target routes; unknown paths return 404.
-- [x] A1.4 Identify Durable Object classes/storage. **Evidence:** `src/index.ts` defines `NodeAState extends DurableObject<Env>`; constructor creates SQLite tables for release baseline/pin, run lease/fence, TUF metadata/files/target pointers/staging/GC, and run audit.
-- [x] A1.5 Map migrations to classes. **Evidence:** `wrangler.jsonc` migration `v1` declares `new_sqlite_classes: ["NodeAState"]`, matching the class exported from `src/index.ts`.
-- [x] A1.6 Identify R2 binding/reference. **Evidence:** `wrangler.jsonc` binds `NODE_A_TARGETS` to bucket `sentryiq-node-a-targets`; `src/index.ts` declares `NODE_A_TARGETS: R2Bucket` and passes it to the async TUF updater.
-- [x] A1.7 Identify environment/secret names. **Evidence:** `Env` in `src/index.ts` declares `NODE_A_API_TOKEN`, `TUF_ROOT_B64`, `TUF_METADATA_URL`, `TUF_TARGET_URL`, `NODE_A_GITHUB_TOKEN`, `NODE_A_EVENT_TOKEN`, `NODE_A_REPORT_PRIVATE_KEY_B64`, `NODE_A_PRIVATE_HOST_TOKEN`, `NODE_A_COLLECTOR_PUBLIC_KEY_B64`, `NODE_A_EXPECTED_FILES_JSON`, `NODE_A_EXPECTED_PRIVATE_CONFIG_JSON`, `NODE_A_ALERT_URL`, `NODE_A_ALERT_HOST`, `NODE_A_ALERT_TOKEN`, and `NODE_A_BASELINE_APPROVAL_TOKEN`. Values intentionally not inspected or recorded.
-- [x] A1.8 Identify external service URLs and map caller/purpose. **Evidence:** `src/release-assets.ts` calls canonical origin `https://sentryiq.bichet.co.za/VERSION` and GitHub release assets under `https://github.com/Double-IQ/SentryIQ/releases/download/`; `src/private-host-attestation.ts` calls `https://sentryiq.bichet.co.za/private-host-attestation`; `src/node4-event-client.ts` calls `https://sentryiq.bichet.co.za/integrity_event.php`; `src/node-a-owner-alert.ts` uses operator-supplied independent HTTPS endpoint/hostname. `DEPLOYMENT.md` confirms the private-host route has no deployed listener/adapter and the alert provider is not selected/provisioned. **Documentation defect:** the same deployment doc still says PR #145 is draft/unmerged, contradicted by the verified GitHub merge record; correct this during documentation reconciliation, not by repeating PR checks.
-- [x] A1.9 Identify cron handler/cadence. **Evidence:** Wrangler cron is every 15 minutes; `scheduled()` in `src/index.ts` checks for an initialized pin, records a minimal failed outcome and returns if absent, otherwise runs the release monitor and records outcome; uncaught failures invoke independent alert path.
-- [ ] A1.10 Consolidate A1.2–A1.9 into a source-backed inventory with file/line references.
+- [x] A1.2 Read Wrangler config. **Evidence:** `wrangler.jsonc` lines 3–37: Worker `sentryiq-node-a-poc`; entry `src/index.ts`; compatibility date `2026-11-21`; flag `nodejs_als`; observability disabled; R2 binding `NODE_A_TARGETS` → `sentryiq-node-a-targets`; DO binding `NODE_A_STATE` → `NodeAState`; migration `v1` adds SQLite class `NodeAState`; cron `*/15 * * * *`; no routes, vars, or named environments declared in this file.
+- [x] A1.3 Read Worker entry point. **Evidence:** `src/index.ts` lines 600–730: default export implements `scheduled` and `fetch`; `/health`, `/runtime-check`, authenticated internal monitor/baseline routes, authenticated TUF refresh/target routes; unknown paths return 404.
+- [x] A1.4 Identify Durable Object classes/storage. **Evidence:** `src/index.ts` line 90 onward defines `NodeAState extends DurableObject<Env>`; constructor creates SQLite tables for release baseline/pin, run lease/fence, TUF metadata/files/target pointers/staging/GC, and run audit.
+- [x] A1.5 Map migrations to classes. **Evidence:** `wrangler.jsonc` lines 26–32 migration `v1` declares `new_sqlite_classes: ["NodeAState"]`, matching class in `src/index.ts`.
+- [x] A1.6 Identify R2 binding/reference. **Evidence:** `wrangler.jsonc` lines 12–16 binds `NODE_A_TARGETS` to bucket `sentryiq-node-a-targets`; `src/index.ts` lines 16–19 declares the R2 binding and updater construction passes `env.NODE_A_TARGETS`.
+- [x] A1.7 Identify environment/secret names. **Evidence:** `src/index.ts` lines 16–34 declares `NODE_A_API_TOKEN`, `TUF_ROOT_B64`, `TUF_METADATA_URL`, `TUF_TARGET_URL`, `NODE_A_GITHUB_TOKEN`, `NODE_A_EVENT_TOKEN`, `NODE_A_REPORT_PRIVATE_KEY_B64`, `NODE_A_PRIVATE_HOST_TOKEN`, `NODE_A_COLLECTOR_PUBLIC_KEY_B64`, `NODE_A_EXPECTED_FILES_JSON`, `NODE_A_EXPECTED_PRIVATE_CONFIG_JSON`, `NODE_A_ALERT_URL`, `NODE_A_ALERT_HOST`, `NODE_A_ALERT_TOKEN`, and `NODE_A_BASELINE_APPROVAL_TOKEN`. Values intentionally not inspected or recorded.
+- [x] A1.8 Identify external service URLs and map caller/purpose. **Evidence:** `src/release-assets.ts` lines 3–4, 24–55 calls canonical origin `https://sentryiq.bichet.co.za/VERSION` and GitHub release assets under `https://github.com/Double-IQ/SentryIQ/releases/download/`; `src/private-host-attestation.ts` line 5 calls `https://sentryiq.bichet.co.za/private-host-attestation`; `src/node4-event-client.ts` line 3 calls `https://sentryiq.bichet.co.za/integrity_event.php`; `src/node-a-owner-alert.ts` lines 10–40 uses operator-supplied independent HTTPS endpoint/hostname. `DEPLOYMENT.md` lines 79–121 confirms the private-host route has no deployed listener/adapter and alert provider is not selected/provisioned. **Documentation defect:** `DEPLOYMENT.md` line 152 still says PR #145 is draft/unmerged, contradicted by the GitHub merge record; reconcile in B1.1 documentation review.
+- [x] A1.9 Identify cron handler/cadence. **Evidence:** `wrangler.jsonc` line 35 sets every 15 minutes; `src/index.ts` lines 600–620 checks for initialized pin, records minimal failed outcome and returns if absent, otherwise runs release monitor and records outcome; uncaught failures invoke independent alert path.
+- [x] A1.10 Consolidate inventory. **Evidence:** A1.2–A1.9 entries above cite source paths and line ranges; key configured resources, route surface, environment names, external endpoints, and cron behavior are recorded.
 
 ## B. Deployment topology and gap analysis
-- [ ] B1.1 Extract intended topology from existing docs/code.
+- [ ] B1.1 Extract intended topology from existing docs/code and reconcile contradictory deployment documentation.
 - [ ] B1.2 Compare required bindings with Wrangler configuration.
 - [ ] B1.3 Compare Durable Object classes with migrations/bindings.
 - [ ] B1.4 Compare R2 use with configured bucket and documented bucket name.
@@ -97,7 +97,7 @@ Status: [ ] not done | [x] done with evidence | [!] blocked with exact reason.
 ## H. Manifest-bearing release candidate (prepare, do not publish)
 - [ ] H1.1 Inspect release packaging/manifest implementation.
 - [ ] H1.2 Identify manifest schema and required fields.
-- [ ] H1.3 Build candidate (v0.1.3 only if existing version plan supports it).
+- [ ] [ ] H1.3 Build candidate (v0.1.3 only if existing version plan supports it).
 - [ ] H1.4 Generate ZIP, manifest, checksums, attestations without publishing.
 - [ ] H1.5 Validate schema and artifact inventory.
 - [ ] H1.6 Recompute checksums independently.
@@ -126,4 +126,4 @@ Status: [ ] not done | [x] done with evidence | [!] blocked with exact reason.
 - [ ] J1.8 Final acceptance report and owner sign-off.
 
 ## Current cursor
-**Next item: A1.10 — consolidate the configuration inventory and evidence.**
+**Next item: B1.1 — extract the intended topology from deployment documentation and code, correcting only demonstrably false documentation statements.**
