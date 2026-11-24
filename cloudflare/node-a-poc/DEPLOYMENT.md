@@ -1,6 +1,6 @@
 # Node A Cloudflare Worker deployment and acceptance
 
-**This is an operational runbook, not evidence of a completed deployment.** PR #145 contains the Worker-native runtime, authenticated manual baseline/monitor routes, and a scheduled monitor handler. Wrangler currently declares a 15-minute Cron trigger (`*/15 * * * *`), but no production Cloudflare account, secrets, baseline, or deployment has been provisioned. The service owner must confirm the 15-minute cadence and alert destination before deployment. Keep the PR draft and do not deploy without explicit owner approval.
+**This is an operational runbook, not evidence of a completed deployment.** PR #145 contains the Worker-native runtime, authenticated manual baseline/monitor routes, and a scheduled monitor handler. Wrangler currently declares a 15-minute Cron trigger (`*/15 * * * *`), but no production Cloudflare account, secrets, baseline, or deployment has been provisioned. The service owner must confirm the 15-minute cadence and alert destination before deployment. PR #145 is merged to the Node A feature branch. No production deployment has been performed; do not deploy without explicit owner approval.
 
 ## Current control-plane behavior
 
@@ -149,4 +149,4 @@ Before production sign-off, complete all of the following in a non-production Cl
 - Verify abandoned stage cleanup, superseded-object reader grace, delayed garbage collection, and target digest comparison after restart/eviction.
 - Rehearse rollback and record run IDs, account/bucket identifiers, secret names (never values), evidence, and owner sign-off.
 
-Do not mark Node A production-ready from Workerd tests or a Wrangler dry-run alone. PR #145 remains draft/unmerged, no live deployment has been performed, and `productionReady` remains false.
+Do not mark Node A production-ready from Workerd tests or a Wrangler dry-run alone. No live deployment has been performed, and `productionReady` remains false. PR #145 is merged to `feat/node-a-monotonic-run-fence`; that merge does not constitute deployment or production acceptance.
