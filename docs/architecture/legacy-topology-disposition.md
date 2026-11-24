@@ -129,3 +129,50 @@ The following entrypoints were inspected directly:
 4. Design a new HelioHost-to-phone verification protocol; do not reuse the old Node 4 challenge/report endpoint by default.
 5. Design private PHP/config integrity separately. If the application host cannot provide a safely isolated read-only collector, report that limitation explicitly rather than claiming full server-side verification.
 6. Keep `integrity_event.php`, Node 4 classes, A/B private-host gate, and old CLI scripts until live scheduler and external caller dependencies are confirmed absent and replacement tests are in place.
+
+
+
+## Second-pass verifier, test and release-pipeline trace (2026-11-24)
+
+### Concrete Node C reuse boundary
+
+The direct source review confirms that Node C is the closest existing verifier base, but its identity is embedded throughout the implementation and must be deliberately migrated rather than renamed at deployment time:
+
+- `IntegrityNodeC` rejects any report signer whose identity is not exactly `integrity-c`; its direct alert callback is mandatory; its origin-header verifier is mandatory; it verifies both manifest and exact ZIP provenance before trusting manifest contents; it hashes selected public HTTP assets and signs a schema-v2 report.
+- The verifier itself does not call Node 4. It creates a local 32-byte random nonce in the scheduled runner path. Some comments still describe the nonce as an “event-plane” nonce, which is stale terminology and should be corrected during adaptation.
+- The report schema and evidence store are also explicitly Node-C-bound. `IntegrityNodeEvidenceStore` requires `node_id=integrity-c`, uses a Node-C-specific directory name, and verifies the corresponding public key. Do not reuse the old identity or old key material.
+- `IntegrityNodeVerifierBinding` requires all three A/B/C classes and accepts only the matching A/B/C identities. The scheduled runner likewise accepts only those three IDs, requires A/B to use the Node 4 event exchange, and requires C to use local evidence storage without Node 4.
+- `IntegrityNodeScheduledRunner` is therefore not yet a single-verifier runtime. Its lock, staging, digest re-check, anti-rollback and evidence append flow are useful candidates, but the constructor and execution branches need an explicit one-verifier design and tests.
+
+### Test coverage and what it proves
+
+- `tests/integrity_node_c.test.php` tests Node C with injected synthetic attestation/fetch/header callbacks. It exercises signature report shape, public asset match/mismatch, direct alert invocation, unsafe paths, and attestation failure handling. It does not prove the production Sigstore verifier, HelioHost runtime, real alert channel, or host isolation.
+- `tests/integrity_node_scheduled_runner.test.php` constructs a Node C runner and checks constructor policy. Its own comment says the runner is intentionally not executed because network access is excluded from the unit test. It also verifies that the A path cannot start without the retired Node 4 exchange.
+- `tests/integrity_node_cli_bootstrap.test.php` verifies private config location/mode and required class preloading. Its fixture currently asserts that private-host A/B classes are preloaded, a dependency that should be removed from the new one-verifier bootstrap.
+- The current integrity-node workflows explicitly lint and execute A/B/C, private-host collector/gate/client, Node 4 event, and old scheduled-runner tests. They must be replaced with tests for the new identity, report schema, offline phone verification, direct alert path, release-state bootstrap, and the production runtime before old tests are deleted.
+- At this audit point, all five PR #151 checks on head `f32c34c0f8bb058ba8710e43122995b8c022f0ae` completed successfully: PHP Syntax Check, Integrity Node Tests, Native Sigstore Integrity Node Tests, Release Manifest Tests, and Gallery Security Checks. These are checks for the documentation branch's current head, not a production deployment or a test of a future HelioHost installation.
+
+### Release provenance and build trust
+
+- `.github/workflows/release.yml` is tag-triggered, checks that the tag and VERSION match, builds a canonical package/inventory, validates the package, obtains GitHub build-provenance attestations for both ZIP and manifest, and publishes the release. It grants contents-write, id-token-write and attestations-write permissions to the release job.
+- The release workflow is potentially reusable as the package/provenance source. Its permissions and tag protection are security-critical and must not be broadened or weakened as part of verifier simplification.
+- `.github/workflows/release-manifest-tests.yml` independently builds and validates the package on pull requests and main pushes. Keep this generic release assurance.
+- `.github/workflows/native-release-attestation.yml` is a separate native PHP release-verifier regression path; inspect its full command list and path filters before deciding which parts remain necessary.
+- The repository tree has no tracked `composer.json` at the root and no Composer autoload manifest was found in the inspected tree. Current PHP runtime wiring uses explicit `require_once` statements in the CLI entrypoint and private configuration. This means class-load dependencies must be traced through explicit includes and private config rather than assuming Composer autoload resolves them.
+
+### Runtime dependency boundary confirmed so far
+
+- `index.php` loads `security_bootstrap.php`, private application config, vault engine, auth flow and dashboard components; no direct reference to the old integrity node, scheduled runner, Node 4 or event endpoint appears in the inspected entrypoint.
+- `app/Security/SecurityBootstrap.php` is application session/security bootstrap logic and does not construct the old integrity verifier services in the inspected source.
+- `bin/integrity-node-run.php` is a CLI-only entrypoint. It explicitly preloads A/B/C, Node 4 event client/runner, private-host attestation classes, Sigstore/release trust, evidence and release-state classes before requiring the private runtime config. It enforces a mode-0700 private data directory, mode-0600 config, and config placement outside the public webroot.
+- This confirms separation from the inspected web request path only. It does not establish whether the live hosting scheduler invokes the CLI or whether an external service calls `integrity_event.php`. Those remain live-host operational dependencies and must be checked before retiring entrypoints.
+
+### Adaptation sequence (not yet authorized for production)
+
+1. Specify a new verifier identity and versioned phone-verifiable report contract; generate a new key only after HelioHost isolation and key custody are qualified.
+2. Refactor the Node C verifier identity, evidence store, report verifier, CLI configuration and scheduled runner as one coherent change. Remove A/B/Node 4 branches only after replacement tests exist.
+3. Add a real execution integration test around a local fixture origin and test double attestation verifier; retain a separate production Sigstore integration test.
+4. Test phone-side verification of signed reports, expiry, nonce replay, target origin, manifest/artifact digests, and device authorization/recovery.
+5. Preserve the generic release package and provenance workflows. Narrow or replace the old integrity-node workflows only after the replacement test suite passes.
+6. Confirm live cron entries, external event endpoint callers, and deployment hooks before removing old scripts or endpoint code.
+7. Keep deployment, baseline initialization, private-key generation, and release publication as separately approved operations.
