@@ -223,3 +223,10 @@ The direct source review confirms that Node C is the closest existing verifier b
 - Existing vault recovery and Gallery recovery are distinct mechanisms. Neither, by itself, implements the requested offline authority for replacing a lost master phone while preserving device enrolment trust.
 - Therefore the existing passkey system is useful authentication infrastructure, not proof that the new device-rooted security architecture is implemented. Phase 1 must design and test the global master-device role, device enrolment approvals, revocation, registry rollback protection, recovery authority, and the interaction with existing passkey-based vault unlock before modifying current passkey behaviour.
 - No general PWA manifest, service-worker entrypoint, or offline app-shell asset appears in the tracked branch tree. The current app has mobile viewport and Apple touch icon tags, but those do not establish installable PWA behaviour. Verify the live deployment and externally generated assets before concluding the deployed app lacks them.
+
+
+### Additional single-verifier identity migration constraints
+
+- `IntegrityNodeKeyGenerator` currently permits only `integrity-a`, `integrity-b`, or `integrity-c`. It cannot create the new HelioHost verifier identity without a reviewed identity-policy change. Do not invoke the existing key generator with an improvised identity or generate production keys before the custody model is approved.
+- `IntegrityReportVerifier` is explicitly a two-node approval verifier: it requires exactly two trusted public keys and exactly two reports. It is not suitable as the phone's single-HelioHost-report verifier. The phone needs a separate versioned verifier that pins the correct HelioHost public key, validates freshness/nonce/origin/release identity and decision, and binds the result to the authorised master-device state.
+- The report signer currently accepts a general node ID, but the evidence store, key generator, verifier binding, scheduled runner, tests and CLI bootstrap impose A/B/C-specific identities. Updating only the signer would leave an inconsistent and unsafe runtime.
