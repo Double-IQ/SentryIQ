@@ -1,4 +1,5 @@
-name: Native Sigstore Integrity Node Tests
+# Repository-only regression coverage for legacy verifier/runtime code and reusable native trust components. No remote node is provisioned or contacted.
+name: Legacy Native Sigstore Verifier Regression Tests (No Deployment)
 
 on:
   pull_request:
@@ -67,7 +68,7 @@ on:
   push:
     # Run the same security-sensitive integration suite after changes land on main,
     # not only on the historical feature branch.
-    branches: [main, feat/integrity-node-native-sigstore-runtime]
+    branches: [main]
     paths:
       - 'docs/security/private-host-attestation-contract.md'
       - 'app/Updates/PrivateHostAttestationCollector.php'
