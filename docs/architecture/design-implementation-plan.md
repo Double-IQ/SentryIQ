@@ -22,7 +22,7 @@ This plan supersedes the former Cloudflare Node A operational deployment plan. I
 - [x] 0.2 Record SentryIQ as the application at that origin; HelioHost is the separate security node, not the application host and not a second full SentryIQ installation.
 - [x] 0.3 Remove Cloudflare, Val Town, and the previous A/B/C deployment topology from the target architecture.
 - [x] 0.4 Define master phone, authorised devices, independent verifier, and offline recovery roles.
-- [~] 0.5 Initial inventory documented in [legacy topology disposition](legacy-topology-disposition.md); broader tracked-file/caller/workflow scan remains.
+- [~] 0.5 Expanded tree and component inventory documented in [legacy topology disposition](legacy-topology-disposition.md). Full runtime call-graph, dynamic include, workflow and configuration tracing remains.
 - [ ] 0.6 Reconcile release-attestation policy, private-host contract, Node 4 event contract, docs, workflows, and configuration to the new origin and trust topology.
 - [x] 0.7 Reviewed and closed PR #150 without merging; it targeted the retired Cloudflare Node A source branch. Generic release packaging steps may be reused after review.
 
@@ -79,4 +79,4 @@ This plan supersedes the former Cloudflare Node A operational deployment plan. I
 
 ## Current next action
 
-Continue Phase 0.5: complete the repository-wide scan and caller/workflow mapping in [legacy topology disposition](legacy-topology-disposition.md). Do not delete source yet. Then update affected contracts and workflows in dependency order.
+Continue Phase 0.5: trace all runtime call sites and configuration for A/B/C, Node 4, private-host collector and release workflows. Node C plus generic report-signing, evidence, release-state, public-asset and Sigstore components are the leading reuse candidates; confirm through call-graph and tests before refactoring. Do not delete source yet.
