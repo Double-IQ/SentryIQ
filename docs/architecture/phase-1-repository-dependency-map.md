@@ -71,3 +71,31 @@ The legacy workflow `.github/workflows/integrity-node-tests.yml` and `.github/wo
 - Reconcile this map against the complete repository tree and test results.
 
 No source files have been deleted or changed as part of this map. No production keys, baselines, releases, or deployments have been created.
+
+
+## 8. Second-pass source and workflow trace (2026-11-24)
+
+### Passkey and Gallery boundaries
+- `PasskeySetup.php` and `Passkeys.php` both enter through `security_bootstrap.php`; `PasskeyAuth.php` owns the SentryIQ vault passkey API.
+- `GalleryPasskeyAuth.php` separately loads Gallery key-store, rotation-lock, rotation-store, and object-store classes. It verifies passkey assertions and manages Gallery-specific key envelopes, rotation, and device removal.
+- `Gallery/StorageAuthorization.php` loads Gallery object/key/rotation stores and authorizes Gallery storage operations; `Gallery/SecurePage.php` explicitly distinguishes Gallery-device removal from SentryIQ sign-in passkey removal.
+- These paths confirm the device authority design must remain separate from Gallery's per-Gallery encryption enrolment and rotation state.
+
+### Event/alert cluster
+- `IntegrityNodeEventRunner` is the challenge/report client used by the legacy scheduled runner. `IntegrityEventClient` is explicitly restricted to A/B identities and `/integrity_event.php`.
+- `IntegrityEventReportVerifier`, `FileIntegrityEventStore`, and `IntegrityIncidentCorrelator` enforce the old A/B event contract. The correlator expects fresh A and B reports and compares their release fields.
+- `IntegrityNode4Monitor` consumes the event store/correlator and `IntegrityAlertDispatcher`; dispatcher persists/dispatches the Node 4 event outbox. This is a cohesive legacy-only cluster under the target one-verifier architecture unless a new requirement is explicitly accepted.
+- `PrivateHostAttestationCollector` is a host-local collector with private directory and signing-key controls; its request handler requires distinct A/B bearer tokens; the gate is explicitly consumed by Node A and Node B. It is not a general HelioHost API and does not establish the target architecture by itself.
+
+### Runtime configuration and CI
+- `IntegrityNode4RuntimeConfig` loads a public pointer and a private `sentryiq_config.php` under strict path/type/permission checks, then validates A/B tokens and public keys. This config is exclusively Node 4's legacy A/B trust contract.
+- `integrity-node-tests.yml` path filters and test commands cover the legacy A/B/C, Node 4, private-host, report, keygen, scheduled-runner, Sigstore, and evidence-store suites. It is not a neutral generic verifier workflow.
+- `native-sigstore-integrity-node.yml` likewise path-filters the A/B/Node 4/private-host files and tests them alongside native Sigstore integration. Migrate both workflows to the new single-verifier contract before retiring old source.
+- `validate-v012-attestation.yml` still names the Node C HelioHost contract and runs the dual-node report verifier plus A/B/C origin tests. Treat it as historical contract validation, not target architecture CI.
+- `native-release-attestation.yml` creates an isolated temporary Composer project, pins `k2gl/sigstore-verify:1.6.1` and `k2gl/tuf:1.2.1`, checks out TUF commit `0c324cd765e04c9d47d01fe0e9887d6ab8153bfd`, applies the repository patch, then packages vendor dependencies for a private runtime directory. This is a candidate reproducible dependency build; dependency lockfile/SBOM and release artifact provenance still need review before acceptance.
+
+### Updated disposition
+- The source scan now establishes clear normal-app versus legacy CLI/endpoint boundaries for the inspected files.
+- The Gallery passkey and recovery flows are cryptographically relevant but do not provide master-phone authority.
+- The legacy alert/event and private-host subsystems are strongly A/B/Node4-coupled and are not target design dependencies by default.
+- The broad tracked-PHP sweep remains incomplete: remaining endpoint, diagnostics, updater, cloud storage, private-data, and dynamic include/call-site consumers still require a complete matrix. Phase 1.0 remains in progress.
