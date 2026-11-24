@@ -2,137 +2,128 @@
 
 **Scope:** Phase 2 operational completion of Node A: Cloudflare Workers security monitoring and asynchronous TUF updater.
 
-**Baseline already accepted for this runbook:** Phase 1 is complete (30/30). PR #145 is merged to `feat/node-a-monotonic-run-fence`; PRs #146 and #147 are merged to `main`. The Node A lockfile and the associated CI evidence have already been checked. These are CLOSED. Do not repeat them unless a new change invalidates that evidence.
+**Accepted baseline:** Phase 1 complete (30/30). PR #145 merged to `feat/node-a-monotonic-run-fence`; PRs #146/#147 merged to `main`. Lockfile and existing CI evidence are closed baseline items. Do not repeat unless a new change invalidates them.
 
-## Operating contract — written for reliable execution
-
-This is the procedure to execute, not a request for status updates.
-
-1. This file is the only plan and status source of truth. Do not create parallel checklists.
+## Execution contract
+1. This file is the sole plan and status source. No parallel checklists.
 2. Resume at the first unchecked atomic item. Never restart because a new message arrived.
-3. Each item is one bounded operation with one observable result.
-4. After the operation, record evidence here, then proceed without asking the owner to say “continue”.
-5. Complete means evidence exists and has been checked; intention or attempt is not completion.
-6. No repeated PR/lockfile/CI summaries, paraphrased status messages, invented subtasks, or claims of background work.
-7. Use available tools before asking the owner. Ask only for a specifically identified missing permission/capability.
-8. Continue repository-only and read-only work when external access is blocked, provided dependencies allow it.
-9. Never request secrets in chat. Use an authorized secret manager or owner-provisioned channel.
-10. If blocked, mark the exact item BLOCKED, state the missing access/decision, and continue with independent safe items.
+3. Each item is one bounded operation with observable evidence.
+4. Record evidence here after each operation, then continue without asking the owner to say “continue”.
+5. Attempted/planned/described is not complete. Complete means checked evidence exists.
+6. No repeated PR/lockfile/CI summaries, paraphrased status, invented subtasks, or claims of background work.
+7. Use available tools before asking the owner. Ask only for a specific missing permission/capability.
+8. Continue safe repository/read-only work when external access is blocked.
+9. Never request secrets in chat; use an approved secret channel.
+10. Mark exact blockers and continue independent safe work.
 11. No unapproved production deployment, production secret provisioning, release publication, baseline initialization, destructive change, or irreversible account mutation.
-12. At turn boundaries, leave the exact next unchecked item here. On resumption, continue there without making the owner reconstruct context.
+12. At turn boundaries, leave the exact next unchecked item here; resume there next time.
 
-## Status key
-- [ ] Not done
-- [x] Done — evidence recorded
-- [!] Blocked — exact blocker recorded
+Status: [ ] not done | [x] done with evidence | [!] blocked with exact reason.
 
 ## A. Repository configuration inventory
 
-### A1. Identify configuration files
-- [x] A1.1 List relevant files under `cloudflare/node-a-poc`. **Evidence:** GitHub directory listing on `feat/node-a-monotonic-run-fence` returned `wrangler.jsonc`, `src/`, `DEPLOYMENT.md`, `README.md`, `package.json`, `vitest.config.ts`, `scripts/`, `test/`, and `docs/`; lockfile files were present but are closed baseline items.
-- [ ] A1.2 Read `wrangler.jsonc` and record entry point, compatibility date/flags, environments, routes, vars, bindings, and cron triggers.
-- [ ] A1.3 Read Worker entry point(s) and record exported handlers and route dispatch.
-- [ ] A1.4 Read Durable Object classes and record class names, storage use, and expected bindings.
-- [ ] A1.5 Read migration declarations and map each migration to its Durable Object class.
-- [ ] A1.6 Find every R2 binding/reference and record expected binding name and purpose.
-- [ ] A1.7 Find every environment variable and secret binding name; record names only, never values.
-- [ ] A1.8 Find external service URLs and record endpoint, caller, and purpose.
-- [ ] A1.9 Find cron/scheduled handler logic and record cadence and safety controls.
-- [ ] A1.10 Consolidate A1.2–A1.9 into a source-backed configuration inventory. Mark A complete only when every item has a file/line reference.
+### A1. Configuration extraction
+- [x] A1.1 List relevant files. **Evidence:** GitHub directory listing of `cloudflare/node-a-poc` on `feat/node-a-monotonic-run-fence`: `wrangler.jsonc`, `src/`, `DEPLOYMENT.md`, `README.md`, `package.json`, `vitest.config.ts`, `scripts/`, `test/`, `docs/`.
+- [x] A1.2 Read Wrangler config. **Evidence:** `wrangler.jsonc` blob `ddc494d07cd424521a6abcb481495d82073cbbc6`: Worker `sentryiq-node-a-poc`; entry `src/index.ts`; compatibility date `2026-11-21`; flag `nodejs_als`; observability disabled; R2 binding `NODE_A_TARGETS` → `sentryiq-node-a-targets`; DO binding `NODE_A_STATE` → `NodeAState`; migration `v1` adds SQLite class `NodeAState`; cron `*/15 * * * *`; no routes, vars, or named environments declared in this file.
+- [x] A1.3 Read Worker entry point. **Evidence:** `src/index.ts` blob `8a86f14457138dd951321ba8c5dd8cc47446def5`: default export implements `scheduled` and `fetch`; `/health`, `/runtime-check`, authenticated internal monitor/baseline routes, and authenticated TUF refresh/target routes; unknown paths return 404.
+- [x] A1.4 Identify Durable Object classes/storage. **Evidence:** `src/index.ts` defines `NodeAState extends DurableObject<Env>`; constructor creates SQLite tables for release baseline/pin, run lease/fence, TUF metadata/files/target pointers/staging/GC, and run audit.
+- [x] A1.5 Map migrations to classes. **Evidence:** `wrangler.jsonc` migration `v1` declares `new_sqlite_classes: ["NodeAState"]`, matching the class exported from `src/index.ts`.
+- [x] A1.6 Identify R2 binding/reference. **Evidence:** `wrangler.jsonc` binds `NODE_A_TARGETS` to bucket `sentryiq-node-a-targets`; `src/index.ts` declares `NODE_A_TARGETS: R2Bucket` and passes it to the async TUF updater.
+- [x] A1.7 Identify environment/secret names. **Evidence:** `Env` in `src/index.ts` declares `NODE_A_API_TOKEN`, `TUF_ROOT_B64`, `TUF_METADATA_URL`, `TUF_TARGET_URL`, `NODE_A_GITHUB_TOKEN`, `NODE_A_EVENT_TOKEN`, `NODE_A_REPORT_PRIVATE_KEY_B64`, `NODE_A_PRIVATE_HOST_TOKEN`, `NODE_A_COLLECTOR_PUBLIC_KEY_B64`, `NODE_A_EXPECTED_FILES_JSON`, `NODE_A_EXPECTED_PRIVATE_CONFIG_JSON`, `NODE_A_ALERT_URL`, `NODE_A_ALERT_HOST`, `NODE_A_ALERT_TOKEN`, and `NODE_A_BASELINE_APPROVAL_TOKEN`. Values intentionally not inspected or recorded.
+- [ ] A1.8 Identify all external service URLs and map caller/purpose. Need inspect deployment docs and client/attestation/alert modules; do not infer endpoints from variable names.
+- [x] A1.9 Identify cron handler/cadence. **Evidence:** Wrangler cron is every 15 minutes; `scheduled()` in `src/index.ts` checks for an initialized pin, records a minimal failed outcome and returns if absent, otherwise runs the release monitor and records outcome; uncaught failures invoke independent alert path.
+- [ ] A1.10 Consolidate A1.2–A1.9 into a source-backed inventory with file/line references. Complete only after A1.8.
 
 ## B. Deployment topology and gap analysis
-- [ ] B1.1 Extract intended deployment topology from existing project documentation and code. Do not invent account resource names.
-- [ ] B1.2 Compare each required binding with Wrangler configuration.
-- [ ] B1.3 Compare each Durable Object class with its migration and binding.
-- [ ] B1.4 Compare each R2 use with configured bucket binding and documented bucket name.
+- [ ] B1.1 Extract intended topology from existing docs/code.
+- [ ] B1.2 Compare required bindings with Wrangler configuration.
+- [ ] B1.3 Compare Durable Object classes with migrations/bindings.
+- [ ] B1.4 Compare R2 use with configured bucket and documented bucket name.
 - [ ] B1.5 Compare routes, environments, and cron triggers with intended topology.
-- [ ] B1.6 Produce a delta table: configured correctly / missing / inconsistent / not yet knowable.
-- [ ] B1.7 Separate repository-fixable gaps from account-access gaps and record evidence.
+- [ ] B1.6 Produce configured/missing/inconsistent/unknown delta.
+- [ ] B1.7 Separate repository-fixable gaps from account-access gaps.
 
 ## C. Cloudflare access and non-production preparation
-- [ ] C1.1 Discover whether an authorized Cloudflare connector/action is available.
-- [ ] C1.2 If available, perform read-only inspection of intended account and non-production resources.
-- [ ] C1.3 Compare actual resource state against Section B; record identifiers/names and environment, not secrets.
-- [ ] C1.4 If access is unavailable, mark account-inspection items BLOCKED and specify exact permission/owner action required.
-- [ ] C1.5 Prepare a non-production-only change set for missing R2/DO/Worker resources and migrations.
-- [ ] C1.6 Review change set for production targets, destructive operations, and secret exposure.
-- [ ] C1.7 Obtain explicit owner approval before account mutations unless already explicitly authorized.
-- [ ] C1.8 Apply approved non-production changes only; capture results and resource identifiers.
-- [ ] C1.9 Run non-production configuration validation and record exact output.
+- [ ] C1.1 Discover authorized Cloudflare connector/action.
+- [ ] C1.2 If available, inspect account and non-production resources read-only.
+- [ ] C1.3 Compare actual resource state with Section B; record identifiers/environment, never secrets.
+- [ ] C1.4 If access unavailable, record exact required permission/owner action.
+- [ ] C1.5 Prepare non-production-only change set.
+- [ ] C1.6 Review for production targets, destructive operations, secret exposure.
+- [ ] C1.7 Obtain explicit owner approval before account mutations unless specifically pre-authorized.
+- [ ] C1.8 Apply approved non-production changes and capture identifiers/results.
+- [ ] C1.9 Run non-production configuration validation.
 
 ## D. Private-host attestation feasibility and implementation
-- [ ] D1.1 Inspect existing private-host collector, attestation handler, nonce store, and PHP-FPM entry point in repository.
-- [ ] D1.2 Trace Worker request contract and expected response/signature fields from source.
-- [ ] D1.3 Record host requirements: separate OS identity, key outside docroot, restrictive permissions, isolated nonce storage, private socket/loopback, controlled HTTPS reverse proxy.
-- [ ] D1.4 Determine which host capabilities are evidenced and which remain unknown. Do not infer cPanel capabilities.
-- [ ] D1.5 Perform read-only host capability checks if access exists; otherwise record exact access needed.
-- [ ] D1.6 Make a go/no-go decision. If isolation is impossible, do not deploy this design; prepare alternative-host/design decision for owner.
-- [ ] D1.7 Only after feasibility and required approval, implement service under a distinct OS identity.
-- [ ] D1.8 Verify key and nonce-store ownership/permissions and prove public PHP-FPM identity cannot read signing key.
-- [ ] D1.9 Verify private endpoint exposure is restricted to intended HTTPS path; no public PHP route exposes key operations.
-- [ ] D1.10 Run valid-signature, invalid-signature, nonce-replay, and service-unavailable tests; save redacted results.
+- [ ] D1.1 Inspect collector, handler, nonce store, PHP-FPM entry point.
+- [ ] D1.2 Trace Worker request/response/signature contract.
+- [ ] D1.3 Record host isolation requirements.
+- [ ] D1.4 Distinguish evidenced capabilities from unknowns.
+- [ ] D1.5 Perform read-only host checks if access exists; otherwise specify exact access.
+- [ ] D1.6 Make go/no-go decision; do not deploy if key/process isolation cannot be guaranteed.
+- [ ] D1.7 Only after feasibility and approval, implement isolated service.
+- [ ] D1.8 Verify key/nonce ownership and public PHP identity cannot read key.
+- [ ] D1.9 Verify endpoint exposure and absence of public key-operation route.
+- [ ] D1.10 Test valid/invalid signature, replay, and service-unavailable paths.
 
 ## E. Worker attestation integration
-- [ ] E1.1 Compare Worker request/response handling against private service contract; list mismatches.
-- [ ] E1.2 Fix contract mismatches in repository code and add focused tests.
-- [ ] E1.3 Configure non-production endpoint using approved configuration channel.
-- [ ] E1.4 Confirm required secret names and consumers; never copy secret values into code, logs, or this file.
-- [ ] E1.5 Run non-production challenge request and capture correlation IDs.
-- [ ] E1.6 Run report and acknowledgement flow; verify expected state transition.
-- [ ] E1.7 Verify invalid signature and replay are rejected without advancing release pin.
-- [ ] E1.8 Verify unavailable attestation service fails closed and emits expected alert/event.
+- [ ] E1.1 Compare Worker contract to private service contract.
+- [ ] E1.2 Fix mismatches and add focused tests.
+- [ ] E1.3 Configure non-production endpoint through approved channel.
+- [ ] E1.4 Confirm secret names/consumers; never record values.
+- [ ] E1.5 Run non-production challenge request.
+- [ ] E1.6 Run report/acknowledgement flow.
+- [ ] E1.7 Verify invalid signature/replay cannot advance release pin.
+- [ ] E1.8 Verify unavailable service fails closed and alerts.
 
 ## F. Node 4 integration
-- [ ] F1.1 Locate and inspect Node 4 API contract and current Node A client implementation.
-- [ ] F1.2 Record required public-key registration fields and event API credential scope.
-- [ ] F1.3 Identify authorized channel for registering Ed25519 public key and provisioning least-privilege credential.
-- [ ] F1.4 Register/provision only after owner authorization; never request credential values in chat.
-- [ ] F1.5 Execute real non-production challenge/report/acknowledgement exchange.
-- [ ] F1.6 Verify Node 4 accepts valid report and returns correlated acknowledgement.
-- [ ] F1.7 Verify invalid, stale, and replayed reports are rejected and do not advance release pin.
-- [ ] F1.8 Save request IDs, outcomes, and redacted evidence.
+- [ ] F1.1 Inspect Node 4 API contract and Node A client.
+- [ ] F1.2 Record public-key registration fields and credential scope.
+- [ ] F1.3 Identify approved registration/credential channel.
+- [ ] F1.4 Register/provision only after owner authorization.
+- [ ] F1.5 Execute real non-production challenge/report/ack exchange.
+- [ ] F1.6 Verify valid report and correlated acknowledgement.
+- [ ] F1.7 Verify invalid/stale/replay reports rejected without pin advance.
+- [ ] F1.8 Save redacted correlation evidence.
 
 ## G. Independent alert delivery
-- [ ] G1.1 Identify configured alert adapter and supported destinations from source.
-- [ ] G1.2 Identify independently controlled destination and authorized credential channel.
+- [ ] G1.1 Identify alert adapter/destinations from source.
+- [ ] G1.2 Identify independent destination and authorized credential channel.
 - [ ] G1.3 Configure non-production delivery after authorization.
-- [ ] G1.4 Trigger controlled success notification and verify receipt.
-- [ ] G1.5 Trigger controlled failure notification and verify receipt.
-- [ ] G1.6 Confirm alert credentials are independent from host and Node 4 credentials; record evidence without values.
+- [ ] G1.4 Trigger success notification and verify receipt.
+- [ ] G1.5 Trigger failure notification and verify receipt.
+- [ ] G1.6 Verify credential independence without recording values.
 
 ## H. Manifest-bearing release candidate (prepare, do not publish)
-- [ ] H1.1 Inspect existing release packaging and manifest-generation implementation.
-- [ ] H1.2 Identify exact manifest schema and required fields from repository source/specification.
-- [ ] H1.3 Build candidate artifact (target v0.1.3 only if supported by existing version plan).
-- [ ] H1.4 Generate ZIP, manifest, checksums, and attestations locally/in CI without publishing.
-- [ ] H1.5 Validate manifest schema and artifact inventory.
-- [ ] H1.6 Independently recompute checksums and compare with manifest.
-- [ ] H1.7 Verify signatures, attestation chain, root metadata, and origin constraints.
-- [ ] H1.8 Record candidate identifiers/results; request owner review before publication.
+- [ ] H1.1 Inspect release packaging/manifest implementation.
+- [ ] H1.2 Identify manifest schema and required fields.
+- [ ] H1.3 Build candidate (v0.1.3 only if existing version plan supports it).
+- [ ] H1.4 Generate ZIP, manifest, checksums, attestations without publishing.
+- [ ] H1.5 Validate schema and artifact inventory.
+- [ ] H1.6 Recompute checksums independently.
+- [ ] H1.7 Verify signatures, attestation chain, root metadata, origin constraints.
+- [ ] H1.8 Record candidate evidence and obtain owner review before publication.
 
 ## I. Non-production end-to-end and resilience acceptance
-- [ ] I1.1 Test normal update and successful acknowledgement.
-- [ ] I1.2 Test interrupted/partial download and safe recovery.
-- [ ] I1.3 Test R2 unavailable and verify fail-safe behavior.
-- [ ] I1.4 Test Durable Object concurrency/fencing and stale-run rejection.
-- [ ] I1.5 Test invalid attestation and nonce replay.
-- [ ] I1.6 Test Node 4 acknowledgement failure and verify no unsafe release-pin advance.
-- [ ] I1.7 Test alert destination unavailable and record fallback behavior.
-- [ ] I1.8 Test rollback/recovery from failed candidate.
-- [ ] I1.9 Consolidate test evidence, expected vs actual outcomes, and unresolved defects.
+- [ ] I1.1 Normal update/acknowledgement.
+- [ ] I1.2 Interrupted download/recovery.
+- [ ] I1.3 R2 unavailable/fail-safe.
+- [ ] I1.4 DO concurrency/fencing/stale-run rejection.
+- [ ] I1.5 Invalid attestation/nonce replay.
+- [ ] I1.6 Node 4 acknowledgement failure/no unsafe pin advance.
+- [ ] I1.7 Alert destination unavailable/fallback.
+- [ ] I1.8 Rollback/recovery.
+- [ ] I1.9 Consolidated evidence and unresolved defects.
 
 ## J. Production authorization, deployment, and acceptance
-- [ ] J1.1 Produce exact production change list, resource targets, secret names, risk, and rollback plan.
-- [ ] J1.2 Present non-production evidence and production change list for explicit owner approval.
-- [ ] J1.3 Confirm approval covers exact production actions; general project authorization is insufficient.
-- [ ] J1.4 Deploy only approved change set and capture deployment identifiers.
-- [ ] J1.5 Run production health checks for monitoring, update integrity, alerting, Node 4 acceptance, and rollback readiness.
-- [ ] J1.6 Obtain explicit approval before immutable baseline initialization.
-- [ ] J1.7 Initialize baseline and capture identifier and integrity evidence.
-- [ ] J1.8 Produce final acceptance report with pass/fail evidence, remaining risks, rollback status, and owner sign-off.
+- [ ] J1.1 Exact production change list, targets, secret names, risks, rollback.
+- [ ] J1.2 Present non-production evidence for explicit owner approval.
+- [ ] J1.3 Confirm approval covers exact actions.
+- [ ] J1.4 Deploy only approved change set and record deployment IDs.
+- [ ] J1.5 Production health/integrity/alert/Node 4/rollback checks.
+- [ ] J1.6 Obtain explicit approval for immutable baseline.
+- [ ] J1.7 Initialize baseline and record identifier/evidence.
+- [ ] J1.8 Final acceptance report and owner sign-off.
 
 ## Current cursor
-
-**Next item: A1.2 — read `wrangler.jsonc` and extract the configured Worker settings.**
-
-The only completed item in this runbook is A1.1, backed by the directory listing above. PRs #145/#146/#147, lockfile, and existing CI are closed baseline work and are not to be rechecked as progress.
+**Next item: A1.8 — inspect deployment documentation and relevant client/attestation/alert modules to enumerate external service endpoints.**
