@@ -1,8 +1,9 @@
-name: Integrity Node Tests
+# Repository-only regression coverage for retired A/B/C and Node 4 code. This workflow does not provision or contact remote nodes.
+name: Legacy Integrity Node Regression Tests (No Deployment)
 
 on:
   pull_request:
-    branches: [main, feat/signed-integrity-event-evidence, feat/btm-sa-node4-report-ingestion-rebased, feat/native-sigstore-node-artifact-verification-rebased]
+    branches: [main]
     paths:
       - 'docs/security/private-host-attestation-contract.md'
       - 'app/Updates/PrivateHostAttestationVerifier.php'
