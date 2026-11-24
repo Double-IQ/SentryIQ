@@ -288,3 +288,49 @@ The remaining 12 tracked `assets/js/*.js` files were scanned for service-worker 
 ## Phase 0.5 closure (2026-11-24)
 
 Phase 0.5 is closed as the repository baseline and legacy-topology disposition phase. This closure does **not** claim that every implementation-grade PHP dependency trace or source remediation is complete. Those tasks are explicitly carried into Phase 1 item 1.0 and the later implementation phases in `design-implementation-plan.md`. The owner confirmed no legacy nodes were provisioned; therefore live legacy-node operational evidence is not a prerequisite and is not outstanding. No source retirement, production deployment, key generation, or trust-baseline initialisation was performed.
+
+
+## Phase 0.6 closure — release, verifier, documentation, workflow and configuration reconciliation (2026-11-24)
+
+Phase 0.6 is complete as a **repository-only reconciliation**. The target architecture is SentryIQ at `https://sentryiq.bichet.co.za`, one independent specialised HelioHost verifier, the owner's phone as sole normal master authority, individually authorised additional devices, and offline recovery. No legacy nodes were provisioned; no remote-node runtime evidence or migration of live node configuration exists to reconcile.
+
+### Active contract/document disposition
+
+| Surface | Reconciliation |
+|---|---|
+| Release trust policy | Rewritten as the current role-separated model: GitHub build provenance, separately controlled release authorisation, dedicated HelioHost verifier report key, master-phone trust, and content/device key roles. Old A/B/C release-authority assumptions preserved in an archive. |
+| Release provenance | Rewritten to distinguish repository native updater capability from unverified production activation and from future independent release/verifier trust. Old multi-node guide archived. |
+| Private-host attestation | Former A/B bearer-token/application-host collector contract marked superseded and archived. It is not evidence of independent HelioHost private-file inspection. |
+| Node 4 report/deployment | Old event/report contract and same-host Node 4 deployment guide marked superseded and archived. No Node 4 endpoint/service is part of the target topology. |
+| Legacy verifier runtime/adapter | Former A/B/C and Node 4 runtime/adapter guides marked superseded and archived for test/source archaeology only. |
+| Master deployment checklist and owner handover | Former four-node deployment steps marked historical and archived; current plan and Phase 1 owner-review baseline are authoritative. |
+| Operations roadmap | Former migration/provider/node status snapshot marked historical and archived. Its old production-origin and deployment statuses are not current operational evidence. |
+| Cloudflare Node A / HelioHost Node C guides | Existing notices retained: Cloudflare is not a target; HelioHost is one verifier, not a Node C added to A/B. |
+
+### Workflow disposition
+
+| Workflow | Current disposition |
+|---|---|
+| `release.yml` | Retained as generic tag-triggered package/provenance workflow. Its write/OIDC/attestation permissions are required for release publication and remain security-sensitive. |
+| `release-manifest-tests.yml` | Retained as generic deterministic package/inventory CI. |
+| `native-release-attestation.yml` | Retained as native updater/provenance regression tests; push trigger narrowed to `main`. Read-only repository permission. |
+| `integrity-node-tests.yml` | Explicitly named legacy regression tests (no deployment); stale feature-branch PR targets removed; push/PR tests restricted to `main`; read-only permission. |
+| `native-sigstore-integrity-node.yml` | Explicitly named legacy verifier regression tests (no deployment); stale feature-branch push target removed; read-only permission. |
+| `node-a-commit-generated-lockfile.yml` | Removed from active workflows because it granted `contents: write` and pushed a generated lockfile to a retired Cloudflare branch. Exact historical workflow source is preserved in `docs/security/archive/node-a-commit-generated-lockfile-workflow-legacy.yml.txt`. |
+
+Legacy A/B/C and Node 4 source/tests remain in the repository only as regression and reuse evidence. The workflows above do not provision or contact remote nodes. They must be replaced with tests for the new single-verifier contract before legacy source is retired; no source deletion is included in Phase 0.6.
+
+### Configuration and origin reconciliation
+
+- The canonical target origin remains `https://sentryiq.bichet.co.za`; repository notices and current trust documents now point to that target.
+- The repository contains old Cloudflare Worker configuration and private-host/node runtime classes because they are retained source, not because those services are deployed or remain target infrastructure.
+- No Cloudflare, R2, Durable Object, Val Town, A/B/C node, or Node 4 credentials, schedules, provider configuration, or deployment secrets are to be provisioned.
+- No private production configuration was changed or inspected as if it were deployed. The owner confirmed no legacy nodes were ever provisioned.
+- Release workflow identity and canonical repository identity remain `Double-IQ/SentryIQ`. The release workflow is not itself the independent release-authorization layer.
+- No production origin cutover, release publication, verifier key generation, baseline initialisation, backup, or deployment was performed.
+
+### Validation and remaining work
+
+The workflow YAML edits were reviewed structurally for the intended branch filters and `contents: read` permissions on regression workflows. The generic release workflow retains only the permissions needed to publish packages and attestations. GitHub Actions validation on the resulting PR is still required before merge.
+
+Phase 0.6 does not claim that old runtime code has been replaced or that the new verifier is implemented. Those are later Phase 2/4/5 tasks. Legacy source and tests remain preserved until the new verifier contract and replacement tests exist.
