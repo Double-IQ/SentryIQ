@@ -88,6 +88,15 @@ The public `sentryiq_diagnostic.php` entry point remains available so the deploy
 
 The diagnostic is part of the operational safety net for structural cleanup: changes should not remove or bypass it, and migrations should keep its filesystem, source-reference, and browser URL checks aligned with the repository structure.
 
+## Security architecture references
+
+The active device-rooted trust model, master-device lifecycle, independent HelioHost verifier, cryptographic release verification, and offline recovery design are documented in:
+- [Device-Rooted Security Architecture](architecture/device-rooted-security-architecture.md)
+- [Design and Implementation Plan](architecture/design-implementation-plan.md)
+- [Legacy Topology Disposition](architecture/legacy-topology-disposition.md)
+
+The former A/B private-host attestation contract is historical only; see [its superseded status](security/private-host-attestation-contract.md).
+
 ## Migration principles
 
 - Keep public URLs stable unless a routing migration is explicitly planned.
