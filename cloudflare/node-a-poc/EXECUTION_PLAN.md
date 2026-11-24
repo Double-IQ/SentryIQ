@@ -41,13 +41,13 @@ Status: [ ] not done | [x] done with evidence | [!] blocked with exact reason.
 - [x] B1.4 Compare R2 use with configured bucket and documented bucket name. **Evidence:** deployment doc's provisioning command creates `sentryiq-node-a-targets`; Wrangler binds that exact bucket as `NODE_A_TARGETS`; Worker passes the binding to the async TUF updater.
 - [x] B1.5 Compare routes, environments, and cron triggers. **Evidence:** `wrangler.jsonc` declares no `routes`, `workers_dev`, or named `env` blocks; application path dispatch is implemented in `src/index.ts` (`/health`, `/runtime-check`, `/internal/monitor/run`, `/internal/baseline/initialize`, `/internal/tuf/refresh`, `/internal/tuf/targets/*`). Cron `*/15 * * * *` matches the documented 15-minute schedule, but `DEPLOYMENT.md` requires owner confirmation before production activation. Actual public hostname/route and account environment are not specified by repository config and remain account-side unknowns.
 - [x] B1.6 Produce configured/missing/inconsistent/unknown delta. **Evidence:** Configured in repo: Worker entry/compatibility settings, DO binding/class/migration, R2 binding/bucket name, 15-minute cron, route handlers, required secret names and pinned inventory variable names. Missing from repo config: explicit deployment routes/hostname, named Wrangler environments, observability enablement. Unknown until account inspection: actual R2 bucket existence, DO namespace/migration application, Worker deployment/hostname/routes, Cron activation, secret/var presence and values. No code/config contradiction found for DO/R2; the stale PR-state documentation was corrected.
-- [ ] B1.7 Separate repository-fixable gaps from account-access gaps.
+- [x] B1.7 Separate repository-fixable gaps from account-access gaps. **Repository-side:** decide/document Worker hostname and routes, named environments, observability policy, and whether cron cadence is owner-approved; maintain the code-level route handlers and bindings. **Account-side:** confirm/create R2 bucket, DO namespace/migration state, Worker deployment/hostname/routes, cron activation, and provision required secret/var names. Private-host listener/OS isolation is outside Cloudflare and requires host access. Alert provider and Node 4 key/credential registration require their respective owner-controlled systems.
 
 ## C. Cloudflare access and non-production preparation
-- [ ] C1.1 Discover authorized Cloudflare connector/action.
-- [ ] C1.2 If available, inspect account and non-production resources read-only.
-- [ ] C1.3 Compare actual resource state with Section B; record identifiers/environment, never secrets.
-- [ ] C1.4 If access unavailable, record exact required permission/owner action.
+- [!] C1.1 Discover authorized Cloudflare connector/action. **Blocker:** no Cloudflare account-management action is exposed in the connected tool inventory, and plugin discovery did not return a Cloudflare integration. Therefore I cannot inspect the account directly from this session.
+- [!] C1.2 Read-only Cloudflare account inspection is blocked by C1.1; no authenticated account connection is available.
+- [!] C1.3 Actual bucket/namespace/deployment/route/cron/secret metadata cannot be verified until authorized account access is provided.
+- [x] C1.4 Record exact access needed. **Owner action required:** provide an approved Cloudflare account connection with read access to Workers scripts/deployments/routes/triggers, R2 buckets, Durable Object namespaces/migrations, and Worker secret/variable *names and presence metadata* (not values). For later non-production provisioning, separately authorize scoped writes for non-production Worker scripts, R2 bucket, DO namespace/migrations, routes, and cron. Do not send API tokens or secret values in chat; use an approved secure connection/secret channel.
 - [ ] C1.5 Prepare non-production-only change set.
 - [ ] C1.6 Review for production targets, destructive operations, secret exposure.
 - [ ] C1.7 Obtain explicit owner approval before account mutations unless specifically pre-authorized.
@@ -126,4 +126,4 @@ Status: [ ] not done | [x] done with evidence | [!] blocked with exact reason.
 - [ ] J1.8 Final acceptance report and owner sign-off.
 
 ## Current cursor
-**Next item: B1.7 — separate repository-fixable gaps from Cloudflare account-access gaps and record exact evidence.**
+**Next item: C1.5 — prepare the non-production-only Cloudflare change set from the confirmed repository delta. Cloudflare account inspection remains blocked pending the access described in C1.4; continue safe repository preparation meanwhile.**
