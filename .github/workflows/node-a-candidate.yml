@@ -53,7 +53,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          (cd release-output && sha256sum --check sentriq-*.zip.sha256 release-manifest.json.sha256)
+          (cd release-output && sha256sum --check sentryiq-*.zip.sha256 release-manifest.json.sha256)
           printf 'Source commit: %s\n' "$GITHUB_SHA" > release-output/CANDIDATE-SOURCE.txt
           printf 'Workflow: %s\n' "$GITHUB_WORKFLOW"
           printf 'Ref: %s\n' "$GITHUB_REF"
