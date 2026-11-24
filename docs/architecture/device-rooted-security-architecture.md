@@ -139,6 +139,10 @@ The design is not production-ready until tests and deployment evidence demonstra
 - Browser/PWA compromise scenarios are tested, and any residual same-origin/runtime risk is documented.
 - Backup restoration, key rotation, verifier outage, application outage, and rollback are rehearsed.
 
+## 9A. PWA implementation verification
+
+The inspected repository tree currently contains no tracked web-app manifest or service-worker entrypoint. The owner identifies the deployed application as a PWA, so the live deployment and any externally generated assets must be checked before implementation. The design must not assume a service worker exists or that a PWA shell is already covered by the release manifest. If the live application lacks these assets, PWA installation, update lifecycle, service-worker cache integrity, offline behaviour, and release-manifest coverage become explicit implementation work. A service worker is part of the application-origin attack surface, not an independent trust anchor.
+
 ## 10. Status
 
 This document defines the target design only. The existing Cloudflare Worker, R2, Durable Object, Node A/B, and older private-host attestation code have not been proven to implement this architecture. They must be mapped, adapted, retained as reusable components, or retired through a reviewed repository cleanup. No production mutation, key generation, baseline initialisation, or release publication is authorised by this document.
