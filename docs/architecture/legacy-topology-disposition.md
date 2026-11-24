@@ -230,3 +230,35 @@ The direct source review confirms that Node C is the closest existing verifier b
 - `IntegrityNodeKeyGenerator` currently permits only `integrity-a`, `integrity-b`, or `integrity-c`. It cannot create the new HelioHost verifier identity without a reviewed identity-policy change. Do not invoke the existing key generator with an improvised identity or generate production keys before the custody model is approved.
 - `IntegrityReportVerifier` is explicitly a two-node approval verifier: it requires exactly two trusted public keys and exactly two reports. It is not suitable as the phone's single-HelioHost-report verifier. The phone needs a separate versioned verifier that pins the correct HelioHost public key, validates freshness/nonce/origin/release identity and decision, and binds the result to the authorised master-device state.
 - The report signer currently accepts a general node ID, but the evidence store, key generator, verifier binding, scheduled runner, tests and CLI bootstrap impose A/B/C-specific identities. Updating only the signer would leave an inconsistent and unsafe runtime.
+
+
+
+## Fifth-pass workflow and HTTP-policy findings (2026-11-24)
+
+### Active workflow contracts still encode the retired topology
+
+The workflow review confirms that the legacy design is not only historical documentation:
+
+- `.github/workflows/integrity-node-tests.yml` still runs the A/B/C report, private-host collector/gate/client, Node 4 event, incident correlation, scheduled-runner and key-generator tests. Its path filters still watch those classes and tests. This workflow is an active CI dependency and must be migrated to the new single-verifier contract before any of those tests or classes are removed.
+- `.github/workflows/native-sigstore-integrity-node.yml` remains a separate legacy Node integrity test path and must be reviewed alongside the primary integrity workflow.
+- `.github/workflows/validate-v012-attestation.yml` still describes a “dual-node report contract” and executes A, B and C report tests. It is tied to the historical v0.1.2 release fixture and cannot be treated as proof of the new phone-to-single-verifier protocol.
+- `integrity_event.php` is still a real repository endpoint: it accepts only `integrity-a` and `integrity-b` challenge/report identities, reads the legacy `integrity_event` private configuration, and writes to the old Node 4 event store. This is concrete evidence that endpoint retirement cannot be performed by documentation edits alone.
+- `.github/workflows/native-release-attestation.yml` separately installs `k2gl/sigstore-verify:1.6.1` and `k2gl/tuf:1.2.1`, checks out a pinned TUF commit, applies the tracked SentryIQ patch, and packages private runtime dependencies for cPanel installation. This is a useful dependency/provenance starting point for the HelioHost bundle, but the workflow's generated dependency tree is not yet an approved production HelioHost runtime bundle. Keep the versions, upstream commit, patch, checksums and packaging process under review; do not improvise a different dependency source.
+
+### HTTP response-header policy conflict confirmed in source
+
+- The root `.htaccess` uses `Header always set Referrer-Policy "strict-origin-when-cross-origin"`.
+- The PHP `SecurityBootstrap` sends `Referrer-Policy: no-referrer` on normal application requests.
+- These directives can result in multiple/conflicting response header values depending on Apache/FPM handling. Source inspection cannot determine the actual wire response. Probe both `/` and `/VERSION` on the live canonical origin, inspect all instances of the header, then choose and test one intentional policy. Do not claim the header is resolved from source inspection alone.
+
+### Entrypoint conclusion and boundary
+
+- `index.php` includes `security_bootstrap.php`, then the private app configuration and vault runtime; it does not directly include the old verifier or event runtime.
+- `security_bootstrap.php` delegates to `app/Security/SecurityBootstrap.php`; the inspected bootstrap is app/session security code, not the scheduled verifier bootstrap.
+- The legacy monitor remains reachable through explicit CLI entrypoints and the public `integrity_event.php` URL. Whether either is actively scheduled/called is a host-control-plane fact and remains unverified.
+- The source tree cannot reveal live cron definitions, external monitoring integrations, deployment hooks, or the values/schema of the private runtime configuration. Those remain explicit external evidence gates.
+
+### Phase 0.5 disposition
+
+The repository review now provides enough evidence to freeze the legacy topology and design the replacement without deleting or deploying anything. The following are **not** asserted complete: live-host caller/scheduler audit, live response-header verification, private-file inspection feasibility, unexpected-public-file inventory mechanism, and production HelioHost dependency qualification. These are measurable acceptance gates for the next host-access step, not reasons to revive Cloudflare or the former multi-node architecture.
+
