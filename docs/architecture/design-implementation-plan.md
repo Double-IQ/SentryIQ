@@ -22,9 +22,9 @@ This plan supersedes the former Cloudflare Node A operational deployment plan. I
 - [x] 0.2 Record SentryIQ as the application at that origin; HelioHost is the separate security node, not the application host and not a second full SentryIQ installation.
 - [x] 0.3 Remove Cloudflare, Val Town, and the previous A/B/C deployment topology from the target architecture.
 - [x] 0.4 Define master phone, authorised devices, independent verifier, and offline recovery roles.
-- [~] 0.5 Initial inventory documented in [legacy topology disposition](legacy-topology-disposition.md); broader tracked-file/caller/workflow scan remains. to Cloudflare, Node A/B/C, old origins, and former deployment assumptions; classify as reusable code, historical evidence, active dependency, or retire.
+- [~] 0.5 Initial inventory documented in [legacy topology disposition](legacy-topology-disposition.md); broader tracked-file/caller/workflow scan remains.
 - [ ] 0.6 Reconcile release-attestation policy, private-host contract, Node 4 event contract, docs, workflows, and configuration to the new origin and trust topology.
-- [x] 0.7 Reviewed and closed PR #150 without merging; it targeted the retired Cloudflare Node A source branch. Generic release packaging steps may be reused after review. (Cloudflare-era candidate workflow); close or supersede it only after confirming no required release process depends on it.
+- [x] 0.7 Reviewed and closed PR #150 without merging; it targeted the retired Cloudflare Node A source branch. Generic release packaging steps may be reused after review.
 
 ## Phase 1 — Threat model and trust/key design
 - [ ] 1.1 Produce a data-flow and trust-boundary diagram for app host, HelioHost verifier, master phone, other devices, release pipeline, and recovery material.
