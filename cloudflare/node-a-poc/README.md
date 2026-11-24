@@ -1,13 +1,8 @@
 # Node A Cloudflare Workers proof of concept
 
-**Status: isolated runtime/storage PoC only. Not deployable as the production Node A.**
+**Status: implementation merged to `feat/node-a-monotonic-run-fence` via PR #145; CI and dependency-lockfile commits are merged, but the Worker is not production-deployed or operationally accepted.**
 
-This directory is deliberately separate from the PHP production application. It tests a narrow but important question in the actual Workers runtime:
-
-1. Can the pinned Sigstore JavaScript verifier and TUF client modules load under `workerd`, and can the verifier validate a real upstream Rekor v2 fixture?
-2. Do Ed25519 key generation/sign/verify and SHA-256 work in that runtime?
-3. Can the stock Sigstore TUF client bootstrap its cache on Workers' writable `/tmp`, and does it reject a non-`/tmp` persistent path?
-4. Does a separate SQLite-backed Durable Object prototype preserve staged files, a monotonic release pin and run lock across separate stubs/requests, and reject downgrade or same-version replacement?
+This directory is deliberately separate from the PHP production application. Node A's owner-confirmed platform is Cloudflare Workers. The implementation uses a Worker-native TypeScript TUF runtime, Durable Object fencing/metadata persistence, private R2 target staging, and a release-integrity monitor composition.
 
 ## Run
 
@@ -18,27 +13,46 @@ npm install
 npm test
 ```
 
-Direct dependencies are exact-version pinned in `package.json`. `npm test` first runs the version-guarded `apply-sigstore-core-compat` script. The published `@sigstore/core@4.0.1` artifact forwards an undefined digest to `crypto.verify`, which workerd rejects for EC/RSA signatures; the local patch supplies SHA-256 only for EC/RSA keys and leaves EdDSA and RSA-PSS defaults unchanged. The patch refuses unknown package versions or compiled code shapes. The GitHub Actions workflow applies it explicitly after `npm ci --ignore-scripts`. A committed, reviewed npm lockfile is still required before any deployment or production build.
+Direct dependencies are exact-version pinned in `package.json`. The reviewed `package-lock.json` and its SHA-256 pin are committed on `feat/node-a-monotonic-run-fence`. CI-generated lockfile validation passed; do not treat lockfile commitment as an outstanding acceptance gate.
 
-## Important non-claims
+## Implemented and merged
 
-- The runtime suite verifies the genuine SentryIQ v0.1.2 GitHub attestation bundle and the upstream Sigstore Rekor v2 certificate bundle using `@sigstore/verify@4.1.3` and the current Sigstore trusted root. It rejects a one-byte-tampered DSSE signature after trusted-key validation and includes an Ed25519 regression check. This is a positive/negative cryptographic PoC, not yet the complete repository-specific release policy or production caller.
-- The suite calls the stock `@sigstore/tuf@5.0.1` client with a fixture root. It confirms cache bootstrap works under `/tmp`, but a cache path outside `/tmp` fails with the Workers filesystem permission restriction. The test intentionally stops at a loopback network failure; it does not complete a live Sigstore TUF refresh.
-- The separate Durable Object filesystem prototype stages file writes, discards uncommitted changes, and commits successful changes to SQLite in a storage transaction. It is **not wired into** the upstream TUF client; the upstream package still uses the native filesystem APIs.
-- The generated CI dependency resolution is `@sigstore/tuf@5.0.1`, `tuf-js@6.0.3`, and `@tufjs/models@5.0.3`. The Sigstore wrapper exposes no storage adapter; the TUF `Fetcher` interface changes transport only, and the updater still uses filesystem metadata/target directories. `TrustedMetadataStore` is internal to `tuf-js`, not exported from its public API. A custom fetcher alone therefore cannot solve persistence.
-- The SQLite Durable Object stores the monotonic release pin, a run lease, bounded run audit and the isolated TUF-file prototype. It does not yet store or validate real TUF metadata through the stock client.
-- The release-pin method is a storage primitive. It must only be called after the full release attestation, manifest/ZIP, origin, private-host and Node 4 acceptance gates have passed. No production caller is wired.
-- The Worker exposes only health/runtime diagnostics. It does not fetch releases, call Node 4, access private-host attestation, send alerts, or expose state mutation routes.
-- No secrets, Cloudflare account identifiers, production bindings, routes, Cron Triggers or deployments are configured.
+- **Async TUF and target storage:** pinned `tuf-js@6.0.3` trusted metadata is persisted through fenced Durable Object operations; sequential root rotation, timestamp rollback/equivocation checks, online timestamp/snapshot refresh, consistent-snapshot naming, bounded metadata transport, delegated-role verification, private R2 staging, atomic pointer publication, and fenced cleanup are covered by Workerd tests.
+- **Release evidence:** strict duplicate-key-safe manifest parsing, exact repository/release/tag/commit identity, complete public/runtime inventory, exact `VERSION` byte binding, bounded GitHub release asset retrieval with a redirect allowlist, streaming ZIP SHA-256, Snappy bundle decoding, and authenticated GitHub/SLSA attestation policy.
+- **Canonical origin:** byte length and SHA-256 checks for signed public assets, fixed canonical HTTPS origin, redirect rejection, and required security-header checks.
+- **Private host:** A-only collector request, pinned Ed25519 response verification, nonce/freshness/release binding, and exact pinned deployed-file/private-config inventory checks.
+- **Node 4 exchange:** challenge request, A-only Ed25519 report signing, bounded report submission, and acknowledgement validation.
+- **Independent owner alert:** generic HTTPS webhook transport pinned to an exact external hostname, with redirects rejected and a strict non-sensitive event context.
+- **Monitor composition:** TUF refresh and trusted-root loading, deployed VERSION and release assets, GitHub release evidence, canonical-origin checks, private-host attestation, Node 4 report, direct owner alerts, and release-pin advancement under a Durable Object run lease.
+- **Worker orchestration:** `POST /internal/monitor/run` performs a manual monitor run after baseline initialization. `POST /internal/baseline/initialize` performs the same verification and can initialize the immutable baseline only with both the normal API bearer token and a separate one-time baseline approval token. The scheduled handler runs the same monitor every 15 minutes under the Durable Object run lease; it never initializes the baseline. Until the owner-approved baseline exists, it records a failed/blocked outcome and skips without generating a recurring alert. After baseline initialization, operational failures attempt the independent owner-alert path. It records only minimal success/rejection/failure outcomes. All monitor entry points fail closed when required configuration is absent.
 
-## Acceptance sequence after this PoC
+The merged implementation was tested on PR #145 head `890b49df7a76854764a4deae917441a7b8fcbf11`: 132/132 Workerd/DO tests across 21 files, pinned upstream TUF trusted-state tests, Wrangler Worker build, filesystem fallback scan, and lockfile digest validation passed ([CI run 45307537194](https://github.com/Double-IQ/SentryIQ/actions/runs/45307537194)). The CI run generated the committed lockfile artifact (lockfile v3, 214 package entries; artifact `14881452841`). The monitor emits the neutral `integrity_run_failed` alert reason for manual and scheduled failures. GitHub bundle retrieval is restricted to the trusted numeric repository ID, repository-scoped Azure Blob path, and read-only SAS URLs. CI also retrieves the genuine published v0.1.2 release asset and GitHub attestation bundle and injects the current Sigstore trusted root into Workerd integration tests. GitHub bundle retrieval is restricted to the trusted numeric repository ID, repository-scoped Azure Blob path, and read-only SAS URLs. The CI test job also retrieves the genuine published v0.1.2 release asset and GitHub attestation bundle and injects the current Sigstore trusted root into the workerd integration tests.
 
-1. Preserve the 13-test workerd suite and replace the temporary dependency patch with an upstream release or a separately reviewed/pinned maintained patch plus committed lockfile.
-2. Verify the genuine SentryIQ manifest and ZIP attestations independently against the authenticated TUF trusted root, with digest, subject, identity, workflow and source-commit negative cases.
-3. Implement and independently review a Durable Object-backed TUF adapter that the verifier can actually use, preserving sequential root rotation, metadata expiry/version checks, target hashes and crash-safe atomic refresh. Do not treat ephemeral `/tmp` as persistent.
-4. Test TUF restart/eviction, failed refresh preserving last-known-good metadata, rollback, expiry, threshold/signature failures and malicious metadata.
-5. Port the existing `SigstoreProvenance` and `ReleaseTrustPolicy` constraints without weakening them.
-6. Add the Node 4 challenge/report exchange, private-host collector and independent owner-alert path.
-7. Complete production deployment only after account access, secrets, schedules, independent failure-domain and owner acceptance gates are met.
+## Operational boundary and non-claims
 
-The Worker runtime tests are local Miniflare/workerd tests. They are not a substitute for a Cloudflare account-backed staging deployment.
+- The published v0.1.2 release predates the required embedded canonical manifest and has no `release-manifest.json`; the new monitor intentionally cannot accept it. A new manifest-bearing release is required before a live monitor run can pass.
+- The stock `@sigstore/tuf@5.0.1` filesystem-backed wrapper remains in isolated compatibility tests only. It is removed from the Worker production dependency path. The Worker uses the async `tuf-js` adapter and the pinned upstream atomicity patch.
+- The Worker entry point includes a `*/15 * * * *` Cron trigger in `wrangler.jsonc`, but it has not been deployed or activated in a Cloudflare account. The service owner must confirm the cadence and alert routing before a production deployment.
+- The baseline has not been initialized. No one-time baseline approval token has been provisioned.
+- No Cloudflare production account/bucket, TUF bootstrap secret/mirror, GitHub API token, Node 4 token, report signing key, private-host token/collector key, expected inventory maps, independent alert endpoint, or production Worker deployment has been provisioned or verified.
+- The generic direct-alert transport is implemented, but its external endpoint and credential must be selected and provisioned by the owner. It must be independently controlled and not hosted on the SentryIQ application origin.
+- The Node A client targets `/private-host-attestation`, but the PHP collector/request-handler/nonce-store classes have no deployed HTTP listener or `.htaccess` route. The contract requires an isolated host service outside the public PHP request path, with a dedicated OS identity and signing key inaccessible to PHP-FPM; a public PHP endpoint holding the signing key is not acceptable. An owner-approved isolated service/reverse-proxy route, private nonce-store provisioning, A/B credentials, and collector key/inventory configuration are required before the private-host exchange can work end to end.
+- The Durable Object release pin is advanced only after the signed Node 4 report is acknowledged. A rejected or unacknowledged event does not advance the pin.
+- `GET /runtime-check` deliberately reports `productionReady: false` until account-backed acceptance is completed.
+- PR #145 is merged into `feat/node-a-monotonic-run-fence`; PRs #146 and #147 are merged into `main` to provide the manual lockfile-commit workflow and its target-branch correction. These merges do not constitute a production deployment. No production changes have been made.
+
+## Acceptance sequence still required
+
+1. Keep the committed dependency lockfile and SHA-256 pin synchronized; retain the pinned upstream TUF patch or replace it only with a separately reviewed upstream release. This repository gate is complete.
+2. Provision the intended Cloudflare account, R2 bucket, Durable Object, TUF bootstrap/mirror configuration, GitHub/Node 4/private-host credentials, pinned inventories, and independent owner-alert webhook.
+3. Independently review the current manifest-bearing release and initialize the immutable baseline through the one-time approval route. Do not use v0.1.2 for this path.
+4. Exercise the manual monitor against the live non-production Worker and verify the actual Node 4, private-host collector, and owner-alert provider acknowledgements.
+5. Confirm the proposed 15-minute monitoring cadence and independent alert routing with the service owner, then deploy to non-production and verify actual Cron invocations, failure recording, and alert delivery.
+6. Complete account-backed R2 fault injection, lease takeover, stale-owner rejection, target digest comparison, restart/eviction, rollback rehearsal, and deployment evidence.
+7. Only then consider production readiness and merge/deploy approval.
+
+The Workerd suite and Wrangler bundle scan are not substitutes for a Cloudflare account-backed staging deployment.
+
+### Historical implementation notes
+
+Earlier feasibility notes below this heading were superseded by the Worker-native async TUF adapter, pinned upstream trusted-state atomicity patch, Durable Object metadata store, and R2 staging implementation described above. The current acceptance gates are the operational and account-backed requirements listed above; do not treat earlier statements that these components remain unimplemented as current status.

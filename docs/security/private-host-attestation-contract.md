@@ -22,7 +22,7 @@ The collector must run outside the public application request path under a dedic
 - private-data-root-relative configuration paths and approved SHA-256 digests;
 - collector identity and a protected Ed25519 secret-key file.
 
-The collector rejects invalid relative paths, symlinked inspected paths, missing/unreadable files, digest mismatches, optional permission mismatches, and discovered unexpected files. For pinned files it hashes an already-open descriptor, compares device/inode identity with `lstat` before and after reading, and checks descriptor metadata for changes during the read; it does not hash a pathname after a separate check. This narrows pathname/symlink substitution races, but portable PHP path APIs cannot provide the same guarantee as OS-level `openat`/`O_NOFOLLOW` traversal. The production service must therefore run with read-only access and under an OS identity that prevents untrusted writers from modifying inspected paths during collection. It returns hashes and metadata only, never file contents. It signs both approval and rejection decisions over the exact JSON payload bytes.
+The collector rejects invalid relative paths, symlinked inspected paths, missing/unreadable files, digest mismatches, optional permission mismatches, and discovered unexpected files or special filesystem entries (including FIFOs, sockets and device nodes) in monitored directories. For pinned files it hashes an already-open descriptor, compares device/inode identity with `lstat` before and after reading, and checks descriptor metadata for changes during the read; it does not hash a pathname after a separate check. This narrows pathname/symlink substitution races, but portable PHP path APIs cannot provide the same guarantee as OS-level `openat`/`O_NOFOLLOW` traversal. The production service must therefore run with read-only access and under an OS identity that prevents untrusted writers from modifying inspected paths during collection. It returns hashes and metadata only, never file contents. It signs both approval and rejection decisions over the exact JSON payload bytes.
 
 The signing key must be a regular file under the private data directory with exact `0600` permissions. The collector reads it through a verified descriptor and checks device/inode identity and metadata before and after reading; it does not silently repair permissions. These PHP filesystem checks are not a substitute for OS-level ownership, ACL, race resistance, or isolation from privileged processes. The core does not itself verify a Sigstore manifest, derive the expected inventory, establish file ownership baselines, or provision the signing key.
 
@@ -38,7 +38,7 @@ Each node must have its own bearer token, collector public key, and locally held
 
 `app/Updates/PrivateHostAttestationNonceStore.php` supplies a filesystem-backed nonce callback. It stores SHA-256 hashes of node/nonce pairs, uses an exclusive lock, atomically replaces a bounded state file, prunes expired entries, and fails closed rather than discarding replay history when full. Its directory must already have exact 0700 permissions, be outside the webroot, and be writable only by the isolated service identity; the constructor validates permissions and does not change an operator-supplied directory. The lock file must be pre-provisioned as a regular file with exact 0600 permissions; the store opens it without creating it or changing its mode, and verifies the opened inode against `lstat`. Existing state files must also have exact 0600 permissions. State updates use exclusive temporary-file creation, complete writes, `fflush`/`fsync`, and atomic rename.
 
-The listener, network routing, TLS termination/reverse proxy, OS service identity, process supervision, key provisioning, bearer-token provisioning, policy generation, and service ownership/ACL setup are not implemented here.
+A reference isolated PHP-FPM entrypoint now exists at `deploy/private-host-attestation/fpm-entrypoint.php`. It requires the dedicated `fpm-fcgi` SAPI, an owner-only JSON config outside the document root, a private 0700 data directory owned by the attestor UID, a 0600 config file, bounded request-body reading, no-store response headers, and fail-closed generic errors. Its deployment examples are in `deploy/private-host-attestation/README.md`; they include a separate FPM pool and an exact-match Nginx FastCGI route. CI lints the entrypoint and checks its security contract. This is reference adapter code only, not a provisioned listener or live reverse-proxy configuration. Provider-specific network routing, TLS termination, OS service identity, process supervision, key/bearer-token provisioning, policy generation, and service ownership/ACL setup remain unimplemented and unverified.
 
 ## Policy and release binding
 
@@ -79,6 +79,21 @@ Before either node is configured to rely on this capability, demonstrate on the 
 8. No Node 4 result can turn a failed or missing private-host attestation into approval.
 
 The current tests exercise the collector, A/B client, handler, replay store, signature verification, replay rejection, token/node binding, malformed requests, unexpected files, and mismatch rejection. CI passing demonstrates software regression coverage only; it does not prove production-host isolation, ownership, network reachability, or deployment readiness.
+
+## cPanel feasibility gate
+
+The currently recorded production deployment plan identifies the SentryIQ application host as a cPanel account with no shell/SSH access confirmed. That hosting model does not, by itself, establish that the account can run a persistent isolated service under a separate OS identity or configure an HTTPS reverse proxy to it. Do not treat cPanel Cron Jobs, PHP-FPM, or a normal PHP web route as equivalent to the required isolation boundary.
+
+Before implementation is considered deployable on this host, the hosting provider must explicitly confirm all of the following for the SentryIQ account:
+
+1. A persistent PHP CLI (or equivalent) service can run under a dedicated OS user distinct from the web/PHP-FPM identity, with automatic supervision and restart.
+2. That identity can be granted read-only access to only the approved application/private inspection paths, and cannot modify application code or the approved policy.
+3. The signing key and nonce state can be stored outside the document root with enforced owner-only permissions and inaccessible to the web identity.
+4. The service can listen on a private Unix socket or loopback-only port, not a public listener.
+5. The provider can route only POST /private-host-attestation over the canonical HTTPS vhost to that private upstream, preserving duplicate-header rejection and request-size limits.
+6. Service logs and failure/restart status can be inspected without exposing request credentials or signed payload contents.
+
+If any requirement is unavailable, the current cPanel host cannot safely host this attestor under the specified trust model. The alternatives are a separately approved isolated host/service or a revised architecture with an independently reviewed trust boundary. A public PHP endpoint, cron-triggered polling script, or signing key readable by PHP-FPM is not an acceptable workaround.
 
 ## Deployment boundary
 

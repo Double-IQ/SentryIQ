@@ -123,6 +123,10 @@ try {
 
     file_put_contents($web . '/app/extra.txt', 'unexpected');
     file_put_contents($web . '/app/odd name.txt', 'also unexpected');
+    $specialEntryCreated = false;
+    if (function_exists('posix_mkfifo')) {
+        $specialEntryCreated = @posix_mkfifo($web . '/app/unexpected-pipe', 0600);
+    }
     $unexpectedEnvelope = json_encode($collector->collect($nonce, '1.2.3', $commit, $manifest, $artifact), JSON_THROW_ON_ERROR);
     $unexpectedResult = $verifier->assertAttested(
         $unexpectedEnvelope, $nonce, '1.2.3', $commit, $manifest, $artifact,
@@ -132,6 +136,12 @@ try {
     collectorAssert($unexpectedResult['approved'] === false
         && in_array('unexpected', array_column($unexpectedResult['mismatches'], 'reason'), true),
         'Collector must reject files outside the fixed release inventory in monitored directories.');
+    if ($specialEntryCreated) {
+        collectorAssert(
+            in_array('app/unexpected-pipe', array_column($unexpectedResult['mismatches'], 'path'), true),
+            'Collector must reject unexpected special filesystem entries such as FIFOs.'
+        );
+    }
 
     mkdir($private . '/outside', 0700);
     mkdir($private . '/outside/subdir', 0700);
