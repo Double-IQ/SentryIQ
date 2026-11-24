@@ -95,20 +95,20 @@ Status: [ ] not done | [x] done with evidence | [!] blocked with exact reason.
 - [x] H1.2 Identify manifest schema and required fields. **Evidence:** format 2 requires repository/name ID, semantic version, 40-character commit, workflow path, public/runtime file lists, and exact file path/size/lowercase SHA-256 entries. Worker parser rejects duplicate JSON keys, unsafe/duplicate paths, incomplete inventory coverage, incorrect VERSION bytes, and unbounded public static asset lists. Manifest is descriptive integrity metadata; trust is provided by independently verified GitHub/Sigstore attestations, not by the manifest alone.
 - [x] H1.3 Confirm candidate version. **Evidence:** repository `VERSION` on `feat/node-a-monotonic-run-fence` is `0.1.3`; release workflow validates the tag against this file and builds `v0.1.3` artifacts. GitHub Releases currently lists v0.1.2 as the latest release; lookup of tag `v0.1.3` returned 404, so v0.1.3 is not yet tagged/published. This confirms the repository's intended candidate version, not owner authorization to publish.
 - [!] H1.4 Generate ZIP, manifest, checksums, attestations without publishing. **Blocked by safe execution path:** current `.github/workflows/release.yml` is tag-push triggered and includes an automatic GitHub release publication step. No non-publishing candidate workflow or repository checkout/build runner is available in this session. Do not push `v0.1.3` tag or trigger publication merely to produce a candidate. A separate non-publishing build path is required.
-- [ ] H1.5 Validate schema and artifact inventory.
-- [ ] H1.6 Recompute checksums independently.
-- [ ] H1.7 Verify signatures, attestation chain, root metadata, origin constraints.
-- [ ] H1.8 Record candidate evidence and obtain owner review before publication.
+- [!] H1.5 Validate schema and artifact inventory. **Blocked by H1.4:** no candidate ZIP/manifest exists to validate. Static validator source and test fixtures were inspected; they are not a substitute for validating the built candidate.
+- [!] H1.6 Recompute checksums independently. **Blocked by H1.4:** no candidate ZIP or sidecars exist.
+- [!] H1.7 Verify signatures, attestation chain, root metadata, origin constraints. **Blocked by H1.4:** no v0.1.3 build-provenance bundle or candidate artifact exists. v0.1.2 evidence is not reusable for v0.1.3.
+- [!] H1.8 Record candidate evidence and obtain owner review before publication. **Blocked by H1.4–H1.7:** no candidate exists; publication remains prohibited.
 
 ## I. Non-production end-to-end and resilience acceptance
-- [ ] I1.1 Normal update/acknowledgement.
-- [ ] I1.2 Interrupted download/recovery.
-- [ ] I1.3 R2 unavailable/fail-safe.
-- [ ] I1.4 DO concurrency/fencing/stale-run rejection.
-- [ ] I1.5 Invalid attestation/nonce replay.
-- [ ] I1.6 Node 4 acknowledgement failure/no unsafe pin advance.
-- [ ] I1.7 Alert destination unavailable/fallback.
-- [ ] I1.8 Rollback/recovery.
+- [!] I1.1 Normal update/acknowledgement. **Live acceptance blocked:** no non-production Worker, R2 bucket, DO namespace, host-attestor endpoint, Node 4 credential registration, or alert endpoint is deployed. Existing unit/workerd tests exercise individual paths but not the live system.
+- [!] I1.2 Interrupted download/recovery. **Live acceptance blocked** by absent non-production Cloudflare resources; inspectable unit tests cover streaming and staging behavior only.
+- [!] I1.3 R2 unavailable/fail-safe. **Live acceptance blocked** because R2 is not enabled in the account; code-level tests exist but no account-backed outage drill has run.
+- [!] I1.4 DO concurrency/fencing/stale-run rejection. **Live acceptance blocked** because no DO namespace exists in the selected account; workerd tests cover fencing/lease and stale commit rejection.
+- [!] I1.5 Invalid attestation/nonce replay. **Live acceptance blocked** by missing isolated host endpoint and no live exchange; Worker tests cover nonce/context/stale/file mismatch, and PHP tests cover invalid signature, duplicate keys, unsafe evidence, challenge binding and replay rejection.
+- [!] I1.6 Node 4 acknowledgement failure/no unsafe pin advance. **Live acceptance blocked** because no non-production Node 4 credential registration/exchange is authorized; Worker tests cover challenge/report failures and event-runner fail-closed behavior.
+- [!] I1.7 Alert destination unavailable/fallback. **Live acceptance blocked** because no independent destination/credential is selected; webhook and event-runner unit tests cover delivery failures and direct alert paths.
+- [!] I1.8 Rollback/recovery. **Live acceptance blocked** pending deployed non-production environment; TUF/R2 unit tests cover restart reconstruction, metadata rollback/equivocation, failed persistence and target staging/retirement recovery.
 - [ ] I1.9 Consolidated evidence and unresolved defects.
 
 ## J. Production authorization, deployment, and acceptance
@@ -122,4 +122,4 @@ Status: [ ] not done | [x] done with evidence | [!] blocked with exact reason.
 - [ ] J1.8 Final acceptance report and owner sign-off.
 
 ## Current cursor
-**Next item: H1.5 — continue static release-candidate validation and record which checks can be completed without building/publishing; H1.4 remains blocked until a non-publishing build runner/path is available. Do not push a tag or publish assets. F1.3 is blocked pending the authorized Node 4 private configuration channel; G1.2 awaits an owner-selected independent alert provider/channel; E1.3 remains blocked by the private-host deployment NO-GO. Cloudflare provisioning remains gated: enable R2 in Dashboard and confirm account/zone/resource ownership before mutations.**
+**Next item: I1.9 — consolidate current static/CI evidence and live acceptance blockers. Latest Workers runtime/DO CI job #138176167183 passed on 2026-11-24 and explicitly reports the 3 focused private-host attestation tests passing. Unit/workerd coverage exists for TUF metadata rollback/equivocation, DO fencing, R2 staged-target recovery/reader grace, Node 4 event handling and alert failure paths; none is live non-production acceptance. H1.4–H1.8 remain blocked until a safe non-publishing candidate build path exists. F1.3 needs the authorized Node 4 private configuration channel; G1.2 needs an owner-selected independent alert provider/channel; E1.3 remains blocked by private-host deployment NO-GO. Cloudflare provisioning remains gated: enable R2 and confirm account/zone/resource ownership before mutations.**
