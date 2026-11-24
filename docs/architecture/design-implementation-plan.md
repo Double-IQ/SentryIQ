@@ -41,7 +41,7 @@ This plan supersedes the former Cloudflare Node A operational deployment plan. I
 
 ## Phase 2 — Release and deployed-code verification
 - [x] 2.1 Inventory current release builder, manifest, GitHub/Sigstore provenance, release policy, asset delivery, deployment paths, and live GitHub governance. Findings and lifecycle map are recorded in [Phase 2.1 release lifecycle and deployment inventory](phase-2-1-release-lifecycle-and-deployment-inventory.md). This is a repository/live-GitHub audit only; production activation, deployment, HelioHost, and phone-side acceptance remain unverified.
-- [ ] 2.2 Define canonical signed release manifest covering HTML, JS, CSS, PWA manifest, icons, service worker, and relevant server-side runtime inventory.
+- [x] 2.2 Define the canonical signed release manifest and inventory coverage for browser assets, private runtime files, and dependency bundles. The proposed format-3 schema, RFC 8785 canonicalization, detached exact-digest release authorisation, deployment mapping, migration rules, and negative tests are recorded in [Phase 2.2 canonical release manifest design](phase-2-2-canonical-release-manifest-design.md). Owner/security review and implementation remain pending.
 - [ ] 2.3 Define independent trust-root distribution and key rotation for release verification.
 - [ ] 2.4 Design HelioHost verifier as a read-only, isolated service with a dedicated signing key and no application-write authority.
 - [ ] 2.5 Verify actual browser-delivered asset bytes, including redirects, cache variants, unexpected files, and response headers.
@@ -81,6 +81,6 @@ This plan supersedes the former Cloudflare Node A operational deployment plan. I
 
 ## Current next action
 
-Phase 2.1 is complete as a repository and live GitHub configuration inventory. The audit traced source tag through package creation, canonical inventory, GitHub/Sigstore provenance, release publication, updater download and verification, extraction, backup/rollback, and the absence of a production deployment workflow. It also verified active main/tag rulesets and identified release governance, release immutability, independent owner authorisation, production activation, HelioHost measurement, and master-phone acceptance gaps. See [Phase 2.1 release lifecycle and deployment inventory](phase-2-1-release-lifecycle-and-deployment-inventory.md).
+Phase 2.2 is complete as a design artifact. The proposed format-3 manifest separates package inventory from live deployment measurement, defines canonical serialization, exact source/build identity, public HTTP asset mappings, private runtime code, dependency bundle pins, and explicit exclusions for secrets and mutable host state. A detached release-authorisation record binds the exact manifest and ZIP digests without creating a self-referential signature. See [Phase 2.2 canonical release manifest design](phase-2-2-canonical-release-manifest-design.md).
 
-The next planned task is Phase 2.2: define the canonical signed release manifest and its coverage of HTML, JavaScript, CSS, PWA manifest, icons, service worker, and qualified server-side runtime inventory. The design must distinguish the package inventory from live deployment measurement. No production changes, keys, releases, or deployments are authorised.
+The next planned task is Phase 2.3: define independent trust-root distribution and rotation, release-authorisation key custody, trusted bootstrap, emergency revocation, and phone-side pinning. This remains design-only; no keys are to be generated.
