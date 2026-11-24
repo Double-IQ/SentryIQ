@@ -1,6 +1,6 @@
 # Legacy Topology and Component Disposition Inventory
 
-**Status:** Initial pass — not exhaustive.  
+**Status:** Repository audit in progress — no legacy nodes were ever provisioned. All former node implementations, endpoints, and schedules are repository-only code.  
 **Target architecture:** SentryIQ at `https://sentryiq.bichet.co.za`; independent security verifier on HelioHost; owner's phone as master device.
 
 This inventory prevents unsafe bulk deletion. A file is not removed merely because its former deployment topology is retired. Each component must be traced to callers, tests, workflows, and shared contracts first.
@@ -16,7 +16,7 @@ This inventory prevents unsafe bulk deletion. A file is not removed merely becau
 | Worker Node 4 event client | `cloudflare/node-a-poc/src/node4-event-client.ts` | Node A sends a report to `/integrity_event.php` as `integrity-a` | Old topology-specific event plane. Review whether the new HelioHost verifier needs a minimal signed report/alert protocol; do not retain A identity or old dependency by default. |
 | PHP private-host client | `app/Updates/PrivateHostAttestationClient.php` | Supports `integrity-a` and `integrity-b` bearer identities calling the application host | Old A/B client, not the new HelioHost verifier protocol. Preserve only if a reviewed reuse case remains. |
 | PHP collector/handler/nonce store | `app/Updates/PrivateHostAttestationCollector.php`, `PrivateHostAttestationRequestHandler.php`, `PrivateHostAttestationNonceStore.php` | Application host exposes a collector for external A/B verifiers | Potentially reusable read-only inventory, nonce, and detached-signature primitives. Trust boundary must be redesigned: HelioHost should independently measure public delivery; private-file inspection requires a separately proven read-only isolation mechanism. |
-| Node 4 endpoint | `integrity_event.php` and `app/Updates/IntegrityEvent*` | Node A/B challenge/report exchange | Existing endpoint may have other consumers. Do not delete until full repository-wide caller/config/test inventory is complete. |
+| Node 4 endpoint | `integrity_event.php` and `app/Updates/IntegrityEvent*` | Node A/B challenge/report exchange | Existing endpoint may have other consumers. Do not delete until the repository-wide caller/config/test inventory is complete. |
 | Private-host contract | `docs/security/private-host-attestation-contract.md` | A/B verifiers; HelioHost described as Node C | Replaced as active contract; historical copy retained at `private-host-attestation-contract-archive.md`. |
 | Cloudflare runbooks | `cloudflare/node-a-poc/EXECUTION_PLAN.md`, `DEPLOYMENT.md`, `README.md` | Cloudflare deployment | Replaced with retirement notices; original content preserved in adjacent `*_ARCHIVE.md` files. |
 | Candidate workflow PR | PR #150, `ci/node-a-candidate-build-dispatch` | Builds a candidate from old Node A feature branch | Closed without merging on 2026-11-24. It targeted the retired Cloudflare Node A source branch; generic package-build steps may be reused after review. |
@@ -206,13 +206,14 @@ The direct source review confirms that Node C is the closest existing verifier b
 - Do not assume the app release ZIP contains the native Sigstore Composer dependencies. Keep those dependencies outside the public webroot and verify their exact versions, hashes/provenance and update policy independently.
 - The normal update routes inspected do not invoke the retired Node 4/report verifier classes. The old report-verifier family is not automatically part of the app updater's active request path; still trace all remaining CLI, test, configuration and dynamic-reference dependencies before deletion.
 
-### Open evidence items
+### Remaining repository and future qualification work
 
-1. Obtain a read-only confirmation of live application host cron entries and any external caller/monitor configuration for `integrity_event.php` and the old CLI scripts.
-2. Probe actual response headers on `/VERSION` and `/` to resolve the Apache/PHP Referrer-Policy interaction.
-3. Define a defensible mechanism for detecting unexpected added public files, and test it against the deployed webroot inventory.
-4. Specify and pin the private HelioHost Sigstore verifier dependency bundle.
-5. Keep PWA manifest/service-worker absence as a repository finding only; verify the live deployed origin before deciding whether PWA shell work is missing or externally generated.
+1. Finish the tracked-file PHP include/call-site and dynamic-reference sweep, including all configuration templates, workflow path filters, tests, and consumers of alert/event classes.
+2. Resolve the Apache/PHP Referrer-Policy disagreement at source level and add tests for the intended single policy. A live `/` and `/VERSION` wire-header check is a later deployment acceptance test, not a blocker in this repository-only phase.
+3. Define and test a defensible mechanism for detecting unexpected added public files; current HTTP hashing of manifest-listed paths cannot discover arbitrary unknown files.
+4. Specify and pin the private HelioHost Sigstore verifier dependency bundle during the planned HelioHost qualification phase.
+5. Complete the repository-wide PWA asset/reference sweep. If no manifest or service worker exists in the repository, design and implement the PWA shell as repository work; do not assume externally generated assets.
+6. No live legacy-node cron, external-node caller, deployment-hook, or private-node-config investigation is required: the owner confirmed that no legacy nodes were ever provisioned.
 
 
 ## Fourth-pass device-authority and recovery trace (2026-11-24)
@@ -255,10 +256,15 @@ The workflow review confirms that the legacy design is not only historical docum
 
 - `index.php` includes `security_bootstrap.php`, then the private app configuration and vault runtime; it does not directly include the old verifier or event runtime.
 - `security_bootstrap.php` delegates to `app/Security/SecurityBootstrap.php`; the inspected bootstrap is app/session security code, not the scheduled verifier bootstrap.
-- The legacy monitor remains reachable through explicit CLI entrypoints and the public `integrity_event.php` URL. Whether either is actively scheduled/called is a host-control-plane fact and remains unverified.
-- The source tree cannot reveal live cron definitions, external monitoring integrations, deployment hooks, or the values/schema of the private runtime configuration. Those remain explicit external evidence gates.
+- The legacy monitor and endpoint remain represented by explicit CLI entrypoints and the public `integrity_event.php` source file. They are not deployed legacy-node services: the owner confirmed no nodes were provisioned. Their in-repository references still require tracing before retirement.
+- The source tree cannot reveal live cron definitions, external monitoring integrations, deployment hooks, or the values/schema of the private runtime configuration. Those are not applicable to the legacy topology because no nodes were provisioned; runtime qualification of the planned HelioHost verifier remains a later, separately approved phase.
 
 ### Phase 0.5 disposition
 
 The repository review now provides enough evidence to freeze the legacy topology and design the replacement without deleting or deploying anything. The following are **not** asserted complete: live-host caller/scheduler audit, live response-header verification, private-file inspection feasibility, unexpected-public-file inventory mechanism, and production HelioHost dependency qualification. These are measurable acceptance gates for the next host-access step, not reasons to revive Cloudflare or the former multi-node architecture.
 
+
+
+## Owner clarification and audit boundary (2026-11-24)
+
+The owner explicitly confirmed that **nothing was ever set up on any legacy node and everything that exists in SentryIQ is in the repository**. This supersedes earlier notes that treated live cron entries, external A/B callers, deployment hooks, private node configuration, or deployed legacy endpoint use as unresolved blockers. Those checks are **not applicable** to the legacy-node retirement audit. The old A/B/C/Node 4 topology is code and documentation only, not deployed infrastructure. Continue with repository-only dependency tracing and source/test remediation. The planned HelioHost verifier is a future component; its provider capability, isolation, dependency, and runtime checks belong to its later qualification phase after explicit approval.
