@@ -35,11 +35,11 @@ Status: [ ] not done | [x] done with evidence | [!] blocked with exact reason.
 - [x] A1.10 Consolidate inventory. **Evidence:** A1.2–A1.9 entries above cite source paths and line ranges; key configured resources, route surface, environment names, external endpoints, and cron behavior are recorded.
 
 ## B. Deployment topology and gap analysis
-- [ ] B1.1 Extract intended topology from existing docs/code and reconcile contradictory deployment documentation.
-- [ ] B1.2 Compare required bindings with Wrangler configuration.
-- [ ] B1.3 Compare Durable Object classes with migrations/bindings.
-- [ ] B1.4 Compare R2 use with configured bucket and documented bucket name.
-- [ ] B1.5 Compare routes, environments, and cron triggers with intended topology.
+- [x] B1.1 Extract intended topology and reconcile contradictory docs. **Evidence:** `DEPLOYMENT.md` defines the Worker routes, 15-minute cron, R2/DO resources, required secret/inventory inputs, private-host transport blocker, Node 4 endpoint, independent alert contract, baseline approval gate, and non-production acceptance requirements. Corrected stale PR state in `DEPLOYMENT.md` (commit `8fcf07ea744930bf3d6d4fb89204edfb24b4dfdb`): PR #145 is merged to the feature branch; deployment remains unperformed and `productionReady` false.
+- [x] B1.2 Compare required bindings with Wrangler configuration. **Evidence:** deployment prerequisites name `NODE_A_STATE` and `NODE_A_TARGETS`; `wrangler.jsonc` declares both matching bindings. The required Worker secrets and two pinned inventory values are documented in `DEPLOYMENT.md`; Wrangler does not inline these values (correctly). Account-side existence remains unverified and is handled in Section C.
+- [x] B1.3 Compare Durable Object classes with migrations/bindings. **Evidence:** deployment doc names `NODE_A_STATE`; Wrangler binds it to `NodeAState`; migration `v1` creates the same SQLite class; `src/index.ts` exports `NodeAState`.
+- [x] B1.4 Compare R2 use with configured bucket and documented bucket name. **Evidence:** deployment doc's provisioning command creates `sentryiq-node-a-targets`; Wrangler binds that exact bucket as `NODE_A_TARGETS`; Worker passes the binding to the async TUF updater.
+- [ ] B1.5 Compare routes, environments, and cron triggers with intended topology. (Route behavior and cron cadence are documented; account route/environment mapping remains to be reconciled.)
 - [ ] B1.6 Produce configured/missing/inconsistent/unknown delta.
 - [ ] B1.7 Separate repository-fixable gaps from account-access gaps.
 
@@ -97,7 +97,7 @@ Status: [ ] not done | [x] done with evidence | [!] blocked with exact reason.
 ## H. Manifest-bearing release candidate (prepare, do not publish)
 - [ ] H1.1 Inspect release packaging/manifest implementation.
 - [ ] H1.2 Identify manifest schema and required fields.
-- [ ] [ ] H1.3 Build candidate (v0.1.3 only if existing version plan supports it).
+- [ ] H1.3 Build candidate (v0.1.3 only if existing version plan supports it).
 - [ ] H1.4 Generate ZIP, manifest, checksums, attestations without publishing.
 - [ ] H1.5 Validate schema and artifact inventory.
 - [ ] H1.6 Recompute checksums independently.
@@ -126,4 +126,4 @@ Status: [ ] not done | [x] done with evidence | [!] blocked with exact reason.
 - [ ] J1.8 Final acceptance report and owner sign-off.
 
 ## Current cursor
-**Next item: B1.1 — extract the intended topology from deployment documentation and code, correcting only demonstrably false documentation statements.**
+**Next item: B1.5 — reconcile the documented Worker route surface, cron cadence, and Wrangler environments against intended deployment topology.**
