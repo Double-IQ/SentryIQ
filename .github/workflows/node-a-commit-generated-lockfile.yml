@@ -1,6 +1,10 @@
 name: Commit verified Node A package lockfile
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/node-a-commit-generated-lockfile.yml
   workflow_dispatch:
     inputs:
       source_run_id:
@@ -24,7 +28,7 @@ jobs:
     steps:
       - name: Validate source run ID
         env:
-          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id || '45307537194' }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -55,7 +59,7 @@ jobs:
         with:
           name: node-a-poc-package-lock
           repository: Double-IQ/SentryIQ
-          run-id: ${{ inputs.source_run_id }}
+          run-id: ${{ inputs.source_run_id || '45307537194' }}
           github-token: ${{ github.token }}
           path: ${{ runner.temp }}/node-a-lockfile-artifact
 
