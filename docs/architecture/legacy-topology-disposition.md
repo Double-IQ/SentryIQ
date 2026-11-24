@@ -47,3 +47,55 @@ The problem in those files is not the hostname; it is the former A/B/Cloudflare 
 - Identify code used by the main PHP application or non-Node features.
 - Review PR #150 and any open/merged release workflow dependencies.
 - Produce a deletion/adaptation sequence with test coverage and rollback before source removal.
+
+
+## Expanded code and architecture findings (main-tree inspection)
+
+The repository tree contains 355 tracked paths on `main` and 360 on this documentation branch at the time of inspection. The main tree confirms that the former multi-node design is spread across application code, command-line runners, tests, CI workflows, ADRs, and deployment documentation.
+
+### Node verifier implementations
+
+| Component | Findings | New disposition |
+|---|---|---|
+| `IntegrityNodeA.php` | Read-only public-origin verifier; verifies release manifest and ZIP provenance, public static assets and origin headers; requires the A-bound private-host gate and direct alert transport; creates signed reports. | Do not deploy as-is. Reuse/test the public-asset and release-verification logic only after removing A identity, Node 4 coupling, and the old PHP collector trust model. |
+| `IntegrityNodeB.php` | Substantially parallel to Node A, with its own `integrity-b` signing identity and independent gate/alert requirements. | No second node in target topology. Preserve only reusable shared logic/tests; avoid carrying duplicate B implementation into the new design. |
+| `IntegrityNodeC.php` | Read-only public-origin verifier with release-artifact provenance, public asset and header checks, signed report generation, direct alerting, and no Node 4 event dependency. | Strongest existing starting point for a single HelioHost verifier, but not deployment-ready. Must adapt identity, trust bootstrap, private-file evidence boundary, master-phone trust integration, and recovery policy. |
+| `IntegrityNodeScheduledRunner.php` | Generic scheduled execution, release-state locking/anti-rollback, artifact staging, verifier binding, and evidence persistence; currently accepts A/B/C identities and imposes different Node 4/evidence-store wiring rules. | Potentially reusable after simplifying to one verifier identity and eliminating Node 4/A-B branches; retain lock, anti-rollback and evidence semantics where tests support them. |
+| `IntegrityNodeVerifierBinding.php` | Sealed binding only accepts concrete A/B/C classes. | Replace with a single verifier binding or remove if the new runtime can safely bind a concrete verifier directly. |
+| `IntegrityReportSigner.php` / `IntegrityReportVerifier.php` | Detached Ed25519 report signing/verification primitives. | Reuse only with a new dedicated HelioHost verifier key, a versioned report schema, strict nonce/freshness checks, and no reuse of old node key material. |
+| `IntegrityNodeEvidenceStore.php` | Node C evidence retention validates signed report envelopes and stores bounded local evidence with restrictive filesystem permissions. | Potentially reusable; review retention, append atomicity, permissions and evidence schema for the new verifier. |
+| `IntegrityNodeReleaseStateStore.php` | Exclusive execution lock and monotonic release-state advancement to prevent overlapping checks and rollback. | Strong reusable primitive; retain and test against the single-node schedule and recovery model. |
+| `NativeSigstoreIntegrityAttestationVerifier.php` | Uses native Sigstore/GitHub attestation verifier for manifest and ZIP, then applies release trust policy. | Reusable candidate; verify trust policy, workflow identity and keyless provenance assumptions remain appropriate. |
+| `IntegrityDeployedReleaseResolver.php` | Resolves live `VERSION` from canonical origin and looks up corresponding GitHub tag commit. | Useful discovery helper but insufficient as trust authority alone; must be bound to signed manifest/provenance and anti-rollback. |
+
+### Former private-host and Node 4 paths
+
+- `PrivateHostAttestationGate.php` explicitly accepts only `integrity-a` or `integrity-b`, requires a node-bound collector client/key pin, and validates pinned file/config inventories. It cannot be carried forward unchanged.
+- `PrivateHostAttestationClient.php`, `PrivateHostAttestationCollector.php`, `PrivateHostAttestationRequestHandler.php`, `PrivateHostAttestationNonceStore.php`, and `PrivateHostAttestationVerifier.php` implement the old A/B challenge/response contract. The PHP collector runs on the application host; this is not automatically an independent HelioHost inspection channel.
+- `IntegrityNodeEventRunner.php`, `IntegrityEventClient.php`, `IntegrityNode4Monitor.php`, `IntegrityEventReportVerifier.php`, `FileIntegrityEventStore.php`, `IntegrityIncidentCorrelator.php`, and `integrity_event.php` implement the former Node 4/BTM-SA report and incident plane. The single-node target does not require a Node 4 service by default. Review whether any event/alert functionality is used by the application outside this retired monitoring topology before removal.
+- `IntegrityNodeKeyGenerator.php` and `bin/integrity-node-keygen.php` support old node-specific keys. Do not reuse existing A/B/C private keys as the new HelioHost key. The new verifier signing key must be generated only after its custody boundary and host isolation are qualified.
+
+### Workflow and CI dependencies
+
+- `.github/workflows/integrity-node-tests.yml` and `.github/workflows/native-sigstore-integrity-node.yml` explicitly enumerate former A/B/C, collector, Node 4, and Node C test suites. They are active CI dependencies until replaced by architecture-aligned coverage.
+- `.github/workflows/release.yml`, `native-release-attestation.yml`, `release-manifest-tests.yml`, `tuf-root-store.yml`, `tuf-patch-validation.yml`, and `validate-v012-attestation.yml` must be reviewed individually. Release artifact building, manifest generation, and provenance are potentially reusable; no workflow should be deleted solely because the node topology changed.
+- Existing Node C documentation explicitly states that HelioHost is only an additional node and cannot replace A/B. That statement is now superseded; the old document is archived and replaced with a notice explaining Node C's potential reuse as the sole verifier base.
+
+### Documentation status updated in this pass
+
+The following old architecture documents have been archived and replaced by superseded notices on this branch:
+- `docs/adr/2026-11-08-four-node-resilience-architecture.md`
+- `docs/adr/2026-11-08-independent-integrity-nodes.md`
+- `docs/security/integrity-node-c-heliohost.md`
+
+The original text remains available in adjacent `*-archive.md` files. This is documentation retirement only; no implementation code or deployment was changed.
+
+### Remaining proof required before code removal
+
+The tree and selected call sites have been inspected, but this is not yet a complete call-graph audit. Before removing A/B/Node 4 code:
+1. Search all PHP bootstrap, route, CLI, scheduler, config, tests, docs, and workflow references to each class and endpoint.
+2. Identify whether the app's runtime invokes any Node 4 monitor, event client, private-host handler, or scheduled runner.
+3. Check composer/autoload and PHP include patterns, including dynamic class references.
+4. Confirm the new single verifier's minimal runtime can use the generic report, evidence, release-state, asset-policy and Sigstore primitives without pulling old topology dependencies.
+5. Replace CI workflow path filters and test commands before deleting old tests.
+6. Delete only in a separate reviewed PR after replacement tests pass and rollback is documented.
