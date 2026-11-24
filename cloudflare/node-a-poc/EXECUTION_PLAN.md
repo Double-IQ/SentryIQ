@@ -55,11 +55,11 @@ Status: [ ] not done | [x] done with evidence | [!] blocked with exact reason.
 - [ ] C1.9 Run non-production configuration validation.
 
 ## D. Private-host attestation feasibility and implementation
-- [ ] D1.1 Inspect collector, handler, nonce store, PHP-FPM entry point.
-- [ ] D1.2 Trace Worker request/response/signature contract.
-- [ ] D1.3 Record host isolation requirements.
-- [ ] D1.4 Distinguish evidenced capabilities from unknowns.
-- [ ] D1.5 Perform read-only host checks if access exists; otherwise specify exact access.
+- [x] D1.1 Inspect collector, handler, nonce store, PHP-FPM entry point. **Evidence:** `app/Updates/PrivateHostAttestationCollector.php`, `PrivateHostAttestationRequestHandler.php`, `PrivateHostAttestationNonceStore.php`, `deploy/private-host-attestation/fpm-entrypoint.php`, and `deploy/private-host-attestation/README.md` inspected; matching security contract in `docs/security/private-host-attestation-contract.md` reviewed.
+- [x] D1.2 Trace Worker request/response/signature contract. **Evidence:** Worker `src/private-host-attestation.ts` POSTs schema v1, node ID, nonce, release version, commit, manifest/artifact digests to the fixed HTTPS path with A-only bearer auth; host handler authenticates A/B token, binds token to node, consumes nonce before collector invocation; collector signs exact payload bytes; Worker verifies Ed25519 signature, freshness, release identity, file/config inventory, and decision. Host handler deliberately has no HTTP listener.
+- [x] D1.3 Record host isolation requirements. **Evidence:** deployment README requires dedicated `sentryiq-attestor` OS identity distinct from public PHP-FPM, read-only approved paths, private 0700 data directory outside docroot, config/key/nonce lock/state files 0600, private FPM socket, exact HTTPS POST reverse-proxy route, no public PHP key access.
+- [x] D1.4 Distinguish evidenced capabilities from unknowns. **Evidence:** repository contains reference PHP-FPM entrypoint and deployment template only. No provider-specific FPM pool, reverse-proxy listener, OS identity/ACL setup, service supervision, keys, credentials, or live route are present. Existing project context records cPanel SSH access is unavailable; actual provider support for dedicated OS user/FPM pool/private socket/reverse proxy remains unknown.
+- [!] D1.5 Host capability checks blocked. **Exact requirement:** read-only access to the hosting control panel/provider configuration or a provider-confirmed capability statement covering (a) dedicated OS user, (b) separate PHP-FPM pool, (c) private Unix socket or loopback listener, (d) exact-path HTTPS reverse proxy, (e) private directory ownership/modes outside docroot, and (f) service supervision. No SSH access is currently available, so these capabilities cannot be verified from the repository.
 - [ ] D1.6 Make go/no-go decision; do not deploy if key/process isolation cannot be guaranteed.
 - [ ] D1.7 Only after feasibility and approval, implement isolated service.
 - [ ] D1.8 Verify key/nonce ownership and public PHP identity cannot read key.
