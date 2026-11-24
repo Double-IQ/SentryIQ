@@ -67,7 +67,7 @@ Status: [ ] not done | [x] done with evidence | [!] blocked with exact reason.
 - [ ] D1.10 Test valid/invalid signature, replay, and service-unavailable paths.
 
 ## E. Worker attestation integration
-- [ ] E1.1 Compare Worker contract to private service contract.
+- [x] E1.1 Compare Worker contract to private service contract. **Evidence:** compared `cloudflare/node-a-poc/src/private-host-attestation.ts` with `app/Updates/PrivateHostAttestationClient.php`, `app/Updates/PrivateHostAttestationRequestHandler.php`, and `docs/security/private-host-attestation-contract.md`. Request schema v1 fields match exactly (`schema_version`, `node_id`, `nonce`, `release_version`, `commit`, `manifest_sha256`, `artifact_sha256`); A/B bearer identity binding and single-use nonce flow align; handler returns the `{payload, signature}` envelope consumed by the Worker; Worker requires exactly those two envelope fields, verifies canonical base64 and Ed25519 signature, then validates payload identity/freshness/inventory/decision. No contract mismatch found in this comparison. Remaining caveat: the Worker is A-specific (`integrity-a`), as intended for Node A; host handler supports both A and B.
 - [ ] E1.2 Fix mismatches and add focused tests.
 - [ ] E1.3 Configure non-production endpoint through approved channel.
 - [ ] E1.4 Confirm secret names/consumers; never record values.
