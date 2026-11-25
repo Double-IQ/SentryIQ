@@ -43,7 +43,10 @@ pub fn verify_tuf_root_rotation_chain(
         || candidate_roots
             .iter()
             .any(|root| root.is_empty() || root.len() > MAX_ROOT_BYTES)
-        || !within_byte_budget(candidate_roots.iter().map(Vec::as_slice), MAX_ROOT_CHAIN_BYTES)
+        || !within_byte_budget(
+            candidate_roots.iter().map(Vec::as_slice),
+            MAX_ROOT_CHAIN_BYTES,
+        )
     {
         return -1;
     }
@@ -110,9 +113,15 @@ pub fn verify_tuf_metadata_refresh(
     if cached_count != 0 && cached_count != 3 {
         return false;
     }
-    if cached_timestamp.as_ref().map_or(false, |bytes| bytes.is_empty() || bytes.len() > 1024 * 1024)
-        || cached_snapshot.as_ref().map_or(false, |bytes| bytes.is_empty() || bytes.len() > MAX_ROOT_BYTES)
-        || cached_targets.as_ref().map_or(false, |bytes| bytes.is_empty() || bytes.len() > MAX_ROOT_BYTES)
+    if cached_timestamp
+        .as_ref()
+        .map_or(false, |bytes| bytes.is_empty() || bytes.len() > 1024 * 1024)
+        || cached_snapshot.as_ref().map_or(false, |bytes| {
+            bytes.is_empty() || bytes.len() > MAX_ROOT_BYTES
+        })
+        || cached_targets.as_ref().map_or(false, |bytes| {
+            bytes.is_empty() || bytes.len() > MAX_ROOT_BYTES
+        })
     {
         return false;
     }
@@ -218,9 +227,15 @@ pub fn verify_tuf_target_delegation(
     if cached_count != 0 && cached_count != 3 {
         return false;
     }
-    if cached_timestamp.as_ref().map_or(false, |bytes| bytes.is_empty() || bytes.len() > 1024 * 1024)
-        || cached_snapshot.as_ref().map_or(false, |bytes| bytes.is_empty() || bytes.len() > MAX_ROOT_BYTES)
-        || cached_targets.as_ref().map_or(false, |bytes| bytes.is_empty() || bytes.len() > MAX_ROOT_BYTES)
+    if cached_timestamp
+        .as_ref()
+        .map_or(false, |bytes| bytes.is_empty() || bytes.len() > 1024 * 1024)
+        || cached_snapshot.as_ref().map_or(false, |bytes| {
+            bytes.is_empty() || bytes.len() > MAX_ROOT_BYTES
+        })
+        || cached_targets.as_ref().map_or(false, |bytes| {
+            bytes.is_empty() || bytes.len() > MAX_ROOT_BYTES
+        })
     {
         return false;
     }
@@ -234,7 +249,10 @@ pub fn verify_tuf_target_delegation(
         || delegated_metadata
             .iter()
             .any(|metadata| metadata.is_empty() || metadata.len() > MAX_ROOT_BYTES)
-        || !within_byte_budget(delegated_metadata.iter().map(Vec::as_slice), MAX_DELEGATED_METADATA_BYTES)
+        || !within_byte_budget(
+            delegated_metadata.iter().map(Vec::as_slice),
+            MAX_DELEGATED_METADATA_BYTES,
+        )
     {
         return false;
     }
@@ -255,7 +273,10 @@ pub fn verify_tuf_target_delegation(
         || candidate_roots
             .iter()
             .any(|root| root.is_empty() || root.len() > MAX_ROOT_BYTES)
-        || !within_byte_budget(candidate_roots.iter().map(Vec::as_slice), MAX_ROOT_CHAIN_BYTES)
+        || !within_byte_budget(
+            candidate_roots.iter().map(Vec::as_slice),
+            MAX_ROOT_CHAIN_BYTES,
+        )
         || new_timestamp.is_empty()
         || new_timestamp.len() > 1024 * 1024
         || new_snapshot.is_empty()
