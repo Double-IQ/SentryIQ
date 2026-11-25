@@ -161,7 +161,7 @@ final class IntegrityEventReportVerifier
         $digest = $payload['artifact_sha256'] ?? null;
         $nonce = $payload['nonce'] ?? null;
         $manifestDigest = $payload['manifest_sha256'] ?? null;
-        if (!is_string($version) || !preg_match('/^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$/', $version)
+        if (!is_string($version) || !preg_match('/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/', $version)
             || $tag !== 'v' . $version
             || !is_string($commit) || !preg_match('/^[a-f0-9]{40}$/', $commit)
             || !is_string($digest) || !preg_match('/^[a-f0-9]{64}$/', $digest)
@@ -233,7 +233,7 @@ final class IntegrityEventReportVerifier
     {
         return $path !== '' && strlen($path) <= 512 && !str_starts_with($path, '/')
             && !str_contains($path, '\\') && !str_contains($path, '//')
-            && !preg_match('~(^|/)\\.\\.?(/|$)~', $path)
-            && !preg_match('/[%?#\\x00-\\x1f]/', $path);
+            && !preg_match('~(^|/)\.\.?(/|$)~', $path)
+            && !preg_match('/[%?#\x00-\x1f]/', $path);
     }
 }
