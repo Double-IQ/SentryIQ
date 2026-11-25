@@ -42,11 +42,12 @@ if ($private === false) throw new RuntimeException('Unable to generate test P-25
 $details = openssl_pkey_get_details($private);
 if (!is_array($details) || !is_string($details['key'] ?? null)) throw new RuntimeException('Unable to export test public key.');
 $publicPem = $details['key'];
-$resolver = static fn(string $requestedOwner): array => [
+$resolver = static function (string $requestedOwner) use ($publicPem): array {
     'owner_id' => $requestedOwner, 'key_id' => 'master-signing-test-1',
     'role' => 'master-signing', 'algorithm' => 'ES256', 'status' => 'active',
     'public_key_pem' => $publicPem,
 ];
+};
 $verifier = new OwnerApprovalProofVerifier($challenges, $dir, $resolver);
 $challenge = $challenges->issue($owner, $digest, $now, 300);
 $challengeBytes = base64_decode(strtr($challenge . '=', '-_', '+/'), true);
