@@ -314,8 +314,7 @@ class AndroidMasterKeyStore(
         if (!info.isUserAuthenticationRequired ||
             info.userAuthenticationValidityDurationSeconds != AUTH_VALIDITY_SECONDS ||
             info.userAuthenticationType != AUTH_TYPES ||
-            !info.isUserAuthenticationRequirementEnforcedBySecureHardware ||
-            !info.isUnlockedDeviceRequired
+            !info.isUserAuthenticationRequirementEnforcedBySecureHardware
         ) {
             throw AndroidMasterKeyException("Android Keystore user-authentication policy is not hardware enforced.")
         }
