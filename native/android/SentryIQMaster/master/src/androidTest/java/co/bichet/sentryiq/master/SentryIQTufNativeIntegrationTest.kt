@@ -27,4 +27,23 @@ class SentryIQTufNativeIntegrationTest {
         )
         assertFalse("Invalid TUF bootstrap must fail closed", accepted)
     }
+    @Test
+    fun packagedRustDelegationVerifierLoadsAndRejectsUnsafeTargetPath() {
+        val accepted = SentryIQTufTrustVerifier.verifyTargetDelegation(
+            initialRoot = byteArrayOf(),
+            expectedInitialRootSha256 = ByteArray(32),
+            candidateRoots = emptyList(),
+            cachedTimestamp = null,
+            cachedSnapshot = null,
+            cachedTargets = null,
+            newTimestamp = byteArrayOf(1),
+            newSnapshot = byteArrayOf(1),
+            newTargets = byteArrayOf(1),
+            delegatedRoles = emptyList(),
+            delegatedMetadata = emptyList(),
+            targetPath = "../escape",
+            referenceTimeUnixSeconds = 1_700_000_000L
+        )
+        assertFalse("Unsafe delegated target path must fail closed", accepted)
+    }
 }
