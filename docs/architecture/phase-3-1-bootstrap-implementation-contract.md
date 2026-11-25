@@ -182,6 +182,10 @@ All ambiguous cases fail closed. Fixtures contain no production keys or private 
 8. Complete independent security review before production trust-root initialisation.
 
 
+## 10.0 Protected registry-anchor freshness and sequence chain
+
+The registry-anchor verifier must authenticate the exact signed payload and bind every parsed field (sequence, bundle digest, issue/expiry times, and previous digest) to that payload. Both native stores now enforce a maximum 24-hour anchor age/validity window, at most 60 seconds of future clock skew, and expiry before every load/save. On an existing local state, an update must advance exactly one sequence and name the current bundle digest as its previous digest; same-sequence writes are allowed only for the identical digest. The encrypted/Keychain cache remains rollback-detecting only when paired with a fresh independently verified registry anchor; local storage alone is not a monotonic counter.
+
 ## 10.1 Shared TUF verification-core prototype
 
 The native implementation now has a first Rust/UniFFI prototype under `native/tuf-core`. It pins the initial TUF root by exact SHA-256 supplied independently, validates the root's own signature threshold, and validates sequential root rotations through Tuffet's offline `TrustedMetadata` API. The same compiled core is intended to be called from Swift and Kotlin; native platform code remains responsible for secure key custody, UI, network transport, and protected storage.
