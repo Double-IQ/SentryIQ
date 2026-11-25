@@ -11,7 +11,7 @@
 
 The repository-backed Phase 1 design work is complete as a set of linked architecture artifacts. It defines the data-flow/trust boundaries, protected-data classification, cryptographic profile, key-role separation, platform custody assessment, data-key hierarchy, device certificate/registry protocol, offline recovery, and runtime/supply-chain threat model.
 
-**Owner approval received 2026-11-25:** the recommended baseline in Section 4.1 is accepted as the Phase 3 implementation starting point. This approves the native master-companion architecture, separate Secure Enclave P-256 signing/key-agreement keys, lower-assurance browser-managed additional-device tier, separate DRS/MRAK recovery materials, 24-word BIP-39 DRS proposal, Argon2id benchmark target, separate data roots/per-object DEKs, domain-level scopes, 30-day device certificates, 24-hour online registry freshness proposal, and one isolated read-only HelioHost verifier. Platform-specific implementation and benchmark gates remain. This approval does not authorise production key generation, trust-root initialisation, provisioning, migration, release, or deployment.
+**Owner approval received 2026-11-25:** the recommended baseline in Section 4.1 is accepted as the Phase 3 implementation starting point. This approves the cross-platform native master-companion architecture: Secure Enclave P-256 keys on iOS and Android Keystore P-256 keys with StrongBox preferred and qualified TEE fallback, with hardware assurance explicitly recorded; lower-assurance browser-managed additional-device tier, separate DRS/MRAK recovery materials, 24-word BIP-39 DRS proposal, Argon2id benchmark target, separate data roots/per-object DEKs, domain-level scopes, 30-day device certificates, 24-hour online registry freshness proposal, and one isolated read-only HelioHost verifier. Platform-specific implementation and benchmark gates remain. This approval does not authorise production key generation, trust-root initialisation, provisioning, migration, release, or deployment.
 
 The current repository is not the target architecture:
 - Vault content is still decrypted in PHP and the VMK is stored in PHP session state.
@@ -75,7 +75,7 @@ The following recommended defaults were explicitly approved by the owner on 2026
 | Decision | Recommended default | Why it matters |
 |---|---|---|
 | **Master phone: PWA-only or native companion?** | **Native master companion** for authority operations; keep the PWA as UI/data client | A PWA cannot directly hold a Secure Enclave key. Same-origin JavaScript can misuse page-accessible keys and PRF output |
-| **Master signing/key-agreement profile** | Separate Secure Enclave P-256 signing and P-256 key-agreement keys if native companion is approved | Apple's Secure Enclave supports P-256, not Ed25519/X25519. The Phase 1.3 Ed25519/X25519 proposal must be adjusted for hardware-backed master custody |
+| **Master signing/key-agreement profile** | Separate hardware-backed P-256 signing and P-256 key-agreement keys. iOS uses Secure Enclave; Android uses Keystore with StrongBox preferred and qualified TEE fallback. | Same protocol across platforms; assurance level is recorded per device. Android software-only keys cannot hold master authority. |
 | **Additional-device profile** | Permit WebCrypto-managed keys only as an explicitly lower assurance tier; evaluate native keys for higher assurance | Additional devices need individual identities, but browser key storage is not hardware-backed by default |
 | **Full recovery requirement** | Require both independent offline materials: DRS for data roots and MRAK for master replacement | One secret must not simultaneously decrypt all content and authorise a new master |
 | **Recovery phrase format** | 24-word BIP-39 encoding of 256-bit random DRS entropy, with existing 64-hex recovery formats read-only during migration | More transcription-friendly with checksum; owner may prefer existing hex format |
@@ -137,8 +137,8 @@ Phase 0.6 and Phase 2.1–2.9 are complete as repository reconciliation, design,
 
 ## 8. Owner approval record
 
-- [x] Native master companion approved; PWA remains the UI/data client.
-- [x] Separate Secure Enclave P-256 signing and P-256 key-agreement keys approved for the master phone.
+- [x] Cross-platform native master companion approved; iPhone is the initial master platform and Android is a first-class supported platform; PWA remains the UI/data client.
+- [x] Separate hardware-backed P-256 signing and P-256 key-agreement keys approved: iOS Secure Enclave; Android Keystore with StrongBox preferred and qualified TEE fallback.
 - [x] Additional-device browser keys limited to an explicit lower-assurance tier.
 - [x] Separate DRS and MRAK materials required for full recovery.
 - [x] 24-word BIP-39 DRS representation approved as the target format; legacy 64-hex formats are read-only during migration.
@@ -149,7 +149,8 @@ Phase 0.6 and Phase 2.1–2.9 are complete as repository reconciliation, design,
 - [x] Maximum 30-day device certificate lifetime and fresh master approval for renewal approved.
 - [x] 24-hour maximum registry freshness for online sensitive writes approved as the initial policy target.
 - [x] One isolated, read-only HelioHost verifier with dedicated report-signing key and no user-data access approved.
-- [ ] Confirm actual master-phone OS and native build target before platform-specific implementation.
+- [x] Initial master platform confirmed as iPhone; Android support requested as a first-class target.
+- [ ] Confirm minimum Android API/device security-level floor and qualify StrongBox/TEE behaviour across representative devices.
 - [ ] Complete minimum-device Argon2id and browser compatibility benchmarks.
 - [ ] Complete independent security review before production trust initialisation.
 
