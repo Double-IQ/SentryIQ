@@ -19,7 +19,7 @@ object OwnerFingerprintApprovalCeremony {
         canonicalBundle: ByteArray, outOfBandFingerprint: String, ownerIdentifier: String,
         rootRole: String, rootKeyId: String, outOfBandRootFingerprint: String,
         deviceKeysetDigest: String, purpose: String, challenge: ByteArray, expiresAt: Long,
-        confirmFingerprint: String, confirmRootFingerprint: String,
+        confirmFingerprint: () -> String, confirmRootFingerprint: () -> String,
         verifyCandidateTrustChain: (ByteArray, String, String, ByteArray, ByteArray, String) -> Boolean,
         requireFreshUserVerification: () -> Unit, sign: (ByteArray) -> ByteArray,
         now: Long = System.currentTimeMillis() / 1000L
@@ -36,19 +36,18 @@ object OwnerFingerprintApprovalCeremony {
         }
         val bundleDigest = MessageDigest.getInstance("SHA-256").digest(canonicalBundle)
         val expectedBundle = decodeFingerprint(outOfBandFingerprint)
-        val confirmedBundle = decodeFingerprint(confirmFingerprint)
         val expectedRoot = decodeFingerprint(outOfBandRootFingerprint)
-        val confirmedRoot = decodeFingerprint(confirmRootFingerprint)
         val keysetDigest = decodeFingerprint(deviceKeysetDigest)
+        // Validate the bundle and resolve its selected root before asking the owner to confirm it.
+        if (!verifyCandidateTrustChain(canonicalBundle, rootRole, rootKeyId, expectedRoot, keysetDigest, purpose)) {
+            throw CeremonyException("Candidate trust chain or approval context failed validation.")
+        }
+        val confirmedBundle = decodeFingerprint(confirmFingerprint())
+        val confirmedRoot = decodeFingerprint(confirmRootFingerprint())
         if (!MessageDigest.isEqual(bundleDigest, expectedBundle) ||
             !MessageDigest.isEqual(bundleDigest, confirmedBundle) ||
             !MessageDigest.isEqual(expectedRoot, confirmedRoot)) {
             throw CeremonyException("Owner-confirmed fingerprint does not match independent record.")
-        }
-        // Resolver proves the selected root belongs to this validated bundle and that
-        // keysetDigest describes the active local master keyset.
-        if (!verifyCandidateTrustChain(canonicalBundle, rootRole, rootKeyId, expectedRoot, keysetDigest, purpose)) {
-            throw CeremonyException("Candidate trust chain or approval context failed validation.")
         }
 
         val transcript = makeTranscript(
