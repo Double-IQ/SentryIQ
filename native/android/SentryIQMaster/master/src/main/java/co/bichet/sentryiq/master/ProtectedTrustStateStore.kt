@@ -1,3 +1,12 @@
+internal object TrustRegistryAnchorPolicy {
+    fun isFresh(issuedAt: Long, expiresAt: Long, now: Long): Boolean {
+        if (issuedAt <= 0 || expiresAt <= now || expiresAt <= issuedAt) return false
+        if (issuedAt > now && issuedAt - now > 60L) return false
+        if (now > issuedAt && now - issuedAt > 86_400L) return false
+        return expiresAt - issuedAt <= 86_400L
+    }
+}
+
 package co.bichet.sentryiq.master
 
 import android.content.Context
@@ -115,13 +124,9 @@ class ProtectedTrustStateStore(
     }
 
     private fun requireValidAnchor(anchor: RegistryAnchor, now: Long) {
-        val validityWindow = anchor.expiresAt - anchor.issuedAt
         if (anchor.sequence < 1 || anchor.bundleSha256.size != 32 ||
             anchor.signedPayload.isEmpty() || anchor.signature.isEmpty() ||
-            anchor.issuedAt <= 0 || anchor.expiresAt <= now ||
-            anchor.issuedAt > now + MAX_CLOCK_SKEW_SECONDS ||
-            now - anchor.issuedAt > MAX_ANCHOR_AGE_SECONDS ||
-            validityWindow <= 0 || validityWindow > MAX_ANCHOR_AGE_SECONDS ||
+            !TrustRegistryAnchorPolicy.isFresh(anchor.issuedAt, anchor.expiresAt, now) ||
             (anchor.previousBundleSha256 != null && anchor.previousBundleSha256.size != 32) ||
             !verifyRegistryAnchor(anchor)) {
             throw StateException("Registry anchor is missing, stale, or invalid.")
@@ -212,8 +217,6 @@ class ProtectedTrustStateStore(
         MessageDigest.getInstance("SHA-256").digest(bytes)
 
     companion object {
-        private const val MAX_ANCHOR_AGE_SECONDS = 24 * 60 * 60L
-        private const val MAX_CLOCK_SKEW_SECONDS = 60L
         private const val MAX_ENCODED_STATE_BYTES = 4 * 1024 * 1024 + 128
         private val MAGIC = byteArrayOf(0x53, 0x49, 0x51, 0x54, 0x53, 0x01)
     }
