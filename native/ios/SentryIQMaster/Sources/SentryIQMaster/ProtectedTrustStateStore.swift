@@ -1,3 +1,7 @@
+import CryptoKit
+import Foundation
+import Security
+
 enum TrustRegistryAnchorPolicy {
     static func isFresh(issuedAt: UInt64, expiresAt: UInt64, now: UInt64) -> Bool {
         guard issuedAt > 0, expiresAt > now, expiresAt > issuedAt else { return false }
@@ -6,10 +10,6 @@ enum TrustRegistryAnchorPolicy {
         return expiresAt - issuedAt <= 86_400
     }
 }
-
-import CryptoKit
-import Foundation
-import Security
 
 public struct TrustRegistryAnchor {
     public let sequence: UInt64
