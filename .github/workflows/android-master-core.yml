@@ -12,7 +12,6 @@ on:
 jobs:
   android-master-core:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -45,22 +44,12 @@ jobs:
           echo "no" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --name sentryiq-tuf-test --package "system-images;android-35;google_apis;x86_64" --device "pixel_2" --force
       - name: Boot Android emulator
         run: |
-          set -euo pipefail
           export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
           adb start-server
-          "$ANDROID_HOME/emulator/emulator" -version
-          "$ANDROID_HOME/emulator/emulator" -accel-check || true
-          nohup "$ANDROID_HOME/emulator/emulator" -avd sentryiq-tuf-test -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot -no-snapshot-save > /tmp/sentryiq-emulator.log 2>&1 &
-          emulator_pid=$!
+          nohup "$ANDROID_HOME/emulator/emulator" -avd sentryiq-tuf-test -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot > /tmp/sentryiq-emulator.log 2>&1 &
           for attempt in $(seq 1 120); do
-            if ! kill -0 "$emulator_pid" 2>/dev/null; then
-              echo "Android emulator process exited before boot."
-              cat /tmp/sentryiq-emulator.log
-              exit 1
-            fi
             if adb devices | grep -q "emulator-"; then
-              boot_state="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
-              if [ "$boot_state" = "1" ]; then
+              if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
                 adb shell input keyevent 82 || true
                 exit 0
               fi
@@ -72,7 +61,6 @@ jobs:
             fi
             sleep 5
           done
-          echo "Android emulator did not finish booting."
           cat /tmp/sentryiq-emulator.log
           adb devices -l || true
           exit 1
