@@ -25,7 +25,7 @@ final class BootstrapChallengeStore
     {
         $real = realpath($directory);
         if ($real === false || !is_dir($real) || is_link($directory) || !$this->isOutsideDocumentRoot($real)
-            || (((fileperms($real) ?: 0) & 0022) !== 0)) {
+            || (((fileperms($real) ?: 0) & 0077) !== 0)) {
             throw new RuntimeException('Bootstrap challenge storage must be an existing private directory outside the document root.');
         }
     }
@@ -131,7 +131,12 @@ final class BootstrapChallengeStore
             if (!flock($lock, LOCK_EX)) {
                 throw new RuntimeException('Unable to lock bootstrap challenge store.');
             }
-            @chmod($lockPath, 0600);
+            if (!@chmod($lockPath, 0600) || (((fileperms($lockPath) ?: 0) & 0777) !== 0600)) {
+                throw new RuntimeException('Bootstrap challenge lock permissions are not private.');
+            }
+            if (file_exists($storePath) && !is_file($storePath)) {
+                throw new RuntimeException('Bootstrap challenge state path is not a regular file.');
+            }
             if (is_link($storePath)) {
                 throw new RuntimeException('Bootstrap challenge store must not use symbolic links.');
             }
@@ -162,7 +167,9 @@ final class BootstrapChallengeStore
                 throw new RuntimeException('Unable to create atomic bootstrap challenge update.');
             }
             try {
-                @chmod($tempPath, 0600);
+                if (!@chmod($tempPath, 0600) || (((fileperms($tempPath) ?: 0) & 0777) !== 0600)) {
+                    throw new RuntimeException('Unable to protect temporary bootstrap challenge state.');
+                }
                 $written = fwrite($handle, $json);
                 if ($written !== strlen($json) || !fflush($handle)) {
                     throw new RuntimeException('Unable to persist bootstrap challenge update.');
@@ -170,14 +177,19 @@ final class BootstrapChallengeStore
                 if (function_exists('fsync') && !fsync($handle)) {
                     throw new RuntimeException('Unable to sync bootstrap challenge update.');
                 }
-            } finally {
+            } catch (\\Throwable $error) {
                 fclose($handle);
+                @unlink($tempPath);
+                throw $error;
             }
+            fclose($handle);
             if (!@rename($tempPath, $storePath)) {
                 @unlink($tempPath);
                 throw new RuntimeException('Unable to atomically commit bootstrap challenge update.');
             }
-            @chmod($storePath, 0600);
+            if (!@chmod($storePath, 0600) || (((fileperms($storePath) ?: 0) & 0777) !== 0600)) {
+                throw new RuntimeException('Committed bootstrap challenge state permissions are not private.');
+            }
         } finally {
             flock($lock, LOCK_UN);
             fclose($lock);
