@@ -84,6 +84,13 @@ final class OwnerApprovalProofVerifier
         if ($publicKey === false) {
             throw new RuntimeException('Registered owner public key is invalid.');
         }
+        $details = openssl_pkey_get_details($publicKey);
+        if (!is_array($details)
+            || ($details['type'] ?? null) !== OPENSSL_KEYTYPE_EC
+            || ($details['ec']['curve_name'] ?? null) !== 'prime256v1') {
+            openssl_pkey_free($publicKey);
+            throw new RuntimeException('Registered owner key is not a P-256 ES256 key.');
+        }
         try {
             $verified = openssl_verify($transcript, $signature, $publicKey, OPENSSL_ALGO_SHA256);
         } finally {
