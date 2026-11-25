@@ -23,7 +23,7 @@ final class TrustBundleValidator
 
     /**
      * @param list<array{kid:string,role:string,alg:string,public_key_pem:string}> $trustedSigners
-     * @return array{bundle:array<string,mixed>,digest:string,sequence:string,signer_kids:list<string>}
+     * @return array{bundle:array<string,mixed>,digest:string,sequence:string,signer_kids:list<string>,key_fingerprints:array<string,string>}
      */
     public function validate(
         string $json,
