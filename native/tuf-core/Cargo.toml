@@ -11,4 +11,8 @@ crate-type = ["cdylib", "staticlib", "lib"]
 sha2 = "=0.10.9"
 subtle = "=2.6.1"
 tuffet = "=0.1.0"
-uniffi = "=0.32.2"
+uniffi = { version = "=0.32.2", features = ["cli"] }
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
