@@ -5,8 +5,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/../app/Security/BootstrapChallengeStore.php';
 require_once __DIR__ . '/../app/Security/OwnerApprovalProofVerifier.php';
 
-use SentryIQ\\Security\\BootstrapChallengeStore;
-use SentryIQ\\Security\\OwnerApprovalProofVerifier;
+use SentryIQ\Security\BootstrapChallengeStore;
+use SentryIQ\Security\OwnerApprovalProofVerifier;
 
 function ownerApprovalAssert(bool $condition, string $message): void
 {
@@ -23,7 +23,7 @@ function ownerApprovalB64(string $bytes): string
 }
 function ownerApprovalTranscript(string $owner, string $digest, string $challenge, int $expiry): string
 {
-    return "SENTRYIQ-OWNER-BOOTSTRAP-APPROVAL-V1\\n"
+    return "SENTRYIQ-OWNER-BOOTSTRAP-APPROVAL-V1\n"
         . pack('N', strlen($owner)) . $owner . hex2bin($digest)
         . pack('N', strlen($challenge)) . $challenge . pack('J', $expiry);
 }
@@ -77,4 +77,4 @@ ownerApprovalReject(fn() => $wrongRoleResolverResult->verifyAndRecord($wrongRole
 @unlink($dir . '/.bootstrap-challenges.json');
 @unlink($dir . '/.bootstrap-challenges.lock');
 @rmdir($dir);
-echo "Owner approval proof verifier tests passed.\\n";
+echo "Owner approval proof verifier tests passed.\n";
