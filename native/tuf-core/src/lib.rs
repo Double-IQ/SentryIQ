@@ -218,6 +218,12 @@ pub fn verify_tuf_target_delegation(
     if cached_count != 0 && cached_count != 3 {
         return false;
     }
+    if cached_timestamp.as_ref().map_or(false, |bytes| bytes.is_empty() || bytes.len() > 1024 * 1024)
+        || cached_snapshot.as_ref().map_or(false, |bytes| bytes.is_empty() || bytes.len() > MAX_ROOT_BYTES)
+        || cached_targets.as_ref().map_or(false, |bytes| bytes.is_empty() || bytes.len() > MAX_ROOT_BYTES)
+    {
+        return false;
+    }
 
     if !is_safe_target_path(&target_path)
         || delegated_roles.len() != delegated_metadata.len()
@@ -249,6 +255,7 @@ pub fn verify_tuf_target_delegation(
         || candidate_roots
             .iter()
             .any(|root| root.is_empty() || root.len() > MAX_ROOT_BYTES)
+        || !within_byte_budget(candidate_roots.iter().map(Vec::as_slice), MAX_ROOT_CHAIN_BYTES)
         || new_timestamp.is_empty()
         || new_timestamp.len() > 1024 * 1024
         || new_snapshot.is_empty()
