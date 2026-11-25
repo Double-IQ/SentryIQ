@@ -34,6 +34,9 @@ jobs:
       - name: Test post-install diagnostic access controls
         run: php tests/post_install_diagnostic_access.test.php
 
+      - name: Test durable owner bootstrap challenge consumption
+        run: php tests/bootstrap_challenge_store.test.php
+
   ios-master-core:
     runs-on: macos-latest
     steps:
