@@ -24,6 +24,15 @@ The crate now exposes a pinned UniFFI 0.32.2 bindgen executable and a checked-in
 
 The binding-generation step validates the exported interface only. It does not package per-ABI Rust binaries, link the generated Kotlin/Swift wrappers into the native companions, or prove end-to-end execution on physical devices. Those are subsequent integration and qualification gates.
 
+## Native platform linkage
+
+The platform build scripts generate UniFFI wrappers from the same Rust cdylib and build the Rust static/shared libraries for the supported native ABIs:
+
+- iOS: `bash native/tuf-core/scripts/build-ios-xcframework.sh` creates `native/ios/SentryIQMaster/Libraries/SentryIQTufCore.xcframework` for arm64 device and arm64/x86_64 simulators. The Swift package links the XCFramework through its binary target.
+- Android: `ANDROID_NDK_HOME=... bash native/tuf-core/scripts/build-android-libraries.sh` builds arm64-v8a, armeabi-v7a, and x86_64 libraries into the Android library's `jniLibs`; the generated Kotlin binding uses JNA.
+
+The generated language source and compiled platform libraries are build outputs, not checked-in binaries. The platform CI workflows generate them before compiling/testing the native companion. The iOS test exercises an actual call through the Swift wrapper into the Rust library. Android CI currently validates cross-ABI compilation, AAR packaging, and Kotlin compilation; emulator execution remains a qualification gate.
+
 ## Validation
 
 ```sh
