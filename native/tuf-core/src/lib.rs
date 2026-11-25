@@ -340,6 +340,8 @@ fn is_safe_target_path(path: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tuffet::crypto::HashAlgorithm;
+    use tuffet::metadata::{DelegatedRole, Delegations, TargetFile, Targets};
 
     #[test]
     fn rejects_empty_initial_root() {
@@ -459,6 +461,60 @@ mod tests {
             "releases/app.tar.zst".to_string(),
             1_700_000_000
         ));
+    }
+
+
+    #[test]
+    fn target_search_resolves_a_path_matching_delegated_role() {
+        let expiry = Timestamp::from_second(2_000_000_000).unwrap();
+        let mut top_level = Targets::new(expiry);
+        let mut role = DelegatedRole::new("release", Vec::new(), 1);
+        role.paths = Some(vec!["releases/*".to_string()]);
+        let mut delegations = Delegations::new();
+        delegations.roles.push(role);
+        top_level.delegations = Some(delegations);
+
+        let mut delegated = Targets::new(expiry);
+        let bytes = b"verified release";
+        delegated.targets.insert(
+            "releases/app.tar.zst".to_string(),
+            TargetFile::from_bytes(bytes, &[HashAlgorithm::Sha256]),
+        );
+
+        let mut search = TargetSearch::new("releases/app.tar.zst", 8);
+        let top_step = search.next_step().unwrap();
+        assert_eq!(top_step.role, "targets");
+        assert!(search.visit(&top_step, &top_level).is_none());
+
+        let delegated_step = search.next_step().unwrap();
+        assert_eq!(delegated_step.role, "release");
+        assert_eq!(delegated_step.delegator, "targets");
+        let target = search.visit(&delegated_step, &delegated).unwrap();
+        assert!(target.verify(bytes).is_ok());
+        assert!(target.verify(b"tampered release").is_err());
+        assert!(search.next_step().is_none());
+    }
+
+    #[test]
+    fn terminating_delegation_prevents_lower_priority_roles() {
+        let expiry = Timestamp::from_second(2_000_000_000).unwrap();
+        let mut top_level = Targets::new(expiry);
+        let mut terminating = DelegatedRole::new("release", Vec::new(), 1);
+        terminating.paths = Some(vec!["releases/*".to_string()]);
+        terminating.terminating = true;
+        let mut fallback = DelegatedRole::new("fallback", Vec::new(), 1);
+        fallback.paths = Some(vec!["releases/*".to_string()]);
+        let mut delegations = Delegations::new();
+        delegations.roles.push(terminating);
+        delegations.roles.push(fallback);
+        top_level.delegations = Some(delegations);
+
+        let mut search = TargetSearch::new("releases/app.tar.zst", 8);
+        let top_step = search.next_step().unwrap();
+        assert!(search.visit(&top_step, &top_level).is_none());
+        let delegated_step = search.next_step().unwrap();
+        assert_eq!(delegated_step.role, "release");
+        assert!(search.next_step().is_none());
     }
 
     #[test]
