@@ -43,6 +43,8 @@ final class OwnerFingerprintApprovalCeremonyTests: XCTestCase {
         field("bootstrap-release-root"); expected.append(contentsOf: [0,0,0,32]); expected.append(challenge)
         for shift in stride(from: 56, through: 0, by: -8) { expected.append(UInt8((expiry >> UInt64(shift)) & 255)) }
         XCTAssertEqual(transcript, expected)
+        let sharedGoldenHex = "53454e54525949512d4f574e45522d424f4f5453545241502d415050524f56414c2d56320a000000096f776e65722d31323387ffacd652854aba4246164ce5154c94d6d06b145eade6b33e93b1e53f74328d0000001572656c656173652d617574686f7269736174696f6e0000000e72656c656173652d726f6f742d31739cc47de826dd91653d08e80ac816b26e3b0b38cf782e506dadd4828a3050bc63053de68b07ab2d29fa13eee284d9ae272d1d228afc19c48cdb8486ab61e7d800000016626f6f7473747261702d72656c656173652d726f6f74000000205a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a000000006553f1c8"
+        XCTAssertEqual(transcript.map { String(format: "%02x", $0) }.joined(), sharedGoldenHex)
     }
 
     func testWrongRootFingerprintFailsBeforeAuthenticationOrSigning() {
