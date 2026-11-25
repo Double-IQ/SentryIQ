@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SentryIQ\\Security;
+namespace SentryIQ\Security;
 
 use RuntimeException;
 
@@ -199,7 +199,7 @@ final class BootstrapChallengeStore
         if ($root === '') {
             $root = DIRECTORY_SEPARATOR;
         }
-        if (DIRECTORY_SEPARATOR === '\\\\') {
+        if (DIRECTORY_SEPARATOR === '\\') {
             $root = strtolower($root);
             $target = strtolower($target);
         }
@@ -208,7 +208,7 @@ final class BootstrapChallengeStore
 
     private static function assertOwnerIdentifier(string $ownerIdentifier): void
     {
-        if ($ownerIdentifier === '' || strlen($ownerIdentifier) > 256 || str_contains($ownerIdentifier, "\\n") || str_contains($ownerIdentifier, "\\r")) {
+        if ($ownerIdentifier === '' || strlen($ownerIdentifier) > 256 || str_contains($ownerIdentifier, "\n") || str_contains($ownerIdentifier, "\r")) {
             throw new RuntimeException('Invalid owner identifier.');
         }
     }
