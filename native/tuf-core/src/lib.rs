@@ -503,6 +503,55 @@ mod tests {
     }
 
     #[test]
+    fn delegated_verifier_rejects_aggregate_metadata_over_budget() {
+        let roles = (0..5).map(|index| format!("role-{index}")).collect();
+        let metadata = vec![vec![1u8; MAX_ROOT_BYTES]; 5];
+        assert!(!verify_tuf_target_delegation(
+            vec![],
+            vec![0; 32],
+            vec![],
+            None,
+            None,
+            None,
+            vec![1],
+            vec![1],
+            vec![1],
+            roles,
+            metadata,
+            "releases/app.tar.zst".to_string(),
+            1_700_000_000
+        ));
+    }
+
+    #[test]
+    fn delegated_verifier_rejects_more_than_maximum_roles() {
+        let roles = (0..=MAX_DELEGATED_ROLES)
+            .map(|index| format!("role-{index}"))
+            .collect();
+        let metadata = vec![vec![1u8]; MAX_DELEGATED_ROLES + 1];
+        assert!(!verify_tuf_target_delegation(
+            vec![],
+            vec![0; 32],
+            vec![],
+            None,
+            None,
+            None,
+            vec![1],
+            vec![1],
+            vec![1],
+            roles,
+            metadata,
+            "releases/app.tar.zst".to_string(),
+            1_700_000_000
+        ));
+    }
+
+    #[test]
+    fn delegated_verifier_rejects_oversized_target_path() {
+        assert!(!is_safe_target_path(&"a".repeat(MAX_TARGET_PATH_BYTES + 1)));
+    }
+
+    #[test]
     fn rejects_mismatched_or_duplicate_delegation_inputs() {
         assert!(!verify_tuf_target_delegation(
             vec![],
