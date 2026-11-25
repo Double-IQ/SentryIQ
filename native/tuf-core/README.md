@@ -7,9 +7,10 @@ This crate is the first shared Rust verification boundary for the iOS and Androi
 - Check the exact SHA-256 of the initial root against a fingerprint supplied through an independent out-of-band bootstrap ceremony.
 - Ask Tuffet to parse and validate the initial root's self-signature threshold.
 - Validate a supplied sequence of sequential root rotations. TUF requires each new root to be signed by the previous root threshold and its own new root threshold, with the next exact version.
+- Verify a top-level metadata refresh (timestamp, snapshot, targets), optionally loading cached timestamp/snapshot/targets metadata first as a rollback baseline. Cached metadata must be supplied as a complete set or omitted for initial bootstrap.
 - Enforce bounded input sizes and fail closed.
 
-This first slice deliberately does **not** fetch metadata, validate timestamp/snapshot/targets, persist trusted metadata, enforce previously cached timestamp/snapshot rollback, consume one-use network challenges, or create a production trust anchor. The native app must not treat this function as full TUF refresh.
+This prototype verifies timestamp, snapshot, and top-level targets bytes supplied by the caller, but it does **not** fetch metadata, persist trusted metadata, perform delegated-target traversal, consume one-use network challenges, or create a production trust anchor. The caller must atomically persist all accepted root and metadata state only after verification succeeds. The native app must not treat this function as full TUF refresh.
 
 ## Dependency decision
 
