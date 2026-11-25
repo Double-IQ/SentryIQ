@@ -170,7 +170,6 @@ pub fn verify_tuf_metadata_refresh(
         && trusted.update_targets(&new_targets).is_ok()
 }
 
-
 /// Verifies that a target is authorised by the top-level targets role or by a
 /// complete, signature-valid delegated-target chain.
 ///
@@ -338,7 +337,6 @@ fn is_safe_target_path(path: &str) -> bool {
         .all(|component| !component.is_empty() && component != "." && component != "..")
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -417,7 +415,6 @@ mod tests {
             1_700_000_000
         ));
     }
-
 
     #[test]
     fn rejects_unsafe_target_paths() {
