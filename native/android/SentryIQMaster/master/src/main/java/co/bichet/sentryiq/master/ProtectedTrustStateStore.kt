@@ -19,6 +19,9 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 internal object TrustRegistryAnchorPolicy {
+    fun isValidInitialAnchor(sequence: Long, previousBundleSha256: ByteArray?): Boolean =
+        sequence == 1L && previousBundleSha256 == null
+
     fun isFresh(issuedAt: Long, expiresAt: Long, now: Long): Boolean {
         if (issuedAt <= 0 || expiresAt <= now || expiresAt <= issuedAt) return false
         if (issuedAt > now && issuedAt - now > 60L) return false
@@ -104,6 +107,11 @@ class ProtectedTrustStateStore(
                     throw StateException("Registry anchor skips or breaks the trusted sequence chain.")
                 }
             }
+        } else if (!TrustRegistryAnchorPolicy.isValidInitialAnchor(
+                anchor.sequence,
+                anchor.previousBundleSha256
+            )) {
+            throw StateException("Initial registry anchor must start at sequence one with no previous digest.")
         }
         val encoded = encrypt(TrustState(anchor.sequence, digest, bundle))
         val temporary = File(file.parentFile, file.name + ".tmp")
