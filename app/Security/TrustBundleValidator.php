@@ -108,7 +108,7 @@ final class TrustBundleValidator
 
         return [
             'bundle' => json_decode(json_encode($bundle, JSON_THROW_ON_ERROR), true, 64, JSON_THROW_ON_ERROR),
-            'digest' => hash('sha256', $canonicalPayload),
+            'digest' => hash('sha256', $this->canonicalJson($bundle)),
             'sequence' => $sequence,
             'signer_kids' => $signerKids,
         ];
@@ -281,7 +281,7 @@ final class TrustBundleValidator
                 || !is_string($signer['alg']) || !is_string($signer['public_key_pem'])) {
                 throw new RuntimeException('Independently pinned signer configuration is malformed.');
             }
-            $trusted[$signer['kid']] = $signer;
+            if (isset($trusted[$signer['kid']])) {\n                throw new RuntimeException('Independently pinned signer IDs must be unique.');\n            }\n            $trusted[$signer['kid']] = $signer;
         }
 
         $accepted = [];
@@ -342,7 +342,7 @@ final class TrustBundleValidator
             ksort($properties, SORT_STRING);
             $parts = [];
             foreach ($properties as $key => $child) {
-                $parts[] = json_encode((string)$key, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)
+                $parts[] = json_encode((string)$key, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS | JSON_THROW_ON_ERROR)
                     . ':' . $this->canonicalJson($child);
             }
             return '{' . implode(',', $parts) . '}';
