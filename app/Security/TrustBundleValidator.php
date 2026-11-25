@@ -194,7 +194,8 @@ final class TrustBundleValidator
         try {
             $details = openssl_pkey_get_details($publicKey);
             if (!is_array($details) || ($details['type'] ?? null) !== OPENSSL_KEYTYPE_EC
-                || ($details['curve_name'] ?? null) !== 'prime256v1') {
+                || !in_array($details['ec']['curve_name'] ?? null, ['prime256v1', 'secp256r1'], true)
+                || ($details['ec']['curve_oid'] ?? null) !== '1.2.840.10045.3.1.7') {
                 throw new RuntimeException('Trust bundle keys must use the P-256 curve.');
             }
         } finally {
