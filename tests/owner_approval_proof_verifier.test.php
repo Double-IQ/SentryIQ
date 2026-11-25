@@ -183,6 +183,22 @@ ownerApprovalReject(fn() => $keysetMismatchVerifier->verifyAndRecord(
     $rootFingerprint, $keysetDigest, $purpose, ownerApprovalB64($signature), $now
 ), 'A master keyset digest mismatch must be rejected.');
 
+$ledger = json_decode((string)file_get_contents($receiptFile), true);
+$ledger['receipts'][0]['approved_at'] = 'tampered';
+file_put_contents($receiptFile, json_encode($ledger));
+$ledgerChallenge = $challenges->issue($owner, $digest, $now, 300);
+$ledgerChallengeBytes = base64_decode(strtr($ledgerChallenge . '=', '-_', '+/'), true);
+$ledgerTranscript = ownerApprovalTranscript(
+    $owner, $digest, $rootRole, $rootKeyId, $rootFingerprint, $keysetDigest,
+    $purpose, $ledgerChallengeBytes, $expiry
+);
+if (!openssl_sign($ledgerTranscript, $ledgerSignature, $private, OPENSSL_ALGO_SHA256)) throw new RuntimeException('Unable to sign receipt-corruption fixture.');
+ownerApprovalReject(fn() => $verifier->verifyAndRecord(
+    $ledgerChallenge, $owner, $canonicalBundle, $digest, $rootRole, $rootKeyId,
+    $rootFingerprint, $keysetDigest, $purpose, ownerApprovalB64($ledgerSignature), $now
+), 'A corrupted receipt ledger must fail closed.');
+ownerApprovalReject(fn() => $challenges->consume($ledgerChallenge, $owner, $digest, $now), 'Receipt-ledger failure must not permit challenge replay.');
+
 @unlink($receiptFile);
 @unlink($dir . '/.owner-approval-receipts.lock');
 @unlink($dir . '/.bootstrap-challenges.json');
