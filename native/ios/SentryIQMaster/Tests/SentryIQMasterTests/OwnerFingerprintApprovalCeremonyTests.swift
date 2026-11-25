@@ -4,103 +4,68 @@ import XCTest
 @testable import SentryIQMaster
 
 final class OwnerFingerprintApprovalCeremonyTests: XCTestCase {
-    func testApprovalBindsFingerprintChallengeOwnerAndExpiry() throws {
-        let bundle = Data("canonical-trust-bundle".utf8)
-        let fingerprint = SHA256.hash(data: bundle).map { String(format: "%02x", $0) }.joined()
-        let challenge = Data(repeating: 0x5a, count: 32)
-        let expiry: UInt64 = 1_700_000_200
-        var signedTranscript = Data()
-        var verified = false
+    private let bundle = Data("canonical-trust-bundle".utf8)
+    private let root = Data("independent-release-root".utf8)
+    private let keyset = Data("device-keyset-public-identifiers".utf8)
+    private let challenge = Data(repeating: 0x5a, count: 32)
+    private let expiry: UInt64 = 1_700_000_200
+    private let now: UInt64 = 1_700_000_000
+    private func fp(_ data: Data) -> String { Data(SHA256.hash(data: data)).map { String(format: "%02x", $0) }.joined() }
 
-        let proof = try OwnerFingerprintApprovalCeremony.approve(
-            canonicalBundle: bundle,
-            outOfBandFingerprint: fingerprint,
-            ownerIdentifier: "owner-123",
-            challenge: challenge,
-            expiresAt: expiry,
-            now: 1_700_000_000,
-            confirmFingerprint: fingerprint,
-            verifyCandidateTrustChain: { _ in true },
-            requireFreshUserVerification: { verified = true },
-            sign: { message in signedTranscript = message; return Data([0x30, 0x01]) }
-        )
+    private func approve(bundleFP: String? = nil, rootFP: String? = nil, owner: String = "owner-123",
+        role: String = "release-authorisation", purpose: String = "bootstrap-release-root",
+        expires: UInt64? = nil, verify: @escaping (Data, String, String, Data, Data, String) throws -> Bool = { _, _, _, _, _, _ in true },
+        fresh: @escaping () throws -> Void = {}, sign: @escaping (Data) throws -> Data = { _ in Data([0x30, 1]) }
+    ) throws -> OwnerFingerprintApprovalCeremony.ApprovalProof {
+        try OwnerFingerprintApprovalCeremony.approve(canonicalBundle: bundle,
+            outOfBandFingerprint: bundleFP ?? fp(bundle), ownerIdentifier: owner,
+            rootRole: role, rootKeyID: "release-root-1", outOfBandRootFingerprint: fp(root),
+            deviceKeysetDigest: fp(keyset), purpose: purpose, challenge: challenge,
+            expiresAt: expires ?? expiry, now: now, confirmFingerprint: { fp(bundle) },
+            confirmRootFingerprint: { rootFP ?? fp(root) }, verifyCandidateTrustChain: verify,
+            requireFreshUserVerification: fresh, sign: sign)
+    }
 
-        XCTAssertTrue(verified)
-        XCTAssertEqual(proof.fingerprint, fingerprint)
-        XCTAssertEqual(proof.challenge, challenge)
+    func testProofBindsAllApprovalContext() throws {
+        var transcript = Data(); var fresh = false
+        let proof = try approve(fresh: { fresh = true }, sign: { transcript = $0; return Data([0x30, 1]) })
+        XCTAssertTrue(fresh); XCTAssertEqual(proof.bundleFingerprint, fp(bundle))
+        XCTAssertEqual(proof.rootRole, "release-authorisation"); XCTAssertEqual(proof.rootKeyID, "release-root-1")
+        XCTAssertEqual(proof.rootFingerprint, fp(root)); XCTAssertEqual(proof.deviceKeysetDigest, fp(keyset))
+        XCTAssertEqual(proof.purpose, "bootstrap-release-root"); XCTAssertEqual(proof.challenge, challenge)
         XCTAssertEqual(proof.expiresAt, expiry)
-        XCTAssertEqual(proof.signature, Data([0x30, 0x01]))
 
-        var expected = Data("SENTRYIQ-OWNER-BOOTSTRAP-APPROVAL-V1\n".utf8)
-        let owner = Data("owner-123".utf8)
-        expected.append(contentsOf: [0, 0, 0, UInt8(owner.count)])
-        expected.append(owner)
-        expected.append(Data(SHA256.hash(data: bundle)))
-        expected.append(contentsOf: [0, 0, 0, 32])
-        expected.append(challenge)
-        for shift in stride(from: 56, through: 0, by: -8) {
-            expected.append(UInt8((expiry >> UInt64(shift)) & 0xff))
-        }
-        XCTAssertEqual(signedTranscript, expected)
+        var expected = Data("SENTRYIQ-OWNER-BOOTSTRAP-APPROVAL-V2\n".utf8)
+        func field(_ s: String) { let b = Data(s.utf8); expected.append(contentsOf: [0,0,0,UInt8(b.count)]); expected.append(b) }
+        field("owner-123"); expected.append(Data(SHA256.hash(data: bundle)))
+        field("release-authorisation"); field("release-root-1")
+        expected.append(Data(SHA256.hash(data: root))); expected.append(Data(SHA256.hash(data: keyset)))
+        field("bootstrap-release-root"); expected.append(contentsOf: [0,0,0,32]); expected.append(challenge)
+        for shift in stride(from: 56, through: 0, by: -8) { expected.append(UInt8((expiry >> UInt64(shift)) & 255)) }
+        XCTAssertEqual(transcript, expected)
     }
 
-    func testFingerprintMismatchFailsBeforeUserVerificationOrSigning() {
-        let bundle = Data("candidate".utf8)
-        let valid = SHA256.hash(data: bundle).map { String(format: "%02x", $0) }.joined()
-        var verificationCalled = false
-        var signingCalled = false
-
-        XCTAssertThrowsError(try OwnerFingerprintApprovalCeremony.approve(
-            canonicalBundle: bundle,
-            outOfBandFingerprint: String(repeating: "0", count: 64),
-            ownerIdentifier: "owner-123",
-            challenge: Data(repeating: 1, count: 32),
-            expiresAt: 1_700_000_200,
-            now: 1_700_000_000,
-            confirmFingerprint: valid,
-            verifyCandidateTrustChain: { _ in true },
-            requireFreshUserVerification: { verificationCalled = true },
-            sign: { _ in signingCalled = true; return Data([1]) }
-        ))
-        XCTAssertFalse(verificationCalled)
-        XCTAssertFalse(signingCalled)
+    func testWrongRootFingerprintFailsBeforeAuthenticationOrSigning() {
+        var fresh = false; var signed = false
+        XCTAssertThrowsError(try approve(rootFP: String(repeating: "0", count: 64),
+            fresh: { fresh = true }, sign: { _ in signed = true; return Data([1]) }))
+        XCTAssertFalse(fresh); XCTAssertFalse(signed)
     }
-
-    func testExpiredChallengeFailsClosed() {
-        let bundle = Data("candidate".utf8)
-        let fingerprint = SHA256.hash(data: bundle).map { String(format: "%02x", $0) }.joined()
-        XCTAssertThrowsError(try OwnerFingerprintApprovalCeremony.approve(
-            canonicalBundle: bundle,
-            outOfBandFingerprint: fingerprint,
-            ownerIdentifier: "owner-123",
-            challenge: Data(repeating: 1, count: 32),
-            expiresAt: 1_700_000_000,
-            now: 1_700_000_000,
-            confirmFingerprint: fingerprint,
-            verifyCandidateTrustChain: { _ in true },
-            requireFreshUserVerification: {},
-            sign: { _ in Data([1]) }
-        ))
+    func testWrongBundleFingerprintFailsClosed() { XCTAssertThrowsError(try approve(bundleFP: String(repeating: "0", count: 64))) }
+    func testWrongOwnerAndMalformedContextFailClosed() {
+        XCTAssertThrowsError(try approve(owner: "")); XCTAssertThrowsError(try approve(role: "release authorisation"))
+        XCTAssertThrowsError(try approve(purpose: ""))
     }
-
-    func testInvalidTufCandidateFailsBeforeUserVerificationOrSigning() {
-        let bundle = Data("candidate".utf8)
-        let fingerprint = SHA256.hash(data: bundle).map { String(format: "%02x", $0) }.joined()
-        var verificationCalled = false
-        var signingCalled = false
-        XCTAssertThrowsError(try OwnerFingerprintApprovalCeremony.approve(
-            canonicalBundle: bundle,
-            outOfBandFingerprint: fingerprint,
-            ownerIdentifier: "owner-123",
-            challenge: Data(repeating: 1, count: 32),
-            expiresAt: 1_700_000_200,
-            now: 1_700_000_000,
-            confirmFingerprint: fingerprint,
-            verifyCandidateTrustChain: { _ in false },
-            requireFreshUserVerification: { verificationCalled = true },
-            sign: { _ in signingCalled = true; return Data([1]) }
-        ))
-        XCTAssertFalse(verificationCalled)
-        XCTAssertFalse(signingCalled)
+    func testExpiredChallengeAndInvalidCandidateFailBeforeSigning() {
+        var signed = false
+        XCTAssertThrowsError(try approve(expires: now))
+        XCTAssertThrowsError(try approve(verify: { _, _, _, _, _, _ in false }, sign: { _ in signed = true; return Data([1]) }))
+        XCTAssertFalse(signed)
+    }
+    func testFreshUserVerificationMustSucceedBeforeSigning() {
+        var signed = false
+        XCTAssertThrowsError(try approve(fresh: { throw NSError(domain: "biometric", code: 1) },
+            sign: { _ in signed = true; return Data([1]) }))
+        XCTAssertFalse(signed)
     }
 }

@@ -1,67 +1,71 @@
 package co.bichet.sentryiq.master
 
-import java.io.ByteArrayOutputStream
-import java.io.DataOutputStream
 import java.security.MessageDigest
 import org.junit.Assert.*
 import org.junit.Test
 
 class OwnerFingerprintApprovalCeremonyTest {
-    @Test fun approvalSignsDeterministicOwnerBoundTranscriptAfterFreshVerification() {
-        val bundle = "canonical-trust-bundle".toByteArray()
-        val fingerprint = MessageDigest.getInstance("SHA-256").digest(bundle).joinToString("") { "%02x".format(it) }
-        val challenge = ByteArray(32) { 0x5a }
-        val expiry = 1_700_000_200L
-        var verified = false
-        var signed = ByteArray(0)
-        val proof = OwnerFingerprintApprovalCeremony.approve(bundle, fingerprint, "owner-123", challenge, expiry, fingerprint, { true }, { verified = true }, { signed = it; byteArrayOf(0x30, 0x01) }, now = 1_700_000_000L)
-        assertTrue(verified)
-        assertEquals(fingerprint, proof.fingerprint)
-        assertArrayEquals(challenge, proof.challenge)
+    private val bundle = "canonical-trust-bundle".toByteArray()
+    private val root = "independent-release-root".toByteArray()
+    private val keyset = "device-keyset-public-identifiers".toByteArray()
+    private val challenge = ByteArray(32) { 0x5a }
+    private val expiry = 1_700_000_200L
+    private val now = 1_700_000_000L
+    private fun fp(b: ByteArray) = MessageDigest.getInstance("SHA-256").digest(b).joinToString("") { "%02x".format(it) }
+
+    private fun approve(bundleFP: String = fp(bundle), rootFP: String = fp(root), owner: String = "owner-123",
+        role: String = "release-authorisation", purpose: String = "bootstrap-release-root",
+        expires: Long = expiry, verify: (ByteArray, String, String, ByteArray, ByteArray, String) -> Boolean = { _, _, _, _, _, _ -> true },
+        fresh: () -> Unit = {}, sign: (ByteArray) -> ByteArray = { byteArrayOf(0x30, 1) }
+    ) = OwnerFingerprintApprovalCeremony.approve(bundle, bundleFP, owner, role, "release-root-1",
+        fp(root), fp(keyset), purpose, challenge, expires, { fp(bundle) }, { rootFP }, verify, fresh, sign, now)
+
+    @Test fun proofBindsAllApprovalContext() {
+        var transcript = ByteArray(0); var fresh = false
+        val proof = approve(fresh = { fresh = true }, sign = { transcript = it; byteArrayOf(0x30, 1) })
+        assertTrue(fresh); assertEquals(fp(bundle), proof.bundleFingerprint)
+        assertEquals("release-authorisation", proof.rootRole); assertEquals("release-root-1", proof.rootKeyId)
+        assertEquals(fp(root), proof.rootFingerprint); assertEquals(fp(keyset), proof.deviceKeysetDigest)
+        assertEquals("bootstrap-release-root", proof.purpose); assertArrayEquals(challenge, proof.challenge)
         assertEquals(expiry, proof.expiresAt)
-        assertArrayEquals(byteArrayOf(0x30, 0x01), proof.signature)
 
-        val expected = ByteArrayOutputStream()
-        DataOutputStream(expected).use { out ->
-            out.write("SENTRYIQ-OWNER-BOOTSTRAP-APPROVAL-V1\n".toByteArray(Charsets.US_ASCII))
-            val owner = "owner-123".toByteArray()
-            out.writeInt(owner.size); out.write(owner)
-            out.write(MessageDigest.getInstance("SHA-256").digest(bundle))
-            out.writeInt(challenge.size); out.write(challenge); out.writeLong(expiry)
+        val expected = java.io.ByteArrayOutputStream()
+        java.io.DataOutputStream(expected).use { out ->
+            out.write("SENTRYIQ-OWNER-BOOTSTRAP-APPROVAL-V2\n".toByteArray(Charsets.US_ASCII))
+            fun field(s: String) { val b = s.toByteArray(); out.writeInt(b.size); out.write(b) }
+            field("owner-123"); out.write(MessageDigest.getInstance("SHA-256").digest(bundle))
+            field("release-authorisation"); field("release-root-1")
+            out.write(MessageDigest.getInstance("SHA-256").digest(root))
+            out.write(MessageDigest.getInstance("SHA-256").digest(keyset))
+            field("bootstrap-release-root"); out.writeInt(32); out.write(challenge); out.writeLong(expiry)
         }
-        assertArrayEquals(expected.toByteArray(), signed)
+        assertArrayEquals(expected.toByteArray(), transcript)
     }
 
-    @Test fun mismatchFailsBeforeVerificationAndSigning() {
-        val bundle = "candidate".toByteArray()
-        val fingerprint = MessageDigest.getInstance("SHA-256").digest(bundle).joinToString("") { "%02x".format(it) }
-        var verified = false; var signed = false
-        try {
-            OwnerFingerprintApprovalCeremony.approve(bundle, "0".repeat(64), "owner-123", ByteArray(32), 1_700_000_200L, fingerprint, { true }, { verified = true }, { signed = true; byteArrayOf(1) }, now = 1_700_000_000L)
-            fail("Fingerprint mismatch must be rejected")
-        } catch (_: OwnerFingerprintApprovalCeremony.CeremonyException) { }
-        assertFalse(verified); assertFalse(signed)
+    @Test fun wrongRootFingerprintFailsBeforeAuthenticationOrSigning() {
+        var fresh = false; var signed = false
+        try { approve(rootFP = "0".repeat(64), fresh = { fresh = true }, sign = { signed = true; byteArrayOf(1) }); fail("Mismatch") }
+        catch (_: OwnerFingerprintApprovalCeremony.CeremonyException) { }
+        assertFalse(fresh); assertFalse(signed)
     }
-
-    @Test fun expiredChallengeFailsClosed() {
-        val bundle = "candidate".toByteArray()
-        val fingerprint = MessageDigest.getInstance("SHA-256").digest(bundle).joinToString("") { "%02x".format(it) }
-        try {
-            OwnerFingerprintApprovalCeremony.approve(bundle, fingerprint, "owner-123", ByteArray(32), 1_700_000_000L, fingerprint, { true }, {}, { byteArrayOf(1) }, now = 1_700_000_000L)
-            fail("Expired challenge must be rejected")
-        } catch (_: OwnerFingerprintApprovalCeremony.CeremonyException) { }
+    @Test fun wrongBundleFingerprintFailsClosed() {
+        try { approve(bundleFP = "0".repeat(64)); fail("Mismatch") } catch (_: OwnerFingerprintApprovalCeremony.CeremonyException) { }
     }
-
-    @Test fun invalidTufCandidateFailsBeforeUserVerificationAndSigning() {
-        val bundle = "candidate".toByteArray()
-        val fingerprint = MessageDigest.getInstance("SHA-256").digest(bundle).joinToString("") { "%02x".format(it) }
-        var verified = false
+    @Test fun wrongOwnerAndMalformedContextFailClosed() {
+        val calls = listOf<() -> Unit>({ approve(owner = "") }, { approve(role = "release authorisation") }, { approve(purpose = "") })
+        calls.forEach { try { it(); fail("Invalid context") } catch (_: OwnerFingerprintApprovalCeremony.CeremonyException) { } }
+    }
+    @Test fun expiredChallengeAndInvalidCandidateFailBeforeSigning() {
         var signed = false
-        try {
-            OwnerFingerprintApprovalCeremony.approve(bundle, fingerprint, "owner-123", ByteArray(32), 1_700_000_200L, fingerprint, { false }, { verified = true }, { signed = true; byteArrayOf(1) }, now = 1_700_000_000L)
-            fail("Invalid TUF candidate must be rejected")
-        } catch (_: OwnerFingerprintApprovalCeremony.CeremonyException) { }
-        assertFalse(verified)
+        try { approve(expires = now); fail("Expired") } catch (_: OwnerFingerprintApprovalCeremony.CeremonyException) { }
+        try { approve(verify = { _, _, _, _, _, _ -> false }, sign = { signed = true; byteArrayOf(1) }); fail("Invalid TUF") }
+        catch (_: OwnerFingerprintApprovalCeremony.CeremonyException) { }
+        assertFalse(signed)
+    }
+    @Test fun freshUserVerificationMustSucceedBeforeSigning() {
+        var signed = false
+        try { approve(fresh = { throw IllegalStateException("biometric required") }, sign = { signed = true; byteArrayOf(1) }); fail("Fresh auth") }
+        catch (_: IllegalStateException) { }
         assertFalse(signed)
     }
 }
