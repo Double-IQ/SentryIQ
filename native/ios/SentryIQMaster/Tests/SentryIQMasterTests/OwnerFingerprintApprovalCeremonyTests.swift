@@ -20,6 +20,7 @@ final class OwnerFingerprintApprovalCeremonyTests: XCTestCase {
             expiresAt: expiry,
             now: 1_700_000_000,
             confirmFingerprint: fingerprint,
+            verifyCandidateTrustChain: { _ in true },
             requireFreshUserVerification: { verified = true },
             sign: { message in signedTranscript = message; return Data([0x30, 0x01]) }
         )
@@ -57,6 +58,7 @@ final class OwnerFingerprintApprovalCeremonyTests: XCTestCase {
             expiresAt: 1_700_000_200,
             now: 1_700_000_000,
             confirmFingerprint: valid,
+            verifyCandidateTrustChain: { _ in true },
             requireFreshUserVerification: { verificationCalled = true },
             sign: { _ in signingCalled = true; return Data([1]) }
         ))
@@ -75,8 +77,30 @@ final class OwnerFingerprintApprovalCeremonyTests: XCTestCase {
             expiresAt: 1_700_000_000,
             now: 1_700_000_000,
             confirmFingerprint: fingerprint,
+            verifyCandidateTrustChain: { _ in true },
             requireFreshUserVerification: {},
             sign: { _ in Data([1]) }
         ))
+    }
+
+    func testInvalidTufCandidateFailsBeforeUserVerificationOrSigning() {
+        let bundle = Data("candidate".utf8)
+        let fingerprint = SHA256.hash(data: bundle).map { String(format: "%02x", $0) }.joined()
+        var verificationCalled = false
+        var signingCalled = false
+        XCTAssertThrowsError(try OwnerFingerprintApprovalCeremony.approve(
+            canonicalBundle: bundle,
+            outOfBandFingerprint: fingerprint,
+            ownerIdentifier: "owner-123",
+            challenge: Data(repeating: 1, count: 32),
+            expiresAt: 1_700_000_200,
+            now: 1_700_000_000,
+            confirmFingerprint: fingerprint,
+            verifyCandidateTrustChain: { _ in false },
+            requireFreshUserVerification: { verificationCalled = true },
+            sign: { _ in signingCalled = true; return Data([1]) }
+        ))
+        XCTAssertFalse(verificationCalled)
+        XCTAssertFalse(signingCalled)
     }
 }

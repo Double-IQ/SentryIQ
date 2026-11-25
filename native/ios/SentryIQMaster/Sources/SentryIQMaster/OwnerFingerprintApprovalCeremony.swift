@@ -4,15 +4,16 @@ import Foundation
 /// Proof that the owner approved the exact candidate trust-bundle fingerprint.
 /// The caller must validate the candidate bundle before invoking this ceremony.
 public enum OwnerFingerprintApprovalCeremony {
-    public enum CeremonyError: Error { case invalidFingerprint, fingerprintMismatch, invalidChallenge, expiredChallenge, invalidOwnerIdentifier }
+    public enum CeremonyError: Error { case invalidFingerprint, fingerprintMismatch, invalidChallenge, expiredChallenge, invalidOwnerIdentifier, invalidCandidateTrustChain }
     public struct ApprovalProof { public let fingerprint: String; public let challenge: Data; public let expiresAt: UInt64; public let signature: Data }
 
     /// Confirmation must come from native UI; fresh verification must invoke OS biometrics/passcode;
     /// sign must use the dedicated hardware-backed master signing key.
-    public static func approve(canonicalBundle: Data, outOfBandFingerprint: String, ownerIdentifier: String, challenge: Data, expiresAt: UInt64, now: UInt64 = UInt64(Date().timeIntervalSince1970), confirmFingerprint: String, requireFreshUserVerification: () throws -> Void, sign: (Data) throws -> Data) throws -> ApprovalProof {
+    public static func approve(canonicalBundle: Data, outOfBandFingerprint: String, ownerIdentifier: String, challenge: Data, expiresAt: UInt64, now: UInt64 = UInt64(Date().timeIntervalSince1970), confirmFingerprint: String, verifyCandidateTrustChain: (Data) throws -> Bool, requireFreshUserVerification: () throws -> Void, sign: (Data) throws -> Data) throws -> ApprovalProof {
         guard !ownerIdentifier.isEmpty, !ownerIdentifier.contains("\n"), !ownerIdentifier.contains("\r") else { throw CeremonyError.invalidOwnerIdentifier }
         guard challenge.count == 32 else { throw CeremonyError.invalidChallenge }
         guard expiresAt > now, expiresAt - now <= 300 else { throw CeremonyError.expiredChallenge }
+        guard try verifyCandidateTrustChain(canonicalBundle) else { throw CeremonyError.invalidCandidateTrustChain }
         let digest = Data(SHA256.hash(data: canonicalBundle))
         let expected = try decodeFingerprint(outOfBandFingerprint)
         let confirmed = try decodeFingerprint(confirmFingerprint)
