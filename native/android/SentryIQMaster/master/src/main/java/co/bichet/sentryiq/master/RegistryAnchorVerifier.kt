@@ -41,7 +41,7 @@ object RegistryAnchorVerifier {
     ) {
         require(validIdentifier(expectedOwnerId, 256) && anchor.ownerId == expectedOwnerId)
         require(validIdentifier(anchor.signerKeyId, 128))
-        require(anchor.sequence > 0L && anchor.bundleSha256.size == 32)
+        require(anchor.sequence > 0uL && anchor.bundleSha256.size == 32)
         require(anchor.signature.size == 64)
         require(anchor.previousBundleSha256 == null || anchor.previousBundleSha256.size == 32)
         require(TrustRegistryAnchorPolicy.isFresh(anchor.issuedAt, anchor.expiresAt, nowEpochSeconds))
