@@ -182,6 +182,10 @@ All ambiguous cases fail closed. Fixtures contain no production keys or private 
 8. Complete independent security review before production trust-root initialisation.
 
 
+## 9.1 TUF-gated owner approval
+
+The iOS and Android owner-approval ceremonies now require a candidate trust-chain verification callback before fingerprint confirmation, fresh OS user verification, or master-key signing. The production callback must invoke the shared Rust TUF core with the independently pinned initial root, sequential root rotations, and candidate top-level metadata; a caller-supplied unconditional success callback is test-only and is not an acceptable production integration. A failed TUF result aborts before user verification and signing.
+
 ## 10.0 Protected registry-anchor freshness and sequence chain
 
 The registry-anchor verifier must authenticate the exact signed payload and bind every parsed field (sequence, bundle digest, issue/expiry times, and previous digest) to that payload. Both native stores now enforce a maximum 24-hour anchor age/validity window, at most 60 seconds of future clock skew, and expiry before every load/save. On an existing local state, an update must advance exactly one sequence and name the current bundle digest as its previous digest; same-sequence writes are allowed only for the identical digest. The encrypted/Keychain cache remains rollback-detecting only when paired with a fresh independently verified registry anchor; local storage alone is not a monotonic counter.
