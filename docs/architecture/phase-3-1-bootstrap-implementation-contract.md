@@ -13,8 +13,11 @@ The phone is authoritative. The application host may relay public metadata but i
 
 ## 2. Approved cryptographic profile
 
-- Master signing: Secure Enclave P-256, ES256.
-- Master key agreement: separate Secure Enclave P-256 key; never reuse the signing key.
+- Master signing: P-256, ES256, hardware-backed and non-exportable where the platform supports it.
+- Master key agreement: a separate P-256 key; never reuse the signing key.
+- iOS master adapter: Apple Secure Enclave P-256 signing and key-agreement operations, with Keychain-protected trust state.
+- Android master adapter: Android Keystore P-256 keys, preferring StrongBox-backed storage; accept TEE-backed keys only when hardware security level and device attestation meet the qualified policy. Record StrongBox versus TEE assurance explicitly.
+- Android devices without an acceptable hardware-backed key implementation are not eligible for master authority; they may participate only in a separately approved lower-assurance device tier.
 - Release authorisation: separate owner-controlled custody boundary; never use the master key.
 - HelioHost reports: separate verifier-only key, generated only after Phase 4 host qualification and explicit provisioning approval.
 - Sigstore/TUF: maintained upstream bootstrap and root-rotation process.
@@ -29,7 +32,7 @@ The ceremony accepts:
 1. A release-authorisation public root and fingerprint from its separately controlled custody process.
 2. A HelioHost verifier public key and fingerprint only after Phase 4 establishes host isolation and key custody.
 3. Sigstore/TUF bootstrap metadata validated under the maintained upstream TUF procedure.
-4. A locally generated master keyset from native Secure Enclave APIs.
+4. A locally generated master keyset from the native platform adapter (Secure Enclave on iOS; Android Keystore with StrongBox preferred and qualified TEE fallback on Android).
 5. An owner-controlled out-of-band fingerprint record for independently comparing each SentryIQ root.
 
 The application origin, app-host API, database, QR code displayed only by the application origin, and unsigned verifier response are untrusted transport. A received value is not a trust anchor until independently authenticated and explicitly accepted on the phone.
@@ -73,7 +76,7 @@ The native companion persists one of these states:
 
 Transitions:
 
-1. `UNINITIALISED -> MASTER_CREATED_PENDING_ROOTS`: generate separate non-exportable Secure Enclave P-256 signing and key-agreement keys; display role-specific public fingerprints.
+1. `UNINITIALISED -> MASTER_CREATED_PENDING_ROOTS`: generate separate hardware-backed P-256 signing and key-agreement keys through the platform adapter; display role-specific public fingerprints and record the hardware security level. On iOS use Secure Enclave; on Android prefer StrongBox, otherwise require a qualified TEE-backed key.
 2. `MASTER_CREATED_PENDING_ROOTS -> ROOTS_PENDING_VERIFIER`: owner independently compares and accepts the release-authorisation fingerprint with fresh local user verification; validate TUF bootstrap; atomically commit initial trust state.
 3. `ROOTS_PENDING_VERIFIER -> TRUSTED`: only after Phase 4 qualification, owner compares and accepts the verifier fingerprint and proof-of-possession through an independently authenticated channel.
 4. Signature failure, owner/account mismatch, rollback, storage-integrity failure, ambiguous fingerprint, or interrupted commit fails closed and never advances trust.
@@ -97,7 +100,7 @@ The native companion stores the trust bundle, canonical digest, sequence high-wa
 - Backup restore, reinstall, migration, secure-storage invalidation, or suspected rollback enters `RECOVERY_REQUIRED` pending independent revalidation.
 - The application host cannot reset a phone-held high-water mark.
 
-The native storage implementation must be reviewed against the actual owner-phone OS before completion.
+The native storage implementations must be reviewed on both iOS and Android. The iPhone is the initial master platform; Android support is a first-class target using a separate platform adapter. Cross-platform protocol and trust-state formats remain identical, while hardware assurance is recorded per device.
 
 ## 8. Signed transition and proof-of-possession
 
@@ -123,7 +126,7 @@ All ambiguous cases fail closed. Fixtures contain no production keys or private 
 ## 10. Implementation sequence and gates
 
 1. Implement platform-independent bundle parsing/validation and deterministic negative fixtures using maintained JCS/JOSE libraries; do not hand-roll cryptography.
-2. Implement the native master key adapter only for the confirmed owner-phone OS; Secure Enclave keys are non-exportable and role-separated.
+2. Implement separate native adapters: iOS Secure Enclave/Keychain and Android Keystore (StrongBox preferred, qualified TEE fallback). Keep identical protocol semantics and role separation; expose the hardware security level to policy.
 3. Implement protected trust-state persistence and rollback detection; document platform guarantees and limitations.
 4. Implement owner confirmation UI and out-of-band fingerprint comparison.
 5. Integrate maintained TUF bootstrap.
@@ -135,4 +138,4 @@ All ambiguous cases fail closed. Fixtures contain no production keys or private 
 
 No production or development private root keys are committed. No production trust state is initialised. No HelioHost service is provisioned. No user data, content roots, DRS, or MRAK are generated or migrated. No release or production deployment occurs. No PHP endpoint may declare trust based only on a server-side flag.
 
-**Completion evidence:** The protocol validator, native adapter, protected persistence, owner ceremony, and negative tests must all be implemented and reviewed. This contract alone does not mark Phase 3.1 complete.
+**Completion evidence:** The protocol validator, iOS and Android native adapters, protected persistence, owner ceremony, cross-platform fixtures, hardware-assurance tests, and negative tests must all be implemented and reviewed. This contract alone does not mark Phase 3.1 complete.
