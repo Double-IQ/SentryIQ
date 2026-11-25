@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Security/BootstrapChallengeStore.php';
 
-use SentryIQ\\Security\\BootstrapChallengeStore;
+use SentryIQ\Security\BootstrapChallengeStore;
 
 function bootstrapChallengeAssert(bool $condition, string $message): void
 {
@@ -90,4 +90,4 @@ bootstrapChallengeReject(
 @unlink($storePath);
 @unlink($lockPath);
 @rmdir($root);
-echo "Durable owner bootstrap challenge tests passed.\\n";
+echo "Durable owner bootstrap challenge tests passed.\n";
