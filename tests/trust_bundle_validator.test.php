@@ -60,13 +60,16 @@ $publicPem = $details['key'];
 $agreementKey = openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => 'prime256v1']);
 if ($agreementKey === false) throw new RuntimeException('Unable to generate P-256 agreement test key.');
 $agreementPem = openssl_pkey_get_details($agreementKey)['key'];
-$privateKey = $key;
+$releaseKey = openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => 'prime256v1']);
+if ($releaseKey === false) throw new RuntimeException('Unable to generate release-authorisation test key.');
+$releasePem = openssl_pkey_get_details($releaseKey)['key'];
+$privateKey = $releaseKey;
 $validator = new TrustBundleValidator();
 $now = 1795585200;
 $issued = gmdate('Y-m-d\TH:i:s\Z', $now - 60);
 $expires = gmdate('Y-m-d\TH:i:s\Z', $now + 86400);
 
-$makeBundle = static function (array $overrides = []) use ($publicPem, $agreementPem, $privateKey, $issued, $expires): string {
+$makeBundle = static function (array $overrides = []) use ($publicPem, $agreementPem, $releasePem, $privateKey, $issued, $expires): string {
     $bundle = [
         'type' => 'SENTRYIQ-TRUST-BUNDLE',
         'schema_version' => 1,
@@ -84,7 +87,7 @@ $makeBundle = static function (array $overrides = []) use ($publicPem, $agreemen
             'keys' => [[
                 'kid' => 'release-root-1',
                 'alg' => 'ES256',
-                'public_key_pem' => $publicPem,
+                'public_key_pem' => $releasePem,
                 'purpose' => 'release-authorisation',
             ]],
         ],
@@ -114,7 +117,7 @@ $trusted = [[
     'kid' => 'release-root-1',
     'role' => 'release-authorisation',
     'alg' => 'ES256',
-    'public_key_pem' => $publicPem,
+    'public_key_pem' => $releasePem,
 ]];
 $valid = $makeBundle();
 $result = $validator->validate($valid, $trusted, 'owner-test-001', null, null, $now);
