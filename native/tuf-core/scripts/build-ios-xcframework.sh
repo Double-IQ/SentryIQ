@@ -16,7 +16,7 @@ cp target/bindings/swift/SentryIQTufCore.swift "$IOS_PACKAGE/Sources/SentryIQTuf
 cp target/bindings/swift/SentryIQTufCoreFFI.h "$IOS_PACKAGE/Sources/SentryIQTufCoreFFI/include/"
 cp target/bindings/swift/SentryIQTufCoreFFI.modulemap "$IOS_PACKAGE/Sources/SentryIQTufCoreFFI/include/module.modulemap"
 
-rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
+rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios aarch64-apple-darwin x86_64-apple-darwin
 
 cargo build --release --target aarch64-apple-ios
 cargo build --manifest-path "$CRATE/Cargo.toml" --release --target aarch64-apple-ios-sim
@@ -29,10 +29,15 @@ lipo -create \
   "$TARGET/aarch64-apple-ios-sim/release/libsentryiq_tuf_core.a" \
   "$TARGET/x86_64-apple-ios/release/libsentryiq_tuf_core.a" \
   -output "$SIM_DIR/libsentryiq_tuf_core.a"
+lipo -create \
+  "$TARGET/aarch64-apple-darwin/release/libsentryiq_tuf_core.a" \
+  "$TARGET/x86_64-apple-darwin/release/libsentryiq_tuf_core.a" \
+  -output "$TARGET/libsentryiq_tuf_core-macos-universal.a"
 
 mkdir -p "$IOS_PACKAGE/Libraries"
 rm -rf "$IOS_PACKAGE/Libraries/SentryIQTufCore.xcframework"
 xcodebuild -create-xcframework \
   -library "$TARGET/aarch64-apple-ios/release/libsentryiq_tuf_core.a" -headers "$HEADER_DIR" \
   -library "$SIM_DIR/libsentryiq_tuf_core.a" -headers "$HEADER_DIR" \
+  -library "$TARGET/libsentryiq_tuf_core-macos-universal.a" -headers "$HEADER_DIR" \
   -output "$IOS_PACKAGE/Libraries/SentryIQTufCore.xcframework"
