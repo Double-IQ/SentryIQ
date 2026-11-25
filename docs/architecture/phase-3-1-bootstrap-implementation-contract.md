@@ -122,6 +122,12 @@ The native ceremony implementation uses the same transcript on iOS and Android. 
 
 The iOS and Android implementations expose callbacks for native confirmation, fresh user verification, and the hardware-backed signer. The application must supply real platform UI/authentication integration; test callbacks are not production approval.
 
+### 6.2 Server-side one-use challenge store
+
+The app-host PHP layer now has a durable `SentryIQ\\Security\\BootstrapChallengeStore` primitive. It issues 32-byte random challenges with a maximum five-minute lifetime and binds each record to the owner identifier, exact canonical bundle SHA-256 digest, and the `owner-bootstrap-approval` purpose. Consumption is serialized with an exclusive filesystem lock; the record is atomically removed and persisted before expiry or binding validation, so a failed submission burns the challenge and cannot replay it. The store rejects symlinked paths, storage directories writable by group/other, oversized/corrupt state, unsupported store versions, and capacity overflow. State and lock files are owner-only and live outside the public document root.
+
+This is a tested persistence primitive, **not yet a public HTTP endpoint or complete server-side approval verifier**. The eventual endpoint must authenticate the account/session, load the owner’s active master public key from an independently authenticated registry state, consume the challenge, verify the exact domain-separated transcript signature, enforce owner/bundle/expiry bindings, and atomically record the approval receipt. It must not trust a caller-supplied public key or a server-side boolean. Endpoint integration and independent registry-anchor verification remain gates.
+
 ## 7. Persistence and anti-rollback
 
 The native companion stores the trust bundle, canonical digest, sequence high-water mark, accepted key IDs, revocations, TUF root versions, and bootstrap receipt in protected platform storage.
