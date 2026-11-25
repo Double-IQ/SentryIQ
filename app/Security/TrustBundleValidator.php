@@ -31,7 +31,7 @@ final class TrustBundleValidator
         ?string $minimumSequence,
         ?int $now = null
     ): array {
-        if ($json === '' || strlen($json) > self::MAX_BYTES) {
+        if ($expectedOwnerId === '' || strlen($expectedOwnerId) > 256) {\n            throw new RuntimeException('Expected owner identity is empty or oversized.');\n        }\n        if ($expectedPreviousDigest !== null && !preg_match('/^[a-f0-9]{64}$/D', $expectedPreviousDigest)) {\n            throw new RuntimeException('Persisted trust digest is malformed.');\n        }\n        if ($json === '' || strlen($json) > self::MAX_BYTES) {
             throw new RuntimeException('Trust bundle is empty or exceeds the size limit.');
         }
         $this->assertNoDuplicateKeys($json);
@@ -99,7 +99,7 @@ final class TrustBundleValidator
         $unsigned = clone $bundle;
         unset($unsigned->signatures);
         $canonicalPayload = $this->canonicalJson($unsigned);
-        $signerKids = $this->verifySignatures($bundle->signatures, $canonicalPayload, $trustedSigners);
+        $signerKids = $this->verifySignatures($bundle->signatures, $canonicalPayload, $trustedSigners, $bundle->revocations, $currentTime);
         if ($signerKids === []) {
             throw new RuntimeException('Trust bundle has no valid signature from an independently trusted key.');
         }
@@ -271,7 +271,7 @@ final class TrustBundleValidator
         }
     }
 
-    private function verifySignatures(array $signatures, string $payload, array $trustedSigners): array
+    private function verifySignatures(array $signatures, string $payload, array $trustedSigners, array $revocations, int $now): array
     {
         $trusted = [];
         foreach ($trustedSigners as $signer) {
@@ -286,8 +286,7 @@ final class TrustBundleValidator
             $trusted[$signer['kid']] = $signer;
         }
 
-        $accepted = [];
-        foreach ($signatures as $signature) {
+        $revokedAt = [];\n        foreach ($revocations as $revocation) {\n            $revokedAt[$revocation->kid] = $this->parseUtc($revocation->effective_at);\n        }\n\n        $accepted = [];\n        foreach ($signatures as $signature) {
             $this->assertExactObjectFields($signature, ['kid', 'role', 'alg', 'signature']);
             if (!is_string($signature->kid) || !is_string($signature->role)
                 || $signature->alg !== 'ES256' || !is_string($signature->signature)
@@ -295,7 +294,7 @@ final class TrustBundleValidator
                 throw new RuntimeException('Trust bundle signature metadata is malformed or duplicated.');
             }
             $anchor = $trusted[$signature->kid] ?? null;
-            if (!is_array($anchor) || $anchor['role'] !== $signature->role
+            if (!is_array($anchor) || (isset($revokedAt[$signature->kid]) && $revokedAt[$signature->kid] <= $now)\n                || $anchor['role'] !== $signature->role
                 || $anchor['alg'] !== $signature->alg
                 || !in_array($signature->role, ['release-authorisation', 'master-signing'], true)) {
                 continue;
