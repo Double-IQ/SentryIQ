@@ -24,6 +24,8 @@ The crate now exposes a pinned UniFFI 0.32.2 bindgen executable and a checked-in
 
 The binding-generation step validates the exported interface only. It does not package per-ABI Rust binaries, link the generated Kotlin/Swift wrappers into the native companions, or prove end-to-end execution on physical devices. Those are subsequent integration and qualification gates.
 
+The shared native API now exposes `verifyTargetDelegation` on both iOS and Android. It takes the target path and the set of delegated role metadata already fetched by the transport layer. Tuffet resolves matching delegations in priority order, honours terminating roles, limits traversal to 32 delegated roles, and checks each delegated metadata signature against the specific delegator that authorised it. Missing metadata for a matching delegation fails closed. The verifier returns only whether the target is authorised; it does not download or verify the target bytes.
+
 ## Native platform linkage
 
 The platform build scripts generate UniFFI wrappers from the same Rust cdylib and build the Rust static/shared libraries for the supported native ABIs:
