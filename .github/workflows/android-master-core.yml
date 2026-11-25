@@ -30,3 +30,6 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-35" "build-tools;35.0.0"
       - name: Build Android master adapter
         run: gradle --no-daemon --project-dir native/android/SentryIQMaster :master:assembleDebug
+
+      - name: Run Android master core unit tests
+        run: gradle --no-daemon --project-dir native/android/SentryIQMaster :master:testDebugUnitTest
