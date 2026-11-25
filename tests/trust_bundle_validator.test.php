@@ -283,6 +283,12 @@ trustBundleReject(
     'Public key material must not be reused across master and release roles.'
 );
 
+$escapedDuplicate = str_replace('"schema_version":1', '"schema_version":1,"schema\\u005fversion":1', $valid);
+trustBundleReject(
+    fn() => $validator->validate($escapedDuplicate, $trusted, 'owner-test-001', null, null, $now),
+    'Duplicate JSON member names expressed with Unicode escapes must be rejected.'
+);
+
 $unknownField = json_decode($valid, true, 64, JSON_THROW_ON_ERROR);
 $unknownField['unexpected'] = true;
 trustBundleReject(
