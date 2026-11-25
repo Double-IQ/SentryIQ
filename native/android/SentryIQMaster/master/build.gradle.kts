@@ -6,7 +6,10 @@ plugins {
 android {
     namespace = "co.bichet.sentryiq.master"
     compileSdk = 35
-    defaultConfig { minSdk = 31 }
+    defaultConfig {
+        minSdk = 31
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -19,4 +22,6 @@ android {
 dependencies {
     implementation("net.java.dev.jna:jna:5.17.0@aar")
     testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }
