@@ -34,13 +34,20 @@ pub fn verify_tuf_root_rotation_chain(
         || initial_root.len() > MAX_ROOT_BYTES
         || expected_initial_root_sha256.len() != 32
         || candidate_roots.len() > MAX_ROOT_ROTATIONS
-        || candidate_roots.iter().any(|root| root.is_empty() || root.len() > MAX_ROOT_BYTES)
+        || candidate_roots
+            .iter()
+            .any(|root| root.is_empty() || root.len() > MAX_ROOT_BYTES)
     {
         return -1;
     }
 
     let digest = Sha256::digest(&initial_root);
-    if digest.as_slice().ct_eq(expected_initial_root_sha256.as_slice()).unwrap_u8() != 1 {
+    if digest
+        .as_slice()
+        .ct_eq(expected_initial_root_sha256.as_slice())
+        .unwrap_u8()
+        != 1
+    {
         return -1;
     }
 
@@ -69,13 +76,21 @@ mod tests {
 
     #[test]
     fn rejects_empty_initial_root() {
-        assert_eq!(verify_tuf_root_rotation_chain(vec![], vec![0; 32], vec![], 1_700_000_000), -1);
+        assert_eq!(
+            verify_tuf_root_rotation_chain(vec![], vec![0; 32], vec![], 1_700_000_000),
+            -1
+        );
     }
 
     #[test]
     fn rejects_wrong_initial_root_pin_before_metadata_processing() {
         assert_eq!(
-            verify_tuf_root_rotation_chain(b"not-json".to_vec(), vec![0; 32], vec![], 1_700_000_000),
+            verify_tuf_root_rotation_chain(
+                b"not-json".to_vec(),
+                vec![0; 32],
+                vec![],
+                1_700_000_000
+            ),
             -1
         );
     }
@@ -83,11 +98,21 @@ mod tests {
     #[test]
     fn rejects_oversized_root_and_rotation_chain() {
         assert_eq!(
-            verify_tuf_root_rotation_chain(vec![1; MAX_ROOT_BYTES + 1], vec![0; 32], vec![], 1_700_000_000),
+            verify_tuf_root_rotation_chain(
+                vec![1; MAX_ROOT_BYTES + 1],
+                vec![0; 32],
+                vec![],
+                1_700_000_000
+            ),
             -1
         );
         assert_eq!(
-            verify_tuf_root_rotation_chain(b"root".to_vec(), vec![0; 32], vec![vec![1]; MAX_ROOT_ROTATIONS + 1], 1_700_000_000),
+            verify_tuf_root_rotation_chain(
+                b"root".to_vec(),
+                vec![0; 32],
+                vec![vec![1]; MAX_ROOT_ROTATIONS + 1],
+                1_700_000_000
+            ),
             -1
         );
     }
@@ -95,7 +120,12 @@ mod tests {
     #[test]
     fn rejects_invalid_reference_time() {
         assert_eq!(
-            verify_tuf_root_rotation_chain(b"root".to_vec(), vec![0; 32], vec![], i64::MAX),
+            verify_tuf_root_rotation_chain(
+                b"root".to_vec(),
+                vec![0; 32],
+                vec![],
+                i64::MAX
+            ),
             -1
         );
     }
