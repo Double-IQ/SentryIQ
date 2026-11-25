@@ -47,7 +47,7 @@ final class OwnerApprovalProofVerifier
         string $signatureBase64Url,
         int $now
     ): array {
-        if ($now <= 0 || !preg_match('/^[A-Za-z0-9_-]{86}$/D', $signatureBase64Url)) {
+        if ($now <= 0 || !preg_match('/^[A-Za-z0-9_-]{94,96}$/D', $signatureBase64Url)) {
             throw new RuntimeException('Owner approval proof is malformed.');
         }
 
