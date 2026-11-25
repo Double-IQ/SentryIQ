@@ -95,13 +95,16 @@ $agreementPem = openssl_pkey_get_details($agreementKey)['key'];
 $releaseKey = openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => 'prime256v1']);
 if ($releaseKey === false) throw new RuntimeException('Unable to generate release-authorisation test key.');
 $releasePem = openssl_pkey_get_details($releaseKey)['key'];
+$signingKid = 'master-signing-' . hash('sha256', $details['ec']['x'] . $details['ec']['y']);
+$agreementDetails = openssl_pkey_get_details($agreementKey);
+$agreementKid = 'master-key-agreement-' . hash('sha256', $agreementDetails['ec']['x'] . $agreementDetails['ec']['y']);
 $privateKey = $releaseKey;
 $validator = new TrustBundleValidator();
 $now = 1795585200;
 $issued = gmdate('Y-m-d\TH:i:s\Z', $now - 60);
 $expires = gmdate('Y-m-d\TH:i:s\Z', $now + 86400);
 
-$makeBundle = static function (array $overrides = []) use ($publicPem, $agreementPem, $releasePem, $privateKey, $issued, $expires): string {
+$makeBundle = static function (array $overrides = []) use ($publicPem, $agreementPem, $releasePem, $privateKey, $signingKid, $agreementKid, $issued, $expires): string {
     $bundle = [
         'type' => 'SENTRYIQ-TRUST-BUNDLE',
         'schema_version' => 1,
@@ -113,8 +116,8 @@ $makeBundle = static function (array $overrides = []) use ($publicPem, $agreemen
         'owner_id' => 'owner-test-001',
         'master_keyset' => [
             'hardware_assurance' => 'secure-enclave',
-            'signing' => ['kid' => 'master-sign-1', 'alg' => 'ES256', 'public_key_pem' => $publicPem],
-            'key_agreement' => ['kid' => 'master-agree-1', 'alg' => 'ECDH-ES', 'public_key_pem' => $agreementPem],
+            'signing' => ['kid' => $signingKid, 'alg' => 'ES256', 'public_key_pem' => $publicPem],
+            'key_agreement' => ['kid' => $agreementKid, 'alg' => 'ECDH-ES', 'public_key_pem' => $agreementPem],
         ],
         'release_authorisation' => [
             'keys' => [[
@@ -288,6 +291,18 @@ $escapedDuplicate = str_replace('"schema_version":1', '"schema_version":1,"schem
 trustBundleReject(
     fn() => $validator->validate($escapedDuplicate, $trusted, 'owner-test-001', null, null, $now),
     'Duplicate JSON member names expressed with Unicode escapes must be rejected.'
+);
+
+$wrongMasterKid = $makeBundle([
+    'master_keyset' => [
+        'hardware_assurance' => 'secure-enclave',
+        'signing' => ['kid' => 'master-signing-' . str_repeat('0', 64), 'alg' => 'ES256', 'public_key_pem' => $publicPem],
+        'key_agreement' => ['kid' => $agreementKid, 'alg' => 'ECDH-ES', 'public_key_pem' => $agreementPem],
+    ],
+]);
+trustBundleReject(
+    fn() => $validator->validate($wrongMasterKid, $trusted, 'owner-test-001', null, null, $now),
+    'Master key IDs must be cryptographically bound to their public keys.'
 );
 
 $softwareMaster = json_decode($valid, true, 64, JSON_THROW_ON_ERROR);
