@@ -102,6 +102,26 @@ No remote endpoint can directly set the phone to `TRUSTED`.
 
 For each root, show role, key ID, algorithm, full fingerprint, source/provenance, exact permitted and forbidden purposes, and expiry/activation policy. The owner confirms each root independently with fresh local user verification. A generic “Trust SentryIQ” action is prohibited; server labels cannot replace role and fingerprint display.
 
+
+## 6.1 Owner fingerprint approval proof
+
+The native ceremony implementation uses the same transcript on iOS and Android. The candidate bundle must first pass the platform-independent trust-bundle validator. The expected fingerprint must be obtained from an independently controlled out-of-band record; a fingerprint supplied only by the application host is not independent confirmation.
+
+1. Compute SHA-256 over the exact canonical bundle bytes accepted by the validator.
+2. Display the full 64-character hexadecimal digest, role, key ID, algorithm, provenance, and permitted purpose in native UI.
+3. Require the owner to confirm the exact digest against the out-of-band fingerprint. Comparison is performed against both the out-of-band value and the value confirmed in the UI; malformed or mismatched values fail before authentication or signing.
+4. Require fresh OS-level biometric/passcode verification immediately before signing.
+5. Sign the operation-bound transcript with the dedicated hardware-backed master signing key. The transcript is binary and deterministic:
+   - ASCII domain separator `SENTRYIQ-OWNER-BOOTSTRAP-APPROVAL-V1\n`
+   - owner identifier as UTF-8, prefixed by a 4-byte unsigned big-endian length
+   - 32-byte SHA-256 candidate fingerprint
+   - 32-byte single-use challenge, prefixed by a 4-byte unsigned big-endian length
+   - challenge expiry as an 8-byte unsigned big-endian Unix timestamp
+6. Challenge lifetime is at most five minutes. Expired, malformed, or non-32-byte challenges are rejected. The verifier must consume each challenge exactly once and validate the returned signature, owner binding, candidate digest, and expiry.
+7. A successful local signature is only an approval proof. It does not itself commit roots, set the phone to `TRUSTED`, or qualify the HelioHost verifier.
+
+The iOS and Android implementations expose callbacks for native confirmation, fresh user verification, and the hardware-backed signer. The application must supply real platform UI/authentication integration; test callbacks are not production approval.
+
 ## 7. Persistence and anti-rollback
 
 The native companion stores the trust bundle, canonical digest, sequence high-water mark, accepted key IDs, revocations, TUF root versions, and bootstrap receipt in protected platform storage.
