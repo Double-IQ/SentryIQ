@@ -15,7 +15,7 @@ class OwnerFingerprintApprovalCeremonyTest {
 
     private fun approve(bundleFP: String = fp(bundle), rootFP: String = fp(root), owner: String = "owner-123",
         role: String = "release-authorisation", purpose: String = "bootstrap-release-root",
-        expires: Long = expiry, verify: (ByteArray) -> Boolean = { true },
+        expires: Long = expiry, verify: (ByteArray, String, String, ByteArray, ByteArray, String) -> Boolean = { _, _, _, _, _, _ -> true },
         fresh: () -> Unit = {}, sign: (ByteArray) -> ByteArray = { byteArrayOf(0x30, 1) }
     ) = OwnerFingerprintApprovalCeremony.approve(bundle, bundleFP, owner, role, "release-root-1",
         fp(root), fp(keyset), purpose, challenge, expires, fp(bundle), rootFP, verify, fresh, sign, now)
