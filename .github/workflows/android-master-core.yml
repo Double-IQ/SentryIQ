@@ -66,22 +66,3 @@ jobs:
           exit 1
       - name: Run Android native TUF FFI instrumentation test
         run: gradle --no-daemon --project-dir native/android/SentryIQMaster :master:connectedDebugAndroidTest
-; then
-              if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
-                adb shell input keyevent 82 || true
-                exit 0
-              fi
-            fi
-            if (( attempt % 12 == 0 )); then
-              echo "Waiting for Android emulator boot (attempt $attempt/120)."
-              tail -n 60 /tmp/sentryiq-emulator.log || true
-              adb devices -l || true
-            fi
-            sleep 5
-          done
-          echo "Android emulator did not finish booting."
-          cat /tmp/sentryiq-emulator.log
-          adb devices -l || true
-          exit 1
-      - name: Run Android native TUF FFI instrumentation test
-        run: gradle --no-daemon --project-dir native/android/SentryIQMaster :master:connectedDebugAndroidTest
