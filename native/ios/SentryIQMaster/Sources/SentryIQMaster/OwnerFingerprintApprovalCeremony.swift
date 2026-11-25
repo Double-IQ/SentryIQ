@@ -38,7 +38,7 @@ public enum OwnerFingerprintApprovalCeremony {
         now: UInt64 = UInt64(Date().timeIntervalSince1970),
         confirmFingerprint: String,
         confirmRootFingerprint: String,
-        verifyCandidateTrustChain: (Data) throws -> Bool,
+        verifyCandidateTrustChain: (Data, String, String, Data, Data, String) throws -> Bool,
         requireFreshUserVerification: () throws -> Void,
         sign: (Data) throws -> Data
     ) throws -> ApprovalProof {
@@ -49,10 +49,6 @@ public enum OwnerFingerprintApprovalCeremony {
         guard validToken(rootRole), validToken(rootKeyID), validToken(purpose),
               challenge.count == 32 else { throw CeremonyError.invalidContext }
         guard expiresAt > now, expiresAt - now <= 300 else { throw CeremonyError.expiredChallenge }
-        guard try verifyCandidateTrustChain(canonicalBundle) else {
-            throw CeremonyError.invalidCandidateTrustChain
-        }
-
         let bundleDigest = Data(SHA256.hash(data: canonicalBundle))
         let expectedBundle = try decodeFingerprint(outOfBandFingerprint)
         let confirmedBundle = try decodeFingerprint(confirmFingerprint)
@@ -63,6 +59,11 @@ public enum OwnerFingerprintApprovalCeremony {
               constantTimeEqual(bundleDigest, confirmedBundle),
               constantTimeEqual(expectedRoot, confirmedRoot) else {
             throw CeremonyError.fingerprintMismatch
+        }
+        // The resolver must prove that role/key ID/fingerprint identify a key in this
+        // validated bundle and that keysetDigest is the active local master keyset.
+        guard try verifyCandidateTrustChain(canonicalBundle, rootRole, rootKeyID, expectedRoot, keysetDigest, purpose) else {
+            throw CeremonyError.invalidCandidateTrustChain
         }
 
         let transcript = makeTranscript(
