@@ -121,6 +121,20 @@ class ProtectedTrustStateStore(
             temporary.delete()
             throw StateException("Could not atomically persist trust state.")
         }
+
+        // A successful rename is not enough: decrypt and compare the committed
+        // record before reporting that the protected state transition succeeded.
+        val committed = try {
+            decrypt(file.readBytes())
+        } catch (_: Exception) {
+            throw StateException("Committed trust state could not be read back.")
+        }
+        if (committed.sequence != anchor.sequence ||
+            !MessageDigest.isEqual(committed.bundleSha256, digest) ||
+            !MessageDigest.isEqual(committed.bundle, bundle) ||
+            !MessageDigest.isEqual(sha256(committed.bundle), anchor.bundleSha256)) {
+            throw StateException("Committed trust state failed readback verification.")
+        }
     }
 
     private fun requireValidAnchor(anchor: RegistryAnchor, now: Long) {
