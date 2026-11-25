@@ -135,7 +135,10 @@ final class TrustBundleValidator
 
     private function validateMasterKeyset(mixed $keyset): void
     {
-        $this->assertExactObjectFields($keyset, ['signing', 'key_agreement']);
+        $this->assertExactObjectFields($keyset, ['signing', 'key_agreement', 'hardware_assurance']);
+        if (!in_array($keyset->hardware_assurance, ['secure-enclave', 'android-strongbox', 'android-tee-qualified'], true)) {
+            throw new RuntimeException('Master key hardware assurance level is not an approved platform tier.');
+        }
         $this->validatePublicKey($keyset->signing ?? null, 'ES256');
         $this->validatePublicKey($keyset->key_agreement ?? null, 'ECDH-ES');
         if ($keyset->signing->kid === $keyset->key_agreement->kid) {

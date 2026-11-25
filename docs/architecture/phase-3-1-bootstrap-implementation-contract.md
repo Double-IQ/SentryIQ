@@ -68,7 +68,7 @@ The bundle contains public keys and policy metadata only. It must never contain 
 The first platform-independent validator implementation uses the following concrete encoding profile; native adapters must consume the same fixtures and semantics:
 
 - Trust bundle schema version is integer `1`; the top-level member set is exact and unknown members are rejected.
-- Public P-256 keys are carried as PEM SubjectPublicKeyInfo values. Master signing and key-agreement keys, release-authorisation keys, and verifier-report keys must have unique key IDs and distinct public-key material.
+- Public P-256 keys are carried as PEM SubjectPublicKeyInfo values. The master keyset includes an explicit `hardware_assurance` value (`secure-enclave`, `android-strongbox`, or `android-tee-qualified`). Master signing and key-agreement keys, release-authorisation keys, and verifier-report keys must have unique key IDs and distinct public-key material. Software-only keys are never eligible for master authority.
 - Master signing and release/verifier signatures use ES256. Detached signatures use the 64-byte JOSE `r || s` representation encoded as unpadded base64url, with canonical low-S ECDSA values to prevent signature malleability. Native signers must normalize S before emitting a signature.
 - Key arrays, revocation entries, and detached signatures are sorted by key ID and contain no duplicates. A detached signature covers the RFC 8785 canonical JSON representation of the complete bundle with only the `signatures` member omitted. The chain digest is SHA-256 over the canonical JSON representation of the complete bundle, including signatures.
 - The validator receives independently pinned signer keys, the expected owner ID, the previously committed digest, and the locally persisted sequence high-water mark as separate inputs. It never derives trust anchors from candidate bundle contents.
@@ -90,7 +90,7 @@ The native companion persists one of these states:
 
 Transitions:
 
-1. `UNINITIALISED -> MASTER_CREATED_PENDING_ROOTS`: generate separate hardware-backed P-256 signing and key-agreement keys through the platform adapter; display role-specific public fingerprints and record the hardware security level. On iOS use Secure Enclave; on Android prefer StrongBox, otherwise require a qualified TEE-backed key.
+1. `UNINITIALISED -> MASTER_CREATED_PENDING_ROOTS`: only after the owner explicitly starts first-run master setup, generate separate hardware-backed P-256 signing and key-agreement keys through the platform adapter; display role-specific public fingerprints and record the hardware security level. On iOS use Secure Enclave; on Android prefer StrongBox, otherwise require a qualified TEE-backed key. Existing-key loading is a separate operation; a missing keyset after restore, migration, or secure-storage invalidation must enter recovery and must never trigger automatic master-key regeneration.
 2. `MASTER_CREATED_PENDING_ROOTS -> ROOTS_PENDING_VERIFIER`: owner independently compares and accepts the release-authorisation fingerprint with fresh local user verification; validate TUF bootstrap; atomically commit initial trust state.
 3. `ROOTS_PENDING_VERIFIER -> TRUSTED`: only after Phase 4 qualification, owner compares and accepts the verifier fingerprint and proof-of-possession through an independently authenticated channel.
 4. Signature failure, owner/account mismatch, rollback, storage-integrity failure, ambiguous fingerprint, or interrupted commit fails closed and never advances trust.

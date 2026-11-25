@@ -112,6 +112,7 @@ $makeBundle = static function (array $overrides = []) use ($publicPem, $agreemen
         'expires_at' => $expires,
         'owner_id' => 'owner-test-001',
         'master_keyset' => [
+            'hardware_assurance' => 'secure-enclave',
             'signing' => ['kid' => 'master-sign-1', 'alg' => 'ES256', 'public_key_pem' => $publicPem],
             'key_agreement' => ['kid' => 'master-agree-1', 'alg' => 'ECDH-ES', 'public_key_pem' => $agreementPem],
         ],
@@ -287,6 +288,13 @@ $escapedDuplicate = str_replace('"schema_version":1', '"schema_version":1,"schem
 trustBundleReject(
     fn() => $validator->validate($escapedDuplicate, $trusted, 'owner-test-001', null, null, $now),
     'Duplicate JSON member names expressed with Unicode escapes must be rejected.'
+);
+
+$softwareMaster = json_decode($valid, true, 64, JSON_THROW_ON_ERROR);
+$softwareMaster['master_keyset']['hardware_assurance'] = 'software';
+trustBundleReject(
+    fn() => $validator->validate(json_encode($softwareMaster, JSON_THROW_ON_ERROR), $trusted, 'owner-test-001', null, null, $now),
+    'Software-only keys must not be accepted for master authority.'
 );
 
 $unknownField = json_decode($valid, true, 64, JSON_THROW_ON_ERROR);
