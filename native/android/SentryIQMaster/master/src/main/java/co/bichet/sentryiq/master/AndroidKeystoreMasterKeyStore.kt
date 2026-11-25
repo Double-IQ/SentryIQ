@@ -11,7 +11,7 @@ import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.Signature
-import java.security.interfaces.ECPrivateKey
+import java.security.interfaces.ECPublicKey
 import java.security.spec.ECGenParameterSpec
 import javax.crypto.KeyAgreement
 import javax.crypto.Mac
@@ -27,7 +27,7 @@ import javax.crypto.spec.SecretKeySpec
  */
 class AndroidKeystoreMasterKeyStore(
     private val aliasPrefix: String = "co.bichet.sentryiq.master",
-    private val teeAttestationPolicy: (List<java.security.cert.Certificate>, ByteArray) -> Boolean
+    private val teeAttestationPolicy: (List<java.security.cert.Certificate>, List<java.security.cert.Certificate>, ByteArray) -> Boolean
 ) {
     data class PublicKeyDescriptor(val kid: String, val alg: String, val publicKeyPem: String)
     data class PublicKeySet(
@@ -75,8 +75,9 @@ class AndroidKeystoreMasterKeyStore(
             val agreementEntry = store.getEntry(agreementAlias, null) as KeyStore.PrivateKeyEntry
             val level = assurance(signingEntry, agreementEntry)
             if (level == "android-tee-qualified") {
-                val chain = store.getCertificateChain(signingAlias)?.toList().orEmpty()
-                if (!teeAttestationPolicy(chain, challenge)) throw StoreException.UnqualifiedTee()
+                val signingChain = store.getCertificateChain(signingAlias)?.toList().orEmpty()
+                val agreementChain = store.getCertificateChain(agreementAlias)?.toList().orEmpty()
+                if (!teeAttestationPolicy(signingChain, agreementChain, challenge)) throw StoreException.UnqualifiedTee()
             }
             describe(signing.public.encoded, agreement.public.encoded, level)
         } catch (error: Throwable) {
@@ -169,7 +170,16 @@ class AndroidKeystoreMasterKeyStore(
     }
 
     private fun descriptor(role: String, alg: String, der: ByteArray): PublicKeyDescriptor {
-        val id = MessageDigest.getInstance("SHA-256").digest(der).joinToString("") { "%02x".format(it) }
+        val ec = java.security.KeyFactory.getInstance("EC")
+            .generatePublic(java.security.spec.X509EncodedKeySpec(der)) as ECPublicKey
+        fun coordinate(value: BigInteger): ByteArray {
+            val raw = value.toByteArray().let { if (it.size > 32 && it[0] == 0.toByte()) it.copyOfRange(1, it.size) else it }
+            require(raw.size <= 32)
+            return ByteArray(32 - raw.size) + raw
+        }
+        // Match iOS key IDs: SHA-256 over the 64-byte X||Y P-256 raw public key.
+        val rawPublic = coordinate(ec.w.affineX) + coordinate(ec.w.affineY)
+        val id = MessageDigest.getInstance("SHA-256").digest(rawPublic).joinToString("") { "%02x".format(it) }
         val pemBody = android.util.Base64.encodeToString(der, android.util.Base64.NO_WRAP)
         val pem = "-----BEGIN PUBLIC KEY-----\n" + pemBody.chunked(64).joinToString("\n") + "\n-----END PUBLIC KEY-----\n"
         return PublicKeyDescriptor("$role-$id", alg, pem)
