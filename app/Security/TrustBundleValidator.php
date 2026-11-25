@@ -147,12 +147,20 @@ final class TrustBundleValidator
         if (!is_array($collection->keys) || $collection->keys === []) {
             throw new RuntimeException('Trust bundle release-authorisation keys are empty or malformed.');
         }
-        $seen = [];\n        $previousKid = null;\n        foreach ($collection->keys as $key) {
+        $seen = [];
+        $previousKid = null;
+        foreach ($collection->keys as $key) {
             $this->validatePublicKey($key, 'ES256', true);
-            if ($key->purpose !== $purpose || isset($seen[$key->kid])\n                || ($previousKid !== null && strcmp($previousKid, $key->kid) >= 0)) {
+            if ($key->purpose !== $purpose || isset($seen[$key->kid])
+                || ($previousKid !== null && strcmp($previousKid, $key->kid) >= 0)) {
                 throw new RuntimeException('Trust bundle key purpose mismatch or duplicate key ID.');
             }
-            $seen[$key->kid] = true;\n            $previousKid = $key->kid;\n        }\n    }\n\n    private function validateVerifier(mixed $verifier): void
+            $seen[$key->kid] = true;
+            $previousKid = $key->kid;
+        }
+    }
+
+    private function validateVerifier(mixed $verifier): void
     {
         $this->assertExactObjectFields($verifier, ['qualification_state', 'policy_version', 'keys']);
         if (!in_array($verifier->qualification_state, ['pending', 'qualified'], true)
@@ -166,12 +174,20 @@ final class TrustBundleValidator
         if ($verifier->qualification_state === 'qualified' && $verifier->keys === []) {
             throw new RuntimeException('A qualified verifier must identify at least one verifier key.');
         }
-        $seen = [];\n        $previousKid = null;\n        foreach ($verifier->keys as $key) {
+        $seen = [];
+        $previousKid = null;
+        foreach ($verifier->keys as $key) {
             $this->validatePublicKey($key, 'ES256', true);
-            if ($key->purpose !== 'verifier-report' || isset($seen[$key->kid])\n                || ($previousKid !== null && strcmp($previousKid, $key->kid) >= 0)) {
+            if ($key->purpose !== 'verifier-report' || isset($seen[$key->kid])
+                || ($previousKid !== null && strcmp($previousKid, $key->kid) >= 0)) {
                 throw new RuntimeException('Verifier key purpose mismatch or duplicate key ID.');
             }
-            $seen[$key->kid] = true;\n            $previousKid = $key->kid;\n        }\n    }\n\n    private function validatePublicKey(mixed $key, string $expectedAlgorithm, bool $withPurpose = false): void
+            $seen[$key->kid] = true;
+            $previousKid = $key->kid;
+        }
+    }
+
+    private function validatePublicKey(mixed $key, string $expectedAlgorithm, bool $withPurpose = false): void
     {
         $fields = ['kid', 'alg', 'public_key_pem'];
         if ($withPurpose) {
@@ -287,11 +303,20 @@ final class TrustBundleValidator
             $revokedAt[$revocation->kid] = $this->parseUtc($revocation->effective_at);
         }
 
-        $accepted = [];\n        $seenSignatureKids = [];\n        $previousKid = null;\n        foreach ($signatures as $signature) {
+        $accepted = [];
+        $seenSignatureKids = [];
+        $previousKid = null;
+        foreach ($signatures as $signature) {
             $this->assertExactObjectFields($signature, ['kid', 'role', 'alg', 'signature']);
             if (!is_string($signature->kid) || !is_string($signature->role)
-                || $signature->alg !== 'ES256' || !is_string($signature->signature)\n                || isset($seenSignatureKids[$signature->kid])\n                || ($previousKid !== null && strcmp($previousKid, $signature->kid) >= 0)) {
-                throw new RuntimeException('Trust bundle signatures must be well-formed, unique, and sorted by key ID.');\n            }\n            $seenSignatureKids[$signature->kid] = true;\n            $previousKid = $signature->kid;\n            $anchor = $trusted[$signature->kid] ?? null;
+                || $signature->alg !== 'ES256' || !is_string($signature->signature)
+                || isset($seenSignatureKids[$signature->kid])
+                || ($previousKid !== null && strcmp($previousKid, $signature->kid) >= 0)) {
+                throw new RuntimeException('Trust bundle signatures must be well-formed, unique, and sorted by key ID.');
+            }
+            $seenSignatureKids[$signature->kid] = true;
+            $previousKid = $signature->kid;
+            $anchor = $trusted[$signature->kid] ?? null;
             if (!is_array($anchor) || (isset($revokedAt[$signature->kid]) && $revokedAt[$signature->kid] <= $now)
                 || $anchor['role'] !== $signature->role
                 || $anchor['alg'] !== $signature->alg
@@ -299,7 +324,14 @@ final class TrustBundleValidator
                 continue;
             }
             $raw = $this->decodeBase64Url($signature->signature);
-            if (strlen($raw) !== 64) {\n                throw new RuntimeException('ES256 signature must use the 64-byte JOSE encoding.');\n            }\n            $halfOrder = hex2bin('7fffffff800000007fffffffffffffffde737d56d38bcf4279dce5617e3192a8');\n            if (!is_string($halfOrder) || strcmp(substr($raw, 32, 32), $halfOrder) > 0\n                || substr($raw, 32, 32) === str_repeat(chr(0), 32)) {\n                throw new RuntimeException('ES256 signature must use a non-zero low-S canonical form.');\n            }
+            if (strlen($raw) !== 64) {
+                throw new RuntimeException('ES256 signature must use the 64-byte JOSE encoding.');
+            }
+            $halfOrder = hex2bin('7fffffff800000007fffffffffffffffde737d56d38bcf4279dce5617e3192a8');
+            if (!is_string($halfOrder) || strcmp(substr($raw, 32, 32), $halfOrder) > 0
+                || substr($raw, 32, 32) === str_repeat(chr(0), 32)) {
+                throw new RuntimeException('ES256 signature must use a non-zero low-S canonical form.');
+            }
             $der = $this->rawEcdsaToDer($raw);
             $publicKey = openssl_pkey_get_public($anchor['public_key_pem']);
             if ($publicKey === false) {
