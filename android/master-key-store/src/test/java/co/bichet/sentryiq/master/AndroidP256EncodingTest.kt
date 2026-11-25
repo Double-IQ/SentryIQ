@@ -30,7 +30,7 @@ class AndroidP256EncodingTest {
         assertTrue(pem.startsWith("-----BEGIN PUBLIC KEY-----\n"))
         assertTrue(pem.endsWith("-----END PUBLIC KEY-----\n"))
         assertArrayEquals(publicKey.encoded, decoded)
-        assertEquals(64, AndroidP256Encoding.rawPublicKey(publicKey).size)
+        val parsed = AndroidP256Encoding.parseSubjectPublicKeyInfoPEM(pem)\n        assertArrayEquals(publicKey.encoded, parsed.encoded)\n        assertEquals(64, AndroidP256Encoding.rawPublicKey(publicKey).size)
     }
 
     @Test
@@ -92,6 +92,20 @@ class AndroidP256EncodingTest {
         } catch (_: IllegalArgumentException) {
             // Expected.
         }
+    }
+
+    @Test
+    fun hkdfSha256MatchesRfc5869TestCaseOne() {
+        val inputKeyMaterial = ByteArray(22) { 0x0b }
+        val salt = hex("000102030405060708090a0b0c")
+        val info = hex("f0f1f2f3f4f5f6f7f8f9")
+        val expected = hex(
+            "3cb25f25faacd57a90434f64d0362f2a" +
+            "2d2d0a90cf1a5a4c5db02d56ecc4c5bf" +
+            "34007208d5b887185865"
+        )
+
+        assertArrayEquals(expected, HkdfSha256.derive(inputKeyMaterial, salt, info, 42))
     }
 
     private fun highSFromLow(low: ByteArray): ByteArray {
