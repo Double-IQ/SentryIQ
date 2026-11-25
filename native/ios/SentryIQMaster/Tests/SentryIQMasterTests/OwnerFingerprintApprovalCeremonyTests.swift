@@ -20,6 +20,7 @@ final class OwnerFingerprintApprovalCeremonyTests: XCTestCase {
             expiresAt: expiry,
             now: 1_700_000_000,
             confirmFingerprint: fingerprint,
+            verifyCandidateTrustChain: { _ in true },
             requireFreshUserVerification: { verified = true },
             sign: { message in signedTranscript = message; return Data([0x30, 0x01]) }
         )
@@ -57,6 +58,7 @@ final class OwnerFingerprintApprovalCeremonyTests: XCTestCase {
             expiresAt: 1_700_000_200,
             now: 1_700_000_000,
             confirmFingerprint: valid,
+            verifyCandidateTrustChain: { _ in true },
             requireFreshUserVerification: { verificationCalled = true },
             sign: { _ in signingCalled = true; return Data([1]) }
         ))
