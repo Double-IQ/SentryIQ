@@ -10,9 +10,15 @@ HOST_TAG="linux-x86_64"
 TOOLCHAIN="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/$HOST_TAG/bin"
 export PATH="$TOOLCHAIN:$PATH"
 
+cd "$CRATE"
+cargo build
+cargo run --bin uniffi-bindgen -- generate --library target/debug/libsentryiq_tuf_core.so --language kotlin --out-dir target/bindings/kotlin
+mkdir -p "$ANDROID_MODULE/src/main/java/co/bichet/sentryiq/tuf"
+cp target/bindings/kotlin/co/bichet/sentryiq/tuf/sentryiq_tuf_core.kt "$ANDROID_MODULE/src/main/java/co/bichet/sentryiq/tuf/"
+
 rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
 
-cargo build --manifest-path "$CRATE/Cargo.toml" --release --target aarch64-linux-android
+cargo build --release --target aarch64-linux-android
 cargo build --manifest-path "$CRATE/Cargo.toml" --release --target armv7-linux-androideabi
 cargo build --manifest-path "$CRATE/Cargo.toml" --release --target x86_64-linux-android
 
