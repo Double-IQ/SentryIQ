@@ -55,12 +55,11 @@ class ProtectedTrustStateStore(
 
     private val file = File(context.noBackupFilesDir, "sentryiq-trust-state-v1.bin")
     private val keyAlias = "co.bichet.sentryiq.trust-state-aes-gcm.v1"
-    private val lock = Any()
 
     fun load(
         anchor: RegistryAnchor,
         nowEpochSeconds: Long = System.currentTimeMillis() / 1000L
-    ): TrustState = synchronized(lock) {
+    ): TrustState = synchronized(processLock) {
         requireValidAnchor(anchor, nowEpochSeconds)
         if (!file.exists()) throw StateException("No protected trust state exists; bootstrap is required.")
         if (file.length() !in 1..MAX_ENCODED_STATE_BYTES.toLong()) {
@@ -231,6 +230,9 @@ class ProtectedTrustStateStore(
         MessageDigest.getInstance("SHA-256").digest(bytes)
 
     companion object {
+        // Shared by all store instances in this process so concurrent callers
+        // cannot race the read/validate/atomic-replace sequence.
+        private val processLock = Any()
         private const val MAX_ENCODED_STATE_BYTES = 4 * 1024 * 1024 + 128
         private val MAGIC = byteArrayOf(0x53, 0x49, 0x51, 0x54, 0x53, 0x01)
     }
