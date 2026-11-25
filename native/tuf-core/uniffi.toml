@@ -1,0 +1,9 @@
+[bindings.kotlin]
+package_name = "co.bichet.sentryiq.tuf"
+android = true
+generate_immutable_records = true
+
+[bindings.swift]
+module_name = "SentryIQTufCore"
+ffi_module_name = "SentryIQTufCoreFFI"
+generate_immutable_records = true
