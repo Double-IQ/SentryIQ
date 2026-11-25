@@ -43,7 +43,7 @@ $details = openssl_pkey_get_details($private);
 if (!is_array($details) || !is_string($details['key'] ?? null)) throw new RuntimeException('Unable to export test public key.');
 $publicPem = $details['key'];
 $resolver = static fn(string $requestedOwner): array => [
-    'owner_id' => $owner, 'key_id' => 'master-signing-test-1',
+    'owner_id' => $requestedOwner, 'key_id' => 'master-signing-test-1',
     'role' => 'master-signing', 'algorithm' => 'ES256', 'status' => 'active',
     'public_key_pem' => $publicPem,
 ];
@@ -66,7 +66,6 @@ $bad = $challenges->issue($owner, $digest, $now, 300);
 ownerApprovalReject(fn() => $verifier->verifyAndRecord($bad, $owner, $digest, ownerApprovalB64(random_bytes(64)), $now), 'Invalid signatures must fail.');
 ownerApprovalReject(fn() => $challenges->consume($bad, $owner, $digest, $now), 'Failed signature submissions must burn their challenge.');
 
-$wrongRoleResolver = static fn(string $requestedOwner): array => $resolver($requestedOwner) + ['wrong' => true];
 $wrongRoleResolverResult = new OwnerApprovalProofVerifier($challenges, $dir, static function (string $requestedOwner) use ($publicPem, $owner): array {
     return ['owner_id' => $owner, 'key_id' => 'release-key', 'role' => 'release-authorisation', 'algorithm' => 'ES256', 'status' => 'active', 'public_key_pem' => $publicPem];
 });
