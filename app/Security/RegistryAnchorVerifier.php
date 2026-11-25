@@ -18,6 +18,7 @@ final class RegistryAnchorVerifier
     private const MAX_PAYLOAD_BYTES = 4096;
     private const MAX_AGE_SECONDS = 86400;
     private const MAX_FUTURE_SKEW_SECONDS = 60;
+    private const MAX_SEQUENCE = '18446744073709551615';
     private const P256_HALF_ORDER = '7fffffff800000007fffffffffffffffde737d56d38bcf4279dce5617e3192a8';
 
     /**
@@ -33,7 +34,7 @@ final class RegistryAnchorVerifier
         ?string $currentBundleDigest,
         ?int $now = null
     ): array {
-        if ($expectedOwnerId === '' || strlen($expectedOwnerId) > 256
+        if (!$this->validOwner($expectedOwnerId)
             || $signedPayload === '' || strlen($signedPayload) > self::MAX_PAYLOAD_BYTES
             || strlen($signature) !== 64) {
             throw new RuntimeException('Registry anchor input is malformed or oversized.');
@@ -56,8 +57,8 @@ final class RegistryAnchorVerifier
         if ($actual !== $expected) throw new RuntimeException('Registry anchor fields do not match the protocol schema.');
 
         if ($payload->type !== 'SENTRYIQ-REGISTRY-ANCHOR' || $payload->schema_version !== 1
-            || !is_string($payload->owner_id) || !hash_equals($expectedOwnerId, $payload->owner_id)
-            || !is_string($payload->sequence) || !preg_match('/^[1-9][0-9]{0,19}$/D', $payload->sequence)
+            || !$this->validOwner($payload->owner_id) || !hash_equals($expectedOwnerId, $payload->owner_id)
+            || !$this->validSequence($payload->sequence)
             || !$this->validDigest($payload->bundle_sha256)
             || !is_int($payload->issued_at) || !is_int($payload->expires_at)
             || !is_string($payload->signer_kid) || !preg_match('/^[A-Za-z0-9._:-]{1,128}$/D', $payload->signer_kid)
@@ -151,7 +152,7 @@ final class RegistryAnchorVerifier
             if ($sequence !== '1' || $previous !== null) throw new RuntimeException('Initial registry anchor must start at sequence one.');
             return;
         }
-        if (!preg_match('/^[1-9][0-9]{0,19}$/D', $currentSequence) || !$this->validDigest($currentDigest)) {
+        if (!$this->validSequence($currentSequence) || !$this->validDigest($currentDigest)) {
             throw new RuntimeException('Current registry state is malformed.');
         }
         $comparison = $this->compareDecimal($sequence, $currentSequence);
@@ -205,6 +206,18 @@ final class RegistryAnchorVerifier
             $digits[$i] = '0';
         }
         return count($digits) >= 20 ? null : '1' . implode('', $digits);
+    }
+
+    private function validOwner(mixed $value): bool
+    {
+        return is_string($value) && preg_match('/^[A-Za-z0-9._:-]{1,256}$/D', $value) === 1;
+    }
+
+    private function validSequence(mixed $value): bool
+    {
+        return is_string($value)
+            && preg_match('/^[1-9][0-9]{0,19}$/D', $value) === 1
+            && $this->compareDecimal($value, self::MAX_SEQUENCE) <= 0;
     }
 
     private function validDigest(mixed $value): bool
