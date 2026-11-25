@@ -33,3 +33,17 @@ jobs:
 
       - name: Test post-install diagnostic access controls
         run: php tests/post_install_diagnostic_access.test.php
+
+  ios-master-core:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Build iOS master companion core
+        run: swift build --package-path native/ios/SentryIQMaster
+
+      - name: Run deterministic cryptographic encoding tests
+        run: swift test --package-path native/ios/SentryIQMaster
