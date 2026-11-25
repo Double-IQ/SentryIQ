@@ -69,6 +69,10 @@ if (!openssl_sign($transcript . 'tampered', $badSignature, $private, OPENSSL_ALG
 ownerApprovalReject(fn() => $verifier->verifyAndRecord($bad, $owner, $digest, ownerApprovalB64($badSignature), $now), 'Invalid signatures must fail.');
 ownerApprovalReject(fn() => $challenges->consume($bad, $owner, $digest, $now), 'Failed signature submissions must burn their challenge.');
 
+$malformed = $challenges->issue($owner, $digest, $now, 300);
+ownerApprovalReject(fn() => $verifier->verifyAndRecord($malformed, $owner, $digest, 'not-a-signature', $now), 'Malformed signatures must fail.');
+ownerApprovalReject(fn() => $challenges->consume($malformed, $owner, $digest, $now), 'Malformed signature submissions must burn their challenge.');
+
 $wrongRoleResolverResult = new OwnerApprovalProofVerifier($challenges, $dir, static function (string $requestedOwner) use ($publicPem, $owner): array {
     return ['owner_id' => $owner, 'key_id' => 'release-key', 'role' => 'release-authorisation', 'algorithm' => 'ES256', 'status' => 'active', 'public_key_pem' => $publicPem];
 });
