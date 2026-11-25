@@ -317,11 +317,15 @@ final class TrustBundleValidator
             $seenSignatureKids[$signature->kid] = true;
             $previousKid = $signature->kid;
             $anchor = $trusted[$signature->kid] ?? null;
-            if (!is_array($anchor) || (isset($revokedAt[$signature->kid]) && $revokedAt[$signature->kid] <= $now)
-                || $anchor['role'] !== $signature->role
-                || $anchor['alg'] !== $signature->alg
+            if (!is_array($anchor)) {
+                throw new RuntimeException('Trust bundle signature uses an unknown signer key ID.');
+            }
+            if (isset($revokedAt[$signature->kid]) && $revokedAt[$signature->kid] <= $now) {
+                throw new RuntimeException('Trust bundle signature uses a revoked signer.');
+            }
+            if ($anchor['role'] !== $signature->role || $anchor['alg'] !== $signature->alg
                 || !in_array($signature->role, ['release-authorisation', 'master-signing'], true)) {
-                continue;
+                throw new RuntimeException('Trust bundle signature role or algorithm does not match its pinned key.');
             }
             $raw = $this->decodeBase64Url($signature->signature);
             if (strlen($raw) !== 64) {
@@ -344,8 +348,8 @@ final class TrustBundleValidator
             }
             if ($result === 1) {
                 $accepted[$signature->kid] = true;
-            } elseif ($result === -1) {
-                throw new RuntimeException('Trust bundle signature verification failed internally.');
+            } else {
+                throw new RuntimeException('Trust bundle detached signature is invalid.');
             }
         }
         return array_keys($accepted);
