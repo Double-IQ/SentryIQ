@@ -8,9 +8,17 @@ TARGET="$CRATE/target"
 HEADER_DIR="$TARGET/ios-headers"
 SIM_DIR="$TARGET/ios-simulator-universal"
 
+cd "$CRATE"
+cargo build
+cargo run --bin uniffi-bindgen -- generate --library target/debug/libsentryiq_tuf_core.dylib --language swift --out-dir target/bindings/swift
+mkdir -p "$IOS_PACKAGE/Sources/SentryIQTufCoreBindings" "$IOS_PACKAGE/Sources/SentryIQTufCoreFFI/include"
+cp target/bindings/swift/SentryIQTufCore.swift "$IOS_PACKAGE/Sources/SentryIQTufCoreBindings/"
+cp target/bindings/swift/SentryIQTufCoreFFI.h "$IOS_PACKAGE/Sources/SentryIQTufCoreFFI/include/"
+cp target/bindings/swift/SentryIQTufCoreFFI.modulemap "$IOS_PACKAGE/Sources/SentryIQTufCoreFFI/include/module.modulemap"
+
 rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
 
-cargo build --manifest-path "$CRATE/Cargo.toml" --release --target aarch64-apple-ios
+cargo build --release --target aarch64-apple-ios
 cargo build --manifest-path "$CRATE/Cargo.toml" --release --target aarch64-apple-ios-sim
 cargo build --manifest-path "$CRATE/Cargo.toml" --release --target x86_64-apple-ios
 
