@@ -113,7 +113,7 @@ If the owner chooses PWA-only master authority, the design must explicitly downg
 | Logs/metadata | App logs include operational identifiers and some exception/filename data | Typed allowlists, redaction tests, retention, provider-log review |
 | Backups | Runbook exists; automated backup and verified restore do not | Implement encrypted consistent backup and isolated restore test |
 | Device authority | Existing passkeys are not the new master-signed device registry | Implement master-signed certificates, registry, scopes, epochs, and revocation |
-| Verifier | HelioHost is proposed, not provisioned/qualified | Complete Phase 2 design and Phase 4 qualification before any deployment |
+| Verifier | HelioHost is proposed, not provisioned/qualified | Phase 2.3–2.9 design is complete; qualify HelioHost under Phase 4 before any deployment |
 
 ## 6. Implementation readiness and sequencing
 
@@ -123,8 +123,8 @@ Before implementation:
 1. Owner decides native companion and master key suite.
 2. Owner approves recovery material separation and representation.
 3. Minimum supported browser/device matrix and Argon2id resource budget are tested.
-4. Phase 0.6 reconciliation is completed: release-attestation policy, private-host contract, Node 4 event contract, docs, workflows, and configuration are reconciled to the new origin/trust topology.
-5. Phase 2 designs and tests release manifest, trust-root distribution, HelioHost verifier, browser-delivered asset measurement, freshness, replay protection, and phone-side fail-closed gate.
+4. Phase 0.6 reconciliation is complete and merged in PR #161. The legacy topology is documented as retired; no legacy nodes were provisioned.
+5. Phase 2.1–2.2 release lifecycle and canonical manifest designs are merged in PRs #162–#163. Phase 2.3–2.9 trust-root, single-HelioHost verifier, public measurement, private inspection, report protocol, phone gate, and adversarial baseline designs are merged in PR #175. These are design and regression-baseline artifacts only; the target runtime services and phone-side enforcement are not implemented.
 6. Phase 4 qualifies HelioHost capabilities and isolation before a non-production verifier is considered.
 7. Phase 5 implements and tests client-side Vault/Document migration, Gallery legacy retirement, device lifecycle, recovery, backups, and rollback.
 8. Owner separately authorises production key initialisation, migration, release, and deployment.
@@ -133,7 +133,7 @@ Do not jump from design completion to production provisioning. A passing reposit
 
 ## 7. Immediate next work
 
-The next planned task is **Phase 0.6 reconciliation**, which remains unchecked in the implementation plan. It must close the remaining contract/document/workflow/configuration reconciliation against the agreed origin and trust topology. After that, resolve the owner decisions above and proceed to Phase 2 design. No legacy source is to be deleted merely to make the new plan look clean; preserve it until replacement tests and migration evidence exist.
+Phase 0.6 and Phase 2.1–2.9 are complete as repository reconciliation, design, and baseline regression work. The next project gate is the unresolved owner decisions below, which must be settled before Phase 3 implementation. HelioHost capability/isolation qualification remains Phase 4 work. No production keys, trust roots, verifier service, phone gate, or deployment have been provisioned or activated. Preserve legacy source until dependency tracing, replacement tests, and migration evidence justify removal.
 
 ## 8. Owner review checklist
 
@@ -147,4 +147,4 @@ The next planned task is **Phase 0.6 reconciliation**, which remains unchecked i
 - [ ] Review device certificate lifetime and registry freshness.
 - [ ] Approve the residual browser/OS and same-origin JavaScript risks.
 
-**Conclusion:** Phase 1 has produced a coherent, repository-backed security design. The remaining blocker is owner acceptance of the platform and recovery decisions, followed by Phase 0.6 reconciliation and Phase 2 release/verifier design. No production implementation or deployment is authorised by this document.
+**Conclusion (updated 2026-11-25):** Phase 0.6 reconciliation and Phase 2.1–2.9 design/baseline regression work are merged. The target architecture remains one SentryIQ application host, one independent HelioHost verifier, and the owner's phone as master device. The next gate is owner acceptance of platform, key custody, recovery, scope, and residual-risk decisions, followed by separately authorised implementation and HelioHost qualification. No production implementation, key generation, provisioning, or deployment is authorised by this document.
