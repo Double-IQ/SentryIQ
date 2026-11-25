@@ -6,6 +6,16 @@ require_once __DIR__ . '/../app/Security/BootstrapChallengeStore.php';
 
 use SentryIQ\Security\BootstrapChallengeStore;
 
+if (($argv[1] ?? '') === 'consume-worker') {
+    try {
+        $workerStore = new \\SentryIQ\\Security\\BootstrapChallengeStore((string)$argv[2]);
+        $workerStore->consume((string)$argv[3], (string)$argv[4], (string)$argv[5], (int)$argv[6]);
+        exit(0);
+    } catch (Throwable) {
+        exit(1);
+    }
+}
+
 function bootstrapChallengeAssert(bool $condition, string $message): void
 {
     if (!$condition) throw new RuntimeException($message);
@@ -74,6 +84,26 @@ bootstrapChallengeReject(
     fn() => $store->issue($owner, 'bad-digest', 5000),
     'Challenge issue must require a SHA-256 bundle digest.'
 );
+
+$raceChallenge = $store->issue($owner, $digest, 7000);
+$workers = [];
+for ($i = 0; $i < 2; $i++) {
+    $command = [PHP_BINARY, __FILE__, 'consume-worker', $root, $raceChallenge, $owner, $digest, '7001'];
+    $process = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+    if (!is_resource($process)) throw new RuntimeException('Unable to launch concurrent challenge consumer.');
+    fclose($pipes[0]);
+    $workers[] = ['process' => $process, 'pipes' => $pipes];
+}
+$statuses = [];
+foreach ($workers as $worker) {
+    stream_get_contents($worker['pipes'][1]);
+    stream_get_contents($worker['pipes'][2]);
+    fclose($worker['pipes'][1]);
+    fclose($worker['pipes'][2]);
+    $statuses[] = proc_close($worker['process']);
+}
+sort($statuses);
+bootstrapChallengeAssert($statuses === [0, 1], 'Concurrent challenge submissions must have exactly one successful consumer.');
 
 $storePath = $root . '/.bootstrap-challenges.json';
 bootstrapChallengeAssert(is_file($storePath), 'Challenge state must be durably stored.');
