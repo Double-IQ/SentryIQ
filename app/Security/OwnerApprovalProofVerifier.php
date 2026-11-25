@@ -235,7 +235,7 @@ final class OwnerApprovalProofVerifier
                 if ((filesize($path) ?: 0) > 4_194_304) throw new RuntimeException('Approval receipt store exceeds its size limit.');
                 $raw = @file_get_contents($path);
                 $decoded = is_string($raw) ? json_decode($raw, true, 16, JSON_THROW_ON_ERROR) : null;
-                if (!is_array($decoded) || ($decoded['version'] ?? null) !== self::RECEIPT_VERSION || !is_array($decoded['receipts'] ?? null)) {
+                if (!is_array($decoded) || ($decoded['version'] ?? null) !== self::RECEIPT_VERSION || !is_array($decoded['receipts'] ?? null) || !array_is_list($decoded['receipts'])) {
                     throw new RuntimeException('Approval receipt store is corrupt; refusing to reset it.');
                 }
                 $records = $decoded['receipts'];
@@ -244,9 +244,10 @@ final class OwnerApprovalProofVerifier
             }
             if (count($records) >= 10000) throw new RuntimeException('Approval receipt capacity reached.');
             foreach ($records as $record) {
-                if (is_array($record) && isset($record['challenge_sha256'])
-                    && is_string($record['challenge_sha256'])
-                    && hash_equals($record['challenge_sha256'], $receipt['challenge_sha256'])) {
+                if (!self::validReceiptRecord($record)) {
+                    throw new RuntimeException('Approval receipt store contains an invalid record; refusing to append.');
+                }
+                if (hash_equals($record['challenge_sha256'], $receipt['challenge_sha256'])) {
                     throw new RuntimeException('An approval receipt already exists for this challenge.');
                 }
             }
@@ -272,6 +273,34 @@ final class OwnerApprovalProofVerifier
             flock($lock, LOCK_UN);
             fclose($lock);
         }
+    }
+
+    private static function validReceiptRecord(mixed $record): bool
+    {
+        return is_array($record)
+            && is_string($record['receipt_id'] ?? null)
+            && preg_match('/^[a-f0-9]{32}$/D', $record['receipt_id']) === 1
+            && ($record['challenge_purpose'] ?? null) === 'owner-bootstrap-approval'
+            && ($record['protocol'] ?? null) === 'SENTRYIQ-OWNER-BOOTSTRAP-APPROVAL-V2'
+            && self::validOwner($record['owner_id'] ?? '')
+            && self::validToken($record['master_key_id'] ?? '')
+            && self::validDigest($record['bundle_sha256'] ?? '')
+            && self::validToken($record['root_role'] ?? '')
+            && self::validToken($record['root_key_id'] ?? '')
+            && self::validDigest($record['root_fingerprint'] ?? '')
+            && self::validDigest($record['device_keyset_digest'] ?? '')
+            && self::validToken($record['purpose'] ?? '')
+            && is_string($record['challenge'] ?? null)
+            && preg_match('/^[A-Za-z0-9_-]{43}$/D', $record['challenge']) === 1
+            && self::validDigest($record['challenge_sha256'] ?? '')
+            && ($record['signature_encoding'] ?? null) === 'ecdsa-der-base64url'
+            && is_string($record['signature'] ?? null)
+            && preg_match('/^[A-Za-z0-9_-]{94,96}$/D', $record['signature']) === 1
+            && is_int($record['challenge_expires_at'] ?? null)
+            && $record['challenge_expires_at'] > 0
+            && is_int($record['approved_at'] ?? null)
+            && $record['approved_at'] > 0
+            && self::validDigest($record['signature_sha256'] ?? '');
     }
 
     private static function transcript(
