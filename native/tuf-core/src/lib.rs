@@ -463,11 +463,10 @@ mod tests {
         ));
     }
 
-
     #[test]
     fn target_search_resolves_a_path_matching_delegated_role() {
         let expiry = Timestamp::from_second(2_000_000_000).unwrap();
-        let mut top_level = Targets::new(expiry);
+        let mut top_level = Targets::new(expiry.clone());
         let mut role = DelegatedRole::new("release", Vec::new(), 1);
         role.paths = Some(vec!["releases/*".to_string()]);
         let mut delegations = Delegations::new();
