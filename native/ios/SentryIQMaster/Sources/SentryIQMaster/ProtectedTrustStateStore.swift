@@ -60,6 +60,7 @@ public final class ProtectedTrustStateStore {
         let bundle: Data
     }
 
+    private static let processLock = NSRecursiveLock()
     private let service: String
     private let account = "accepted-trust-bundle-v1"
     private let verifyRegistryAnchor: (TrustRegistryAnchor) -> Bool
@@ -73,6 +74,8 @@ public final class ProtectedTrustStateStore {
     }
 
     public func load(anchor: TrustRegistryAnchor, now: UInt64 = UInt64(Date().timeIntervalSince1970)) throws -> ProtectedTrustState {
+        Self.processLock.lock()
+        defer { Self.processLock.unlock() }
         try validate(anchor, now: now)
         guard let data = try readItem() else { throw StoreError.missingState }
         let archive: Archive
@@ -92,6 +95,8 @@ public final class ProtectedTrustStateStore {
     }
 
     public func save(bundle: Data, anchor: TrustRegistryAnchor, now: UInt64 = UInt64(Date().timeIntervalSince1970)) throws {
+        Self.processLock.lock()
+        defer { Self.processLock.unlock() }
         try validate(anchor, now: now)
         let digest = Data(SHA256.hash(data: bundle))
         guard digest == anchor.bundleSHA256 else { throw StoreError.digestMismatch }
