@@ -21,8 +21,8 @@ final class OwnerFingerprintApprovalCeremonyTests: XCTestCase {
             outOfBandFingerprint: bundleFP ?? fp(bundle), ownerIdentifier: owner,
             rootRole: role, rootKeyID: "release-root-1", outOfBandRootFingerprint: fp(root),
             deviceKeysetDigest: fp(keyset), purpose: purpose, challenge: challenge,
-            expiresAt: expires ?? expiry, now: now, confirmFingerprint: fp(bundle),
-            confirmRootFingerprint: rootFP ?? fp(root), verifyCandidateTrustChain: verify,
+            expiresAt: expires ?? expiry, now: now, confirmFingerprint: { fp(bundle) },
+            confirmRootFingerprint: { rootFP ?? fp(root) }, verifyCandidateTrustChain: verify,
             requireFreshUserVerification: fresh, sign: sign)
     }
 
