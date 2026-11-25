@@ -46,7 +46,9 @@ class ProtectedTrustStateStore(
         val signature: ByteArray,
         val issuedAt: Long,
         val expiresAt: Long,
-        val previousBundleSha256: ByteArray?
+        val previousBundleSha256: ByteArray?,
+        val ownerId: String,
+        val signerKeyId: String
     )
 
     data class TrustState(val sequence: Long, val bundleSha256: ByteArray, val bundle: ByteArray)
