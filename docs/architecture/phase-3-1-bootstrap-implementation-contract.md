@@ -124,7 +124,7 @@ The native ceremony implementation uses the same transcript on iOS and Android. 
 6. Challenge lifetime is at most five minutes. Expired, malformed, or non-32-byte challenges are rejected. The verifier must atomically consume each challenge exactly once and validate the returned signature, owner, bundle digest, root role/key ID/fingerprint, device keyset, purpose, and expiry. Duplicate completion, replay, or any context substitution is rejected.
 7. A successful local signature is only an approval proof. It does not itself commit roots, set the phone to `TRUSTED`, or qualify the HelioHost verifier.
 
-The iOS and Android implementations expose callbacks for native confirmation, fresh user verification, and the hardware-backed signer. The application must supply real platform UI/authentication integration; test callbacks are not production approval.
+The iOS and Android implementations expose callbacks for native confirmation, fresh user verification, and the hardware-backed signer. The candidate-validation callback receives the selected role, key ID, root SPKI fingerprint, device-keyset digest, and purpose; it must prove that the selected key is actually present in the validated bundle and that the digest describes the active local master keyset. A plain bundle-validity result is insufficient. The application must supply real platform UI/authentication integration; test callbacks are not production approval.
 
 ## 7. Persistence and anti-rollback
 
