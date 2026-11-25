@@ -46,7 +46,13 @@ final class SecureEnclaveMasterKeyStoreTests: XCTestCase {
 
         XCTAssertEqual(normalized.count, 64)
         XCTAssertTrue(key.publicKey.isValidSignature(normalizedSignature, for: message))
-        XCTAssertFalse(normalized.suffix(32).lexicographicallyPrecedes(Data(repeating: 0, count: 32)))
+        let halfOrder = Data([
+            0x7F, 0xFF, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x00,
+            0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+            0xDE, 0x73, 0x7D, 0x56, 0xD3, 0x8B, 0xCF, 0x42,
+            0x79, 0xDC, 0xE5, 0x61, 0x7E, 0x31, 0x92, 0xA8
+        ])
+        XCTAssertFalse(halfOrder.lexicographicallyPrecedes(Data(normalized.suffix(32))))
     }
 
     func testHighSFormNormalizesToEquivalentLowSForm() throws {
