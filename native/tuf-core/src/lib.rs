@@ -142,6 +142,10 @@ pub fn verify_tuf_metadata_refresh(
         || candidate_roots
             .iter()
             .any(|root| root.is_empty() || root.len() > MAX_ROOT_BYTES)
+        || !within_byte_budget(
+            candidate_roots.iter().map(Vec::as_slice),
+            MAX_ROOT_CHAIN_BYTES,
+        )
     {
         return false;
     }
@@ -428,6 +432,23 @@ mod tests {
             ),
             -1
         );
+    }
+
+    #[test]
+    fn metadata_refresh_rejects_aggregate_root_chain_over_budget() {
+        let oversized_chain = vec![vec![1u8; MAX_ROOT_BYTES]; 5];
+        assert!(!verify_tuf_metadata_refresh(
+            b"root".to_vec(),
+            vec![0; 32],
+            oversized_chain,
+            None,
+            None,
+            None,
+            vec![1],
+            vec![1],
+            vec![1],
+            1_700_000_000
+        ));
     }
 
     #[test]
