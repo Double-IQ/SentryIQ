@@ -361,7 +361,7 @@ pub fn verify_tuf_target_delegation(
     false
 }
 
-fn within_byte_budget<'a>(items: impl Iterator<Item = &'a [u8]>, limit: usize) -> bool {
+fn within_byte_budget<'a>(mut items: impl Iterator<Item = &'a [u8]>, limit: usize) -> bool {
     items
         .try_fold(0usize, |total, item| total.checked_add(item.len()))
         .is_some_and(|total| total <= limit)
