@@ -104,4 +104,78 @@ try {
 }
 assertSigner($invalidKeyRejected, 'Malformed private keys must be rejected.');
 
+// Adversarial signature integrity: modifying signed payload bytes must invalidate the signature.
+$envelope = json_decode($reportA, true, 8, JSON_THROW_ON_ERROR);
+$rawPayload = base64_decode($envelope['payload'], true);
+$signature = base64_decode($envelope['signature'], true);
+assertSigner(is_string($rawPayload) && is_string($signature), 'Generated report envelope must be decodable.');
+$tamperedPayload = $rawPayload . ' ';
+$tamperedPayloadEnvelope = json_encode([
+    'payload' => base64_encode($tamperedPayload),
+    'signature' => $envelope['signature'],
+], JSON_THROW_ON_ERROR);
+$tamperedPayloadRejected = false;
+try {
+    $verifier->assertTwoNodeApproval(
+        [$tamperedPayloadEnvelope, $reportB], '0.1.3', $commit, $digest, $nonce
+    );
+} catch (RuntimeException) {
+    $tamperedPayloadRejected = true;
+}
+assertSigner($tamperedPayloadRejected, 'A report with modified signed payload bytes must be rejected.');
+
+// Adversarial signature integrity: a changed detached signature must be rejected.
+$signature[0] = chr(ord($signature[0]) ^ 0x01);
+$tamperedSignatureEnvelope = json_encode([
+    'payload' => $envelope['payload'],
+    'signature' => base64_encode($signature),
+], JSON_THROW_ON_ERROR);
+$tamperedSignatureRejected = false;
+try {
+    $verifier->assertTwoNodeApproval(
+        [$tamperedSignatureEnvelope, $reportB], '0.1.3', $commit, $digest, $nonce
+    );
+} catch (RuntimeException) {
+    $tamperedSignatureRejected = true;
+}
+assertSigner($tamperedSignatureRejected, 'A modified detached signature must be rejected.');
+
+// A report signed by a key that is not pinned under the claimed node identity is rejected.
+$wrongKeyPair = sodium_crypto_sign_keypair();
+$wrongKeyVerifier = new IntegrityReportVerifier([
+    'integrity-a' => base64_encode(sodium_crypto_sign_publickey($wrongKeyPair)),
+    'integrity-b' => base64_encode($publicB),
+], $clock);
+$wrongKeyRejected = false;
+try {
+    $wrongKeyVerifier->assertTwoNodeApproval([$reportA, $reportB], '0.1.3', $commit, $digest, $nonce);
+} catch (RuntimeException) {
+    $wrongKeyRejected = true;
+}
+assertSigner($wrongKeyRejected, 'A report signed by an unpinned key must be rejected.');
+
+// Two reports from the same identity do not satisfy the legacy two-node policy.
+$duplicateIdentityRejected = false;
+try {
+    $verifier->assertTwoNodeApproval([$reportA, $reportA], '0.1.3', $commit, $digest, $nonce);
+} catch (RuntimeException) {
+    $duplicateIdentityRejected = true;
+}
+assertSigner($duplicateIdentityRejected, 'Duplicate signer identities must be rejected.');
+
+// Reports outside their five-minute validity window are rejected.
+$staleClock = static fn(): int => 1794200301;
+$staleVerifier = new IntegrityReportVerifier([
+    'integrity-a' => base64_encode($publicA),
+    'integrity-b' => base64_encode($publicB),
+], $staleClock);
+$staleRejected = false;
+try {
+    $staleVerifier->assertTwoNodeApproval([$reportA, $reportB], '0.1.3', $commit, $digest, $nonce);
+} catch (RuntimeException) {
+    $staleRejected = true;
+}
+assertSigner($staleRejected, 'Expired reports must be rejected.');
+
+
 echo "Integrity report signer tests passed.\n";
