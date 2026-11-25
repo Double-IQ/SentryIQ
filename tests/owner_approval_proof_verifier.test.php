@@ -120,6 +120,8 @@ ownerApprovalAssert($receipt['purpose'] === $purpose, 'Receipt must bind the ope
 $receiptFile = $dir . '/.owner-approval-receipts.json';
 $stored = json_decode((string)file_get_contents($receiptFile), true);
 ownerApprovalAssert(count($stored['receipts'] ?? []) === 1, 'A successful proof must create exactly one durable receipt.');
+ownerApprovalAssert(($stored['receipts'][0]['challenge'] ?? null) === $challenge, 'Receipt must retain the exact consumed challenge.');
+ownerApprovalAssert(($stored['receipts'][0]['signature'] ?? null) === ownerApprovalB64($signature), 'Receipt must retain the verifiable owner signature.');
 ownerApprovalAssert(((fileperms($receiptFile) ?: 0) & 0777) === 0600, 'Receipt file must be owner-only.');
 ownerApprovalReject(fn() => $verifier->verifyAndRecord(
     $challenge, $owner, $canonicalBundle, $digest, $rootRole, $rootKeyId,
