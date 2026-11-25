@@ -17,3 +17,7 @@ private_data/vault_icons/
 native/tuf-core/target/
 native/android/SentryIQMaster/master/src/main/jniLibs/
 native/ios/SentryIQMaster/Libraries/SentryIQTufCore.xcframework/
+native/android/SentryIQMaster/master/src/main/java/co/bichet/sentryiq/tuf/sentryiq_tuf_core.kt
+native/ios/SentryIQMaster/Sources/SentryIQTufCoreBindings/SentryIQTufCore.swift
+native/ios/SentryIQMaster/Sources/SentryIQTufCoreFFI/include/SentryIQTufCoreFFI.h
+native/ios/SentryIQMaster/Sources/SentryIQTufCoreFFI/include/module.modulemap
