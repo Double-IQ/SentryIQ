@@ -18,7 +18,7 @@ class OwnerFingerprintApprovalCeremonyTest {
         expires: Long = expiry, verify: (ByteArray, String, String, ByteArray, ByteArray, String) -> Boolean = { _, _, _, _, _, _ -> true },
         fresh: () -> Unit = {}, sign: (ByteArray) -> ByteArray = { byteArrayOf(0x30, 1) }
     ) = OwnerFingerprintApprovalCeremony.approve(bundle, bundleFP, owner, role, "release-root-1",
-        fp(root), fp(keyset), purpose, challenge, expires, fp(bundle), rootFP, verify, fresh, sign, now)
+        fp(root), fp(keyset), purpose, challenge, expires, { fp(bundle) }, { rootFP }, verify, fresh, sign, now)
 
     @Test fun proofBindsAllApprovalContext() {
         var transcript = ByteArray(0); var fresh = false
