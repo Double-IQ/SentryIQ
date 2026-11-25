@@ -177,7 +177,7 @@ final class BootstrapChallengeStore
                 if (function_exists('fsync') && !fsync($handle)) {
                     throw new RuntimeException('Unable to sync bootstrap challenge update.');
                 }
-            } catch (\\Throwable $error) {
+            } catch (\Throwable $error) {
                 fclose($handle);
                 @unlink($tempPath);
                 throw $error;
