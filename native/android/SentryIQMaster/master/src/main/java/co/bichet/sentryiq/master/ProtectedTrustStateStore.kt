@@ -9,6 +9,8 @@ import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.KeyStore
 import java.security.MessageDigest
 import javax.crypto.Cipher
@@ -75,7 +77,14 @@ class ProtectedTrustStateStore(
             stream.write(encoded)
             stream.fd.sync()
         }
-        if (!temporary.renameTo(file)) {
+        try {
+            Files.move(
+                temporary.toPath(),
+                file.toPath(),
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING
+            )
+        } catch (error: Exception) {
             temporary.delete()
             throw StateException("Could not atomically persist trust state.")
         }
