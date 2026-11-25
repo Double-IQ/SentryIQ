@@ -93,6 +93,7 @@ class AndroidMasterKeyStore(
     }
 
     private val appContext = context.applicationContext
+    @Volatile private var validatedAssurance: String? = null
 
     /**
      * Explicit first-run creation only. The caller supplies fresh, independently
@@ -103,6 +104,7 @@ class AndroidMasterKeyStore(
     @Throws(Exception::class)
     fun createInitialMasterKeyset(challenges: AndroidAttestationChallenges): AndroidMasterKeySet {
         requireSupportedApi()
+        validatedAssurance = null
         val keyStore = loadKeyStore()
         val hasSigning = keyStore.containsAlias(SIGNING_ALIAS)
         val hasAgreement = keyStore.containsAlias(AGREEMENT_ALIAS)
@@ -141,6 +143,7 @@ class AndroidMasterKeyStore(
     @Throws(Exception::class)
     fun loadExisting(challenges: AndroidAttestationChallenges): AndroidMasterKeySet {
         requireSupportedApi()
+        validatedAssurance = null
         val keyStore = loadKeyStore()
         val hasSigning = keyStore.containsAlias(SIGNING_ALIAS)
         val hasAgreement = keyStore.containsAlias(AGREEMENT_ALIAS)
@@ -156,6 +159,7 @@ class AndroidMasterKeyStore(
     /** ES256 signing. Call only after the companion's fresh local authentication. */
     @Synchronized
     fun sign(message: ByteArray): ByteArray {
+        requireValidatedMasterKeyset()
         val keyStore = loadKeyStore()
         val privateKey = keyStore.getKey(SIGNING_ALIAS, null) as? PrivateKey
             ?: throw AndroidMasterKeyException("Master signing key is unavailable.")
@@ -171,6 +175,7 @@ class AndroidMasterKeyStore(
      */
     @Synchronized
     fun deriveKey(peerPublicKeyPem: String, salt: ByteArray, sharedInfo: ByteArray): ByteArray {
+        requireValidatedMasterKeyset()
         val keyStore = loadKeyStore()
         val privateKey = keyStore.getKey(AGREEMENT_ALIAS, null) as? PrivateKey
             ?: throw AndroidMasterKeyException("Master key-agreement key is unavailable.")
@@ -205,6 +210,7 @@ class AndroidMasterKeyStore(
             if (!verifier.verify(result.attestationEvidence)) {
                 throw AndroidMasterKeyException("Independent TEE key attestation was not accepted.")
             }
+            validatedAssurance = ASSURANCE_TEE
             return result.copy(hardware_assurance = ASSURANCE_TEE)
         } catch (failure: Exception) {
             deleteAliases(keyStore)
@@ -262,7 +268,7 @@ class AndroidMasterKeyStore(
             throw AndroidMasterKeyException("Master signing and key-agreement public keys must be distinct.")
         }
 
-        return AndroidMasterKeySet(
+        val result = AndroidMasterKeySet(
             signing = AndroidMasterKeyDescriptor(
                 kid = AndroidP256Encoding.keyId("master-signing", signingRaw),
                 alg = "ES256",
@@ -276,6 +282,16 @@ class AndroidMasterKeyStore(
             hardware_assurance = assurance,
             attestationEvidence = evidence
         )
+        if (assurance == ASSURANCE_STRONGBOX || verifyTeeAttestation) {
+            validatedAssurance = assurance
+        }
+        return result
+    }
+
+    private fun requireValidatedMasterKeyset() {
+        if (validatedAssurance == null) {
+            throw AndroidMasterKeyException("Master keys must be hardware-validated before cryptographic use.")
+        }
     }
 
     private fun validateKeyInfo(info: KeyInfo, requiredPurpose: Int) {
