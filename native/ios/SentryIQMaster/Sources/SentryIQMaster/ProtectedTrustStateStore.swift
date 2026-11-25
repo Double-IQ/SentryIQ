@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Security
 
@@ -65,7 +66,7 @@ public final class ProtectedTrustStateStore {
 
         guard archive.sequence == anchor.sequence,
               archive.bundleSHA256 == anchor.bundleSHA256,
-              Data(SHA256Digest.hash(archive.bundle)) == anchor.bundleSHA256 else {
+              Data(SHA256.hash(data: archive.bundle)) == anchor.bundleSHA256 else {
             throw StoreError.rollbackDetected
         }
         return ProtectedTrustState(
@@ -77,7 +78,7 @@ public final class ProtectedTrustStateStore {
 
     public func save(bundle: Data, anchor: TrustRegistryAnchor) throws {
         try validate(anchor)
-        let digest = Data(SHA256Digest.hash(bundle))
+        let digest = Data(SHA256.hash(data: bundle))
         guard digest == anchor.bundleSHA256 else { throw StoreError.digestMismatch }
 
         if let currentData = try readItem() {
@@ -145,16 +146,5 @@ public final class ProtectedTrustStateStore {
         } else if status != errSecSuccess {
             throw StoreError.keychain(status)
         }
-    }
-}
-
-private enum SHA256Digest {
-    static func hash(_ data: Data) -> [UInt8] {
-        // CommonCrypto is available on iOS and avoids a dependency on a third-party package.
-        var digest = [UInt8](repeating: 0, count: 32)
-        data.withUnsafeBytes { buffer in
-            _ = CC_SHA256(buffer.baseAddress, CC_LONG(buffer.count), &digest)
-        }
-        return digest
     }
 }
