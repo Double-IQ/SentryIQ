@@ -31,7 +31,7 @@ jobs:
       - name: Install Android SDK components
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "emulator" "platform-tools" "system-images;android-35;google_apis;x86_64"
       - name: Build shared Rust TUF libraries for Android ABIs
         run: ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018" bash native/tuf-core/scripts/build-android-libraries.sh
       - name: Build Android master adapter
@@ -39,3 +39,21 @@ jobs:
 
       - name: Run Android master core unit tests
         run: gradle --no-daemon --project-dir native/android/SentryIQMaster :master:testDebugUnitTest
+      - name: Create Android x86_64 emulator
+        run: |
+          echo "no" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --name sentryiq-tuf-test --package "system-images;android-35;google_apis;x86_64" --device "pixel_2" --force
+      - name: Boot Android emulator
+        run: |
+          nohup "$ANDROID_HOME/emulator/emulator" -avd sentryiq-tuf-test -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot > /tmp/sentryiq-emulator.log 2>&1 &
+          adb wait-for-device
+          for attempt in $(seq 1 120); do
+            if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+              adb shell input keyevent 82 || true
+              exit 0
+            fi
+            sleep 5
+          done
+          cat /tmp/sentryiq-emulator.log
+          exit 1
+      - name: Run Android native TUF FFI instrumentation test
+        run: gradle --no-daemon --project-dir native/android/SentryIQMaster :master:connectedDebugAndroidTest
