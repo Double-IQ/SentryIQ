@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SentryIQ\\Security;
+namespace SentryIQ\Security;
 
 use DateTimeImmutable;
 use DateTimeZone;
@@ -11,9 +11,7 @@ use Throwable;
 
 /**
  * Strict, platform-independent validator for SentryIQ public trust bundles.
- *
- * Trust anchors are supplied by the caller from an independently pinned source.
- * This class never trusts a key merely because it appears in the candidate bundle.
+ * Trust anchors must come from an independently pinned source.
  */
 final class TrustBundleValidator
 {
@@ -88,7 +86,7 @@ final class TrustBundleValidator
         }
 
         $this->validateMasterKeyset($bundle->master_keyset ?? null);
-        $this->validateKeyCollection($bundle->release_authorisation ?? null, 'release-authorisation', true);
+        $this->validateKeyCollection($bundle->release_authorisation ?? null, 'release-authorisation');
         $this->validateVerifier($bundle->verifier ?? null);
         $this->validateTufReference($bundle->sigstore_tuf ?? null);
         $this->validateRevocations($bundle->revocations ?? null);
@@ -116,7 +114,7 @@ final class TrustBundleValidator
 
     private function assertExactObjectFields(mixed $value, array $expected): void
     {
-        if (!$value instanceof \\stdClass) {
+        if (!$value instanceof \stdClass) {
             throw new RuntimeException('Trust bundle object has an invalid shape.');
         }
         $actual = array_keys(get_object_vars($value));
@@ -137,15 +135,14 @@ final class TrustBundleValidator
         }
     }
 
-    private function validateKeyCollection(mixed $collection, string $purpose, bool $required): void
+    private function validateKeyCollection(mixed $collection, string $purpose): void
     {
         $this->assertExactObjectFields($collection, ['keys']);
-        if (!is_array($collection->keys) || ($required && $collection->keys === [])) {
-            throw new RuntimeException('Trust bundle key collection is empty or malformed.');
+        if (!is_array($collection->keys) || $collection->keys === []) {
+            throw new RuntimeException('Trust bundle release-authorisation keys are empty or malformed.');
         }
         $seen = [];
         foreach ($collection->keys as $key) {
-            $this->assertExactObjectFields($key, ['kid', 'alg', 'public_key_pem', 'purpose']);
             $this->validatePublicKey($key, 'ES256', true);
             if ($key->purpose !== $purpose || isset($seen[$key->kid])) {
                 throw new RuntimeException('Trust bundle key purpose mismatch or duplicate key ID.');
@@ -170,7 +167,6 @@ final class TrustBundleValidator
         }
         $seen = [];
         foreach ($verifier->keys as $key) {
-            $this->assertExactObjectFields($key, ['kid', 'alg', 'public_key_pem', 'purpose']);
             $this->validatePublicKey($key, 'ES256', true);
             if ($key->purpose !== 'verifier-report' || isset($seen[$key->kid])) {
                 throw new RuntimeException('Verifier key purpose mismatch or duplicate key ID.');
@@ -182,7 +178,9 @@ final class TrustBundleValidator
     private function validatePublicKey(mixed $key, string $expectedAlgorithm, bool $withPurpose = false): void
     {
         $fields = ['kid', 'alg', 'public_key_pem'];
-        if ($withPurpose) $fields[] = 'purpose';
+        if ($withPurpose) {
+            $fields[] = 'purpose';
+        }
         $this->assertExactObjectFields($key, $fields);
         if (!is_string($key->kid) || !preg_match('/^[A-Za-z0-9._-]{1,128}$/D', $key->kid)
             || $key->alg !== $expectedAlgorithm || !is_string($key->public_key_pem)
@@ -204,7 +202,7 @@ final class TrustBundleValidator
         }
     }
 
-    private function assertRoleSeparation(\\stdClass $bundle): void
+    private function assertRoleSeparation(\stdClass $bundle): void
     {
         $ids = [];
         $fingerprints = [];
@@ -281,7 +279,10 @@ final class TrustBundleValidator
                 || !is_string($signer['alg']) || !is_string($signer['public_key_pem'])) {
                 throw new RuntimeException('Independently pinned signer configuration is malformed.');
             }
-            if (isset($trusted[$signer['kid']])) {\n                throw new RuntimeException('Independently pinned signer IDs must be unique.');\n            }\n            $trusted[$signer['kid']] = $signer;
+            if (isset($trusted[$signer['kid']])) {
+                throw new RuntimeException('Independently pinned signer IDs must be unique.');
+            }
+            $trusted[$signer['kid']] = $signer;
         }
 
         $accepted = [];
@@ -323,13 +324,13 @@ final class TrustBundleValidator
 
     private function parseUtc(mixed $value): int
     {
-        if (!is_string($value) || !preg_match('/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$/D', $value)) {
+        if (!is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/D', $value)) {
             throw new RuntimeException('Trust bundle timestamps must be canonical UTC seconds.');
         }
-        $date = DateTimeImmutable::createFromFormat('!Y-m-d\\TH:i:s\\Z', $value, new DateTimeZone('UTC'));
+        $date = DateTimeImmutable::createFromFormat('!Y-m-d\TH:i:s\Z', $value, new DateTimeZone('UTC'));
         $errors = DateTimeImmutable::getLastErrors();
         if (!$date instanceof DateTimeImmutable || (is_array($errors) && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))
-            || $date->format('Y-m-d\\TH:i:s\\Z') !== $value) {
+            || $date->format('Y-m-d\TH:i:s\Z') !== $value) {
             throw new RuntimeException('Trust bundle timestamp is invalid.');
         }
         return $date->getTimestamp();
@@ -337,7 +338,7 @@ final class TrustBundleValidator
 
     private function canonicalJson(mixed $value): string
     {
-        if ($value instanceof \\stdClass) {
+        if ($value instanceof \stdClass) {
             $properties = get_object_vars($value);
             ksort($properties, SORT_STRING);
             $parts = [];
@@ -354,7 +355,7 @@ final class TrustBundleValidator
             throw new RuntimeException('Floating-point values are prohibited in trust bundle canonical data.');
         }
         if (is_int($value) || is_string($value) || is_bool($value) || $value === null) {
-            return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+            return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS | JSON_THROW_ON_ERROR);
         }
         throw new RuntimeException('Trust bundle contains an unsupported canonical JSON value.');
     }
@@ -374,13 +375,13 @@ final class TrustBundleValidator
     private function rawEcdsaToDer(string $raw): string
     {
         $integer = static function (string $bytes): string {
-            $bytes = ltrim($bytes, "\\0");
-            if ($bytes === '') $bytes = "\\0";
-            if ((ord($bytes[0]) & 0x80) !== 0) $bytes = "\\0" . $bytes;
-            return "\\x02" . chr(strlen($bytes)) . $bytes;
+            $bytes = ltrim($bytes, "\0");
+            if ($bytes === '') $bytes = "\0";
+            if ((ord($bytes[0]) & 0x80) !== 0) $bytes = "\0" . $bytes;
+            return "\x02" . chr(strlen($bytes)) . $bytes;
         };
         $body = $integer(substr($raw, 0, 32)) . $integer(substr($raw, 32, 32));
-        return "\\x30" . chr(strlen($body)) . $body;
+        return "\x30" . chr(strlen($body)) . $body;
     }
 
     private function compareDecimal(string $left, string $right): int
@@ -391,6 +392,7 @@ final class TrustBundleValidator
         return strlen($left) <=> strlen($right) ?: strcmp($left, $right);
     }
 
+    /** Reject duplicate object member names, including names encoded with escapes. */
     private function assertNoDuplicateKeys(string $json): void
     {
         $stack = [];
@@ -401,9 +403,11 @@ final class TrustBundleValidator
         for ($i = 0; $i < $length; $i++) {
             $char = $json[$i];
             if ($inString) {
-                if ($escaped) $escaped = false;
-                elseif ($char === '\\\\') $escaped = true;
-                elseif ($char === '"') {
+                if ($escaped) {
+                    $escaped = false;
+                } elseif ($char === '\\') {
+                    $escaped = true;
+                } elseif ($char === '"') {
                     $inString = false;
                     $index = count($stack) - 1;
                     if ($index >= 0 && $stack[$index]['object']) {
@@ -438,6 +442,8 @@ final class TrustBundleValidator
                 array_pop($stack);
             }
         }
-        if ($inString || $stack !== []) throw new RuntimeException('Trust bundle JSON structure is incomplete.');
+        if ($inString || $stack !== []) {
+            throw new RuntimeException('Trust bundle JSON structure is incomplete.');
+        }
     }
 }
