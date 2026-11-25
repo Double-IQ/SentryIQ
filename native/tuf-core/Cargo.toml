@@ -1,0 +1,14 @@
+[package]
+name = "sentryiq-tuf-core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "staticlib", "lib"]
+
+[dependencies]
+sha2 = "=0.10.9"
+subtle = "=2.6.1"
+tuffet = "=0.1.0"
+uniffi = "=0.32.2"
