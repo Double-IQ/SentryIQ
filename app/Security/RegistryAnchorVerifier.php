@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SentryIQ\\Security;
+namespace SentryIQ\Security;
 
 use RuntimeException;
 use Throwable;
@@ -42,10 +42,10 @@ final class RegistryAnchorVerifier
         $this->assertNoDuplicateKeys($signedPayload);
         try {
             $payload = json_decode($signedPayload, false, 8, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException $error) {
+        } catch (\JsonException $error) {
             throw new RuntimeException('Registry anchor payload is invalid JSON.', 0, $error);
         }
-        if (!$payload instanceof \\stdClass) throw new RuntimeException('Registry anchor must be a JSON object.');
+        if (!$payload instanceof \stdClass) throw new RuntimeException('Registry anchor must be a JSON object.');
         $fields = [
             'type', 'schema_version', 'owner_id', 'sequence', 'bundle_sha256',
             'issued_at', 'expires_at', 'previous_bundle_sha256', 'signer_kid',
@@ -104,7 +104,7 @@ final class RegistryAnchorVerifier
         $rawSignature = $signature;
         $r = substr($rawSignature, 0, 32);
         $s = substr($rawSignature, 32, 32);
-        if ($r === str_repeat("\\0", 32) || $s === str_repeat("\\0", 32)
+        if ($r === str_repeat("\0", 32) || $s === str_repeat("\0", 32)
             || strcmp($s, hex2bin(self::P256_HALF_ORDER)) > 0) {
             throw new RuntimeException('Registry anchor signature is not canonical low-S ES256.');
         }
@@ -159,7 +159,7 @@ final class RegistryAnchorVerifier
         }
     }
 
-    private function canonicalPayload(\\stdClass $payload): string
+    private function canonicalPayload(\stdClass $payload): string
     {
         $values = get_object_vars($payload);
         ksort($values, SORT_STRING);
@@ -174,13 +174,13 @@ final class RegistryAnchorVerifier
     private function rawEcdsaToDer(string $raw): string
     {
         $integer = static function (string $bytes): string {
-            $bytes = ltrim($bytes, "\\0");
-            if ($bytes === '') $bytes = "\\0";
-            if ((ord($bytes[0]) & 0x80) !== 0) $bytes = "\\0" . $bytes;
-            return "\\x02" . chr(strlen($bytes)) . $bytes;
+            $bytes = ltrim($bytes, "\0");
+            if ($bytes === '') $bytes = "\0";
+            if ((ord($bytes[0]) & 0x80) !== 0) $bytes = "\0" . $bytes;
+            return "\x02" . chr(strlen($bytes)) . $bytes;
         };
         $body = $integer(substr($raw, 0, 32)) . $integer(substr($raw, 32, 32));
-        return "\\x30" . chr(strlen($body)) . $body;
+        return "\x30" . chr(strlen($body)) . $body;
     }
 
     private function compareDecimal(string $left, string $right): int
@@ -217,7 +217,7 @@ final class RegistryAnchorVerifier
             $char = $json[$i];
             if ($inString) {
                 if ($escaped) $escaped = false;
-                elseif ($char === '\\\\') $escaped = true;
+                elseif ($char === '\\') $escaped = true;
                 elseif ($char === '"') {
                     $inString = false;
                     $index = count($stack) - 1;
