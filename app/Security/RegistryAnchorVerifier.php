@@ -121,7 +121,7 @@ final class RegistryAnchorVerifier
             $details = openssl_pkey_get_details($key);
             if (!is_array($details) || ($details['type'] ?? null) !== OPENSSL_KEYTYPE_EC
                 || ($details['bits'] ?? null) !== 256
-                || ($details['curve_name'] ?? '') !== 'prime256v1') {
+                || (($details['ec']['curve_name'] ?? '') !== 'prime256v1')) {
                 throw new RuntimeException('Pinned registry signer must be a P-256 public key.');
             }
             if (openssl_verify($signedPayload, $der, $key, OPENSSL_ALGO_SHA256) !== 1) {
