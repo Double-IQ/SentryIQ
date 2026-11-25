@@ -77,6 +77,8 @@ The first platform-independent validator implementation uses the following concr
 
 The PHP implementation is a protocol validator, not the native trust-state persistence or owner ceremony. Its accepted schema and adversarial fixtures are the cross-platform compatibility reference, subject to independent security review.
 
+**Canonicalizer qualification remains open:** the current PHP validator uses a constrained in-tree canonical serializer for this exact fixed schema; it rejects floating-point values and unknown members and sorts the schema's ASCII member names. This is not yet the required maintained RFC 8785 library integration. Do not treat the current serializer as production-qualified; dependency selection, RFC 8785 conformance-vector testing, and independent review remain mandatory before production trust-root initialisation.
+
 ## 5. First-run state machine
 
 The native companion persists one of these states:
