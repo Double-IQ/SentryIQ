@@ -87,8 +87,9 @@ pub fn verify_tuf_root_rotation_chain(
 /// rollback baseline before the new metadata is accepted. Returns false on any
 /// parse, expiry, signature, version, hash, or cache-consistency failure.
 ///
-/// Delegated targets, network transport, persistent storage, and atomic commit
-/// remain the caller's responsibility.
+/// Delegated-target authorisation is available through
+/// `verify_tuf_target_delegation`. Network transport, persistent storage, and
+/// atomic commit remain the caller's responsibility.
 #[uniffi::export]
 pub fn verify_tuf_metadata_refresh(
     initial_root: Vec<u8>,
