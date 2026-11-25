@@ -188,7 +188,7 @@ The native implementation now has a first Rust/UniFFI prototype under `native/tu
 
 The dependency is provisional: Tuffet 0.1.0 documents TUF 1.0 support, backend-neutral cryptographic operations, and a no-I/O trusted metadata API. It does not support TAP 4 multi-repository consensus or the optional mirrors role, neither of which is required for the initial single-repository deployment. Tuffet is not yet production-approved; mobile cross-compilation, UniFFI binding generation/packaging, maintained fixture interoperability, dependency review, and independent security assessment are mandatory gates. The official TUF implementation catalogue lists the reference implementations and should be used to re-evaluate alternatives during that review.
 
-The current Rust prototype verifies root metadata only. It does not yet verify timestamp, snapshot, targets, delegations, target hashes, cached-metadata rollback, repository transport, or persistence. It must not be treated as a complete TUF client or as a production trust decision.
+The Rust prototype now verifies the pinned initial root, sequential root rotations, and a supplied timestamp/snapshot/top-level-targets refresh. It can load a complete cached timestamp/snapshot/targets set as the rollback baseline before accepting new metadata; partial cache state is rejected. It still does not fetch metadata, traverse delegated targets, persist accepted metadata, atomically commit state, or bind the TUF result into the trust-bundle state machine. It must not be treated as a complete TUF client or as a production trust decision.
 
 ## 11. Explicit non-goals
 
