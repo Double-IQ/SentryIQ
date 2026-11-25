@@ -103,6 +103,9 @@ jobs:
       - name: Test document metadata locking and path security
         run: php tests/document_store.test.php
 
+      - name: Test canonical trust bundle validation
+        run: php tests/trust_bundle_validator.test.php
+
       - name: Test release trust policy decisions
         run: php tests/release_trust_policy.test.php
 

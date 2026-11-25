@@ -157,6 +157,12 @@ $result = $validator->validate($valid, $trusted, 'owner-test-001', null, null, $
 trustBundleAssert($result['sequence'] === '1', 'Valid bootstrap bundle should retain its sequence.');
 trustBundleAssert(strlen($result['digest']) === 64, 'Validated bundle should expose its canonical SHA-256 digest.');
 trustBundleAssert($result['signer_kids'] === ['release-root-1'], 'Validated bundle should report its independently pinned signer.');
+$releaseSpkiBody = preg_replace('/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\\s+/', '', $releasePem);
+$releaseSpkiDer = is_string($releaseSpkiBody) ? base64_decode($releaseSpkiBody, true) : false;
+trustBundleAssert(is_string($releaseSpkiDer) && hash_equals(
+    hash('sha256', $releaseSpkiDer),
+    $result['key_fingerprints']['release-root-1'] ?? ''
+), 'Validator must expose SHA-256 of DER SubjectPublicKeyInfo, not PEM text.');
 
 trustBundleReject(
     fn() => $validator->validate($valid, [], 'owner-test-001', null, null, $now),

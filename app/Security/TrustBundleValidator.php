@@ -23,7 +23,7 @@ final class TrustBundleValidator
 
     /**
      * @param list<array{kid:string,role:string,alg:string,public_key_pem:string}> $trustedSigners
-     * @return array{bundle:array<string,mixed>,digest:string,sequence:string,signer_kids:list<string>}
+     * @return array{bundle:array<string,mixed>,digest:string,sequence:string,signer_kids:list<string>,key_fingerprints:array<string,string>}
      */
     public function validate(
         string $json,
@@ -98,7 +98,7 @@ final class TrustBundleValidator
         $this->validateVerifier($bundle->verifier ?? null);
         $this->validateTufReference($bundle->sigstore_tuf ?? null);
         $this->validateRevocations($bundle->revocations ?? null);
-        $this->assertRoleSeparation($bundle);
+        $keyFingerprints = $this->assertRoleSeparation($bundle);
 
         if (!is_array($bundle->signatures) || $bundle->signatures === []) {
             throw new RuntimeException('Trust bundle has no detached signatures.');
@@ -117,6 +117,7 @@ final class TrustBundleValidator
             'digest' => hash('sha256', $this->canonicalJson($bundle)),
             'sequence' => $sequence,
             'signer_kids' => $signerKids,
+            'key_fingerprints' => $keyFingerprints,
         ];
     }
 
@@ -220,10 +221,14 @@ final class TrustBundleValidator
         }
     }
 
-    private function assertRoleSeparation(\stdClass $bundle): void
+    /**
+     * @return array<string,string> SPKI SHA-256 fingerprints keyed by immutable kid
+     */
+    private function assertRoleSeparation(\stdClass $bundle): array
     {
         $ids = [];
         $fingerprints = [];
+        $fingerprintsByKid = [];
         $keys = [
             $bundle->master_keyset->signing,
             $bundle->master_keyset->key_agreement,
@@ -241,8 +246,10 @@ final class TrustBundleValidator
             }
             try {
                 $details = openssl_pkey_get_details($publicKey);
-                $fingerprint = is_array($details) && is_string($details['key'] ?? null)
-                    ? hash('sha256', $details['key']) : '';
+                $pem = is_array($details) && is_string($details['key'] ?? null) ? $details['key'] : '';
+                $body = preg_replace('/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\\s+/', '', $pem);
+                $spkiDer = is_string($body) && $body !== '' ? base64_decode($body, true) : false;
+                $fingerprint = is_string($spkiDer) && $spkiDer !== '' ? hash('sha256', $spkiDer) : '';
             } finally {
                 openssl_pkey_free($publicKey);
             }
@@ -250,6 +257,7 @@ final class TrustBundleValidator
                 throw new RuntimeException('Trust bundle reuses public key material across cryptographic roles.');
             }
             $fingerprints[$fingerprint] = true;
+            $fingerprintsByKid[$key->kid] = $fingerprint;
         }
         $active = array_fill_keys(array_keys($ids), true);
         foreach ($bundle->revocations as $revocation) {
@@ -257,6 +265,7 @@ final class TrustBundleValidator
                 throw new RuntimeException('A key cannot be active and revoked in the same trust bundle.');
             }
         }
+        return $fingerprintsByKid;
     }
 
     private function validateTufReference(mixed $tuf): void

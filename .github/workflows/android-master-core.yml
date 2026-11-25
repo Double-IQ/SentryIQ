@@ -31,7 +31,7 @@ jobs:
       - name: Install Android SDK components
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "emulator" "platform-tools" "system-images;android-35;google_apis;x86_64"
       - name: Build shared Rust TUF libraries for Android ABIs
         run: ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018" bash native/tuf-core/scripts/build-android-libraries.sh
       - name: Build Android master adapter
@@ -39,3 +39,42 @@ jobs:
 
       - name: Run Android master core unit tests
         run: gradle --no-daemon --project-dir native/android/SentryIQMaster :master:testDebugUnitTest
+      - name: Create Android x86_64 emulator
+        run: |
+          mkdir -p "$HOME/.android/avd"
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          printf "no\\n" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --name sentryiq-tuf-test --package "system-images;android-35;google_apis;x86_64" --device "pixel_2" --force
+          ls -la "$ANDROID_AVD_HOME"
+          test -f "$ANDROID_AVD_HOME/sentryiq-tuf-test.ini"
+      - name: Grant emulator access to KVM
+        run: |
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+          test -r /dev/kvm && test -w /dev/kvm
+          ls -l /dev/kvm
+      - name: Boot Android emulator
+        run: |
+          export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          adb start-server
+          nohup "$ANDROID_HOME/emulator/emulator" -avd sentryiq-tuf-test -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot > /tmp/sentryiq-emulator.log 2>&1 &
+          for attempt in $(seq 1 120); do
+            if adb devices | grep -q "emulator-"; then
+              if [ "$(timeout 10 adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+                adb shell input keyevent 82 || true
+                exit 0
+              fi
+            fi
+            if (( attempt % 12 == 0 )); then
+              echo "Waiting for Android emulator boot (attempt $attempt/120)."
+              tail -n 60 /tmp/sentryiq-emulator.log || true
+              adb devices -l || true
+            fi
+            sleep 5
+          done
+          cat /tmp/sentryiq-emulator.log
+          adb devices -l || true
+          exit 1
+      - name: Run Android native TUF FFI instrumentation test
+        run: gradle --no-daemon --project-dir native/android/SentryIQMaster -Pandroid.useAndroidX=true :master:connectedDebugAndroidTest
