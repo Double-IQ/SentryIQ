@@ -181,6 +181,15 @@ All ambiguous cases fail closed. Fixtures contain no production keys or private 
 7. Add cross-language fixtures for native companion and PHP relay; PHP only stores/relays public signed objects.
 8. Complete independent security review before production trust-root initialisation.
 
+
+## 10.1 Shared TUF verification-core prototype
+
+The native implementation now has a first Rust/UniFFI prototype under `native/tuf-core`. It pins the initial TUF root by exact SHA-256 supplied independently, validates the root's own signature threshold, and validates sequential root rotations through Tuffet's offline `TrustedMetadata` API. The same compiled core is intended to be called from Swift and Kotlin; native platform code remains responsible for secure key custody, UI, network transport, and protected storage.
+
+The dependency is provisional: Tuffet 0.1.0 documents TUF 1.0 support, backend-neutral cryptographic operations, and a no-I/O trusted metadata API. It does not support TAP 4 multi-repository consensus or the optional mirrors role, neither of which is required for the initial single-repository deployment. Tuffet is not yet production-approved; mobile cross-compilation, UniFFI binding generation/packaging, maintained fixture interoperability, dependency review, and independent security assessment are mandatory gates. The official TUF implementation catalogue lists the reference implementations and should be used to re-evaluate alternatives during that review.
+
+The current Rust prototype verifies root metadata only. It does not yet verify timestamp, snapshot, targets, delegations, target hashes, cached-metadata rollback, repository transport, or persistence. It must not be treated as a complete TUF client or as a production trust decision.
+
 ## 11. Explicit non-goals
 
 No production or development private root keys are committed. No production trust state is initialised. No HelioHost service is provisioned. No user data, content roots, DRS, or MRAK are generated or migrated. No release or production deployment occurs. No PHP endpoint may declare trust based only on a server-side flag.
