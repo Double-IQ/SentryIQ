@@ -83,4 +83,55 @@ publicAssetReject(
     'Public asset selection must reserve report slots for mandatory security evidence markers.'
 );
 
+// Path-injection and URL-alias cases must be rejected before any fetch is attempted.
+$unsafePaths = [
+    '../config.php',
+    '/assets/app.js',
+    'assets/../config.php',
+    'assets/./app.js',
+    'assets//app.js',
+    'assets\\\\..\\\\evil.js',
+    'assets/%2e%2e/evil.js',
+    'assets/app.js?download=1',
+    'assets/app.js#fragment',
+    "assets/evil\0.js",
+    "assets/evil\n.js",
+];
+foreach ($unsafePaths as $unsafePath) {
+    $unsafeManifest = $manifest;
+    $unsafeManifest['public_http_files'] = [$unsafePath];
+    publicAssetReject(
+        fn() => IntegrityPublicAssetPolicy::resolve($unsafeManifest, $entries, []),
+        'Unsafe public asset path must be rejected: ' . bin2hex($unsafePath)
+    );
+}
+
+$unknownManifest = $manifest;
+$unknownManifest['public_http_files'] = ['assets/not-in-package.js'];
+publicAssetReject(
+    fn() => IntegrityPublicAssetPolicy::resolve($unknownManifest, $entries, []),
+    'A public HTTP path absent from the package inventory must be rejected.'
+);
+
+$missingPublicInventory = $manifest;
+$missingPublicInventory['public_files'] = ['VERSION'];
+publicAssetReject(
+    fn() => IntegrityPublicAssetPolicy::resolve($missingPublicInventory, $entries, []),
+    'An HTTP asset not declared in the signed public file inventory must be rejected.'
+);
+
+$emptyHttpInventory = $manifest;
+$emptyHttpInventory['public_http_files'] = [];
+publicAssetReject(
+    fn() => IntegrityPublicAssetPolicy::resolve($emptyHttpInventory, $entries, []),
+    'An empty byte-verifiable HTTP inventory must fail closed.'
+);
+
+$invalidPublicInventory = $manifest;
+$invalidPublicInventory['public_files'] = 'assets/app.js';
+publicAssetReject(
+    fn() => IntegrityPublicAssetPolicy::resolve($invalidPublicInventory, $entries, []),
+    'A non-list public file inventory must be rejected.'
+);
+
 echo "Integrity public asset policy tests passed.\n";
