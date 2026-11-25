@@ -21,6 +21,8 @@ rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios aarch
 cargo build --release --target aarch64-apple-ios
 cargo build --manifest-path "$CRATE/Cargo.toml" --release --target aarch64-apple-ios-sim
 cargo build --manifest-path "$CRATE/Cargo.toml" --release --target x86_64-apple-ios
+cargo build --manifest-path "$CRATE/Cargo.toml" --release --target aarch64-apple-darwin
+cargo build --manifest-path "$CRATE/Cargo.toml" --release --target x86_64-apple-darwin
 
 mkdir -p "$HEADER_DIR" "$SIM_DIR"
 cp "$IOS_PACKAGE/Sources/SentryIQTufCoreFFI/include/SentryIQTufCoreFFI.h" "$HEADER_DIR/"
