@@ -18,7 +18,6 @@ final class RegistryAnchorVerifier
     private const MAX_PAYLOAD_BYTES = 4096;
     private const MAX_AGE_SECONDS = 86400;
     private const MAX_FUTURE_SKEW_SECONDS = 60;
-    private const P256_ORDER = 'ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551';
     private const P256_HALF_ORDER = '7fffffff800000007fffffffffffffffde737d56d38bcf4279dce5617e3192a8';
 
     /**
@@ -90,12 +89,19 @@ final class RegistryAnchorVerifier
         }
 
         $signer = null;
+        $seenSignerKids = [];
         foreach ($trustedSigners as $candidate) {
-            if (($candidate['kid'] ?? null) === $payload->signer_kid
-                && ($candidate['role'] ?? null) === 'registry-anchor'
-                && ($candidate['alg'] ?? null) === 'ES256'
-                && is_string($candidate['public_key_pem'] ?? null)) {
-                if ($signer !== null) throw new RuntimeException('Registry signer key ID is ambiguous.');
+            $candidateKid = $candidate['kid'] ?? null;
+            if (!is_string($candidateKid) || $candidateKid === '' || isset($seenSignerKids[$candidateKid])) {
+                throw new RuntimeException('Independently provisioned registry signer set has an invalid or duplicate key ID.');
+            }
+            $seenSignerKids[$candidateKid] = true;
+            if ($candidateKid === $payload->signer_kid) {
+                if (($candidate['role'] ?? null) !== 'registry-anchor'
+                    || ($candidate['alg'] ?? null) !== 'ES256'
+                    || !is_string($candidate['public_key_pem'] ?? null)) {
+                    throw new RuntimeException('Registry anchor signer has the wrong role, algorithm, or key encoding.');
+                }
                 $signer = $candidate;
             }
         }
