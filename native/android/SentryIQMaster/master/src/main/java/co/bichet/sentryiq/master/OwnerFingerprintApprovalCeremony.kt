@@ -11,10 +11,11 @@ object OwnerFingerprintApprovalCeremony {
     class CeremonyException(message: String) : Exception(message)
 
     /** UI confirmation and OS fresh-user-verification are mandatory callbacks. */
-    fun approve(canonicalBundle: ByteArray, outOfBandFingerprint: String, ownerIdentifier: String, challenge: ByteArray, expiresAt: Long, confirmFingerprint: String, requireFreshUserVerification: () -> Unit, sign: (ByteArray) -> ByteArray, now: Long = System.currentTimeMillis() / 1000L): ApprovalProof {
+    fun approve(canonicalBundle: ByteArray, outOfBandFingerprint: String, ownerIdentifier: String, challenge: ByteArray, expiresAt: Long, confirmFingerprint: String, verifyCandidateTrustChain: (ByteArray) -> Boolean, requireFreshUserVerification: () -> Unit, sign: (ByteArray) -> ByteArray, now: Long = System.currentTimeMillis() / 1000L): ApprovalProof {
         if (ownerIdentifier.isBlank() || ownerIdentifier.contains("\n") || ownerIdentifier.contains("\r")) throw CeremonyException("Invalid owner identifier.")
         if (challenge.size != 32) throw CeremonyException("Invalid bootstrap challenge.")
         if (expiresAt <= now || expiresAt - now > 300) throw CeremonyException("Bootstrap challenge is expired or exceeds five minutes.")
+        if (!verifyCandidateTrustChain(canonicalBundle)) throw CeremonyException("Candidate trust chain failed shared TUF verification.")
         val digest = MessageDigest.getInstance("SHA-256").digest(canonicalBundle)
         val expected = decodeFingerprint(outOfBandFingerprint); val confirmed = decodeFingerprint(confirmFingerprint)
         if (!MessageDigest.isEqual(digest, expected) || !MessageDigest.isEqual(digest, confirmed)) throw CeremonyException("Owner-confirmed fingerprint does not match candidate bundle.")
