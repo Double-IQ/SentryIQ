@@ -30,7 +30,7 @@ final class OwnerFingerprintApprovalCeremonyTests: XCTestCase {
         var transcript = Data(); var fresh = false
         let proof = try approve(fresh: { fresh = true }, sign: { transcript = $0; return Data([0x30, 1]) })
         XCTAssertTrue(fresh); XCTAssertEqual(proof.bundleFingerprint, fp(bundle))
-        XCTAssertEqual(proof.rootRole, "release-authorisation"); XCTAssertEqual(proof.rootKeyId, "release-root-1")
+        XCTAssertEqual(proof.rootRole, "release-authorisation"); XCTAssertEqual(proof.rootKeyID, "release-root-1")
         XCTAssertEqual(proof.rootFingerprint, fp(root)); XCTAssertEqual(proof.deviceKeysetDigest, fp(keyset))
         XCTAssertEqual(proof.purpose, "bootstrap-release-root"); XCTAssertEqual(proof.challenge, challenge)
         XCTAssertEqual(proof.expiresAt, expiry)
