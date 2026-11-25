@@ -41,10 +41,16 @@ jobs:
         run: gradle --no-daemon --project-dir native/android/SentryIQMaster :master:testDebugUnitTest
       - name: Create Android x86_64 emulator
         run: |
-          echo "no" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --name sentryiq-tuf-test --package "system-images;android-35;google_apis;x86_64" --device "pixel_2" --force
+          mkdir -p "$HOME/.android/avd"
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          printf "no\\n" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --name sentryiq-tuf-test --package "system-images;android-35;google_apis;x86_64" --device "pixel_2" --force
+          ls -la "$ANDROID_AVD_HOME"
+          test -f "$ANDROID_AVD_HOME/sentryiq-tuf-test.ini"
       - name: Boot Android emulator
         run: |
           export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
           adb start-server
           nohup "$ANDROID_HOME/emulator/emulator" -avd sentryiq-tuf-test -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot > /tmp/sentryiq-emulator.log 2>&1 &
           for attempt in $(seq 1 120); do
