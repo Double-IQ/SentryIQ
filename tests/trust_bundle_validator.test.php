@@ -48,9 +48,23 @@ function derEcdsaToRaw(string $der): string
     if (ord($der[$offset++]) !== 0x02) throw new RuntimeException('Invalid ECDSA S integer.');
     $sLength = ord($der[$offset++]);
     $s = substr($der, $offset, $sLength);
-    $r = ltrim($r, "\0");
-    $s = ltrim($s, "\0");
-    return str_pad($r, 32, "\0", STR_PAD_LEFT) . str_pad($s, 32, "\0", STR_PAD_LEFT);
+    $r = str_pad(ltrim($r, "\0"), 32, "\0", STR_PAD_LEFT);
+    $s = str_pad(ltrim($s, "\0"), 32, "\0", STR_PAD_LEFT);
+    $halfOrder = hex2bin('7fffffff800000007fffffffffffffffde737d56d38bcf4279dce5617e3192a8');
+    $order = hex2bin('ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
+    if (strcmp($s, $halfOrder) > 0) {
+        $orderBytes = array_values(unpack('C*', $order));
+        $sBytes = array_values(unpack('C*', $s));
+        $borrow = 0;
+        for ($i = 31; $i >= 0; $i--) {
+            $value = $orderBytes[$i] - $sBytes[$i] - $borrow;
+            $borrow = $value < 0 ? 1 : 0;
+            if ($borrow) $value += 256;
+            $sBytes[$i] = $value;
+        }
+        $s = pack('C*', ...$sBytes);
+    }
+    return $r . $s;
 }
 
 $key = openssl_pkey_new([
