@@ -17,7 +17,7 @@ class RegistryAnchorVerifierTest {
     private fun keyPair(): KeyPair =
         KeyPairGenerator.getInstance("EC").apply { initialize(ECGenParameterSpec("secp256r1")) }.generateKeyPair()
 
-    private fun payload(sequence: Long = 1L, previous: String? = null): ByteArray {
+    private fun payload(sequence: ULong = 1uL, previous: String? = null): ByteArray {
         val previousJson = if (previous == null) "null" else "\"" + previous + "\""
         return ("{\"bundle_sha256\":\"" + bundleDigest +
             "\",\"expires_at\":" + (now + 3600) +
@@ -48,13 +48,13 @@ class RegistryAnchorVerifierTest {
         return fixed(r) + fixed(s)
     }
 
-    private fun signedAnchor(pair: KeyPair): ProtectedTrustStateStore.RegistryAnchor {
-        val payload = payload()
+    private fun signedAnchor(pair: KeyPair, sequence: ULong = 1uL): ProtectedTrustStateStore.RegistryAnchor {
+        val payload = payload(sequence)
         val signer = Signature.getInstance("SHA256withECDSA")
         signer.initSign(pair.private)
         signer.update(payload)
         return ProtectedTrustStateStore.RegistryAnchor(
-            sequence = 1L,
+            sequence = sequence,
             bundleSha256 = ByteArray(32) { 0x11 },
             signedPayload = payload,
             signature = derToRawLowS(signer.sign()),
@@ -69,6 +69,18 @@ class RegistryAnchorVerifierTest {
     @Test fun verifiesSignatureFromIndependentlyPinnedRegistrySigner() {
         val pair = keyPair()
         val anchor = signedAnchor(pair)
+        RegistryAnchorVerifier.verify(
+            anchor,
+            ownerId,
+            listOf(RegistryAnchorSignerKey(signerId, "registry-anchor", "ES256", pair.public.encoded)),
+            now
+        )
+    }
+
+    
+    @Test fun acceptsMaximumUnsigned64BitSequence() {
+        val pair = keyPair()
+        val anchor = signedAnchor(pair, ULong.MAX_VALUE)
         RegistryAnchorVerifier.verify(
             anchor,
             ownerId,
