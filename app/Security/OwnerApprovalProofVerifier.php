@@ -197,21 +197,21 @@ final class OwnerApprovalProofVerifier
             && !str_starts_with($target, rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR);
     }
 
-    private static function validOwner(string $owner): bool
+    private static function validOwner(mixed $owner): bool
     {
-        return $owner !== '' && strlen($owner) <= 256
+        return is_string($owner) && $owner !== '' && strlen($owner) <= 256
             && !str_contains($owner, "\n") && !str_contains($owner, "\r");
     }
 
-    private static function validToken(string $value): bool
+    private static function validToken(mixed $value): bool
     {
-        return $value !== '' && strlen($value) <= 128
+        return is_string($value) && $value !== '' && strlen($value) <= 128
             && preg_match('/^[A-Za-z0-9._-]+$/D', $value) === 1;
     }
 
-    private static function validDigest(string $value): bool
+    private static function validDigest(mixed $value): bool
     {
-        return preg_match('/^[a-fA-F0-9]{64}$/D', $value) === 1;
+        return is_string($value) && preg_match('/^[a-fA-F0-9]{64}$/D', $value) === 1;
     }
 
     /** @param array<string,mixed> $receipt */
