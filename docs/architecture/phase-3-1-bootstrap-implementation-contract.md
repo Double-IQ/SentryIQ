@@ -111,13 +111,17 @@ The native ceremony implementation uses the same transcript on iOS and Android. 
 2. Display the full 64-character hexadecimal digest, role, key ID, algorithm, provenance, and permitted purpose in native UI.
 3. Require the owner to confirm the exact digest against the out-of-band fingerprint. Comparison is performed against both the out-of-band value and the value confirmed in the UI; malformed or mismatched values fail before authentication or signing.
 4. Require fresh OS-level biometric/passcode verification immediately before signing.
-5. Sign the operation-bound transcript with the dedicated hardware-backed master signing key. The transcript is binary and deterministic:
-   - ASCII domain separator `SENTRYIQ-OWNER-BOOTSTRAP-APPROVAL-V1\n`
+5. Sign the operation-bound transcript with the dedicated hardware-backed master signing key. Protocol version 2 is binary and deterministic:
+   - ASCII domain separator `SENTRYIQ-OWNER-BOOTSTRAP-APPROVAL-V2\\n`
    - owner identifier as UTF-8, prefixed by a 4-byte unsigned big-endian length
-   - 32-byte SHA-256 candidate fingerprint
+   - 32-byte SHA-256 digest of the exact canonical trust-bundle bytes
+   - root role and immutable root key ID, each UTF-8 and prefixed by a 4-byte unsigned big-endian length
+   - 32-byte SHA-256 SubjectPublicKeyInfo fingerprint for the selected root
+   - 32-byte SHA-256 digest of the master device keyset descriptor
+   - operation purpose as UTF-8, prefixed by a 4-byte unsigned big-endian length
    - 32-byte single-use challenge, prefixed by a 4-byte unsigned big-endian length
    - challenge expiry as an 8-byte unsigned big-endian Unix timestamp
-6. Challenge lifetime is at most five minutes. Expired, malformed, or non-32-byte challenges are rejected. The verifier must consume each challenge exactly once and validate the returned signature, owner binding, candidate digest, and expiry.
+6. Challenge lifetime is at most five minutes. Expired, malformed, or non-32-byte challenges are rejected. The verifier must atomically consume each challenge exactly once and validate the returned signature, owner, bundle digest, root role/key ID/fingerprint, device keyset, purpose, and expiry. Duplicate completion, replay, or any context substitution is rejected.
 7. A successful local signature is only an approval proof. It does not itself commit roots, set the phone to `TRUSTED`, or qualify the HelioHost verifier.
 
 The iOS and Android implementations expose callbacks for native confirmation, fresh user verification, and the hardware-backed signer. The application must supply real platform UI/authentication integration; test callbacks are not production approval.
