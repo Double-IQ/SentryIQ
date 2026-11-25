@@ -1,12 +1,3 @@
-internal object TrustRegistryAnchorPolicy {
-    fun isFresh(issuedAt: Long, expiresAt: Long, now: Long): Boolean {
-        if (issuedAt <= 0 || expiresAt <= now || expiresAt <= issuedAt) return false
-        if (issuedAt > now && issuedAt - now > 60L) return false
-        if (now > issuedAt && now - issuedAt > 86_400L) return false
-        return expiresAt - issuedAt <= 86_400L
-    }
-}
-
 package co.bichet.sentryiq.master
 
 import android.content.Context
@@ -26,6 +17,15 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+
+internal object TrustRegistryAnchorPolicy {
+    fun isFresh(issuedAt: Long, expiresAt: Long, now: Long): Boolean {
+        if (issuedAt <= 0 || expiresAt <= now || expiresAt <= issuedAt) return false
+        if (issuedAt > now && issuedAt - now > 60L) return false
+        if (now > issuedAt && now - issuedAt > 86_400L) return false
+        return expiresAt - issuedAt <= 86_400L
+    }
+}
 
 /**
  * Device-local encrypted cache for the currently accepted public trust bundle.
