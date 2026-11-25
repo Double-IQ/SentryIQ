@@ -120,12 +120,7 @@ mod tests {
     #[test]
     fn rejects_invalid_reference_time() {
         assert_eq!(
-            verify_tuf_root_rotation_chain(
-                b"root".to_vec(),
-                vec![0; 32],
-                vec![],
-                i64::MAX
-            ),
+            verify_tuf_root_rotation_chain(b"root".to_vec(), vec![0; 32], vec![], i64::MAX),
             -1
         );
     }
