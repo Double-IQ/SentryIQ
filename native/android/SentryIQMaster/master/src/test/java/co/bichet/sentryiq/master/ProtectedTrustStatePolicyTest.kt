@@ -5,9 +5,9 @@ import org.junit.Test
 
 class ProtectedTrustStatePolicyTest {
     @Test fun initialAnchorMustStartAtSequenceOneWithoutPreviousDigest() {
-        assertTrue(TrustRegistryAnchorPolicy.isValidInitialAnchor(1L, null))
-        assertFalse(TrustRegistryAnchorPolicy.isValidInitialAnchor(2L, null))
-        assertFalse(TrustRegistryAnchorPolicy.isValidInitialAnchor(1L, ByteArray(32) { 0x11 }))
+        assertTrue(TrustRegistryAnchorPolicy.isValidInitialAnchor(1uL, null))
+        assertFalse(TrustRegistryAnchorPolicy.isValidInitialAnchor(2uL, null))
+        assertFalse(TrustRegistryAnchorPolicy.isValidInitialAnchor(1uL, ByteArray(32) { 0x11 }))
     }
 
     @Test fun acceptsFreshAnchorWithinOneDayWindow() {
