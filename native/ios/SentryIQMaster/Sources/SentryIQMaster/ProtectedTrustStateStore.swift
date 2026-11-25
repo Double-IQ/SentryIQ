@@ -3,6 +3,10 @@ import Foundation
 import Security
 
 enum TrustRegistryAnchorPolicy {
+    static func isValidInitialAnchor(sequence: UInt64, previousBundleSHA256: Data?) -> Bool {
+        sequence == 1 && previousBundleSHA256 == nil
+    }
+
     static func isFresh(issuedAt: UInt64, expiresAt: UInt64, now: UInt64) -> Bool {
         guard issuedAt > 0, expiresAt > now, expiresAt > issuedAt else { return false }
         if issuedAt > now && issuedAt - now > 60 { return false }
@@ -120,6 +124,11 @@ public final class ProtectedTrustStateStore {
                     throw StoreError.rollbackDetected
                 }
             }
+        } else if !TrustRegistryAnchorPolicy.isValidInitialAnchor(
+            sequence: anchor.sequence,
+            previousBundleSHA256: anchor.previousBundleSHA256
+        ) {
+            throw StoreError.rollbackDetected
         }
 
         let archive = Archive(
