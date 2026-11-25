@@ -18,6 +18,15 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
+internal object TrustRegistryAnchorPolicy {
+    fun isFresh(issuedAt: Long, expiresAt: Long, now: Long): Boolean {
+        if (issuedAt <= 0 || expiresAt <= now || expiresAt <= issuedAt) return false
+        if (issuedAt > now && issuedAt - now > 60L) return false
+        if (now > issuedAt && now - issuedAt > 86_400L) return false
+        return expiresAt - issuedAt <= 86_400L
+    }
+}
+
 /**
  * Device-local encrypted cache for the currently accepted public trust bundle.
  *
@@ -34,7 +43,10 @@ class ProtectedTrustStateStore(
         val sequence: Long,
         val bundleSha256: ByteArray,
         val signedPayload: ByteArray,
-        val signature: ByteArray
+        val signature: ByteArray,
+        val issuedAt: Long,
+        val expiresAt: Long,
+        val previousBundleSha256: ByteArray?
     )
 
     data class TrustState(val sequence: Long, val bundleSha256: ByteArray, val bundle: ByteArray)
@@ -45,9 +57,15 @@ class ProtectedTrustStateStore(
     private val keyAlias = "co.bichet.sentryiq.trust-state-aes-gcm.v1"
     private val lock = Any()
 
-    fun load(anchor: RegistryAnchor): TrustState = synchronized(lock) {
-        requireValidAnchor(anchor)
+    fun load(
+        anchor: RegistryAnchor,
+        nowEpochSeconds: Long = System.currentTimeMillis() / 1000L
+    ): TrustState = synchronized(lock) {
+        requireValidAnchor(anchor, nowEpochSeconds)
         if (!file.exists()) throw StateException("No protected trust state exists; bootstrap is required.")
+        if (file.length() !in 1..MAX_ENCODED_STATE_BYTES.toLong()) {
+            throw StateException("Stored trust state exceeds the permitted size.")
+        }
         val state = decrypt(file.readBytes())
         if (state.sequence != anchor.sequence ||
             !MessageDigest.isEqual(state.bundleSha256, anchor.bundleSha256) ||
@@ -57,18 +75,33 @@ class ProtectedTrustStateStore(
         state
     }
 
-    fun save(bundle: ByteArray, anchor: RegistryAnchor) = synchronized(lock) {
-        requireValidAnchor(anchor)
+    fun save(
+        bundle: ByteArray,
+        anchor: RegistryAnchor,
+        nowEpochSeconds: Long = System.currentTimeMillis() / 1000L
+    ) = synchronized(lock) {
+        requireValidAnchor(anchor, nowEpochSeconds)
         val digest = sha256(bundle)
         if (!MessageDigest.isEqual(digest, anchor.bundleSha256)) {
             throw StateException("Bundle digest does not match the verified registry anchor.")
         }
         if (file.exists()) {
+            if (file.length() !in 1..MAX_ENCODED_STATE_BYTES.toLong()) {
+                throw StateException("Stored trust state exceeds the permitted size.")
+            }
             val current = decrypt(file.readBytes())
             if (anchor.sequence < current.sequence ||
                 (anchor.sequence == current.sequence &&
                     !MessageDigest.isEqual(anchor.bundleSha256, current.bundleSha256))) {
                 throw StateException("Trust-state rollback or same-sequence substitution detected.")
+            }
+            if (anchor.sequence > current.sequence) {
+                if (current.sequence == Long.MAX_VALUE ||
+                    anchor.sequence != current.sequence + 1 ||
+                    anchor.previousBundleSha256 == null ||
+                    !MessageDigest.isEqual(anchor.previousBundleSha256, current.bundleSha256)) {
+                    throw StateException("Registry anchor skips or breaks the trusted sequence chain.")
+                }
             }
         }
         val encoded = encrypt(TrustState(anchor.sequence, digest, bundle))
@@ -90,9 +123,11 @@ class ProtectedTrustStateStore(
         }
     }
 
-    private fun requireValidAnchor(anchor: RegistryAnchor) {
+    private fun requireValidAnchor(anchor: RegistryAnchor, now: Long) {
         if (anchor.sequence < 1 || anchor.bundleSha256.size != 32 ||
             anchor.signedPayload.isEmpty() || anchor.signature.isEmpty() ||
+            !TrustRegistryAnchorPolicy.isFresh(anchor.issuedAt, anchor.expiresAt, now) ||
+            (anchor.previousBundleSha256 != null && anchor.previousBundleSha256.size != 32) ||
             !verifyRegistryAnchor(anchor)) {
             throw StateException("Registry anchor is missing, stale, or invalid.")
         }
@@ -182,6 +217,7 @@ class ProtectedTrustStateStore(
         MessageDigest.getInstance("SHA-256").digest(bytes)
 
     companion object {
+        private const val MAX_ENCODED_STATE_BYTES = 4 * 1024 * 1024 + 128
         private val MAGIC = byteArrayOf(0x53, 0x49, 0x51, 0x54, 0x53, 0x01)
     }
 }
