@@ -139,8 +139,8 @@ final class TrustBundleValidator
         if (!in_array($keyset->hardware_assurance, ['secure-enclave', 'android-strongbox', 'android-tee-qualified'], true)) {
             throw new RuntimeException('Master key hardware assurance level is not an approved platform tier.');
         }
-        $this->validatePublicKey($keyset->signing ?? null, 'ES256');
-        $this->validatePublicKey($keyset->key_agreement ?? null, 'ECDH-ES');
+        $this->validatePublicKey($keyset->signing ?? null, 'ES256', false, 'master-signing');
+        $this->validatePublicKey($keyset->key_agreement ?? null, 'ECDH-ES', false, 'master-key-agreement');
         if ($keyset->signing->kid === $keyset->key_agreement->kid) {
             throw new RuntimeException('Master signing and key-agreement keys must have distinct key IDs.');
         }
@@ -192,7 +192,12 @@ final class TrustBundleValidator
         }
     }
 
-    private function validatePublicKey(mixed $key, string $expectedAlgorithm, bool $withPurpose = false): void
+    private function validatePublicKey(
+        mixed $key,
+        string $expectedAlgorithm,
+        bool $withPurpose = false,
+        ?string $expectedKidPrefix = null
+    ): void
     {
         $fields = ['kid', 'alg', 'public_key_pem'];
         if ($withPurpose) {
@@ -214,6 +219,17 @@ final class TrustBundleValidator
                 || !in_array($details['ec']['curve_name'] ?? null, ['prime256v1', 'secp256r1'], true)
                 || ($details['ec']['curve_oid'] ?? null) !== '1.2.840.10045.3.1.7') {
                 throw new RuntimeException('Trust bundle keys must use the P-256 curve.');
+            }
+            if ($expectedKidPrefix !== null) {
+                $x = $details['ec']['x'] ?? null;
+                $y = $details['ec']['y'] ?? null;
+                if (!is_string($x) || strlen($x) !== 32 || !is_string($y) || strlen($y) !== 32) {
+                    throw new RuntimeException('Master P-256 public point has an invalid coordinate encoding.');
+                }
+                $expectedKid = $expectedKidPrefix . '-' . hash('sha256', $x . $y);
+                if (!hash_equals($expectedKid, $key->kid)) {
+                    throw new RuntimeException('Master key ID is not bound to its P-256 public key material.');
+                }
             }
         } finally {
             openssl_pkey_free($publicKey);
