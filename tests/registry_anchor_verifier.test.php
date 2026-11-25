@@ -96,6 +96,7 @@ anchorAssert($same['sequence'] === '1', 'Identical current anchor should remain 
 
 anchorReject(fn() => $verifier->verify($signed, $signature, $signers, 'other-owner', null, null, $now), 'Cross-owner anchor replay must fail.');
 anchorReject(fn() => $verifier->verify($signed, $signature, [['kid' => 'registry-test-1', 'role' => 'release-authorisation', 'alg' => 'ES256', 'public_key_pem' => $publicPem]], 'owner-test-001', null, null, $now), 'Wrong signer role must fail.');
+anchorReject(fn() => $verifier->verify($signed, $signature, [$signers[0], $signers[0]], 'owner-test-001', null, null, $now), 'Duplicate independently pinned signer IDs must fail.');
 anchorReject(fn() => $verifier->verify($signed, $signature, [['kid' => 'registry-test-1', 'role' => 'registry-anchor', 'alg' => 'ES256', 'public_key_pem' => $otherPem]], 'owner-test-001', null, null, $now), 'Unpinned key must fail.');
 anchorReject(fn() => $verifier->verify($signed, $signature, $signers, 'owner-test-001', '1', hash('sha256', 'different'), $now), 'Same-sequence digest substitution must fail.');
 anchorReject(fn() => $verifier->verify($nextSigned, $nextSignature, $signers, 'owner-test-001', '1', hash('sha256', 'different'), $now), 'Broken previous-digest chain must fail.');
