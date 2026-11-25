@@ -50,7 +50,7 @@ data class AndroidAttestationEvidence(
  * trust anchor, revocation status, challenge, app identity, boot state and key policy.
  */
 fun interface IndependentTeeAttestationVerifier {
-    fun verify(evidence: AndroidAttestationEvidence): Boolean
+    fun verify(\n        evidence: AndroidAttestationEvidence,\n        expectedSigningPublicKeyPEM: String,\n        expectedAgreementPublicKeyPEM: String\n    ): Boolean
 }
 
 data class AndroidMasterKeyDescriptor(
@@ -207,7 +207,7 @@ class AndroidMasterKeyStore(
                 expectedSecurityLevel = KeyProperties.SECURITY_LEVEL_TRUSTED_ENVIRONMENT,
                 verifyTeeAttestation = false
             )
-            if (!verifier.verify(result.attestationEvidence)) {
+            if (!verifier.verify(result.attestationEvidence, result.signing.public_key_pem, result.key_agreement.public_key_pem)) {
                 throw AndroidMasterKeyException("Independent TEE key attestation was not accepted.")
             }
             validatedAssurance = ASSURANCE_TEE
@@ -257,7 +257,7 @@ class AndroidMasterKeyStore(
         if (assurance == ASSURANCE_TEE && verifyTeeAttestation) {
             val verifier = teeVerifier
                 ?: throw AndroidMasterKeyException("TEE-backed master keys require an independent attestation verifier.")
-            if (!verifier.verify(evidence)) {
+            if (!verifier.verify(evidence,\n                    AndroidP256Encoding.subjectPublicKeyInfoPEM(signingPublic),\n                    AndroidP256Encoding.subjectPublicKeyInfoPEM(agreementPublic)\n                )) {
                 throw AndroidMasterKeyException("Independent TEE key attestation was not accepted.")
             }
         }
