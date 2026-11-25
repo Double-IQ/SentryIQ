@@ -7,7 +7,7 @@ import sys
 root = Path(__file__).resolve().parents[1]
 workflow_dir = root / ".github" / "workflows"
 uses_pattern = re.compile(r"^\s*uses:\s*([^\s#]+)", re.MULTILINE)
-pinned_pattern = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}$")
+pinned_pattern = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*@[0-9a-f]{40}$")
 errors = []
 checked = 0
 
