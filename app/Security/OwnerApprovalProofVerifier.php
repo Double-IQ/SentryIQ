@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SentryIQ\\Security;
+namespace SentryIQ\Security;
 
 use RuntimeException;
 
@@ -15,7 +15,7 @@ use RuntimeException;
  */
 final class OwnerApprovalProofVerifier
 {
-    private const DOMAIN = "SENTRYIQ-OWNER-BOOTSTRAP-APPROVAL-V1\\n";
+    private const DOMAIN = "SENTRYIQ-OWNER-BOOTSTRAP-APPROVAL-V1\n";
     private const RECEIPT_VERSION = 1;
 
     /** @param callable(string):array{owner_id:string,key_id:string,role:string,algorithm:string,status:string,public_key_pem:string} $resolveActiveOwnerKey */
@@ -159,7 +159,7 @@ final class OwnerApprovalProofVerifier
                 $written = fwrite($handle, $json);
                 if ($written !== strlen($json) || !fflush($handle)) throw new RuntimeException('Unable to persist approval receipt.');
                 if (function_exists('fsync') && !fsync($handle)) throw new RuntimeException('Unable to sync approval receipt.');
-            } catch (\\Throwable $error) {
+            } catch (\Throwable $error) {
                 fclose($handle); @unlink($temp); throw $error;
             }
             fclose($handle);
