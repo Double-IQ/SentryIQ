@@ -295,8 +295,13 @@ class AndroidMasterKeyStore(
     }
 
     private fun validateKeyInfo(info: KeyInfo, requiredPurpose: Int) {
-        if (info.keySize != 256 || (info.purposes and requiredPurpose) != requiredPurpose) {
-            throw AndroidMasterKeyException("Android Keystore key size or purpose does not match policy.")
+        if (info.keySize != 256 || info.purposes != requiredPurpose ||
+            info.origin != KeyProperties.ORIGIN_GENERATED) {
+            throw AndroidMasterKeyException("Android Keystore key size, origin, or purpose does not match policy.")
+        }
+        if (requiredPurpose == KeyProperties.PURPOSE_SIGN &&
+            !info.digests.contains(KeyProperties.DIGEST_SHA256)) {
+            throw AndroidMasterKeyException("Master signing key is not restricted to SHA-256.")
         }
         if (!info.isUserAuthenticationRequired ||
             info.userAuthenticationValidityDurationSeconds != AUTH_VALIDITY_SECONDS ||
@@ -407,6 +412,9 @@ object AndroidP256Encoding {
     }
 
     fun parseSubjectPublicKeyInfoPEM(pem: String): ECPublicKey {
+        require(pem.startsWith("-----BEGIN PUBLIC KEY-----") && pem.trimEnd().endsWith("-----END PUBLIC KEY-----")) {
+            "Peer key must use SubjectPublicKeyInfo PEM."
+        }
         val body = pem
             .replace("-----BEGIN PUBLIC KEY-----", "")
             .replace("-----END PUBLIC KEY-----", "")
@@ -461,6 +469,11 @@ object Es256SignatureEncoding {
     }
 
     private fun fixed32(integer: ByteArray): ByteArray {
+        require(integer.isNotEmpty()) { "ECDSA integer is empty." }
+        require((integer[0].toInt() and 0x80) == 0) { "ECDSA DER integer must be positive." }
+        if (integer.size > 1 && integer[0] == 0.toByte()) {
+            require((integer[1].toInt() and 0x80) != 0) { "ECDSA DER integer has redundant sign padding." }
+        }
         var start = 0
         while (start < integer.size - 1 && integer[start] == 0.toByte()) start++
         val magnitude = integer.copyOfRange(start, integer.size)
