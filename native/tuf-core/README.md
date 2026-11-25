@@ -1,42 +1,39 @@
 # SentryIQ shared TUF core (prototype)
 
-This crate is the first shared Rust verification boundary for the iOS and Android native companions. It uses Tuffet's offline trusted-metadata API and exposes a UniFFI-compatible function so Swift and Kotlin can call the same verifier rather than reimplementing TUF in two languages.
+This Rust crate is the shared TUF verification boundary for the iOS and Android native companions. UniFFI generates Swift and Kotlin bindings from the same exported API; the native platforms do not reimplement TUF parsing or signature verification independently.
 
-## Current scope
+## Verified native integration
 
-- Check the exact SHA-256 of the initial root against a fingerprint supplied through an independent out-of-band bootstrap ceremony.
-- Ask Tuffet to parse and validate the initial root's self-signature threshold.
-- Validate a supplied sequence of sequential root rotations. TUF requires each new root to be signed by the previous root threshold and its own new root threshold, with the next exact version.
-- Verify a top-level metadata refresh (timestamp, snapshot, targets), optionally loading cached timestamp/snapshot/targets metadata first as a rollback baseline. Cached metadata must be supplied as a complete set or omitted for initial bootstrap.
-- Enforce bounded input sizes and fail closed.
+PR #191 merged the native build and linkage:
 
-This prototype verifies timestamp, snapshot, and top-level targets bytes supplied by the caller, but it does **not** fetch metadata, persist trusted metadata, perform delegated-target traversal, consume one-use network challenges, or create a production trust anchor. The caller must atomically persist all accepted root and metadata state only after verification succeeds. The native app must not treat this function as full TUF refresh.
+- **iOS:** `scripts/build-ios-xcframework.sh` generates Swift bindings and an XCFramework containing arm64 iOS device, arm64/x86_64 iOS simulator, and universal arm64/x86_64 macOS host slices. The Swift package links the XCFramework and exposes `SentryIQTufTrustVerifier`.
+- **Android:** `scripts/build-android-libraries.sh` generates Kotlin bindings and builds arm64-v8a, armeabi-v7a, and x86_64 shared libraries with the Android NDK. The libraries are packaged through `jniLibs`; generated UniFFI Kotlin code uses JNA and is linked into the Android companion through `SentryIQTufTrustVerifier`.
+- Generated bindings, native libraries, and XCFramework outputs are build artifacts and are not checked into source control.
+- CI successfully built the Android native module and ran its unit tests. iOS CI built the XCFramework, compiled the Swift package, and ran tests including a call through the Swift binding into the Rust library.
 
-## Dependency decision
-
-Tuffet 0.1.0 is a provisional candidate, not yet production-approved. It follows TUF 1.0, offers an offline TrustedMetadata API and backend-neutral cryptography, and lets SentryIQ own transport and protected storage. Its documented unsupported areas include TAP 4 multi-repository consensus and the optional mirrors role; SentryIQ's initial deployment is one repository and does not require either feature. We still need a security review, fixture interoperability checks, mobile cross-compilation, and dependency maintenance assessment before pinning it for production.
-
-UniFFI provides generated Swift and Kotlin bindings from one Rust core. The current crate exports the function but binding generation and XCFramework/Android ABI packaging are separate integration tasks. A CI build is required before this prototype can be considered validated.
-
-## UniFFI binding generation
-
-The crate now exposes a pinned UniFFI 0.32.2 bindgen executable and a checked-in `uniffi.toml` naming the Kotlin package (`co.bichet.sentryiq.tuf`) and Swift module (`SentryIQTufCore`). CI builds the Rust cdylib and generates both language bindings from that exact library in library mode. Generated files are currently placed under the ignored Cargo target directory and are not yet linked into the Android AAR or iOS Swift package.
-
-The binding-generation step validates the exported interface only. It does not package per-ABI Rust binaries, link the generated Kotlin/Swift wrappers into the native companions, or prove end-to-end execution on physical devices. Those are subsequent integration and qualification gates.
-
-## Native platform linkage
-
-The platform build scripts generate UniFFI wrappers from the same Rust cdylib and build the Rust static/shared libraries for the supported native ABIs:
-
-- iOS: `bash native/tuf-core/scripts/build-ios-xcframework.sh` creates `native/ios/SentryIQMaster/Libraries/SentryIQTufCore.xcframework` for arm64 device and arm64/x86_64 simulators. The Swift package links the XCFramework through its binary target.
-- Android: `ANDROID_NDK_HOME=... bash native/tuf-core/scripts/build-android-libraries.sh` builds arm64-v8a, armeabi-v7a, and x86_64 libraries into the Android library's `jniLibs`; the generated Kotlin binding uses JNA.
-
-The generated language source and compiled platform libraries are build outputs, not checked-in binaries. The platform CI workflows generate them before compiling/testing the native companion. The iOS test exercises an actual call through the Swift wrapper into the Rust library. Android CI currently validates cross-ABI compilation, AAR packaging, and Kotlin compilation; emulator execution remains a qualification gate.
-
-## Validation
+Reproduce the platform builds from the repository root:
 
 ```sh
-cargo test --manifest-path native/tuf-core/Cargo.toml
+bash native/tuf-core/scripts/build-ios-xcframework.sh
+ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018" \
+  bash native/tuf-core/scripts/build-android-libraries.sh
 ```
 
-No production root, private key, trust state, or repository metadata is included.
+## Current verifier scope and limitations
+
+The shared core currently:
+
+- Pins the initial TUF root by an exact SHA-256 supplied independently through the bootstrap ceremony.
+- Validates the initial root and a supplied sequence of sequential root rotations.
+- Verifies supplied timestamp, snapshot, and top-level targets metadata, optionally loading a complete cached metadata set as a rollback baseline.
+- Bounds input sizes and fails closed.
+
+It does **not** fetch metadata, traverse delegated targets, consume one-use network challenges, persist metadata, or atomically commit accepted root/metadata state. The caller must not treat this as a complete TUF client or production trust decision. Transport, independently authenticated registry anchors, protected persistent metadata storage, atomic commit/recovery, and binding the accepted TUF state into the trust-bundle state machine remain implementation gates.
+
+Android emulator execution and real-device iOS/Android hardware qualification have not been completed. CI compilation is not device qualification.
+
+## Dependency status
+
+Tuffet 0.1.0 remains a provisional, unapproved dependency. Before production use it requires dependency maintenance review, security assessment, interoperability against maintained TUF fixtures, and independent review. The current prototype targets the single-repository TUF 1.0 use case; unsupported optional TUF roles and multi-repository extensions must remain outside the claimed scope.
+
+No production root, private key, trust state, or repository metadata is included or generated by these builds.
