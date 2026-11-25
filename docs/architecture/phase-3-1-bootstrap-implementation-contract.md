@@ -157,6 +157,8 @@ The native storage implementations must be reviewed on both iOS and Android. The
 
 The native persistence adapters use the same logical record: the exact accepted bundle bytes, its SHA-256 digest, and its monotonic registry sequence. Each operation requires a separately supplied signed registry anchor. The caller-provided verifier must authenticate the anchor with an independently pinned registry key and validate sequence/previous-digest continuity; a boolean result is not permission to trust an unsigned app-host response.
 
+**Registry-anchor verification remains unimplemented:** the iOS and Android stores currently accept an injected verification callback, but this repository does not yet provide the concrete signed-payload parser, signature verifier, or independently provisioned registry-key source for that callback. The storage adapters are therefore primitives only; no production caller may substitute an unconditional success closure or trust app-host state.
+
 - iOS stores the record as a Keychain generic-password item with `WhenUnlockedThisDeviceOnly` accessibility. It is not synchronised or eligible for device backup.
 - Android stores the record under `noBackupFilesDir`, encrypted with AES-256-GCM using an Android Keystore key and atomic file replacement.
 - Both adapters reject invalid anchors, digest mismatch, lower sequence, and same-sequence substitution. A missing/corrupt record fails closed.
