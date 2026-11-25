@@ -7,12 +7,18 @@ public struct TrustRegistryAnchor {
     public let bundleSHA256: Data
     public let signedPayload: Data
     public let signature: Data
+    public let issuedAt: UInt64
+    public let expiresAt: UInt64
+    public let previousBundleSHA256: Data?
 
-    public init(sequence: UInt64, bundleSHA256: Data, signedPayload: Data, signature: Data) {
+    public init(sequence: UInt64, bundleSHA256: Data, signedPayload: Data, signature: Data, issuedAt: UInt64, expiresAt: UInt64, previousBundleSHA256: Data?) {
         self.sequence = sequence
         self.bundleSHA256 = bundleSHA256
         self.signedPayload = signedPayload
         self.signature = signature
+        self.issuedAt = issuedAt
+        self.expiresAt = expiresAt
+        self.previousBundleSHA256 = previousBundleSHA256
     }
 }
 
@@ -57,8 +63,8 @@ public final class ProtectedTrustStateStore {
         self.verifyRegistryAnchor = verifyRegistryAnchor
     }
 
-    public func load(anchor: TrustRegistryAnchor) throws -> ProtectedTrustState {
-        try validate(anchor)
+    public func load(anchor: TrustRegistryAnchor, now: UInt64 = UInt64(Date().timeIntervalSince1970)) throws -> ProtectedTrustState {
+        try validate(anchor, now: now)
         guard let data = try readItem() else { throw StoreError.missingState }
         let archive: Archive
         do { archive = try JSONDecoder().decode(Archive.self, from: data) }
@@ -76,8 +82,8 @@ public final class ProtectedTrustStateStore {
         )
     }
 
-    public func save(bundle: Data, anchor: TrustRegistryAnchor) throws {
-        try validate(anchor)
+    public func save(bundle: Data, anchor: TrustRegistryAnchor, now: UInt64 = UInt64(Date().timeIntervalSince1970)) throws {
+        try validate(anchor, now: now)
         let digest = Data(SHA256.hash(data: bundle))
         guard digest == anchor.bundleSHA256 else { throw StoreError.digestMismatch }
 
@@ -88,6 +94,13 @@ public final class ProtectedTrustStateStore {
             if anchor.sequence < current.sequence ||
                 (anchor.sequence == current.sequence && anchor.bundleSHA256 != current.bundleSHA256) {
                 throw StoreError.rollbackDetected
+            }
+            if anchor.sequence > current.sequence {
+                guard current.sequence < UInt64.max,
+                      anchor.sequence == current.sequence + 1,
+                      anchor.previousBundleSHA256 == current.bundleSHA256 else {
+                    throw StoreError.rollbackDetected
+                }
             }
         }
 
@@ -100,11 +113,19 @@ public final class ProtectedTrustStateStore {
         try writeItem(encoded)
     }
 
-    private func validate(_ anchor: TrustRegistryAnchor) throws {
+    private func validate(_ anchor: TrustRegistryAnchor, now: UInt64) throws {
+        let validityWindow = anchor.expiresAt >= anchor.issuedAt ? anchor.expiresAt - anchor.issuedAt : 0
         guard anchor.sequence > 0,
               anchor.bundleSHA256.count == 32,
               !anchor.signedPayload.isEmpty,
               !anchor.signature.isEmpty,
+              anchor.issuedAt > 0,
+              anchor.expiresAt > now,
+              anchor.issuedAt <= now + 60,
+              now - anchor.issuedAt <= 86_400,
+              validityWindow > 0,
+              validityWindow <= 86_400,
+              anchor.previousBundleSHA256 == nil || anchor.previousBundleSHA256?.count == 32,
               verifyRegistryAnchor(anchor) else {
             throw StoreError.invalidRegistryAnchor
         }
@@ -124,6 +145,7 @@ public final class ProtectedTrustStateStore {
         guard status == errSecSuccess, let data = result as? Data else {
             throw StoreError.keychain(status)
         }
+        guard data.count <= 4 * 1024 * 1024 + 128 else { throw StoreError.corruptState }
         return data
     }
 
