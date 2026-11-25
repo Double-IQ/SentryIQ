@@ -43,18 +43,40 @@ jobs:
         run: |
           echo "no" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --name sentryiq-tuf-test --package "system-images;android-35;google_apis;x86_64" --device "pixel_2" --force
       - name: Boot Android emulator
+        timeout-minutes: 12
         run: |
+          set -euo pipefail
           export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
-          nohup "$ANDROID_HOME/emulator/emulator" -avd sentryiq-tuf-test -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot > /tmp/sentryiq-emulator.log 2>&1 &
-          timeout 180 adb wait-for-device
+          adb start-server
+          "$ANDROID_HOME/emulator/emulator" -version
+          "$ANDROID_HOME/emulator/emulator" -accel-check || true
+          nohup "$ANDROID_HOME/emulator/emulator" -avd sentryiq-tuf-test -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot -no-snapshot-save > /tmp/sentryiq-emulator.log 2>&1 &
+          emulator_pid=$!
+          echo "$emulator_pid" > /tmp/sentryiq-emulator.pid
           for attempt in $(seq 1 120); do
-            if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
-              adb shell input keyevent 82 || true
-              exit 0
+            if ! kill -0 "$emulator_pid" 2>/dev/null; then
+              echo "Android emulator process exited before boot."
+              cat /tmp/sentryiq-emulator.log
+              exit 1
+            fi
+            if adb devices | grep -qE '^emulator-[0-9]+[[:space:]]+device      - name: Run Android native TUF FFI instrumentation test
+        run: gradle --no-daemon --project-dir native/android/SentryIQMaster :master:connectedDebugAndroidTest
+; then
+              if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+                adb shell input keyevent 82 || true
+                exit 0
+              fi
+            fi
+            if (( attempt % 12 == 0 )); then
+              echo "Waiting for Android emulator boot (attempt $attempt/120)."
+              tail -n 60 /tmp/sentryiq-emulator.log || true
+              adb devices -l || true
             fi
             sleep 5
           done
+          echo "Android emulator did not finish booting."
           cat /tmp/sentryiq-emulator.log
+          adb devices -l || true
           exit 1
       - name: Run Android native TUF FFI instrumentation test
         run: gradle --no-daemon --project-dir native/android/SentryIQMaster :master:connectedDebugAndroidTest
