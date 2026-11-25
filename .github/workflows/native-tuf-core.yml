@@ -41,3 +41,11 @@ jobs:
           test -n "$(find target/bindings/kotlin -type f -name '*.kt' -print -quit)"
           test -n "$(find target/bindings/swift -type f -name '*.swift' -print -quit)"
         working-directory: native/tuf-core
+
+      - name: Upload generated native bindings
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sentryiq-tuf-native-bindings
+          path: native/tuf-core/target/bindings/
+          if-no-files-found: error
+          retention-days: 3
