@@ -131,9 +131,12 @@ final class BootstrapChallengeStore
             if (!flock($lock, LOCK_EX)) {
                 throw new RuntimeException('Unable to lock bootstrap challenge store.');
             }
-            if (!@chmod($lockPath, 0600) || (((fileperms($lockPath) ?: 0) & 0777) !== 0600)) {
+            @chmod($lockPath, 0600);
+            clearstatcache(true, $lockPath);
+            if (((fileperms($lockPath) ?: 0) & 0777) !== 0600) {
                 throw new RuntimeException('Bootstrap challenge lock permissions are not private.');
             }
+            clearstatcache(true, $storePath);
             if (file_exists($storePath) && !is_file($storePath)) {
                 throw new RuntimeException('Bootstrap challenge state path is not a regular file.');
             }
@@ -187,7 +190,9 @@ final class BootstrapChallengeStore
                 @unlink($tempPath);
                 throw new RuntimeException('Unable to atomically commit bootstrap challenge update.');
             }
-            if (!@chmod($storePath, 0600) || (((fileperms($storePath) ?: 0) & 0777) !== 0600)) {
+            @chmod($storePath, 0600);
+            clearstatcache(true, $storePath);
+            if (((fileperms($storePath) ?: 0) & 0777) !== 0600) {
                 throw new RuntimeException('Committed bootstrap challenge state permissions are not private.');
             }
         } finally {
