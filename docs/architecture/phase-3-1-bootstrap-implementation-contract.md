@@ -112,7 +112,7 @@ The native ceremony implementation uses the same transcript on iOS and Android. 
 3. Require the owner to confirm the exact digest against the out-of-band fingerprint. Comparison is performed against both the out-of-band value and the value confirmed in the UI; malformed or mismatched values fail before authentication or signing.
 4. Require fresh OS-level biometric/passcode verification immediately before signing.
 5. Sign the operation-bound transcript with the dedicated hardware-backed master signing key. Protocol version 2 is binary and deterministic:
-   - ASCII domain separator `SENTRYIQ-OWNER-BOOTSTRAP-APPROVAL-V2\\n`
+   - ASCII domain separator `SENTRYIQ-OWNER-BOOTSTRAP-APPROVAL-V2\n`
    - owner identifier as UTF-8, prefixed by a 4-byte unsigned big-endian length
    - 32-byte SHA-256 digest of the exact canonical trust-bundle bytes
    - root role and immutable root key ID, each UTF-8 and prefixed by a 4-byte unsigned big-endian length
