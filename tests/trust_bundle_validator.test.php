@@ -29,7 +29,10 @@ function jcsForFixture(mixed $value): string
         }
         return '{' . implode(',', $parts) . '}';
     }
-    if (is_array($value)) {\n        if (array_is_list($value)) return '[' . implode(',', array_map('jcsForFixture', $value)) . ']';\n        return jcsForFixture((object)$value);\n    }
+    if (is_array($value)) {
+        if (array_is_list($value)) return '[' . implode(',', array_map('jcsForFixture', $value)) . ']';
+        return jcsForFixture((object)$value);
+    }
     return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS | JSON_THROW_ON_ERROR);
 }
 
@@ -199,4 +202,5 @@ trustBundleReject(
     'Unknown trust bundle fields must be rejected.'
 );
 
-echo "Trust bundle validator tests passed.\n";
+echo "Trust bundle validator tests passed.
+";
