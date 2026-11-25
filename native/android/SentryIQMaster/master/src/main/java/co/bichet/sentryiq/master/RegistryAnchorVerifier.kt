@@ -3,6 +3,10 @@ package co.bichet.sentryiq.master
 import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.Signature
+import java.security.AlgorithmParameters
+import java.security.interfaces.ECPublicKey
+import java.security.spec.ECGenParameterSpec
+import java.security.spec.ECParameterSpec
 import java.security.spec.X509EncodedKeySpec
 import java.util.Locale
 
@@ -66,6 +70,7 @@ object RegistryAnchorVerifier {
 
         val publicKey = KeyFactory.getInstance("EC")
             .generatePublic(X509EncodedKeySpec(signer.subjectPublicKeyInfoDer))
+        require(publicKey is ECPublicKey && isP256(publicKey.params)) { "Registry signer key must use P-256." }
         val verifier = Signature.getInstance("SHA256withECDSA")
         verifier.initVerify(publicKey)
         verifier.update(anchor.signedPayload)
@@ -88,6 +93,18 @@ object RegistryAnchorVerifier {
 
     private fun validIdentifier(value: String, maxLength: Int): Boolean =
         value.length in 1..maxLength && value.matches(Regex("^[A-Za-z0-9._:-]+$"))
+
+    private fun isP256(actual: ECParameterSpec): Boolean {
+        val parameters = AlgorithmParameters.getInstance("EC").apply {
+            init(ECGenParameterSpec("secp256r1"))
+        }.getParameterSpec(ECParameterSpec::class.java)
+        return actual.curve.field == parameters.curve.field &&
+            actual.curve.a == parameters.curve.a &&
+            actual.curve.b == parameters.curve.b &&
+            actual.generator == parameters.generator &&
+            actual.order == parameters.order &&
+            actual.cofactor == parameters.cofactor
+    }
 
     private fun rawSignatureToDer(raw: ByteArray): ByteArray {
         fun encodeInteger(bytes: ByteArray): ByteArray {
