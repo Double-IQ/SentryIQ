@@ -145,6 +145,13 @@ trustBundleReject(
     'Lower sequence must be rejected.'
 );
 
+$nextValid = $makeBundle([
+    'sequence' => '2',
+    'previous_digest' => $result['digest'],
+]);
+$nextResult = $validator->validate($nextValid, $trusted, 'owner-test-001', $result['digest'], '1', $now);
+trustBundleAssert($nextResult['sequence'] === '2', 'A correctly chained higher sequence should pass.');
+
 $next = $makeBundle([
     'sequence' => '2',
     'previous_digest' => str_repeat('b', 64),
@@ -193,6 +200,19 @@ $duplicate = str_replace('"schema_version":1', '"schema_version":1,"schema_versi
 trustBundleReject(
     fn() => $validator->validate($duplicate, $trusted, 'owner-test-001', null, null, $now),
     'Duplicate JSON members must be rejected before decoding.'
+);
+
+$reusedKey = json_decode($valid, true, 64, JSON_THROW_ON_ERROR);
+$reusedKey['master_keyset']['signing']['public_key_pem'] = $releasePem;
+$reusedUnsigned = (object)$reusedKey;
+unset($reusedUnsigned->signatures);
+$reusedPayload = jcsForFixture($reusedUnsigned);
+openssl_sign($reusedPayload, $reusedDer, $privateKey, OPENSSL_ALGO_SHA256);
+$reusedRaw = derEcdsaToRaw($reusedDer);
+$reusedKey['signatures'][0]['signature'] = rtrim(strtr(base64_encode($reusedRaw), '+/', '-_'), '=');
+trustBundleReject(
+    fn() => $validator->validate(json_encode($reusedKey, JSON_THROW_ON_ERROR), $trusted, 'owner-test-001', null, null, $now),
+    'Public key material must not be reused across master and release roles.'
 );
 
 $unknownField = json_decode($valid, true, 64, JSON_THROW_ON_ERROR);
