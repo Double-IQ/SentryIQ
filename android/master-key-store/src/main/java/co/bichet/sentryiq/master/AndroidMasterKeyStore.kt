@@ -261,7 +261,11 @@ class AndroidMasterKeyStore(
         if (assurance == ASSURANCE_TEE && verifyTeeAttestation) {
             val verifier = teeVerifier
                 ?: throw AndroidMasterKeyException("TEE-backed master keys require an independent attestation verifier.")
-            if (!verifier.verify(evidence,\n                    AndroidP256Encoding.subjectPublicKeyInfoPEM(signingPublic),\n                    AndroidP256Encoding.subjectPublicKeyInfoPEM(agreementPublic)\n                )) {
+            if (!verifier.verify(
+                    evidence,
+                    AndroidP256Encoding.subjectPublicKeyInfoPEM(signingPublic),
+                    AndroidP256Encoding.subjectPublicKeyInfoPEM(agreementPublic)
+                )) {
                 throw AndroidMasterKeyException("Independent TEE key attestation was not accepted.")
             }
         }
