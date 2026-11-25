@@ -14,7 +14,7 @@ final class OwnerFingerprintApprovalCeremonyTests: XCTestCase {
 
     private func approve(bundleFP: String? = nil, rootFP: String? = nil, owner: String = "owner-123",
         role: String = "release-authorisation", purpose: String = "bootstrap-release-root",
-        expires: UInt64? = nil, verify: @escaping (Data) throws -> Bool = { _ in true },
+        expires: UInt64? = nil, verify: @escaping (Data, String, String, Data, Data, String) throws -> Bool = { _, _, _, _, _, _ in true },
         fresh: @escaping () throws -> Void = {}, sign: @escaping (Data) throws -> Data = { _ in Data([0x30, 1]) }
     ) throws -> OwnerFingerprintApprovalCeremony.ApprovalProof {
         try OwnerFingerprintApprovalCeremony.approve(canonicalBundle: bundle,
@@ -59,7 +59,7 @@ final class OwnerFingerprintApprovalCeremonyTests: XCTestCase {
     func testExpiredChallengeAndInvalidCandidateFailBeforeSigning() {
         var signed = false
         XCTAssertThrowsError(try approve(expires: now))
-        XCTAssertThrowsError(try approve(verify: { _ in false }, sign: { _ in signed = true; return Data([1]) }))
+        XCTAssertThrowsError(try approve(verify: { _, _, _, _, _, _ in false }, sign: { _ in signed = true; return Data([1]) }))
         XCTAssertFalse(signed)
     }
     func testFreshUserVerificationMustSucceedBeforeSigning() {
