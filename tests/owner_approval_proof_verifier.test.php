@@ -59,7 +59,7 @@ $goldenTranscript = ownerApprovalTranscript(
     hash('sha256', 'independent-release-root'),
     hash('sha256', 'device-keyset-public-identifiers'),
     'bootstrap-release-root',
-    str_repeat("\\x5a", 32),
+    str_repeat("\x5a", 32),
     1_700_000_200
 );
 ownerApprovalAssert(bin2hex($goldenTranscript) === $goldenTranscriptHex, 'PHP V2 transcript must match the shared native golden vector.');
