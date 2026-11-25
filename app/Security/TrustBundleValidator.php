@@ -92,6 +92,7 @@ final class TrustBundleValidator
         $this->validateVerifier($bundle->verifier ?? null);
         $this->validateTufReference($bundle->sigstore_tuf ?? null);
         $this->validateRevocations($bundle->revocations ?? null);
+        $this->assertRoleSeparation($bundle);
 
         if (!is_array($bundle->signatures) || $bundle->signatures === []) {
             throw new RuntimeException('Trust bundle has no detached signatures.');
@@ -145,7 +146,7 @@ final class TrustBundleValidator
         $seen = [];
         foreach ($collection->keys as $key) {
             $this->assertExactObjectFields($key, ['kid', 'alg', 'public_key_pem', 'purpose']);
-            $this->validatePublicKey($key, 'ES256');
+            $this->validatePublicKey($key, 'ES256', true);
             if ($key->purpose !== $purpose || isset($seen[$key->kid])) {
                 throw new RuntimeException('Trust bundle key purpose mismatch or duplicate key ID.');
             }
@@ -170,7 +171,7 @@ final class TrustBundleValidator
         $seen = [];
         foreach ($verifier->keys as $key) {
             $this->assertExactObjectFields($key, ['kid', 'alg', 'public_key_pem', 'purpose']);
-            $this->validatePublicKey($key, 'ES256');
+            $this->validatePublicKey($key, 'ES256', true);
             if ($key->purpose !== 'verifier-report' || isset($seen[$key->kid])) {
                 throw new RuntimeException('Verifier key purpose mismatch or duplicate key ID.');
             }
@@ -178,9 +179,11 @@ final class TrustBundleValidator
         }
     }
 
-    private function validatePublicKey(mixed $key, string $expectedAlgorithm): void
+    private function validatePublicKey(mixed $key, string $expectedAlgorithm, bool $withPurpose = false): void
     {
-        $this->assertExactObjectFields($key, ['kid', 'alg', 'public_key_pem'] + (property_exists($key, 'purpose') ? ['purpose'] : []));
+        $fields = ['kid', 'alg', 'public_key_pem'];
+        if ($withPurpose) $fields[] = 'purpose';
+        $this->assertExactObjectFields($key, $fields);
         if (!is_string($key->kid) || !preg_match('/^[A-Za-z0-9._-]{1,128}$/D', $key->kid)
             || $key->alg !== $expectedAlgorithm || !is_string($key->public_key_pem)
             || strlen($key->public_key_pem) > 8192) {
@@ -198,6 +201,45 @@ final class TrustBundleValidator
             }
         } finally {
             openssl_pkey_free($publicKey);
+        }
+    }
+
+    private function assertRoleSeparation(\\stdClass $bundle): void
+    {
+        $ids = [];
+        $fingerprints = [];
+        $keys = [
+            $bundle->master_keyset->signing,
+            $bundle->master_keyset->key_agreement,
+            ...$bundle->release_authorisation->keys,
+            ...$bundle->verifier->keys,
+        ];
+        foreach ($keys as $key) {
+            if (isset($ids[$key->kid])) {
+                throw new RuntimeException('Trust bundle reuses a key ID across cryptographic roles.');
+            }
+            $ids[$key->kid] = true;
+            $publicKey = openssl_pkey_get_public($key->public_key_pem);
+            if ($publicKey === false) {
+                throw new RuntimeException('Trust bundle contains an invalid public key.');
+            }
+            try {
+                $details = openssl_pkey_get_details($publicKey);
+                $fingerprint = is_array($details) && is_string($details['key'] ?? null)
+                    ? hash('sha256', $details['key']) : '';
+            } finally {
+                openssl_pkey_free($publicKey);
+            }
+            if ($fingerprint === '' || isset($fingerprints[$fingerprint])) {
+                throw new RuntimeException('Trust bundle reuses public key material across cryptographic roles.');
+            }
+            $fingerprints[$fingerprint] = true;
+        }
+        $active = array_fill_keys(array_keys($ids), true);
+        foreach ($bundle->revocations as $revocation) {
+            if (isset($active[$revocation->kid])) {
+                throw new RuntimeException('A key cannot be active and revoked in the same trust bundle.');
+            }
         }
     }
 
