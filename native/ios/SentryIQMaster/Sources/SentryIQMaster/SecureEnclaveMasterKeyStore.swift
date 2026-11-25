@@ -55,7 +55,8 @@ public struct MasterPublicKeySet: Codable, Equatable {
 }
 
 /// Creates and uses separate Secure Enclave P-256 keys for master signing and ECDH.
-/// No key is generated until loadOrCreate() is explicitly called by the companion.
+/// Existing identity is loaded only by loadExisting(); key creation is a separate,
+/// explicit first-run operation so restore/migration cannot silently replace a master.
 public final class SecureEnclaveMasterKeyStore {
     private struct KeyArchive: Codable {
         let signingKey: Data
@@ -70,9 +71,8 @@ public final class SecureEnclaveMasterKeyStore {
         self.keychainService = keychainService
     }
 
-    /// Loads the existing device-bound keyset or creates both keys as one Keychain item.
-    /// A partial/corrupt archive is never silently replaced with new master keys.
-    public func loadOrCreate(context: LAContext? = nil) throws -> MasterPublicKeySet {
+    /// Loads an existing device-bound master keyset. Missing or invalid state fails closed.
+    public func loadExisting(context: LAContext? = nil) throws -> MasterPublicKeySet {
         guard SecureEnclave.isAvailable else {
             throw MasterKeyStoreError.secureEnclaveUnavailable
         }
@@ -80,25 +80,44 @@ public final class SecureEnclaveMasterKeyStore {
         Self.processLock.lock()
         defer { Self.processLock.unlock() }
 
-        let archive: KeyArchive
-        if let existing = try readArchive() {
-            archive = existing
-        } else {
-            let signing = try SecureEnclave.P256.Signing.PrivateKey(
-                accessControl: makeAccessControl(),
-                authenticationContext: context
-            )
-            let agreement = try SecureEnclave.P256.KeyAgreement.PrivateKey(
-                accessControl: makeAccessControl(),
-                authenticationContext: context
-            )
-            let candidate = KeyArchive(
-                signingKey: signing.dataRepresentation,
-                agreementKey: agreement.dataRepresentation
-            )
-            archive = try saveOrLoadExisting(candidate)
+        guard let archive = try readArchive() else {
+            throw MasterKeyStoreError.incompleteKeyArchive
+        }
+        return try publicKeySet(from: archive, context: context)
+    }
+
+    /// Explicit first-run creation. The caller must only invoke this after the
+    /// owner has approved initial master-device setup. It is never called by sign()
+    /// or deriveKey(), so a missing key after restore/reinstall cannot auto-regenerate.
+    public func createInitialMasterKeyset(context: LAContext? = nil) throws -> MasterPublicKeySet {
+        guard SecureEnclave.isAvailable else {
+            throw MasterKeyStoreError.secureEnclaveUnavailable
         }
 
+        Self.processLock.lock()
+        defer { Self.processLock.unlock() }
+
+        if let existing = try readArchive() {
+            return try publicKeySet(from: existing, context: context)
+        }
+
+        let signing = try SecureEnclave.P256.Signing.PrivateKey(
+            accessControl: makeAccessControl(),
+            authenticationContext: context
+        )
+        let agreement = try SecureEnclave.P256.KeyAgreement.PrivateKey(
+            accessControl: makeAccessControl(),
+            authenticationContext: context
+        )
+        let candidate = KeyArchive(
+            signingKey: signing.dataRepresentation,
+            agreementKey: agreement.dataRepresentation
+        )
+        let persisted = try saveOrLoadExisting(candidate)
+        return try publicKeySet(from: persisted, context: context)
+    }
+
+    private func publicKeySet(from archive: KeyArchive, context: LAContext?) throws -> MasterPublicKeySet {
         let signing = try SecureEnclave.P256.Signing.PrivateKey(
             dataRepresentation: archive.signingKey,
             authenticationContext: context
@@ -107,7 +126,6 @@ public final class SecureEnclaveMasterKeyStore {
             dataRepresentation: archive.agreementKey,
             authenticationContext: context
         )
-
         return try Self.publicKeySet(
             signingRaw: signing.publicKey.rawRepresentation,
             agreementRaw: agreement.publicKey.rawRepresentation
