@@ -90,7 +90,7 @@ The native companion persists one of these states:
 
 Transitions:
 
-1. `UNINITIALISED -> MASTER_CREATED_PENDING_ROOTS`: generate separate hardware-backed P-256 signing and key-agreement keys through the platform adapter; display role-specific public fingerprints and record the hardware security level. On iOS use Secure Enclave; on Android prefer StrongBox, otherwise require a qualified TEE-backed key.
+1. `UNINITIALISED -> MASTER_CREATED_PENDING_ROOTS`: only after the owner explicitly starts first-run master setup, generate separate hardware-backed P-256 signing and key-agreement keys through the platform adapter; display role-specific public fingerprints and record the hardware security level. On iOS use Secure Enclave; on Android prefer StrongBox, otherwise require a qualified TEE-backed key. Existing-key loading is a separate operation; a missing keyset after restore, migration, or secure-storage invalidation must enter recovery and must never trigger automatic master-key regeneration.
 2. `MASTER_CREATED_PENDING_ROOTS -> ROOTS_PENDING_VERIFIER`: owner independently compares and accepts the release-authorisation fingerprint with fresh local user verification; validate TUF bootstrap; atomically commit initial trust state.
 3. `ROOTS_PENDING_VERIFIER -> TRUSTED`: only after Phase 4 qualification, owner compares and accepts the verifier fingerprint and proof-of-possession through an independently authenticated channel.
 4. Signature failure, owner/account mismatch, rollback, storage-integrity failure, ambiguous fingerprint, or interrupted commit fails closed and never advances trust.
