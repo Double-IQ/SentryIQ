@@ -47,6 +47,12 @@ jobs:
           printf "no\\n" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --name sentryiq-tuf-test --package "system-images;android-35;google_apis;x86_64" --device "pixel_2" --force
           ls -la "$ANDROID_AVD_HOME"
           test -f "$ANDROID_AVD_HOME/sentryiq-tuf-test.ini"
+      - name: Grant emulator access to KVM
+        run: |
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+          test -r /dev/kvm && test -w /dev/kvm
+          ls -l /dev/kvm
       - name: Boot Android emulator
         run: |
           export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
