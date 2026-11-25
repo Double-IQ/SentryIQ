@@ -1,0 +1,21 @@
+import Foundation
+import XCTest
+@testable import SentryIQMaster
+
+final class SentryIQTufTrustVerifierTests: XCTestCase {
+    func testInvalidTopLevelMetadataFailsClosedThroughRustLibrary() {
+        let accepted = SentryIQTufTrustVerifier.verifyMetadataRefresh(
+            initialRoot: Data(),
+            expectedInitialRootSHA256: Data(repeating: 0, count: 32),
+            candidateRoots: [],
+            cachedTimestamp: nil,
+            cachedSnapshot: nil,
+            cachedTargets: nil,
+            newTimestamp: Data(),
+            newSnapshot: Data([1]),
+            newTargets: Data([1]),
+            referenceTimeUnixSeconds: 1_700_000_000
+        )
+        XCTAssertFalse(accepted)
+    }
+}
