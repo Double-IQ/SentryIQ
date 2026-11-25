@@ -19,8 +19,8 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 internal object TrustRegistryAnchorPolicy {
-    fun isValidInitialAnchor(sequence: Long, previousBundleSha256: ByteArray?): Boolean =
-        sequence == 1L && previousBundleSha256 == null
+    fun isValidInitialAnchor(sequence: ULong, previousBundleSha256: ByteArray?): Boolean =
+        sequence == 1uL && previousBundleSha256 == null
 
     fun isFresh(issuedAt: Long, expiresAt: Long, now: Long): Boolean {
         if (issuedAt <= 0 || expiresAt <= now || expiresAt <= issuedAt) return false
@@ -43,7 +43,7 @@ class ProtectedTrustStateStore(
     private val verifyRegistryAnchor: (RegistryAnchor) -> Boolean
 ) {
     data class RegistryAnchor(
-        val sequence: Long,
+        val sequence: ULong,
         val bundleSha256: ByteArray,
         val signedPayload: ByteArray,
         val signature: ByteArray,
@@ -54,7 +54,7 @@ class ProtectedTrustStateStore(
         val signerKeyId: String
     )
 
-    data class TrustState(val sequence: Long, val bundleSha256: ByteArray, val bundle: ByteArray)
+    data class TrustState(val sequence: ULong, val bundleSha256: ByteArray, val bundle: ByteArray)
 
     class StateException(message: String) : Exception(message)
 
@@ -100,8 +100,8 @@ class ProtectedTrustStateStore(
                 throw StateException("Trust-state rollback or same-sequence substitution detected.")
             }
             if (anchor.sequence > current.sequence) {
-                if (current.sequence == Long.MAX_VALUE ||
-                    anchor.sequence != current.sequence + 1 ||
+                if (current.sequence == ULong.MAX_VALUE ||
+                    anchor.sequence != current.sequence + 1uL ||
                     anchor.previousBundleSha256 == null ||
                     !MessageDigest.isEqual(anchor.previousBundleSha256, current.bundleSha256)) {
                     throw StateException("Registry anchor skips or breaks the trusted sequence chain.")
@@ -147,7 +147,7 @@ class ProtectedTrustStateStore(
     }
 
     private fun requireValidAnchor(anchor: RegistryAnchor, now: Long) {
-        if (anchor.sequence < 1 || anchor.bundleSha256.size != 32 ||
+        if (anchor.sequence < 1uL || anchor.bundleSha256.size != 32 ||
             anchor.signedPayload.isEmpty() || anchor.signature.isEmpty() ||
             !TrustRegistryAnchorPolicy.isFresh(anchor.issuedAt, anchor.expiresAt, now) ||
             (anchor.previousBundleSha256 != null && anchor.previousBundleSha256.size != 32) ||
@@ -200,7 +200,7 @@ class ProtectedTrustStateStore(
     private fun encodeState(state: TrustState): ByteArray =
         ByteArrayOutputStream().also { bytes ->
             DataOutputStream(bytes).use { out ->
-                out.writeLong(state.sequence)
+                out.writeLong(state.sequence.toLong())
                 out.write(state.bundleSha256)
                 out.writeInt(state.bundle.size)
                 out.write(state.bundle)
@@ -209,10 +209,10 @@ class ProtectedTrustStateStore(
 
     private fun decodeState(bytes: ByteArray): TrustState {
         val input = DataInputStream(ByteArrayInputStream(bytes))
-        val sequence = input.readLong()
+        val sequence = input.readLong().toULong()
         val digest = ByteArray(32).also(input::readFully)
         val length = input.readInt()
-        if (sequence < 1 || length !in 1..(4 * 1024 * 1024) || length != input.available()) {
+        if (sequence < 1uL || length !in 1..(4 * 1024 * 1024) || length != input.available()) {
             throw StateException("Invalid trust-state payload.")
         }
         val bundle = ByteArray(length).also(input::readFully)
