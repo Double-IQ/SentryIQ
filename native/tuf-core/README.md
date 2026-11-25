@@ -18,6 +18,12 @@ Tuffet 0.1.0 is a provisional candidate, not yet production-approved. It follows
 
 UniFFI provides generated Swift and Kotlin bindings from one Rust core. The current crate exports the function but binding generation and XCFramework/Android ABI packaging are separate integration tasks. A CI build is required before this prototype can be considered validated.
 
+## UniFFI binding generation
+
+The crate now exposes a pinned UniFFI 0.32.2 bindgen executable and a checked-in `uniffi.toml` naming the Kotlin package (`co.bichet.sentryiq.tuf`) and Swift module (`SentryIQTufCore`). CI builds the Rust cdylib and generates both language bindings from that exact library in library mode. Generated files are currently placed under the ignored Cargo target directory and are not yet linked into the Android AAR or iOS Swift package.
+
+The binding-generation step validates the exported interface only. It does not package per-ABI Rust binaries, link the generated Kotlin/Swift wrappers into the native companions, or prove end-to-end execution on physical devices. Those are subsequent integration and qualification gates.
+
 ## Validation
 
 ```sh
