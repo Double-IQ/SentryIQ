@@ -77,4 +77,4 @@ jobs:
           adb devices -l || true
           exit 1
       - name: Run Android native TUF FFI instrumentation test
-        run: gradle --no-daemon --project-dir native/android/SentryIQMaster :master:connectedDebugAndroidTest
+        run: gradle --no-daemon --project-dir native/android/SentryIQMaster -Pandroid.useAndroidX=true :master:connectedDebugAndroidTest
