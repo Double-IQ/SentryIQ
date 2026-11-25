@@ -24,7 +24,8 @@ final class BootstrapChallengeStore
     public function __construct(private readonly string $directory)
     {
         $real = realpath($directory);
-        if ($real === false || !is_dir($real) || is_link($directory) || !$this->isOutsideDocumentRoot($real)) {
+        if ($real === false || !is_dir($real) || is_link($directory) || !$this->isOutsideDocumentRoot($real)
+            || (((fileperms($real) ?: 0) & 0022) !== 0)) {
             throw new RuntimeException('Bootstrap challenge storage must be an existing private directory outside the document root.');
         }
     }
@@ -43,7 +44,7 @@ final class BootstrapChallengeStore
 
         $this->mutate(function (array &$records) use ($key, $ownerIdentifier, $bundleDigestHex, $now, $ttlSeconds): void {
             foreach ($records as $recordKey => $record) {
-                if (!is_array($record) || !isset($record['expires_at']) || !is_int($record['expires_at']) || $record['expires_at'] < $now) {
+                if (!is_array($record) || !isset($record['expires_at']) || !is_int($record['expires_at']) || $record['expires_at'] <= $now) {
                     unset($records[$recordKey]);
                 }
             }
@@ -137,12 +138,18 @@ final class BootstrapChallengeStore
 
             $records = [];
             if (is_file($storePath)) {
+                if ((filesize($storePath) ?: 0) > 2_097_152) {
+                    throw new RuntimeException('Bootstrap challenge store exceeds its size limit.');
+                }
                 $raw = @file_get_contents($storePath);
                 $decoded = is_string($raw) ? json_decode($raw, true, 16, JSON_THROW_ON_ERROR) : null;
                 if (!is_array($decoded)
                     || ($decoded['version'] ?? null) !== self::STORE_VERSION
                     || !is_array($decoded['records'] ?? null)) {
                     throw new RuntimeException('Bootstrap challenge store is corrupt; refusing to reset it.');
+                }
+                if (count($decoded['records']) > self::MAX_RECORDS) {
+                    throw new RuntimeException('Bootstrap challenge store exceeds its record limit.');
                 }
                 $records = $decoded['records'];
             }
