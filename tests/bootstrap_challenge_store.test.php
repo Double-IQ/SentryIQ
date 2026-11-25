@@ -8,7 +8,7 @@ use SentryIQ\Security\BootstrapChallengeStore;
 
 if (($argv[1] ?? '') === 'consume-worker') {
     try {
-        $workerStore = new \\SentryIQ\\Security\\BootstrapChallengeStore((string)$argv[2]);
+        $workerStore = new \SentryIQ\Security\BootstrapChallengeStore((string)$argv[2]);
         $workerStore->consume((string)$argv[3], (string)$argv[4], (string)$argv[5], (int)$argv[6]);
         exit(0);
     } catch (Throwable) {
