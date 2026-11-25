@@ -8,7 +8,7 @@ use RuntimeException;
 
 /**
  * Verifies the native V2 owner approval transcript against independently
- * authenticated owner-key and candidate-bundle validation callbacks.
+ * authenticated owner-key and candidate-bundle validation callbacks, then appends an auditable receipt.
  *
  * The callbacks are trust boundaries: neither may use caller-supplied keys or
  * unverified app-host state as an authority.
@@ -155,7 +155,10 @@ final class OwnerApprovalProofVerifier
             'root_fingerprint' => $rootFingerprintHex,
             'device_keyset_digest' => $deviceKeysetDigestHex,
             'purpose' => $purpose,
+            'challenge' => $encodedChallenge,
             'challenge_sha256' => hash('sha256', self::decodeBase64Url($encodedChallenge)),
+            'signature_encoding' => 'ecdsa-der-base64url',
+            'signature' => $signatureBase64Url,
             'challenge_expires_at' => $challenge['expires_at'],
             'approved_at' => $now,
             'signature_sha256' => hash('sha256', $signature),
