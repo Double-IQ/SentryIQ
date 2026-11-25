@@ -43,10 +43,11 @@ $details = openssl_pkey_get_details($private);
 if (!is_array($details) || !is_string($details['key'] ?? null)) throw new RuntimeException('Unable to export test public key.');
 $publicPem = $details['key'];
 $resolver = static function (string $requestedOwner) use ($publicPem): array {
+    return [
     'owner_id' => $requestedOwner, 'key_id' => 'master-signing-test-1',
     'role' => 'master-signing', 'algorithm' => 'ES256', 'status' => 'active',
     'public_key_pem' => $publicPem,
-];
+    ];
 };
 $verifier = new OwnerApprovalProofVerifier($challenges, $dir, $resolver);
 $challenge = $challenges->issue($owner, $digest, $now, 300);
@@ -64,7 +65,8 @@ ownerApprovalAssert(((fileperms($receiptFile) ?: 0) & 0777) === 0600, 'Receipt f
 ownerApprovalReject(fn() => $verifier->verifyAndRecord($challenge, $owner, $digest, ownerApprovalB64($signature), $now), 'A proof challenge must not be replayable.');
 
 $bad = $challenges->issue($owner, $digest, $now, 300);
-ownerApprovalReject(fn() => $verifier->verifyAndRecord($bad, $owner, $digest, ownerApprovalB64(random_bytes(64)), $now), 'Invalid signatures must fail.');
+if (!openssl_sign($transcript . 'tampered', $badSignature, $private, OPENSSL_ALGO_SHA256)) throw new RuntimeException('Unable to create negative signature fixture.');
+ownerApprovalReject(fn() => $verifier->verifyAndRecord($bad, $owner, $digest, ownerApprovalB64($badSignature), $now), 'Invalid signatures must fail.');
 ownerApprovalReject(fn() => $challenges->consume($bad, $owner, $digest, $now), 'Failed signature submissions must burn their challenge.');
 
 $wrongRoleResolverResult = new OwnerApprovalProofVerifier($challenges, $dir, static function (string $requestedOwner) use ($publicPem, $owner): array {
