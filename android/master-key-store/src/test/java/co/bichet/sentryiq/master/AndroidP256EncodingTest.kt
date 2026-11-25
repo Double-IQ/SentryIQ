@@ -30,7 +30,9 @@ class AndroidP256EncodingTest {
         assertTrue(pem.startsWith("-----BEGIN PUBLIC KEY-----\n"))
         assertTrue(pem.endsWith("-----END PUBLIC KEY-----\n"))
         assertArrayEquals(publicKey.encoded, decoded)
-        val parsed = AndroidP256Encoding.parseSubjectPublicKeyInfoPEM(pem)\n        assertArrayEquals(publicKey.encoded, parsed.encoded)\n        assertEquals(64, AndroidP256Encoding.rawPublicKey(publicKey).size)
+        val parsed = AndroidP256Encoding.parseSubjectPublicKeyInfoPEM(pem)
+        assertArrayEquals(publicKey.encoded, parsed.encoded)
+        assertEquals(64, AndroidP256Encoding.rawPublicKey(publicKey).size)
     }
 
     @Test
