@@ -67,6 +67,21 @@ function derEcdsaToRaw(string $der): string
     return $r . $s;
 }
 
+function highSFromLowSignature(string $raw): string
+{
+    $order = hex2bin('ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
+    $orderBytes = array_values(unpack('C*', $order));
+    $sBytes = array_values(unpack('C*', substr($raw, 32, 32)));
+    $borrow = 0;
+    for ($i = 31; $i >= 0; $i--) {
+        $value = $orderBytes[$i] - $sBytes[$i] - $borrow;
+        $borrow = $value < 0 ? 1 : 0;
+        if ($borrow) $value += 256;
+        $sBytes[$i] = $value;
+    }
+    return substr($raw, 0, 32) . pack('C*', ...$sBytes);
+}
+
 $key = openssl_pkey_new([
     'private_key_type' => OPENSSL_KEYTYPE_EC,
     'curve_name' => 'prime256v1',
@@ -238,6 +253,15 @@ $badSignature['signatures'][0]['signature'] = rtrim(strtr(base64_encode(random_b
 trustBundleReject(
     fn() => $validator->validate(json_encode($badSignature, JSON_THROW_ON_ERROR), $trusted, 'owner-test-001', null, null, $now),
     'Forged signature must be rejected.'
+);
+
+$highSBundle = json_decode($valid, true, 64, JSON_THROW_ON_ERROR);
+$lowRaw = base64_decode(strtr($highSBundle['signatures'][0]['signature'], '-_', '+/') . '==', true);
+$highRaw = highSFromLowSignature($lowRaw);
+$highSBundle['signatures'][0]['signature'] = rtrim(strtr(base64_encode($highRaw), '+/', '-_'), '=');
+trustBundleReject(
+    fn() => $validator->validate(json_encode($highSBundle, JSON_THROW_ON_ERROR), $trusted, 'owner-test-001', null, null, $now),
+    'High-S ECDSA signature malleability must be rejected.'
 );
 
 $duplicate = str_replace('"schema_version":1', '"schema_version":1,"schema_version":1', $valid);
