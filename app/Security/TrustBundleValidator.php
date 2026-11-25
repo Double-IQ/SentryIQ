@@ -288,8 +288,8 @@ final class TrustBundleValidator
         $trusted = [];
         foreach ($trustedSigners as $signer) {
             if (!is_array($signer) || !isset($signer['kid'], $signer['role'], $signer['alg'], $signer['public_key_pem'])
-                || !is_string($signer['kid']) || !is_string($signer['role'])
-                || !is_string($signer['alg']) || !is_string($signer['public_key_pem'])) {
+                || !is_string($signer['kid']) || !preg_match('/^[A-Za-z0-9._-]{1,128}$/D', $signer['kid'])
+                || !is_string($signer['role']) || !is_string($signer['alg']) || !is_string($signer['public_key_pem'])) {
                 throw new RuntimeException('Independently pinned signer configuration is malformed.');
             }
             if (isset($trusted[$signer['kid']])) {
@@ -342,6 +342,11 @@ final class TrustBundleValidator
                 throw new RuntimeException('Pinned signer public key is invalid.');
             }
             try {
+                $details = openssl_pkey_get_details($publicKey);
+                if (!is_array($details) || ($details['type'] ?? null) !== OPENSSL_KEYTYPE_EC
+                    || ($details['ec']['curve_oid'] ?? null) !== '1.2.840.10045.3.1.7') {
+                    throw new RuntimeException('Pinned ES256 signer must use P-256.');
+                }
                 $result = openssl_verify($payload, $der, $publicKey, OPENSSL_ALGO_SHA256);
             } finally {
                 openssl_pkey_free($publicKey);
