@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Security/RegistryAnchorVerifier.php';
 
-use SentryIQ\\Security\\RegistryAnchorVerifier;
+use SentryIQ\Security\RegistryAnchorVerifier;
 
 function anchorAssert(bool $condition, string $message): void
 {
@@ -34,11 +34,11 @@ function anchorDerToRawLowS(string $der): string
     if (ord($der[0]) !== 0x30) throw new RuntimeException('Invalid ECDSA sequence.');
     if (ord($der[$offset++]) !== 0x02) throw new RuntimeException('Invalid ECDSA R.');
     $rLength = ord($der[$offset++]);
-    $r = str_pad(ltrim(substr($der, $offset, $rLength), "\\0"), 32, "\\0", STR_PAD_LEFT);
+    $r = str_pad(ltrim(substr($der, $offset, $rLength), "\0"), 32, "\0", STR_PAD_LEFT);
     $offset += $rLength;
     if (ord($der[$offset++]) !== 0x02) throw new RuntimeException('Invalid ECDSA S.');
     $sLength = ord($der[$offset++]);
-    $s = str_pad(ltrim(substr($der, $offset, $sLength), "\\0"), 32, "\\0", STR_PAD_LEFT);
+    $s = str_pad(ltrim(substr($der, $offset, $sLength), "\0"), 32, "\0", STR_PAD_LEFT);
     $half = hex2bin('7fffffff800000007fffffffffffffffde737d56d38bcf4279dce5617e3192a8');
     if (strcmp($s, $half) > 0) {
         $order = array_values(unpack('C*', hex2bin('ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551')));
@@ -106,4 +106,4 @@ anchorReject(fn() => $verifier->verify($signed, substr($signature, 0, 63), $sign
 anchorReject(fn() => $verifier->verify(str_replace('"sequence":"1"', '"sequence":"1","sequence":"2"', $signed), $signature, $signers, 'owner-test-001', null, null, $now), 'Duplicate JSON members must fail.');
 anchorReject(fn() => $verifier->verify(' ' . $signed, $signature, $signers, 'owner-test-001', null, null, $now), 'Non-canonical payload must fail.');
 
-echo "Registry anchor verifier tests passed.\\n";
+echo "Registry anchor verifier tests passed.\n";
