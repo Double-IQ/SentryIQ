@@ -50,7 +50,11 @@ data class AndroidAttestationEvidence(
  * trust anchor, revocation status, challenge, app identity, boot state and key policy.
  */
 fun interface IndependentTeeAttestationVerifier {
-    fun verify(\n        evidence: AndroidAttestationEvidence,\n        expectedSigningPublicKeyPEM: String,\n        expectedAgreementPublicKeyPEM: String\n    ): Boolean
+    fun verify(
+        evidence: AndroidAttestationEvidence,
+        expectedSigningPublicKeyPEM: String,
+        expectedAgreementPublicKeyPEM: String
+    ): Boolean
 }
 
 data class AndroidMasterKeyDescriptor(
