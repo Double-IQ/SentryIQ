@@ -58,7 +58,7 @@ class OwnerFingerprintApprovalCeremonyTest {
     @Test fun expiredChallengeAndInvalidCandidateFailBeforeSigning() {
         var signed = false
         try { approve(expires = now); fail("Expired") } catch (_: OwnerFingerprintApprovalCeremony.CeremonyException) { }
-        try { approve(verify = { false }, sign = { signed = true; byteArrayOf(1) }); fail("Invalid TUF") }
+        try { approve(verify = { _, _, _, _, _, _ -> false }, sign = { signed = true; byteArrayOf(1) }); fail("Invalid TUF") }
         catch (_: OwnerFingerprintApprovalCeremony.CeremonyException) { }
         assertFalse(signed)
     }
