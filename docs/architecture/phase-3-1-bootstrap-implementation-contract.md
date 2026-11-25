@@ -158,6 +158,7 @@ The native persistence adapters use the same logical record: the exact accepted 
 - iOS stores the record as a Keychain generic-password item with `WhenUnlockedThisDeviceOnly` accessibility. It is not synchronised or eligible for device backup.
 - Android stores the record under `noBackupFilesDir`, encrypted with AES-256-GCM using an Android Keystore key and atomic file replacement.
 - Both adapters reject invalid anchors, digest mismatch, lower sequence, and same-sequence substitution. A missing/corrupt record fails closed.
+- Both adapters serialize load/save within the companion process and read back the committed record before reporting a successful save. This is process-local serialization, not an inter-process lock; the companion must remain a single-writer process.
 - Android's encrypted file and iOS Keychain item are protected local caches, **not hardware monotonic counters**. Restoring an older app snapshot, replacing the device, deleting Keychain/Keystore state, or compromising the OS can still remove or roll back local state. The independently signed registry anchor and continuity check are mandatory on every load and save; no offline rollback guarantee is claimed.
 - The platform adapters do not implement the registry signer, network fetch, owner confirmation, TUF root rotation, or a secure hardware high-water counter. Those remain separate implementation/review gates.
 
