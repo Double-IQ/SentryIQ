@@ -39,11 +39,11 @@ $digest = str_repeat('a', 64);
 
 $challenge = $store->issue($owner, $digest, 1000);
 bootstrapChallengeAssert(strlen($challenge) === 43, 'Issued challenge must encode exactly 32 random bytes.');
-$record = $store->consume($challenge, $owner, $digest, 1300);
+$record = $store->consume($challenge, $owner, $digest, 1299);
 bootstrapChallengeAssert($record['purpose'] === 'owner-bootstrap-approval', 'Consumed challenge purpose must be explicit.');
 bootstrapChallengeAssert($record['expires_at'] === 1300, 'Challenge must expire at the requested bounded lifetime.');
 bootstrapChallengeReject(
-    fn() => $store->consume($challenge, $owner, $digest, 1300),
+    fn() => $store->consume($challenge, $owner, $digest, 1299),
     'A consumed challenge must not be replayable.'
 );
 
@@ -69,7 +69,7 @@ bootstrapChallengeReject(
 
 $expired = $store->issue($owner, $digest, 4000, 30);
 bootstrapChallengeReject(
-    fn() => $store->consume($expired, $owner, $digest, 4031),
+    fn() => $store->consume($expired, $owner, $digest, 4030),
     'Expired challenges must be rejected.'
 );
 bootstrapChallengeReject(
