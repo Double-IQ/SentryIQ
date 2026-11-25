@@ -37,6 +37,9 @@ jobs:
       - name: Test durable owner bootstrap challenge consumption
         run: php tests/bootstrap_challenge_store.test.php
 
+      - name: Test canonical trust bundle validation
+        run: php tests/trust_bundle_validator.test.php
+
       - name: Test server-side owner approval proof verification
         run: php tests/owner_approval_proof_verifier.test.php
 
