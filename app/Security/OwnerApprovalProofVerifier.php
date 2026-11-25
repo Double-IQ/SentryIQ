@@ -47,12 +47,15 @@ final class OwnerApprovalProofVerifier
         string $signatureBase64Url,
         int $now
     ): array {
-        if ($now <= 0 || !preg_match('/^[A-Za-z0-9_-]{94,96}$/D', $signatureBase64Url)) {
-            throw new RuntimeException('Owner approval proof is malformed.');
+        if ($now <= 0) {
+            throw new RuntimeException('Owner approval proof timestamp is invalid.');
         }
 
-        // Consumption is atomic and occurs before signature verification.
+        // Consumption is atomic and occurs before signature verification, including malformed signatures.
         $challenge = $this->challenges->consume($encodedChallenge, $ownerIdentifier, $bundleDigestHex, $now);
+        if (!preg_match('/^[A-Za-z0-9_-]{94,96}$/D', $signatureBase64Url)) {
+            throw new RuntimeException('Owner approval proof is malformed.');
+        }
 
         $key = ($this->resolveActiveOwnerKey)($ownerIdentifier);
         if (!is_array($key)
