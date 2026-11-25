@@ -70,7 +70,6 @@ pub fn verify_tuf_root_rotation_chain(
     candidate_roots.len() as i32
 }
 
-
 /// Verifies a complete top-level TUF metadata refresh without performing I/O.
 ///
 /// Cached timestamp, snapshot, and targets metadata must be supplied together
@@ -213,7 +212,6 @@ mod tests {
             -1
         );
     }
-
 
     #[test]
     fn rejects_partial_cached_metadata_state() {
