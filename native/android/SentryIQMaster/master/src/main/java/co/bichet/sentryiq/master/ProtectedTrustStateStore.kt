@@ -78,7 +78,7 @@ class ProtectedTrustStateStore(
         bundle: ByteArray,
         anchor: RegistryAnchor,
         nowEpochSeconds: Long = System.currentTimeMillis() / 1000L
-    ) = synchronized(lock) {
+    ) = synchronized(processLock) {
         requireValidAnchor(anchor, nowEpochSeconds)
         val digest = sha256(bundle)
         if (!MessageDigest.isEqual(digest, anchor.bundleSha256)) {
