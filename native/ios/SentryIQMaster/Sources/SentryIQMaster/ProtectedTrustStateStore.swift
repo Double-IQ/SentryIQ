@@ -1,3 +1,12 @@
+enum TrustRegistryAnchorPolicy {
+    static func isFresh(issuedAt: UInt64, expiresAt: UInt64, now: UInt64) -> Bool {
+        guard issuedAt > 0, expiresAt > now, expiresAt > issuedAt else { return false }
+        if issuedAt > now && issuedAt - now > 60 { return false }
+        if now > issuedAt && now - issuedAt > 86_400 { return false }
+        return expiresAt - issuedAt <= 86_400
+    }
+}
+
 import CryptoKit
 import Foundation
 import Security
@@ -114,17 +123,11 @@ public final class ProtectedTrustStateStore {
     }
 
     private func validate(_ anchor: TrustRegistryAnchor, now: UInt64) throws {
-        let validityWindow = anchor.expiresAt >= anchor.issuedAt ? anchor.expiresAt - anchor.issuedAt : 0
         guard anchor.sequence > 0,
               anchor.bundleSHA256.count == 32,
               !anchor.signedPayload.isEmpty,
               !anchor.signature.isEmpty,
-              anchor.issuedAt > 0,
-              anchor.expiresAt > now,
-              anchor.issuedAt <= now + 60,
-              now - anchor.issuedAt <= 86_400,
-              validityWindow > 0,
-              validityWindow <= 86_400,
+              TrustRegistryAnchorPolicy.isFresh(issuedAt: anchor.issuedAt, expiresAt: anchor.expiresAt, now: now),
               anchor.previousBundleSHA256 == nil || anchor.previousBundleSHA256?.count == 32,
               verifyRegistryAnchor(anchor) else {
             throw StoreError.invalidRegistryAnchor
