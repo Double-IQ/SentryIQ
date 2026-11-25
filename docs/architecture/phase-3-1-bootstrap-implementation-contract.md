@@ -116,6 +116,19 @@ The native companion stores the trust bundle, canonical digest, sequence high-wa
 
 The native storage implementations must be reviewed on both iOS and Android. The iPhone is the initial master platform; Android support is a first-class target using a separate platform adapter. Cross-platform protocol and trust-state formats remain identical, while hardware assurance is recorded per device.
 
+
+## 7.1 Protected trust-state persistence implementation
+
+The native persistence adapters use the same logical record: the exact accepted bundle bytes, its SHA-256 digest, and its monotonic registry sequence. Each operation requires a separately supplied signed registry anchor. The caller-provided verifier must authenticate the anchor with an independently pinned registry key and validate sequence/previous-digest continuity; a boolean result is not permission to trust an unsigned app-host response.
+
+- iOS stores the record as a Keychain generic-password item with `WhenUnlockedThisDeviceOnly` accessibility. It is not synchronised or eligible for device backup.
+- Android stores the record under `noBackupFilesDir`, encrypted with AES-256-GCM using an Android Keystore key and atomic file replacement.
+- Both adapters reject invalid anchors, digest mismatch, lower sequence, and same-sequence substitution. A missing/corrupt record fails closed.
+- Android's encrypted file and iOS Keychain item are protected local caches, **not hardware monotonic counters**. Restoring an older app snapshot, replacing the device, deleting Keychain/Keystore state, or compromising the OS can still remove or roll back local state. The independently signed registry anchor and continuity check are mandatory on every load and save; no offline rollback guarantee is claimed.
+- The platform adapters do not implement the registry signer, network fetch, owner confirmation, TUF root rotation, or a secure hardware high-water counter. Those remain separate implementation/review gates.
+
+These adapters are foundational storage primitives only. They do not initialise production trust roots or authorise key generation, migration, release, or deployment.
+
 ## 8. Signed transition and proof-of-possession
 
 A transition is accepted only when the current trusted signer is authorised for that exact purpose; canonical payload and detached signature validate; sequence increases; previous digest matches; no key is reactivated or reused; new role/suite/purpose match policy; proof-of-possession validates; owner explicitly approves with fresh verification; and the new state is atomically persisted.
