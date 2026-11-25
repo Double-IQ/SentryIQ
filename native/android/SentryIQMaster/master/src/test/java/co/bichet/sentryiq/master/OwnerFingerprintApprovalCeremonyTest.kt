@@ -37,7 +37,7 @@ class OwnerFingerprintApprovalCeremonyTest {
         val fingerprint = MessageDigest.getInstance("SHA-256").digest(bundle).joinToString("") { "%02x".format(it) }
         var verified = false; var signed = false
         try {
-            OwnerFingerprintApprovalCeremony.approve(bundle, "0".repeat(64), "owner-123", ByteArray(32), 1_700_000_200L, fingerprint, { verified = true }, { signed = true; byteArrayOf(1) }, now = 1_700_000_000L)
+            OwnerFingerprintApprovalCeremony.approve(bundle, "0".repeat(64), "owner-123", ByteArray(32), 1_700_000_200L, fingerprint, { true }, { verified = true }, { signed = true; byteArrayOf(1) }, now = 1_700_000_000L)
             fail("Fingerprint mismatch must be rejected")
         } catch (_: OwnerFingerprintApprovalCeremony.CeremonyException) { }
         assertFalse(verified); assertFalse(signed)
@@ -50,5 +50,18 @@ class OwnerFingerprintApprovalCeremonyTest {
             OwnerFingerprintApprovalCeremony.approve(bundle, fingerprint, "owner-123", ByteArray(32), 1_700_000_000L, fingerprint, { true }, {}, { byteArrayOf(1) }, now = 1_700_000_000L)
             fail("Expired challenge must be rejected")
         } catch (_: OwnerFingerprintApprovalCeremony.CeremonyException) { }
+    }
+
+    @Test fun invalidTufCandidateFailsBeforeUserVerificationAndSigning() {
+        val bundle = "candidate".toByteArray()
+        val fingerprint = MessageDigest.getInstance("SHA-256").digest(bundle).joinToString("") { "%02x".format(it) }
+        var verified = false
+        var signed = false
+        try {
+            OwnerFingerprintApprovalCeremony.approve(bundle, fingerprint, "owner-123", ByteArray(32), 1_700_000_200L, fingerprint, { false }, { verified = true }, { signed = true; byteArrayOf(1) }, now = 1_700_000_000L)
+            fail("Invalid TUF candidate must be rejected")
+        } catch (_: OwnerFingerprintApprovalCeremony.CeremonyException) { }
+        assertFalse(verified)
+        assertFalse(signed)
     }
 }
