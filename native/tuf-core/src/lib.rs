@@ -16,6 +16,8 @@ use tuffet::trusted::{TargetSearch, TrustedMetadata};
 
 const MAX_ROOT_BYTES: usize = 5 * 1024 * 1024;
 const MAX_ROOT_ROTATIONS: usize = 64;
+const MAX_ROOT_CHAIN_BYTES: usize = 20 * 1024 * 1024;
+const MAX_DELEGATED_METADATA_BYTES: usize = 20 * 1024 * 1024;
 const MAX_DELEGATED_ROLES: usize = 32;
 const MAX_TARGET_PATH_BYTES: usize = 4096;
 
@@ -41,6 +43,7 @@ pub fn verify_tuf_root_rotation_chain(
         || candidate_roots
             .iter()
             .any(|root| root.is_empty() || root.len() > MAX_ROOT_BYTES)
+        || !within_byte_budget(candidate_roots.iter().map(Vec::as_slice), MAX_ROOT_CHAIN_BYTES)
     {
         return -1;
     }
@@ -105,6 +108,12 @@ pub fn verify_tuf_metadata_refresh(
     .filter(|present| *present)
     .count();
     if cached_count != 0 && cached_count != 3 {
+        return false;
+    }
+    if cached_timestamp.as_ref().map_or(false, |bytes| bytes.is_empty() || bytes.len() > 1024 * 1024)
+        || cached_snapshot.as_ref().map_or(false, |bytes| bytes.is_empty() || bytes.len() > MAX_ROOT_BYTES)
+        || cached_targets.as_ref().map_or(false, |bytes| bytes.is_empty() || bytes.len() > MAX_ROOT_BYTES)
+    {
         return false;
     }
     if new_timestamp.is_empty()
@@ -219,6 +228,7 @@ pub fn verify_tuf_target_delegation(
         || delegated_metadata
             .iter()
             .any(|metadata| metadata.is_empty() || metadata.len() > MAX_ROOT_BYTES)
+        || !within_byte_budget(delegated_metadata.iter().map(Vec::as_slice), MAX_DELEGATED_METADATA_BYTES)
     {
         return false;
     }
@@ -323,6 +333,12 @@ pub fn verify_tuf_target_delegation(
     false
 }
 
+fn within_byte_budget<'a>(items: impl Iterator<Item = &'a [u8]>, limit: usize) -> bool {
+    items
+        .try_fold(0usize, |total, item| total.checked_add(item.len()))
+        .is_some_and(|total| total <= limit)
+}
+
 fn is_safe_target_path(path: &str) -> bool {
     if path.is_empty()
         || path.len() > MAX_TARGET_PATH_BYTES
@@ -416,6 +432,13 @@ mod tests {
             vec![1],
             1_700_000_000
         ));
+    }
+
+    #[test]
+    fn rejects_aggregate_metadata_over_budget() {
+        let parts = [vec![0u8; 6], vec![0u8; 5]];
+        assert!(!within_byte_budget(parts.iter().map(Vec::as_slice), 10));
+        assert!(within_byte_budget(parts.iter().map(Vec::as_slice), 11));
     }
 
     #[test]
