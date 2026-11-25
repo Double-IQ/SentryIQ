@@ -34,7 +34,8 @@ final class OwnerApprovalProofVerifier
         }
         $real = realpath($privateDirectory);
         if ($real === false || !is_dir($real) || is_link($privateDirectory)
-            || (((fileperms($real) ?: 0) & 0077) !== 0)) {
+            || (((fileperms($real) ?: 0) & 0077) !== 0)
+            || !self::isOutsideDocumentRoot($real)) {
             throw new RuntimeException('Approval receipts require an existing private directory.');
         }
     }
@@ -174,6 +175,23 @@ final class OwnerApprovalProofVerifier
             'approved_at' => $now,
             'challenge_expires_at' => $challenge['expires_at'],
         ];
+    }
+
+    private static function isOutsideDocumentRoot(string $directory): bool
+    {
+        $documentRoot = trim((string)($_SERVER['DOCUMENT_ROOT'] ?? ''));
+        if ($documentRoot === '') return PHP_SAPI === 'cli';
+        $realRoot = realpath($documentRoot);
+        if ($realRoot === false || !is_dir($realRoot)) return false;
+        $root = rtrim($realRoot, DIRECTORY_SEPARATOR);
+        $target = rtrim($directory, DIRECTORY_SEPARATOR);
+        if ($root === '') $root = DIRECTORY_SEPARATOR;
+        if (DIRECTORY_SEPARATOR === '\\') {
+            $root = strtolower($root);
+            $target = strtolower($target);
+        }
+        return $target !== $root
+            && !str_starts_with($target, rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR);
     }
 
     private static function validOwner(string $owner): bool
