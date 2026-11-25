@@ -36,8 +36,8 @@ public enum OwnerFingerprintApprovalCeremony {
         challenge: Data,
         expiresAt: UInt64,
         now: UInt64 = UInt64(Date().timeIntervalSince1970),
-        confirmFingerprint: String,
-        confirmRootFingerprint: String,
+        confirmFingerprint: () throws -> String,
+        confirmRootFingerprint: () throws -> String,
         verifyCandidateTrustChain: (Data, String, String, Data, Data, String) throws -> Bool,
         requireFreshUserVerification: () throws -> Void,
         sign: (Data) throws -> Data
@@ -51,19 +51,18 @@ public enum OwnerFingerprintApprovalCeremony {
         guard expiresAt > now, expiresAt - now <= 300 else { throw CeremonyError.expiredChallenge }
         let bundleDigest = Data(SHA256.hash(data: canonicalBundle))
         let expectedBundle = try decodeFingerprint(outOfBandFingerprint)
-        let confirmedBundle = try decodeFingerprint(confirmFingerprint)
         let expectedRoot = try decodeFingerprint(outOfBandRootFingerprint)
-        let confirmedRoot = try decodeFingerprint(confirmRootFingerprint)
         let keysetDigest = try decodeFingerprint(deviceKeysetDigest)
+        // Validate the bundle and resolve its selected root before asking the owner to confirm it.
+        guard try verifyCandidateTrustChain(canonicalBundle, rootRole, rootKeyID, expectedRoot, keysetDigest, purpose) else {
+            throw CeremonyError.invalidCandidateTrustChain
+        }
+        let confirmedBundle = try decodeFingerprint(confirmFingerprint())
+        let confirmedRoot = try decodeFingerprint(confirmRootFingerprint())
         guard constantTimeEqual(bundleDigest, expectedBundle),
               constantTimeEqual(bundleDigest, confirmedBundle),
               constantTimeEqual(expectedRoot, confirmedRoot) else {
             throw CeremonyError.fingerprintMismatch
-        }
-        // The resolver must prove that role/key ID/fingerprint identify a key in this
-        // validated bundle and that keysetDigest is the active local master keyset.
-        guard try verifyCandidateTrustChain(canonicalBundle, rootRole, rootKeyID, expectedRoot, keysetDigest, purpose) else {
-            throw CeremonyError.invalidCandidateTrustChain
         }
 
         let transcript = makeTranscript(
