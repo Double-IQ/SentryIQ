@@ -29,7 +29,7 @@ function jcsForFixture(mixed $value): string
         }
         return '{' . implode(',', $parts) . '}';
     }
-    if (is_array($value)) return '[' . implode(',', array_map('jcsForFixture', $value)) . ']';
+    if (is_array($value)) {\n        if (array_is_list($value)) return '[' . implode(',', array_map('jcsForFixture', $value)) . ']';\n        return jcsForFixture((object)$value);\n    }
     return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS | JSON_THROW_ON_ERROR);
 }
 
