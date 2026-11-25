@@ -12,6 +12,8 @@ use Throwable;
 /**
  * Strict, platform-independent validator for SentryIQ public trust bundles.
  * Trust anchors must come from an independently pinned source.
+ * Canonicalization is deliberately restricted to this fixed ASCII-key schema:
+ * floating-point values and unrecognised object members are rejected before signing.
  */
 final class TrustBundleValidator
 {
@@ -257,7 +259,7 @@ final class TrustBundleValidator
     private function validateTufReference(mixed $tuf): void
     {
         $this->assertExactObjectFields($tuf, ['root_version', 'root_digest']);
-        if (!is_int($tuf->root_version) || $tuf->root_version < 1
+        if (!is_int($tuf->root_version) || $tuf->root_version < 1 || $tuf->root_version > 9007199254740991
             || !is_string($tuf->root_digest) || !preg_match('/^[a-f0-9]{64}$/D', $tuf->root_digest)) {
             throw new RuntimeException('Sigstore/TUF root reference is malformed.');
         }
