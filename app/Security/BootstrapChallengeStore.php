@@ -101,7 +101,7 @@ final class BootstrapChallengeStore
         }
 
         if ($consumed['issued_at'] > $now + self::MAX_FUTURE_SKEW_SECONDS
-            || $now > $consumed['expires_at']
+            || $now >= $consumed['expires_at']
             || $consumed['expires_at'] - $consumed['issued_at'] > self::MAX_TTL_SECONDS) {
             throw new RuntimeException('Bootstrap challenge expired or has an invalid lifetime.');
         }
