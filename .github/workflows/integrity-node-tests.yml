@@ -72,6 +72,8 @@ on:
       - 'tests/integrity_node_event_runner.test.php'
       - 'tests/integrity_node4_monitor.test.php'
       - '.github/workflows/integrity-node-tests.yml'
+      - 'app/Security/TrustBundleValidator.php'
+      - 'tests/trust_bundle_validator.test.php'
   push:
     branches: [main]
     paths:
@@ -150,3 +152,5 @@ jobs:
           php tests/release_trust_policy.test.php
           php tests/sigstore_provenance.test.php
           php tests/native_sigstore_integrity_adapter.test.php
+          php -l app/Security/TrustBundleValidator.php
+          php tests/trust_bundle_validator.test.php

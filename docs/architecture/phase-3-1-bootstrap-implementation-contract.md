@@ -63,6 +63,20 @@ Reject duplicate member names/IDs, malformed keys, unknown algorithms or critica
 
 The bundle contains public keys and policy metadata only. It must never contain private keys, DRS/MRAK, content roots, DEKs, session secrets, or user content.
 
+### 4.1 Executable validator profile
+
+The first platform-independent validator implementation uses the following concrete encoding profile; native adapters must consume the same fixtures and semantics:
+
+- Trust bundle schema version is integer `1`; the top-level member set is exact and unknown members are rejected.
+- Public P-256 keys are carried as PEM SubjectPublicKeyInfo values. Master signing and key-agreement keys, release-authorisation keys, and verifier-report keys must have unique key IDs and distinct public-key material.
+- Master signing and release/verifier signatures use ES256. Detached signatures use the 64-byte JOSE `r || s` representation encoded as unpadded base64url, with canonical low-S ECDSA values to prevent signature malleability. Native signers must normalize S before emitting a signature.
+- Key arrays, revocation entries, and detached signatures are sorted by key ID and contain no duplicates. A detached signature covers the RFC 8785 canonical JSON representation of the complete bundle with only the `signatures` member omitted. The chain digest is SHA-256 over the canonical JSON representation of the complete bundle, including signatures.
+- The validator receives independently pinned signer keys, the expected owner ID, the previously committed digest, and the locally persisted sequence high-water mark as separate inputs. It never derives trust anchors from candidate bundle contents.
+- The initial PHP implementation enforces a 256 KiB input ceiling, a 30-day maximum bundle validity window, and a five-minute future-issued-time allowance. These are conservative protocol limits to retain in cross-platform fixtures and review during independent security assessment.
+- A verifier marked `pending` must have an empty key list. A `qualified` verifier must have at least one role-bound report key; production acceptance remains gated on Phase 4 and owner approval.
+
+The PHP implementation is a protocol validator, not the native trust-state persistence or owner ceremony. Its accepted schema and adversarial fixtures are the cross-platform compatibility reference, subject to independent security review.
+
 ## 5. First-run state machine
 
 The native companion persists one of these states:
