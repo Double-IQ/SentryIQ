@@ -189,6 +189,36 @@ trustBundleReject(
     'Cross-role signature use must be rejected.'
 );
 
+$oldRoot = openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => 'prime256v1']);
+if ($oldRoot === false) throw new RuntimeException('Unable to generate retired-root test key.');
+$oldRootPem = openssl_pkey_get_details($oldRoot)['key'];
+$revokedBundle = json_decode($valid, true, 64, JSON_THROW_ON_ERROR);
+$revokedBundle['revocations'] = [[
+    'kid' => 'old-release-root',
+    'effective_at' => gmdate('Y-m-d\\TH:i:s\\Z', $now - 1),
+    'reason' => 'compromised',
+]];
+$revokedUnsigned = (object)$revokedBundle;
+unset($revokedUnsigned->signatures);
+openssl_sign(jcsForFixture($revokedUnsigned), $revokedDer, $oldRoot, OPENSSL_ALGO_SHA256);
+$revokedRaw = derEcdsaToRaw($revokedDer);
+$revokedBundle['signatures'] = [[
+    'kid' => 'old-release-root',
+    'role' => 'release-authorisation',
+    'alg' => 'ES256',
+    'signature' => rtrim(strtr(base64_encode($revokedRaw), '+/', '-_'), '='),
+]];
+$oldTrusted = [[
+    'kid' => 'old-release-root',
+    'role' => 'release-authorisation',
+    'alg' => 'ES256',
+    'public_key_pem' => $oldRootPem,
+]];
+trustBundleReject(
+    fn() => $validator->validate(json_encode($revokedBundle, JSON_THROW_ON_ERROR), $oldTrusted, 'owner-test-001', null, null, $now),
+    'A signature from a root already revoked at the current time must be rejected.'
+);
+
 $badSignature = json_decode($valid, true, 64, JSON_THROW_ON_ERROR);
 $badSignature['signatures'][0]['signature'] = rtrim(strtr(base64_encode(random_bytes(64)), '+/', '-_'), '=');
 trustBundleReject(
