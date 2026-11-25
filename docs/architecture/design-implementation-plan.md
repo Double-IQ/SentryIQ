@@ -4,7 +4,7 @@
 **Application host:** existing SentryIQ host serving that origin  
 **Security node:** HelioHost  
 **Master device:** owner's phone  
-**Status:** planning baseline; no production deployment or key initialisation authorised.
+**Status:** Phase 3 implementation active following explicit owner approval on 2026-11-25; no production deployment or key initialisation authorised.
 
 This plan supersedes the former Cloudflare Node A operational deployment plan. It starts from the agreed device-rooted architecture and does not restart completed application/security work without evidence that it must change.
 
@@ -51,7 +51,7 @@ This plan supersedes the former Cloudflare Node A operational deployment plan. I
 - [x] 2.9 Expand executable adversarial regression coverage for the existing release/verifier baseline and define target acceptance tests for replay, release authorisation, HelioHost reports, private runtime, and the phone gate. Added payload/signature tamper, unpinned signer, duplicate identity, stale report, and public-path injection cases; wired the signer test into the read-only PHP 8.1–8.5 workflow. The current legacy verifier's lack of durable cross-request nonce consumption is explicitly recorded as an open target implementation gate. See [Phase 2.9 adversarial regression test report](phase-2-9-adversarial-regression-test-report.md).
 
 ## Phase 3 — Master phone and device lifecycle
-- [ ] 3.1 Design trusted first-run initialisation and secure bootstrap of release/verifier trust roots.
+- [ ] 3.1 Specify and implement the trusted first-run bootstrap state machine and platform-independent trust-bundle validation; native secure persistence and production root pinning remain gated. See [Phase 3.1 bootstrap implementation contract](phase-3-1-bootstrap-implementation-contract.md).
 - [ ] 3.2 Implement master-device identity creation and protected local key storage.
 - [ ] 3.3 Implement QR/challenge-based candidate-device pairing.
 - [ ] 3.4 Implement explicit master approval with device identity, permission review, and fresh user verification.
@@ -83,4 +83,4 @@ This plan supersedes the former Cloudflare Node A operational deployment plan. I
 
 Phase 2.9 is complete as an adversarial baseline regression expansion and target acceptance-test definition. Existing release/verifier tests now cover tampered report payloads/signatures, unpinned signer keys, duplicate signer identities, stale reports, public path injection, missing/unexpected assets, origin mismatch/outage, private collector mismatch, symlink/race cases, and updater rollback. The report explicitly records that the legacy verifier does not persist one-use nonce consumption across invocations; durable replay prevention must be implemented and tested with the target Phase 2.7 protocol. See [Phase 2.9 adversarial regression test report](phase-2-9-adversarial-regression-test-report.md).
 
-Phase 2 design is complete as documentation and baseline regression coverage only. The target format-3 release authorisation, isolated HelioHost verifier, phone-side gate, and production activation are not implemented. The next planned phase is Phase 3, beginning with the unresolved owner decisions in the Phase 1.10 review baseline: native master companion/platform, signing/key suite, recovery custody, and supported platforms. Do not begin production implementation or key generation until those decisions and the Phase 2 design review gates are accepted.
+Phase 2 design is complete as documentation and baseline regression coverage only. The target format-3 release authorisation, isolated HelioHost verifier, phone-side gate, and production activation are not implemented. The owner approved the Phase 1.10 recommended baseline on 2026-11-25. Phase 3 is active, beginning with the Phase 3.1 trusted-bootstrap implementation contract. The approved native master companion uses separate hardware-backed P-256 signing and key-agreement keys (iOS Secure Enclave; Android Keystore with StrongBox preferred and qualified TEE fallback); iPhone is the initial master platform and Android is a first-class supported target; additional-device browser keys are lower assurance; DRS/MRAK are separate; DRS targets 24-word BIP-39; data roots/scopes/device lifetimes follow the approved baseline. The iPhone initial target is confirmed. Build the iOS adapter first, then the Android Keystore adapter against the same protocol contract; qualify Android StrongBox/TEE security levels and minimum API/device support on representative hardware, alongside the real-device Argon2id/browser matrix. Do not generate production keys, initialise trust roots, provision services, migrate data, publish a release, or deploy without separate explicit authorisation.
