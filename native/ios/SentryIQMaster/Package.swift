@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "SentryIQMaster",
     platforms: [
-        .iOS(.v17),
+        .iOS(.v13),
         .macOS(.v14)
     ],
     products: [
