@@ -128,6 +128,16 @@ The app-host PHP layer now has a durable `SentryIQ\\Security\\BootstrapChallenge
 
 This is a tested persistence primitive, **not yet a public HTTP endpoint or complete server-side approval verifier**. The eventual endpoint must authenticate the account/session, load the owner’s active master public key from an independently authenticated registry state, consume the challenge, verify the exact domain-separated transcript signature, enforce owner/bundle/expiry bindings, and atomically record the approval receipt. It must not trust a caller-supplied public key or a server-side boolean. Endpoint integration and independent registry-anchor verification remain gates.
 
+### 6.3 Server-side proof verifier and receipt primitive
+
+The app-host PHP layer now includes `SentryIQ\\Security\\OwnerApprovalProofVerifier`. It verifies the native V1 binary transcript using SHA-256 / P-256 ECDSA against an active `master-signing` ES256 key supplied by an injected owner-key resolver. The resolver is a security boundary: it must read the key from independently authenticated registry state, not request fields, an unverified app-host record, or a key supplied by the submitting client. The verifier does not accept a public key from the request.
+
+For every structurally valid submission, the verifier consumes the challenge before checking signature encoding or cryptographic validity. Thus malformed, invalid, expired, replayed, and context-mismatched attempts cannot reuse a challenge. A valid proof produces a private, atomically committed receipt bound to owner ID, master key ID, bundle digest, challenge digest, expiry, approval time, protocol, and signature digest. Receipt storage is outside the public document root and uses owner-only permissions, an exclusive lock, atomic replacement, and fail-closed corruption handling.
+
+The primitive is covered by PHP regression tests for valid proof verification, replay rejection, invalid-signature challenge burn, role separation, receipt persistence, and private file permissions. Challenge expiry is strict: a challenge is invalid at the exact expiry second.
+
+**Remaining integration gate:** this is not an HTTP endpoint. A production endpoint must first authenticate the account/session, derive the owner identifier from that authenticated context, load the current owner key through a separately authenticated registry anchor, enforce the approved canonical bundle validator/TUF result, call this verifier, and return only the durable receipt identifier. No endpoint may accept a client-supplied key, owner identifier without session binding, or server-side approval boolean. The registry-anchor verifier and endpoint integration remain open until independently reviewed.
+
 ## 7. Persistence and anti-rollback
 
 The native companion stores the trust bundle, canonical digest, sequence high-water mark, accepted key IDs, revocations, TUF root versions, and bootstrap receipt in protected platform storage.
