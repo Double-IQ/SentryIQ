@@ -77,6 +77,9 @@ The first platform-independent validator implementation uses the following concr
 
 The PHP implementation is a protocol validator, not the native trust-state persistence or owner ceremony. Its accepted schema and adversarial fixtures are the cross-platform compatibility reference, subject to independent security review.
 
+The Android adapter's initial implementation floor is API 31 because the key-agreement purpose and exact Keystore security-level reporting are available from that level. This is a provisional build floor, not the final Android support policy. It records StrongBox versus TEE assurance and rejects software/unknown levels. TEE fallback remains disabled unless an independent off-device verifier validates the attestation chain, current root, revocation status, challenge binding, app identity, verified-boot state, and key authorizations. The Android core currently uses a 30-second hardware-enforced authentication window for both key roles; this is an implementation default to qualify against the fresh-user-verification requirement on representative devices.
+
+
 ## 5. First-run state machine
 
 The native companion persists one of these states:
