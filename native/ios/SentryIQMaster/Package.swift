@@ -11,7 +11,18 @@ let package = Package(
         .library(name: "SentryIQMaster", targets: ["SentryIQMaster"])
     ],
     targets: [
-        .target(name: "SentryIQMaster"),
+        .binaryTarget(
+            name: "SentryIQTufCoreFFI",
+            path: "Libraries/SentryIQTufCore.xcframework"
+        ),
+        .target(
+            name: "SentryIQTufCoreBindings",
+            dependencies: ["SentryIQTufCoreFFI"]
+        ),
+        .target(
+            name: "SentryIQMaster",
+            dependencies: ["SentryIQTufCoreBindings"]
+        ),
         .testTarget(name: "SentryIQMasterTests", dependencies: ["SentryIQMaster"])
     ]
 )
