@@ -120,6 +120,17 @@ public final class ProtectedTrustStateStore {
         )
         let encoded = try JSONEncoder().encode(archive)
         try writeItem(encoded)
+
+        // Treat a successful Keychain API return as provisional until the
+        // committed record can be read back and independently checked.
+        guard let committedData = try readItem(),
+              let committed = try? JSONDecoder().decode(Archive.self, from: committedData),
+              committed.sequence == archive.sequence,
+              committed.bundleSHA256 == archive.bundleSHA256,
+              committed.bundle == archive.bundle,
+              Data(SHA256.hash(data: committed.bundle)) == anchor.bundleSHA256 else {
+            throw StoreError.corruptState
+        }
     }
 
     private func validate(_ anchor: TrustRegistryAnchor, now: UInt64) throws {
