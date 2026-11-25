@@ -123,9 +123,9 @@ Before implementation:
 1. Owner decides native companion and master key suite.
 2. Owner approves recovery material separation and representation.
 3. Minimum supported browser/device matrix and Argon2id resource budget are tested.
-4. Phase 0.6 reconciliation is completed: release-attestation policy, private-host contract, Node 4 event contract, docs, workflows, and configuration are reconciled to the new origin/trust topology.
-5. Phase 2 designs and tests release manifest, trust-root distribution, HelioHost verifier, browser-delivered asset measurement, freshness, replay protection, and phone-side fail-closed gate.
-6. Phase 4 qualifies HelioHost capabilities and isolation before a non-production verifier is considered.
+4. Phase 0.6 reconciliation is complete and merged into main (PR #161). Release policy/provenance, private-host contract, Node 4 event contract, docs, workflows, and repository configuration documentation were reconciled to the new origin/trust topology; no production configuration or deployment was changed.
+5. Phase 2.1–2.9 design and baseline regression work is complete in the current stacked PR series (#162–#170): release lifecycle inventory, format-3 manifest, trust-root lifecycle, HelioHost verifier architecture, public HTTP measurement, private runtime inspection, challenge-bound report, master-phone gate, and adversarial regression coverage. These artifacts are documentation/test-baseline only; the target format-3 authorisation, verifier service, and phone gate are not implemented.
+6. Resolve the owner decisions below before Phase 3 implementation. Phase 4 must qualify HelioHost capabilities and isolation before any non-production verifier is considered.
 7. Phase 5 implements and tests client-side Vault/Document migration, Gallery legacy retirement, device lifecycle, recovery, backups, and rollback.
 8. Owner separately authorises production key initialisation, migration, release, and deployment.
 
@@ -133,7 +133,7 @@ Do not jump from design completion to production provisioning. A passing reposit
 
 ## 7. Immediate next work
 
-The next planned task is **Phase 0.6 reconciliation**, which remains unchecked in the implementation plan. It must close the remaining contract/document/workflow/configuration reconciliation against the agreed origin and trust topology. After that, resolve the owner decisions above and proceed to Phase 2 design. No legacy source is to be deleted merely to make the new plan look clean; preserve it until replacement tests and migration evidence exist.
+Phase 0.6 reconciliation is complete and merged. Phase 2.1–2.9 design artifacts and the current legacy adversarial test baseline have been produced in stacked PRs #162–#170; those PRs remain open for review and are not yet all part of main. The next project gate is owner acceptance of the platform, key, recovery, scope, and residual-risk decisions below. Do not start production implementation, generate keys, initialise trust roots, provision HelioHost, or deploy until those decisions and the relevant Phase 2 design reviews are accepted. No legacy source is to be deleted merely to make the new plan look clean; preserve it until replacement tests and migration evidence exist.
 
 ## 8. Owner review checklist
 
@@ -147,4 +147,4 @@ The next planned task is **Phase 0.6 reconciliation**, which remains unchecked i
 - [ ] Review device certificate lifetime and registry freshness.
 - [ ] Approve the residual browser/OS and same-origin JavaScript risks.
 
-**Conclusion:** Phase 1 has produced a coherent, repository-backed security design. The remaining blocker is owner acceptance of the platform and recovery decisions, followed by Phase 0.6 reconciliation and Phase 2 release/verifier design. No production implementation or deployment is authorised by this document.
+**Conclusion (updated 2026-11-24):** Phase 1 produced a coherent repository-backed security design. Phase 0.6 is now reconciled and merged; Phase 2.1–2.9 design and baseline regression work has been submitted in PRs #162–#170, but those PRs remain open and their target architecture is not implemented. The remaining blocker is owner acceptance of the platform, key custody, recovery, scope, and residual-risk decisions, followed by separately authorised implementation and host qualification. No production implementation, key generation, provisioning, or deployment is authorised by this document.
