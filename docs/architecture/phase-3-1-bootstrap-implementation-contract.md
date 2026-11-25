@@ -190,7 +190,7 @@ All ambiguous cases fail closed. Fixtures contain no production keys or private 
 
 ## 9.1 TUF-gated owner approval
 
-The iOS and Android owner-approval ceremonies now require a candidate trust-chain verification callback before fingerprint confirmation, fresh OS user verification, or master-key signing. The production callback must invoke the shared Rust TUF core with the independently pinned initial root, sequential root rotations, and candidate top-level metadata; a caller-supplied unconditional success callback is test-only and is not an acceptable production integration. A failed TUF result aborts before user verification and signing.
+The iOS and Android owner-approval ceremonies now require a candidate trust-chain verification callback before fingerprint confirmation, fresh OS user verification, or master-key signing. The production callback must invoke the shared Rust TUF core with the independently pinned initial root, sequential root rotations, candidate top-level metadata, and every delegated role metadata object required for the requested target path; a caller-supplied unconditional success callback is test-only and is not an acceptable production integration. A failed TUF result aborts before user verification and signing.
 
 ## 10.0 Protected registry-anchor freshness and sequence chain
 

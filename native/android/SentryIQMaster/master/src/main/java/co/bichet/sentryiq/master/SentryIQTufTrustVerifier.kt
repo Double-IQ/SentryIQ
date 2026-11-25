@@ -27,4 +27,34 @@ object SentryIQTufTrustVerifier {
         newTargets,
         referenceTimeUnixSeconds
     )
+
+    fun verifyTargetDelegation(
+        initialRoot: ByteArray,
+        expectedInitialRootSha256: ByteArray,
+        candidateRoots: List<ByteArray>,
+        cachedTimestamp: ByteArray?,
+        cachedSnapshot: ByteArray?,
+        cachedTargets: ByteArray?,
+        newTimestamp: ByteArray,
+        newSnapshot: ByteArray,
+        newTargets: ByteArray,
+        delegatedRoles: List<String>,
+        delegatedMetadata: List<ByteArray>,
+        targetPath: String,
+        referenceTimeUnixSeconds: Long
+    ): Boolean = co.bichet.sentryiq.tuf.verifyTufTargetDelegation(
+        initialRoot,
+        expectedInitialRootSha256,
+        candidateRoots,
+        cachedTimestamp,
+        cachedSnapshot,
+        cachedTargets,
+        newTimestamp,
+        newSnapshot,
+        newTargets,
+        delegatedRoles,
+        delegatedMetadata,
+        targetPath,
+        referenceTimeUnixSeconds
+    )
 }
