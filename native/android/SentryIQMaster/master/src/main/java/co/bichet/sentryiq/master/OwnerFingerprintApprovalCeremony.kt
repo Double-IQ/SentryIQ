@@ -20,7 +20,7 @@ object OwnerFingerprintApprovalCeremony {
         rootRole: String, rootKeyId: String, outOfBandRootFingerprint: String,
         deviceKeysetDigest: String, purpose: String, challenge: ByteArray, expiresAt: Long,
         confirmFingerprint: String, confirmRootFingerprint: String,
-        verifyCandidateTrustChain: (ByteArray) -> Boolean,
+        verifyCandidateTrustChain: (ByteArray, String, String, ByteArray, ByteArray, String) -> Boolean,
         requireFreshUserVerification: () -> Unit, sign: (ByteArray) -> ByteArray,
         now: Long = System.currentTimeMillis() / 1000L
     ): ApprovalProof {
@@ -34,10 +34,6 @@ object OwnerFingerprintApprovalCeremony {
         if (expiresAt <= now || expiresAt - now > 300) {
             throw CeremonyException("Bootstrap challenge is expired or exceeds five minutes.")
         }
-        if (!verifyCandidateTrustChain(canonicalBundle)) {
-            throw CeremonyException("Candidate trust chain failed shared TUF verification.")
-        }
-
         val bundleDigest = MessageDigest.getInstance("SHA-256").digest(canonicalBundle)
         val expectedBundle = decodeFingerprint(outOfBandFingerprint)
         val confirmedBundle = decodeFingerprint(confirmFingerprint)
@@ -48,6 +44,11 @@ object OwnerFingerprintApprovalCeremony {
             !MessageDigest.isEqual(bundleDigest, confirmedBundle) ||
             !MessageDigest.isEqual(expectedRoot, confirmedRoot)) {
             throw CeremonyException("Owner-confirmed fingerprint does not match independent record.")
+        }
+        // Resolver proves the selected root belongs to this validated bundle and that
+        // keysetDigest describes the active local master keyset.
+        if (!verifyCandidateTrustChain(canonicalBundle, rootRole, rootKeyId, expectedRoot, keysetDigest, purpose)) {
+            throw CeremonyException("Candidate trust chain or approval context failed validation.")
         }
 
         val transcript = makeTranscript(
