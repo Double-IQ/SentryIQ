@@ -1,0 +1,23 @@
+name: iOS Master Core
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  ios-master-core:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build iOS master companion core
+        run: swift build --package-path native/ios/SentryIQMaster
+      - name: Run iOS master companion tests
+        run: swift test --package-path native/ios/SentryIQMaster
