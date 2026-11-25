@@ -24,13 +24,13 @@ function jcsForFixture(mixed $value): string
         ksort($fields, SORT_STRING);
         $parts = [];
         foreach ($fields as $key => $child) {
-            $parts[] = json_encode((string)$key, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)
+            $parts[] = json_encode((string)$key, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS | JSON_THROW_ON_ERROR)
                 . ':' . jcsForFixture($child);
         }
         return '{' . implode(',', $parts) . '}';
     }
     if (is_array($value)) return '[' . implode(',', array_map('jcsForFixture', $value)) . ']';
-    return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS | JSON_THROW_ON_ERROR);
 }
 
 function derEcdsaToRaw(string $der): string
@@ -107,7 +107,7 @@ $makeBundle = static function (array $overrides = []) use ($publicPem, $agreemen
         'alg' => 'ES256',
         'signature' => rtrim(strtr(base64_encode($raw), '+/', '-_'), '='),
     ]];
-    return json_encode($bundle, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    return json_encode($bundle, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS | JSON_THROW_ON_ERROR);
 };
 
 $trusted = [[
