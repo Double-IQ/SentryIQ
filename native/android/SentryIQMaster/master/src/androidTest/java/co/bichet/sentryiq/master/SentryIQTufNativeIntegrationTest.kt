@@ -14,9 +14,9 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class SentryIQTufNativeIntegrationTest {
-    private fun fixture(name: String): ByteArray =
+    private fun fixture(name: String, suffix: String = "json"): ByteArray =
         InstrumentationRegistry.getInstrumentation().context.assets
-            .open("tufet-python-tuf/$name.json").use { it.readBytes() }
+            .open("tufet-python-tuf/$name.$suffix").use { it.readBytes() }
 
     @Test
     fun packagedRustVerifierAcceptsValidSignedMetadataRefresh() {
@@ -139,7 +139,7 @@ class SentryIQTufNativeIntegrationTest {
             delegatedRoles = listOf("role1"),
             delegatedMetadata = listOf(fixture("role1")),
             targetPath = "file3.txt",
-            targetBytes = fixture("file3"),
+            targetBytes = fixture("file3", "txt"),
             referenceTimeUnixSeconds = 1_800_000_000L
         )
         assertTrue("Target bytes matching signed length and hash must verify", accepted)
@@ -148,7 +148,7 @@ class SentryIQTufNativeIntegrationTest {
     @Test
     fun packagedRustVerifierRejectsTamperedDownloadedTargetBytes() {
         val root = fixture("root")
-        val target = fixture("file3").also { it[0] = (it[0].toInt() xor 1).toByte() }
+        val target = fixture("file3", "txt").also { it[0] = (it[0].toInt() xor 1).toByte() }
         val accepted = SentryIQTufTrustVerifier.verifyTargetBytes(
             initialRoot = root,
             expectedInitialRootSha256 = MessageDigest.getInstance("SHA-256").digest(root),
