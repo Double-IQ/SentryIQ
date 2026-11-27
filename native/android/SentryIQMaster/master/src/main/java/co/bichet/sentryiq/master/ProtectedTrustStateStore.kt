@@ -55,7 +55,7 @@ class ProtectedTrustStateStore(
         val signerKeyId: String
     )
 
-    data class TrustState(val sequence: ULong, val bundleSha256: ByteArray, val bundle: ByteArray, val tufMetadata: Map<String, ByteArray> = emptyMap())
+    data class TrustState(val sequence: ULong, val bundleSha256: ByteArray, val bundle: ByteArray, val tufMetadata: Map<String, ByteArray> = emptyMap(), val bootstrapReceiptId: String? = null)
 
     class StateException(message: String) : Exception(message)
 
@@ -113,11 +113,15 @@ class ProtectedTrustStateStore(
         bundle: ByteArray,
         anchor: RegistryAnchor,
         tufMetadata: Map<String, ByteArray> = emptyMap(),
+        bootstrapReceiptId: String? = null,
         nowEpochSeconds: Long = System.currentTimeMillis() / 1000L
     ) = synchronized(processLock) {
         requireValidAnchor(anchor, nowEpochSeconds)
         if (bundle.isEmpty() || bundle.size > MAX_BUNDLE_BYTES) throw StateException("Trust bundle exceeds the permitted size.")
         validateTufMetadata(tufMetadata)
+        if (bootstrapReceiptId != null && !bootstrapReceiptId.matches(Regex("^[a-f0-9]{32}$"))) {
+            throw StateException("Bootstrap receipt identifier is invalid.")
+        }
         val digest = sha256(bundle)
         if (!MessageDigest.isEqual(digest, anchor.bundleSha256)) {
             throw StateException("Bundle digest does not match the verified registry anchor.")
@@ -146,7 +150,7 @@ class ProtectedTrustStateStore(
             )) {
             throw StateException("Initial registry anchor must start at sequence one with no previous digest.")
         }
-        val encoded = encrypt(TrustState(anchor.sequence, digest, bundle, tufMetadata))
+        val encoded = encrypt(TrustState(anchor.sequence, digest, bundle, tufMetadata, bootstrapReceiptId))
         val temporary = File(file.parentFile, file.name + ".tmp")
         FileOutputStream(temporary).use { stream ->
             stream.write(encoded)
@@ -175,6 +179,7 @@ class ProtectedTrustStateStore(
             !MessageDigest.isEqual(committed.bundleSha256, digest) ||
             !MessageDigest.isEqual(committed.bundle, bundle) ||
             !metadataEquals(committed.tufMetadata, tufMetadata) ||
+            committed.bootstrapReceiptId != bootstrapReceiptId ||
             !MessageDigest.isEqual(sha256(committed.bundle), anchor.bundleSha256)) {
             throw StateException("Committed trust state failed readback verification.")
         }
@@ -266,6 +271,11 @@ class ProtectedTrustStateStore(
                     out.writeInt(nameBytes.size); out.write(nameBytes)
                     out.writeInt(value.size); out.write(value)
                 }
+                out.writeBoolean(state.bootstrapReceiptId != null)
+                state.bootstrapReceiptId?.let { receipt ->
+                    val receiptBytes = receipt.toByteArray(Charsets.US_ASCII)
+                    out.writeInt(receiptBytes.size); out.write(receiptBytes)
+                }
             }
         }.toByteArray()
 
@@ -279,6 +289,7 @@ class ProtectedTrustStateStore(
         }
         val bundle = ByteArray(length).also(input::readFully)
         val metadata = linkedMapOf<String, ByteArray>()
+        var receiptId: String? = null
         if (input.available() > 0) {
             val count = input.readInt()
             if (count !in 0..64) throw StateException("Invalid TUF metadata count.")
@@ -295,9 +306,18 @@ class ProtectedTrustStateStore(
                     throw StateException("TUF metadata is duplicated or exceeds limits.")
                 }
             }
+            if (input.available() > 0) {
+                val hasReceipt = input.readBoolean()
+                if (hasReceipt) {
+                    val receiptLength = input.readInt()
+                    if (receiptLength != 32 || receiptLength > input.available()) throw StateException("Invalid bootstrap receipt identifier.")
+                    receiptId = ByteArray(receiptLength).also(input::readFully).toString(Charsets.US_ASCII)
+                    if (!receiptId.matches(Regex("^[a-f0-9]{32}$"))) throw StateException("Malformed bootstrap receipt identifier.")
+                }
+            }
             if (input.available() != 0) throw StateException("Trailing trust-state bytes.")
         }
-        return TrustState(sequence, digest, bundle, metadata)
+        return TrustState(sequence, digest, bundle, metadata, receiptId)
     }
 
     private fun secretKey(): SecretKey {
