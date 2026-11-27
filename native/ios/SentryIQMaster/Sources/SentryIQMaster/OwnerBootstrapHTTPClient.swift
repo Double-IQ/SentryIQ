@@ -147,7 +147,14 @@ public final class OwnerBootstrapHTTPClient {
             referenceTimeUnixSeconds: Int64(referenceTime)
         )
         guard accepted else { throw ClientError.invalidResponse }
-        return snapshot.tufMetadata
+        var acceptedMetadata: [String: Data] = [
+            "root.json": initialRoot,
+            "timestamp.json": snapshot.tufMetadata["timestamp.json"]!,
+            "snapshot.json": snapshot.tufMetadata["snapshot.json"]!,
+            "targets.json": snapshot.tufMetadata["targets.json"]!
+        ]
+        for name in candidateNames { acceptedMetadata[name] = snapshot.tufMetadata[name] }
+        return acceptedMetadata
     }
 
     /// Verify downloaded target bytes against signed top-level and delegated TUF metadata.
@@ -221,7 +228,7 @@ public final class OwnerBootstrapHTTPClient {
                     }
                     let cachedState = try store.loadPreviousState(for: anchor)
                     let verifiedMetadata = try verifyTuf(snapshot, cachedState)
-                    guard verifiedMetadata.count == snapshot.tufMetadata.count,
+                    guard ["root.json", "timestamp.json", "snapshot.json", "targets.json"].allSatisfy({ verifiedMetadata[$0] != nil }),
                           verifiedMetadata.allSatisfy({ snapshot.tufMetadata[$0.key] == $0.value }) else {
                         throw ClientError.invalidResponse
                     }
