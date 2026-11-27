@@ -6,7 +6,8 @@
     "accredifysg/php-json-canonicalize": "1.1.1",
     "mbolli/php-ron": "0.5.0",
     "mmccook/php-json-canonicalization-scheme": "1.0.0",
-    "truschery/kanon": "1.0.1"
+    "truschery/kanon": "1.0.1",
+    "onematrix/tracing-sdk": "1.2.0"
   },
   "config": {
     "sort-packages": true
