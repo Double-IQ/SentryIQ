@@ -36,25 +36,35 @@ public struct MasterPublicKeySet: Codable, Equatable {
     public let signing: MasterPublicKeyDescriptor
     public let keyAgreement: MasterPublicKeyDescriptor
     public let hardwareAssurance: String
-    public let deviceKeysetDigest: String
 
     enum CodingKeys: String, CodingKey {
         case signing
         case keyAgreement = "key_agreement"
         case hardwareAssurance = "hardware_assurance"
-        case deviceKeysetDigest = "device_keyset_digest"
+    }
+
+    public var deviceKeysetDigest: String? {
+        guard let signingRaw = try? P256PublicKeyEncoding.rawRepresentation(fromSubjectPublicKeyInfoPEM: signing.publicKeyPEM),
+              let agreementRaw = try? P256PublicKeyEncoding.rawRepresentation(fromSubjectPublicKeyInfoPEM: keyAgreement.publicKeyPEM) else {
+            return nil
+        }
+        return MasterKeysetDigest.compute(
+            signingKeyID: signing.kid,
+            signingPublicKeyRaw: signingRaw,
+            agreementKeyID: keyAgreement.kid,
+            agreementPublicKeyRaw: agreementRaw,
+            hardwareAssurance: hardwareAssurance
+        )
     }
 
     public init(
         signing: MasterPublicKeyDescriptor,
         keyAgreement: MasterPublicKeyDescriptor,
-        hardwareAssurance: String = "secure-enclave",
-        deviceKeysetDigest: String = ""
+        hardwareAssurance: String = "secure-enclave"
     ) {
         self.signing = signing
         self.keyAgreement = keyAgreement
         self.hardwareAssurance = hardwareAssurance
-        self.deviceKeysetDigest = deviceKeysetDigest
     }
 }
 
@@ -262,19 +272,7 @@ public final class SecureEnclaveMasterKeyStore {
             alg: "ECDH-ES",
             publicKeyPEM: try P256PublicKeyEncoding.subjectPublicKeyInfoPEM(fromRawRepresentation: agreementRaw)
         )
-        let keysetDigest = MasterKeysetDigest.compute(
-            signingKeyID: signing.kid,
-            signingPublicKeyRaw: signingRaw,
-            agreementKeyID: agreement.kid,
-            agreementPublicKeyRaw: agreementRaw,
-            hardwareAssurance: "secure-enclave"
-        )
-        return MasterPublicKeySet(
-            signing: signing,
-            keyAgreement: agreement,
-            hardwareAssurance: "secure-enclave",
-            deviceKeysetDigest: keysetDigest
-        )
+        return MasterPublicKeySet(signing: signing, keyAgreement: agreement)
     }
 }
 
@@ -340,6 +338,19 @@ public enum P256PublicKeyEncoding {
         let digest = SHA256.hash(data: rawRepresentation)
         let hex = digest.map { String(format: "%02x", $0) }.joined()
         return "\(prefix)-\(hex)"
+    }
+
+    public static func rawRepresentation(fromSubjectPublicKeyInfoPEM pem: String) throws -> Data {
+        let body = pem
+            .replacingOccurrences(of: "-----BEGIN PUBLIC KEY-----", with: "")
+            .replacingOccurrences(of: "-----END PUBLIC KEY-----", with: "")
+            .components(separatedBy: .whitespacesAndNewlines).joined()
+        guard let der = Data(base64Encoded: body), der.count == 91,
+              der.prefix(subjectPublicKeyInfoPrefix.count) == subjectPublicKeyInfoPrefix,
+              der[subjectPublicKeyInfoPrefix.count] == 0x04 else {
+            throw MasterKeyStoreError.invalidPublicKey
+        }
+        return Data(der.suffix(64))
     }
 
     public static func subjectPublicKeyInfoPEM(fromRawRepresentation raw: Data) throws -> String {
