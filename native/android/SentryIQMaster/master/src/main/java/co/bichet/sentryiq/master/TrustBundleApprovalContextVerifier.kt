@@ -18,12 +18,13 @@ class TrustBundleApprovalContextVerifier(
     ): Boolean {
         return try {
         if (!canonicalBundle.contentEquals(verified.snapshot.canonicalBundle) ||
-            !canonicalBundle.contentEquals(verified.trustState.bundle) ||
-            verified.trustState.sequence.toString() != verified.snapshot.sequence ||
-            !MessageDigest.isEqual(MessageDigest.getInstance("SHA-256").digest(canonicalBundle), verified.trustState.bundleSha256) ||
+            !MessageDigest.isEqual(MessageDigest.getInstance("SHA-256").digest(canonicalBundle), verified.anchor.bundleSha256) ||
+            verified.anchor.sequence.toString() != verified.snapshot.sequence ||
+            !MessageDigest.isEqual(verified.anchor.bundleSha256, decodeHex(verified.snapshot.bundleSha256)) ||
+            verified.anchor.ownerId != verified.snapshot.ownerId ||
             verified.snapshot.ownerId.isBlank() ||
             rootRole != "release-authorisation" || purpose != "bootstrap-release-root" ||
-            listOf("root.json", "timestamp.json", "snapshot.json", "targets.json").any { it !in verified.trustState.tufMetadata }) {
+            listOf("root.json", "timestamp.json", "snapshot.json", "targets.json").any { it !in verified.verifiedTufMetadata }) {
             return false
         }
         val bundle = JSONObject(canonicalBundle.toString(Charsets.UTF_8))
@@ -58,5 +59,10 @@ class TrustBundleApprovalContextVerifier(
         } catch (_: Exception) {
             false
         }
+    }
+
+    private fun decodeHex(value: String): ByteArray {
+        if (!value.matches(Regex("^[a-f0-9]{64}$"))) throw IllegalArgumentException("Invalid SHA-256 hex.")
+        return ByteArray(32) { index -> value.substring(index * 2, index * 2 + 2).toInt(16).toByte() }
     }
 }
