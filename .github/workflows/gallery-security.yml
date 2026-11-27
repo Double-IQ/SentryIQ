@@ -200,3 +200,6 @@ jobs:
 
       - name: Test GitHub CLI attestation adapter contract
         run: php tests/github_cli_attestation_verifier.test.php
+
+      - name: Test signed registry-anchor verification
+        run: php tests/registry_anchor_verifier.test.php

@@ -2,6 +2,12 @@ import XCTest
 @testable import SentryIQMaster
 
 final class ProtectedTrustStatePolicyTests: XCTestCase {
+    func testInitialAnchorMustStartAtSequenceOneWithoutPreviousDigest() {
+        XCTAssertTrue(TrustRegistryAnchorPolicy.isValidInitialAnchor(sequence: 1, previousBundleSHA256: nil))
+        XCTAssertFalse(TrustRegistryAnchorPolicy.isValidInitialAnchor(sequence: 2, previousBundleSHA256: nil))
+        XCTAssertFalse(TrustRegistryAnchorPolicy.isValidInitialAnchor(sequence: 1, previousBundleSHA256: Data(repeating: 0x11, count: 32)))
+    }
+
     func testAcceptsFreshAnchorWithinOneDayWindow() {
         XCTAssertTrue(TrustRegistryAnchorPolicy.isFresh(issuedAt: 1_700_000_000, expiresAt: 1_700_086_400, now: 1_700_000_100))
     }

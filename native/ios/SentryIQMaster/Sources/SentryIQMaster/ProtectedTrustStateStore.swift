@@ -3,6 +3,10 @@ import Foundation
 import Security
 
 enum TrustRegistryAnchorPolicy {
+    static func isValidInitialAnchor(sequence: UInt64, previousBundleSHA256: Data?) -> Bool {
+        sequence == 1 && previousBundleSHA256 == nil
+    }
+
     static func isFresh(issuedAt: UInt64, expiresAt: UInt64, now: UInt64) -> Bool {
         guard issuedAt > 0, expiresAt > now, expiresAt > issuedAt else { return false }
         if issuedAt > now && issuedAt - now > 60 { return false }
@@ -19,8 +23,10 @@ public struct TrustRegistryAnchor {
     public let issuedAt: UInt64
     public let expiresAt: UInt64
     public let previousBundleSHA256: Data?
+    public let ownerID: String
+    public let signerKeyID: String
 
-    public init(sequence: UInt64, bundleSHA256: Data, signedPayload: Data, signature: Data, issuedAt: UInt64, expiresAt: UInt64, previousBundleSHA256: Data?) {
+    public init(sequence: UInt64, bundleSHA256: Data, signedPayload: Data, signature: Data, issuedAt: UInt64, expiresAt: UInt64, previousBundleSHA256: Data?, ownerID: String, signerKeyID: String) {
         self.sequence = sequence
         self.bundleSHA256 = bundleSHA256
         self.signedPayload = signedPayload
@@ -28,6 +34,8 @@ public struct TrustRegistryAnchor {
         self.issuedAt = issuedAt
         self.expiresAt = expiresAt
         self.previousBundleSHA256 = previousBundleSHA256
+        self.ownerID = ownerID
+        self.signerKeyID = signerKeyID
     }
 }
 
@@ -116,6 +124,11 @@ public final class ProtectedTrustStateStore {
                     throw StoreError.rollbackDetected
                 }
             }
+        } else if !TrustRegistryAnchorPolicy.isValidInitialAnchor(
+            sequence: anchor.sequence,
+            previousBundleSHA256: anchor.previousBundleSHA256
+        ) {
+            throw StoreError.rollbackDetected
         }
 
         let archive = Archive(
