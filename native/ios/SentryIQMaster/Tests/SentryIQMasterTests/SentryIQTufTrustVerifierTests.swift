@@ -28,6 +28,26 @@ final class SentryIQTufTrustVerifierTests: XCTestCase {
         XCTAssertTrue(accepted, "Valid signed TUF metadata must verify through Rust FFI")
     }
 
+    func testCachedSignedMetadataBaselineRefreshCrossesRustLibraryBoundary() throws {
+        let root = try fixture("root")
+        let timestamp = try fixture("timestamp")
+        let snapshot = try fixture("snapshot")
+        let targets = try fixture("targets")
+        let accepted = SentryIQTufTrustVerifier.verifyMetadataRefresh(
+            initialRoot: root,
+            expectedInitialRootSHA256: Data(SHA256.hash(data: root)),
+            candidateRoots: [],
+            cachedTimestamp: timestamp,
+            cachedSnapshot: snapshot,
+            cachedTargets: targets,
+            newTimestamp: timestamp,
+            newSnapshot: snapshot,
+            newTargets: targets,
+            referenceTimeUnixSeconds: 1_800_000_000
+        )
+        XCTAssertTrue(accepted, "A valid cached rollback baseline must refresh through Rust FFI")
+    }
+
     func testTamperedSignedMetadataFailsThroughRustLibrary() throws {
         let root = try fixture("root")
         var timestamp = try fixture("timestamp")
