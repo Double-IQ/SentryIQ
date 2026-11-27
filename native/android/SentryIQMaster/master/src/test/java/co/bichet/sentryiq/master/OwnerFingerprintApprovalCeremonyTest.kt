@@ -45,6 +45,25 @@ class OwnerFingerprintApprovalCeremonyTest {
         assertEquals(sharedGoldenHex, actualHex)
     }
 
+    @Test fun preparedApprovalCompletesOnlyAfterAuthenticationAndSignsExactTranscript() {
+        val prepared = OwnerFingerprintApprovalCeremony.prepare(
+            bundle, fp(bundle), "owner-123", "release-authorisation", "release-root-1",
+            fp(root), fp(keyset), "bootstrap-release-root", challenge, expiry,
+            { fp(bundle) }, { fp(root) }, { _, _, _, _, _, _ -> true }, now
+        )
+        var authenticated = false
+        var signedTranscript = ByteArray(0)
+        val proof = OwnerFingerprintApprovalCeremony.complete(
+            prepared,
+            requireFreshUserVerification = { authenticated = true },
+            sign = { signedTranscript = it; byteArrayOf(0x01) }
+        )
+        assertTrue(authenticated)
+        assertArrayEquals(prepared.transcript, signedTranscript)
+        assertEquals(fp(bundle), proof.bundleFingerprint)
+        assertEquals(fp(root), proof.rootFingerprint)
+    }
+
     @Test fun wrongRootFingerprintFailsBeforeAuthenticationOrSigning() {
         var fresh = false; var signed = false
         try { approve(rootFP = "0".repeat(64), fresh = { fresh = true }, sign = { signed = true; byteArrayOf(1) }); fail("Mismatch") }
