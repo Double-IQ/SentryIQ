@@ -37,7 +37,7 @@ class OwnerFingerprintApprovalPrompt(
         purpose: String,
         challenge: ByteArray,
         expiresAt: Long,
-        verifiedState: OwnerBootstrapHttpClient.VerifiedBootstrapState,
+        verifiedState: OwnerBootstrapHttpClient.PreparedBootstrapState,
         onApproved: (OwnerFingerprintApprovalCeremony.ApprovalProof) -> Unit,
         onCancelled: () -> Unit,
         onError: (Throwable) -> Unit
