@@ -42,6 +42,7 @@ public struct MasterPublicKeySet: Codable, Equatable {
         case signing
         case keyAgreement = "key_agreement"
         case hardwareAssurance = "hardware_assurance"
+        case deviceKeysetDigest = "device_keyset_digest"
     }
 
     public init(
