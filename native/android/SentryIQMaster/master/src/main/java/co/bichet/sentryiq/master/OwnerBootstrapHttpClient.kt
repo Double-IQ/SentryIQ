@@ -91,8 +91,10 @@ class OwnerBootstrapHttpClient(
         val snapshot = fetchSnapshot()
         val anchor = decodeAnchor(snapshot)
         val digest = java.security.MessageDigest.getInstance("SHA-256").digest(snapshot.canonicalBundle)
-        if (!MessageDigest.isEqual(digest, anchor.bundleSha256)) {
-            throw ClientException("Canonical bundle does not match its signed registry anchor.")
+        val digestHex = digest.joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        if (!MessageDigest.isEqual(digest, anchor.bundleSha256) ||
+            digestHex != snapshot.bundleSha256 || anchor.sequence.toString() != snapshot.sequence) {
+            throw ClientException("Canonical bundle, sequence, and signed registry anchor do not agree.")
         }
         verifyTuf(snapshot)
         store.save(snapshot.canonicalBundle, anchor)
