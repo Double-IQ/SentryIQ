@@ -446,6 +446,65 @@ mod tests {
     }
 
     #[test]
+    fn accepts_signed_delegated_target_metadata_from_python_tuf_fixture() {
+        let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
+        let timestamp =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
+        let snapshot =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let role1 = include_bytes!("../tests/fixtures/tufet-python-tuf/role1.json").to_vec();
+        let root_pin = Sha256::digest(&root).to_vec();
+
+        assert!(verify_tuf_target_delegation(
+            root,
+            root_pin,
+            vec![],
+            None,
+            None,
+            None,
+            timestamp,
+            snapshot,
+            targets,
+            vec!["role1".to_string()],
+            vec![role1],
+            "file3.txt".to_string(),
+            1_800_000_000,
+        ));
+    }
+
+    #[test]
+    fn rejects_tampered_signed_delegated_target_metadata() {
+        let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
+        let timestamp =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
+        let snapshot =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let mut role1 = include_bytes!("../tests/fixtures/tufet-python-tuf/role1.json").to_vec();
+        let root_pin = Sha256::digest(&root).to_vec();
+        role1[0] ^= 1;
+
+        assert!(!verify_tuf_target_delegation(
+            root,
+            root_pin,
+            vec![],
+            None,
+            None,
+            None,
+            timestamp,
+            snapshot,
+            targets,
+            vec!["role1".to_string()],
+            vec![role1],
+            "file3.txt".to_string(),
+            1_800_000_000,
+        ));
+    }
+
+    #[test]
     fn rejects_empty_initial_root() {
         assert_eq!(
             verify_tuf_root_rotation_chain(vec![], vec![0; 32], vec![], 1_700_000_000),
