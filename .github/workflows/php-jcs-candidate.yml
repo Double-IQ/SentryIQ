@@ -17,6 +17,7 @@ on:
       - 'tests/fixtures/jcs-rfc8785-appendix-b.json'
       - 'tests/fixtures/registry-anchor-canonicalization.json'
       - 'tests/jcs-candidate/**'
+      - 'docs/architecture/php-jcs-candidate-assessment.md'
       - '.github/workflows/php-jcs-candidate.yml'
 
 permissions:
