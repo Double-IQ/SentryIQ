@@ -4,7 +4,8 @@
   "type": "project",
   "require": {
     "accredifysg/php-json-canonicalize": "1.1.1",
-    "mbolli/php-ron": "0.5.0"
+    "mbolli/php-ron": "0.5.0",
+    "mmccook/php-json-canonicalization-scheme": "1.0.0"
   },
   "config": {
     "sort-packages": true
