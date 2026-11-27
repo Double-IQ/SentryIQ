@@ -103,6 +103,40 @@ class OwnerBootstrapHttpClient(
         )
     }
 
+    /** Verify the delivered TUF metadata with the shared Rust core and return the exact accepted bytes. */
+    fun verifyTufRefresh(
+        snapshot: Snapshot,
+        cachedState: ProtectedTrustStateStore.TrustState?,
+        referenceTimeEpochSeconds: Long = System.currentTimeMillis() / 1000L
+    ): Map<String, ByteArray> {
+        val bundle = try { JSONObject(snapshot.canonicalBundle.toString(Charsets.UTF_8)) }
+            catch (error: Exception) { throw ClientException("Canonical trust bundle is invalid JSON.", error) }
+        val tuf = bundle.optJSONObject("sigstore_tuf")
+            ?: throw ClientException("Trust bundle TUF pin is missing.")
+        val rootDigest = decodeHex(tuf.optString("root_digest"))
+        val initialRoot = snapshot.tufMetadata["root.json"]
+            ?: throw ClientException("Initial TUF root metadata is missing.")
+        val candidateRoots = snapshot.tufMetadata.keys
+            .filter { it.matches(Regex("^root/[0-9]+\\\\.json$")) }
+            .sortedBy { it.removePrefix("root/").removeSuffix(".json").toLongOrNull() ?: Long.MAX_VALUE }
+            .map { snapshot.tufMetadata.getValue(it) }
+        val cached = cachedState?.tufMetadata ?: emptyMap()
+        val accepted = SentryIQTufTrustVerifier.verifyMetadataRefresh(
+            initialRoot,
+            rootDigest,
+            candidateRoots,
+            cached["timestamp.json"],
+            cached["snapshot.json"],
+            cached["targets.json"],
+            snapshot.tufMetadata["timestamp.json"] ?: throw ClientException("Timestamp metadata is missing."),
+            snapshot.tufMetadata["snapshot.json"] ?: throw ClientException("Snapshot metadata is missing."),
+            snapshot.tufMetadata["targets.json"] ?: throw ClientException("Targets metadata is missing."),
+            referenceTimeEpochSeconds
+        )
+        if (!accepted) throw ClientException("Rust TUF metadata refresh verification failed.")
+        return snapshot.tufMetadata
+    }
+
     /** Fetch, verify the separately pinned registry anchor, validate TUF, then persist atomically. */
     fun fetchAndPersistSnapshot(
         store: ProtectedTrustStateStore,
