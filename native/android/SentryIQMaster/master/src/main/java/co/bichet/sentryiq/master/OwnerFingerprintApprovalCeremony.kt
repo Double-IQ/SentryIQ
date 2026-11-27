@@ -14,16 +14,27 @@ object OwnerFingerprintApprovalCeremony {
     )
     class CeremonyException(message: String) : Exception(message)
 
-    /** The verifier must atomically consume the challenge exactly once when accepting this proof. */
-    fun approve(
+    data class PreparedApproval internal constructor(
+        val bundleFingerprint: String,
+        val rootRole: String,
+        val rootKeyId: String,
+        val rootFingerprint: String,
+        val deviceKeysetDigest: String,
+        val purpose: String,
+        val challenge: ByteArray,
+        val expiresAt: Long,
+        val transcript: ByteArray
+    )
+
+    /** Validate context and owner-entered fingerprints before opening the OS authentication prompt. */
+    fun prepare(
         canonicalBundle: ByteArray, outOfBandFingerprint: String, ownerIdentifier: String,
         rootRole: String, rootKeyId: String, outOfBandRootFingerprint: String,
         deviceKeysetDigest: String, purpose: String, challenge: ByteArray, expiresAt: Long,
         confirmFingerprint: () -> String, confirmRootFingerprint: () -> String,
         verifyCandidateTrustChain: (ByteArray, String, String, ByteArray, ByteArray, String) -> Boolean,
-        requireFreshUserVerification: () -> Unit, sign: (ByteArray) -> ByteArray,
         now: Long = System.currentTimeMillis() / 1000L
-    ): ApprovalProof {
+    ): PreparedApproval {
         if (!validOwnerIdentifier(ownerIdentifier)) {
             throw CeremonyException("Invalid owner identifier.")
         }
@@ -37,7 +48,6 @@ object OwnerFingerprintApprovalCeremony {
         val expectedBundle = decodeFingerprint(outOfBandFingerprint)
         val expectedRoot = decodeFingerprint(outOfBandRootFingerprint)
         val keysetDigest = decodeFingerprint(deviceKeysetDigest)
-        // Validate the bundle and resolve its selected root before asking the owner to confirm it.
         if (!verifyCandidateTrustChain(canonicalBundle, rootRole, rootKeyId, expectedRoot, keysetDigest, purpose)) {
             throw CeremonyException("Candidate trust chain or approval context failed validation.")
         }
@@ -48,18 +58,49 @@ object OwnerFingerprintApprovalCeremony {
             !MessageDigest.isEqual(expectedRoot, confirmedRoot)) {
             throw CeremonyException("Owner-confirmed fingerprint does not match independent record.")
         }
-
         val transcript = makeTranscript(
             ownerIdentifier, bundleDigest, rootRole, rootKeyId, expectedRoot,
             keysetDigest, purpose, challenge, expiresAt
         )
+        return PreparedApproval(
+            formatFingerprint(bundleDigest), rootRole, rootKeyId,
+            formatFingerprint(expectedRoot), formatFingerprint(keysetDigest),
+            purpose, challenge.copyOf(), expiresAt, transcript
+        )
+    }
+
+    /** Complete a prepared approval only after the caller's per-use OS authentication succeeds. */
+    fun complete(
+        prepared: PreparedApproval,
+        requireFreshUserVerification: () -> Unit,
+        sign: (ByteArray) -> ByteArray
+    ): ApprovalProof {
         requireFreshUserVerification()
-        val signature = sign(transcript)
+        val signature = sign(prepared.transcript.copyOf())
         if (signature.isEmpty()) throw CeremonyException("Master signer returned an empty signature.")
         return ApprovalProof(
-            formatFingerprint(bundleDigest), rootRole, rootKeyId, formatFingerprint(expectedRoot),
-            formatFingerprint(keysetDigest), purpose, challenge.copyOf(), expiresAt, signature
+            prepared.bundleFingerprint, prepared.rootRole, prepared.rootKeyId,
+            prepared.rootFingerprint, prepared.deviceKeysetDigest, prepared.purpose,
+            prepared.challenge.copyOf(), prepared.expiresAt, signature
         )
+    }
+
+    /** Synchronous convenience wrapper retained for deterministic unit tests and adapters. */
+    fun approve(
+        canonicalBundle: ByteArray, outOfBandFingerprint: String, ownerIdentifier: String,
+        rootRole: String, rootKeyId: String, outOfBandRootFingerprint: String,
+        deviceKeysetDigest: String, purpose: String, challenge: ByteArray, expiresAt: Long,
+        confirmFingerprint: () -> String, confirmRootFingerprint: () -> String,
+        verifyCandidateTrustChain: (ByteArray, String, String, ByteArray, ByteArray, String) -> Boolean,
+        requireFreshUserVerification: () -> Unit, sign: (ByteArray) -> ByteArray,
+        now: Long = System.currentTimeMillis() / 1000L
+    ): ApprovalProof {
+        val prepared = prepare(
+            canonicalBundle, outOfBandFingerprint, ownerIdentifier, rootRole, rootKeyId,
+            outOfBandRootFingerprint, deviceKeysetDigest, purpose, challenge, expiresAt,
+            confirmFingerprint, confirmRootFingerprint, verifyCandidateTrustChain, now
+        )
+        return complete(prepared, requireFreshUserVerification, sign)
     }
 
     private fun validOwnerIdentifier(value: String): Boolean =
