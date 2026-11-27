@@ -55,7 +55,7 @@ class OwnerFingerprintApprovalCeremonyTest {
         try { approve(bundleFP = "0".repeat(64)); fail("Mismatch") } catch (_: OwnerFingerprintApprovalCeremony.CeremonyException) { }
     }
     @Test fun wrongOwnerAndMalformedContextFailClosed() {
-        val calls = listOf<() -> Unit>({ approve(owner = "") }, { approve(role = "release authorisation") }, { approve(purpose = "") })
+        val calls = listOf<() -> Unit>({ approve(owner = "") }, { approve(owner = "owner-é") }, { approve(role = "release authorisation") }, { approve(purpose = "") })
         calls.forEach { try { it(); fail("Invalid context") } catch (_: OwnerFingerprintApprovalCeremony.CeremonyException) { } }
     }
     @Test fun expiredChallengeAndInvalidCandidateFailBeforeSigning() {
