@@ -167,12 +167,12 @@ foreach ([
     $key = openssl_pkey_get_public($pem);
     $details = openssl_pkey_get_details($key);
     openssl_pkey_free($key);
-    $raw = str_pad($details['ec']['x'], 32, "\\0", STR_PAD_LEFT) . str_pad($details['ec']['y'], 32, "\\0", STR_PAD_LEFT);
+    $raw = str_pad($details['ec']['x'], 32, "\0", STR_PAD_LEFT) . str_pad($details['ec']['y'], 32, "\0", STR_PAD_LEFT);
     $keysetFields[] = $kid;
     $keysetFields[] = $alg;
     $keysetFields[] = $raw;
 }
-$keysetTranscript = "SENTRYIQ-MASTER-KEYSET-V1\\n";
+$keysetTranscript = "SENTRYIQ-MASTER-KEYSET-V1\n";
 foreach ([$keysetFields[0], $keysetFields[1], $keysetFields[2], $keysetFields[3], $keysetFields[4], $keysetFields[5], $decodedKeysetBundle->master_keyset->hardware_assurance] as $field) {
     $keysetTranscript .= pack('N', strlen($field)) . $field;
 }
