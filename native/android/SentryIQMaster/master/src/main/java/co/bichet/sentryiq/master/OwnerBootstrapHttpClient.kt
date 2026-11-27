@@ -3,7 +3,6 @@ package co.bichet.sentryiq.master
 import android.util.Base64
 import org.json.JSONObject
 import java.net.CookieManager
-import java.net.HttpCookie
 import java.net.URI
 import java.net.URL
 import javax.net.ssl.HttpsURLConnection
@@ -137,8 +136,10 @@ class OwnerBootstrapHttpClient(
                 finalUrl.port != endpoint.port || finalUrl.path != endpoint.path) {
                 throw ClientException("Bootstrap endpoint redirected outside the authenticated origin.")
             }
-            val responseHeaders = connection.headerFields.filterKeys { it != null }
-                .mapValues { (_, values) -> values ?: emptyList() }
+            val responseHeaders = mutableMapOf<String, List<String>>()
+            connection.headerFields.forEach { (name, values) ->
+                if (name != null && values != null) responseHeaders[name] = values
+            }
             cookies.put(URI(endpoint.toString()), responseHeaders)
             if (status != 200) throw ClientException("Bootstrap endpoint returned HTTP $status.")
             val contentType = connection.contentType ?: ""
