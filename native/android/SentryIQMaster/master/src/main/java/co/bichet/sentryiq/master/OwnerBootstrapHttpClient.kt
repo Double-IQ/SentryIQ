@@ -157,7 +157,7 @@ class OwnerBootstrapHttpClient(
     }
 
     /** Verify downloaded target bytes against signed top-level and delegated TUF metadata. */
-    fun verifyTargetBytes(
+    private fun verifyTargetBytes(
         targetBytes: ByteArray,
         targetPath: String,
         snapshot: Snapshot,
@@ -338,11 +338,10 @@ class OwnerBootstrapHttpClient(
 
     fun fetchAndVerifyTarget(
         path: String,
-        snapshot: Snapshot,
-        cachedState: ProtectedTrustStateStore.TrustState?
+        verifiedState: VerifiedBootstrapState
     ): ByteArray {
         val bytes = fetchTarget(path)
-        if (!verifyTargetBytes(bytes, path, snapshot, cachedState)) {
+        if (!verifyTargetBytes(bytes, path, verifiedState.snapshot, verifiedState.trustState)) {
             throw ClientException("Downloaded TUF target failed signed length/hash/delegation verification.")
         }
         return bytes
