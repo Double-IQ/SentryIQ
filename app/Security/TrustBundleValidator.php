@@ -99,6 +99,7 @@ final class TrustBundleValidator
         $this->validateTufReference($bundle->sigstore_tuf ?? null);
         $this->validateRevocations($bundle->revocations ?? null);
         $keyFingerprints = $this->assertRoleSeparation($bundle);
+        $masterKeysetDigest = $this->masterKeysetDigest($bundle->master_keyset);
 
         if (!is_array($bundle->signatures) || $bundle->signatures === []) {
             throw new RuntimeException('Trust bundle has no detached signatures.');
@@ -118,6 +119,7 @@ final class TrustBundleValidator
             'sequence' => $sequence,
             'signer_kids' => $signerKids,
             'key_fingerprints' => $keyFingerprints,
+            'master_keyset_digest' => $masterKeysetDigest,
         ];
     }
 
@@ -386,6 +388,40 @@ final class TrustBundleValidator
             throw new RuntimeException('Trust bundle timestamp is invalid.');
         }
         return $date->getTimestamp();
+    }
+
+    /** SHA-256 of the platform-independent SENTRYIQ-MASTER-KEYSET-V1 binary descriptor. */
+    private function masterKeysetDigest(\\stdClass $keyset): string
+    {
+        $rawPublic = function (string $pem): string {
+            $key = openssl_pkey_get_public($pem);
+            if ($key === false) throw new RuntimeException('Invalid master public key for keyset digest.');
+            try {
+                $details = openssl_pkey_get_details($key);
+                $x = $details['ec']['x'] ?? null;
+                $y = $details['ec']['y'] ?? null;
+                if (!is_string($x) || !is_string($y) || strlen($x) > 32 || strlen($y) > 32) {
+                    throw new RuntimeException('Master P-256 public key coordinates are malformed.');
+                }
+                return str_pad($x, 32, "\\0", STR_PAD_LEFT) . str_pad($y, 32, "\\0", STR_PAD_LEFT);
+            } finally {
+                openssl_pkey_free($key);
+            }
+        };
+        $fields = [
+            $keyset->signing->kid,
+            $keyset->signing->alg,
+            $rawPublic($keyset->signing->public_key_pem),
+            $keyset->key_agreement->kid,
+            $keyset->key_agreement->alg,
+            $rawPublic($keyset->key_agreement->public_key_pem),
+            $keyset->hardware_assurance,
+        ];
+        $transcript = "SENTRYIQ-MASTER-KEYSET-V1\\n";
+        foreach ($fields as $field) {
+            $transcript .= pack('N', strlen($field)) . $field;
+        }
+        return hash('sha256', $transcript);
     }
 
     private function canonicalJson(mixed $value): string
