@@ -19,6 +19,11 @@ class OwnerBootstrapHttpClient(
     private val connectTimeoutMillis: Int = 15_000,
     private val readTimeoutMillis: Int = 20_000
 ) {
+    companion object {
+        /** Use the same WebView cookie jar after login; flush before native HTTP requests. */
+        fun authenticatedWebViewCookieManager(): CookieManager = CookieManager.getInstance().also { it.flush() }
+    }
+
     data class Snapshot(
         val ownerId: String,
         val sequence: String,
