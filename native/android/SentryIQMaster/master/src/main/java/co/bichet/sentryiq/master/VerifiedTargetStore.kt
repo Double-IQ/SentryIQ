@@ -26,6 +26,10 @@ class VerifiedTargetStore(
     private val maximumTargetBytes = 16 * 1024 * 1024
     private val magic = "SIQVT1".toByteArray(Charsets.US_ASCII)
 
+    companion object {
+        private val keyLock = Any()
+    }
+
     init {
         if (!directory.exists() && !directory.mkdirs()) throw StoreException("Unable to create verified target directory.")
         directory.setReadable(false, false)
@@ -119,7 +123,7 @@ class VerifiedTargetStore(
         "SENTRYIQ-VERIFIED-TARGET-V1\n".toByteArray(Charsets.UTF_8) +
             path.toByteArray(Charsets.UTF_8) + byteArrayOf(0) + digest
 
-    private fun loadOrCreateKey(): SecretKey {
+    private fun loadOrCreateKey(): SecretKey = synchronized(keyLock) {
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (keyStore.getKey(keyAlias, null) as? SecretKey)?.let { return it }
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
@@ -134,7 +138,7 @@ class VerifiedTargetStore(
                 .setRandomizedEncryptionRequired(true)
                 .build()
         )
-        return generator.generateKey()
+        generator.generateKey()
     }
 
     private fun File.isSymbolicLinkCompat(): Boolean =
