@@ -81,4 +81,4 @@ if (!hash_equals($anchorFixture->canonical, $anchorCanonical)
     throw new RuntimeException('Candidate canonical bytes or digest diverged from the native registry-anchor fixture.');
 }
 
-echo "php-ron passed six RFC 8785 vectors, 24 Appendix B numbers, and five strict-input rejection cases.\n";
+echo "php-ron passed six RFC 8785 vectors, 24 Appendix B numbers, and nine strict-input rejection cases.\n";
