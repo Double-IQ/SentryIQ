@@ -63,7 +63,7 @@ object OwnerFingerprintApprovalCeremony {
         )
     }
 
-    private fun validToken(value: String): Boolean =
+    private fun validOwnerIdentifier(value: String): Boolean =\n        value.isNotEmpty() && value.toByteArray(Charsets.UTF_8).size <= 256 &&\n            value.matches(Regex("^[A-Za-z0-9._:-]+$"))\n\n    private fun validToken(value: String): Boolean =
         value.isNotEmpty() && value.toByteArray(Charsets.UTF_8).size <= 128 &&
             value.all { it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' || it == '-' || it == '.' || it == '_' }
 
