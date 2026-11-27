@@ -97,8 +97,7 @@ public final class OwnerFingerprintApprovalPresenter {
                 return
             }
             let context = LAContext()
-            context.localizedReason = "Approve this exact SentryIQ trust root"
-            context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: context.localizedReason ?? "Approve trust root") { success, error in
+            context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Approve this exact SentryIQ trust root") { success, error in
                 Task { @MainActor in
                     guard success else {
                         completion(.failure(error ?? LAError(.authenticationFailed)))
