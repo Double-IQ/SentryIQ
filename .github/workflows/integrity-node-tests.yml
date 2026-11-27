@@ -79,6 +79,8 @@ on:
   push:
     branches: [main]
     paths:
+      - 'composer.json'
+      - 'composer.lock'
       - 'app/Updates/IntegrityNode*.php'
       - 'app/Updates/IntegrityReport*.php'
       - 'tests/integrity_*.test.php'
