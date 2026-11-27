@@ -53,7 +53,8 @@ try {
         || !is_string($runtime['registry_anchor_signature_base64url'] ?? null)
         || !is_array($runtime['registry_signer_keys'] ?? null)
         || !is_array($runtime['bundle_signer_keys'] ?? null)
-        || !is_array($runtime['tuf_metadata'] ?? null)) {
+        || !is_array($runtime['tuf_metadata'] ?? null)
+        || !is_callable($runtime['resolve_target'] ?? null)) {
         owner_bootstrap_respond(503, ['error' => 'bootstrap_runtime_invalid']);
     }
 
@@ -82,6 +83,28 @@ try {
         is_string($runtime['current_bundle_digest'] ?? null) ? $runtime['current_bundle_digest'] : null,
         $runtime['verify_tuf']
     );
+
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['target'])) {
+        $targetPath = $_GET['target'];
+        if (!is_string($targetPath) || strlen($targetPath) > 512
+            || !preg_match('/^[A-Za-z0-9._/-]+$/D', $targetPath)
+            || str_contains($targetPath, '//')
+            || preg_match('~(^|/)\\.{1,2}($|/)~', $targetPath)) {
+            owner_bootstrap_respond(400, ['error' => 'invalid_target_path']);
+        }
+        $targetBytes = ($runtime['resolve_target'])($targetPath);
+        if (!is_string($targetBytes) || $targetBytes === '') {
+            owner_bootstrap_respond(404, ['error' => 'target_not_found']);
+        }
+        if (strlen($targetBytes) > 16 * 1024 * 1024) {
+            owner_bootstrap_respond(413, ['error' => 'target_too_large']);
+        }
+        owner_bootstrap_respond(200, [
+            'protocol' => 'SENTRYIQ-OWNER-BOOTSTRAP-API-V1',
+            'target_path' => $targetPath,
+            'target' => owner_bootstrap_b64url($targetBytes),
+        ]);
+    }
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $snapshot = $api->snapshot(time());
