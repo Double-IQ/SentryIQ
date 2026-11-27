@@ -513,19 +513,27 @@ mod tests {
         );
         assert_eq!(
             include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json"),
-            include_bytes!("../../ios/SentryIQMaster/Tests/SentryIQMasterTests/Fixtures/timestamp.json")
+            include_bytes!(
+                "../../ios/SentryIQMaster/Tests/SentryIQMasterTests/Fixtures/timestamp.json"
+            )
         );
         assert_eq!(
             include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json"),
-            include_bytes!("../../ios/SentryIQMaster/Tests/SentryIQMasterTests/Fixtures/snapshot.json")
+            include_bytes!(
+                "../../ios/SentryIQMaster/Tests/SentryIQMasterTests/Fixtures/snapshot.json"
+            )
         );
         assert_eq!(
             include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json"),
-            include_bytes!("../../ios/SentryIQMaster/Tests/SentryIQMasterTests/Fixtures/targets.json")
+            include_bytes!(
+                "../../ios/SentryIQMaster/Tests/SentryIQMasterTests/Fixtures/targets.json"
+            )
         );
         assert_eq!(
             include_bytes!("../tests/fixtures/tufet-python-tuf/role1.json"),
-            include_bytes!("../../ios/SentryIQMaster/Tests/SentryIQMasterTests/Fixtures/role1.json")
+            include_bytes!(
+                "../../ios/SentryIQMaster/Tests/SentryIQMasterTests/Fixtures/role1.json"
+            )
         );
 
         assert_eq!(
@@ -629,12 +637,7 @@ mod tests {
             -1
         );
         assert_eq!(
-            verify_tuf_root_rotation_chain(
-                initial_bytes,
-                root_pin,
-                vec![only_new],
-                1_800_000_000,
-            ),
+            verify_tuf_root_rotation_chain(initial_bytes, root_pin, vec![only_new], 1_800_000_000,),
             -1
         );
     }
@@ -644,10 +647,8 @@ mod tests {
         let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
         let timestamp =
             include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
-        let snapshot =
-            include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
-        let targets =
-            include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let snapshot = include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets = include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
         let root_pin = Sha256::digest(&root).to_vec();
 
         assert!(verify_tuf_metadata_refresh(
@@ -669,10 +670,8 @@ mod tests {
         let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
         let mut timestamp =
             include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
-        let snapshot =
-            include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
-        let targets =
-            include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let snapshot = include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets = include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
         let root_pin = Sha256::digest(&root).to_vec();
         timestamp[0] ^= 1;
 
@@ -695,10 +694,8 @@ mod tests {
         let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
         let timestamp =
             include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
-        let snapshot =
-            include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
-        let targets =
-            include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let snapshot = include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets = include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
         let role1 = include_bytes!("../tests/fixtures/tufet-python-tuf/role1.json").to_vec();
         let root_pin = Sha256::digest(&root).to_vec();
 
@@ -724,10 +721,8 @@ mod tests {
         let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
         let timestamp =
             include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
-        let snapshot =
-            include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
-        let targets =
-            include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let snapshot = include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets = include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
         let mut role1 = include_bytes!("../tests/fixtures/tufet-python-tuf/role1.json").to_vec();
         let root_pin = Sha256::digest(&root).to_vec();
         role1[0] ^= 1;
@@ -754,10 +749,8 @@ mod tests {
         let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
         let timestamp =
             include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
-        let snapshot =
-            include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
-        let targets =
-            include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let snapshot = include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets = include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
         let root_pin = Sha256::digest(&root).to_vec();
 
         assert!(verify_tuf_metadata_refresh(
@@ -779,10 +772,8 @@ mod tests {
         let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
         let timestamp =
             include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
-        let snapshot =
-            include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
-        let targets =
-            include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let snapshot = include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets = include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
         let root_pin = Sha256::digest(&root).to_vec();
 
         assert!(verify_tuf_metadata_refresh(
@@ -804,10 +795,8 @@ mod tests {
         let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
         let timestamp =
             include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
-        let snapshot =
-            include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
-        let targets =
-            include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let snapshot = include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets = include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
         let role1 = include_bytes!("../tests/fixtures/tufet-python-tuf/role1.json").to_vec();
         let target = include_bytes!("../tests/fixtures/tufet-python-tuf/file3.txt").to_vec();
         let root_pin = Sha256::digest(&root).to_vec();
@@ -835,10 +824,8 @@ mod tests {
         let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
         let timestamp =
             include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
-        let snapshot =
-            include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
-        let targets =
-            include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let snapshot = include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets = include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
         let role1 = include_bytes!("../tests/fixtures/tufet-python-tuf/role1.json").to_vec();
         let mut target = include_bytes!("../tests/fixtures/tufet-python-tuf/file3.txt").to_vec();
         let root_pin = Sha256::digest(&root).to_vec();
