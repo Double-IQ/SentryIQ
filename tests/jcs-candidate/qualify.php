@@ -84,7 +84,7 @@ if (!hash_equals($anchorFixture->canonical, $anchorCanonical)
 }
 
 if ($acceptedInvalidInputs !== []) {
-    echo "STRICT-INPUT GATE FAILED: accepted invalid input hex: " . implode(', ', $acceptedInvalidInputs) . "\\n";
+    echo "STRICT-INPUT GATE FAILED: accepted invalid input hex: " . implode(', ', $acceptedInvalidInputs) . "\n";
     throw new RuntimeException('Candidate does not enforce the complete strict-input profile.');
 }
-echo "Candidate JCS passed six RFC 8785 vectors, 24 Appendix B numbers, and strict-input rejection cases.\\n";
+echo "Candidate JCS passed six RFC 8785 vectors, 24 Appendix B numbers, and strict-input rejection cases.\n";
