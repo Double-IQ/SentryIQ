@@ -49,6 +49,10 @@ class OwnerBootstrapHttpClient(
     )
 
     data class Receipt(val receiptId: String)
+    data class VerifiedBootstrapState(
+        val snapshot: Snapshot,
+        val trustState: ProtectedTrustStateStore.TrustState
+    )
 
     class ClientException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
@@ -195,7 +199,7 @@ class OwnerBootstrapHttpClient(
     fun fetchAndPersistSnapshot(
         store: ProtectedTrustStateStore,
         verifyTuf: (Snapshot, ProtectedTrustStateStore.TrustState?) -> Map<String, ByteArray>
-    ): ProtectedTrustStateStore.TrustState {
+    ): VerifiedBootstrapState {
         val snapshot = fetchSnapshot()
         val anchor = decodeAnchor(snapshot)
         val digest = java.security.MessageDigest.getInstance("SHA-256").digest(snapshot.canonicalBundle)
@@ -211,7 +215,7 @@ class OwnerBootstrapHttpClient(
             throw ClientException("TUF verifier returned metadata different from the downloaded snapshot.")
         }
         store.save(snapshot.canonicalBundle, anchor, verifiedMetadata)
-        return store.load(anchor)
+        return VerifiedBootstrapState(snapshot, store.load(anchor))
     }
 
     private fun decodeAnchor(snapshot: Snapshot): ProtectedTrustStateStore.RegistryAnchor {
