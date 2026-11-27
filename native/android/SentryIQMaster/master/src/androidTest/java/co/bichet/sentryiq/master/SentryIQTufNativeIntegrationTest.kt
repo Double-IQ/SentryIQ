@@ -30,8 +30,8 @@ class SentryIQTufNativeIntegrationTest {
     @Test
     fun packagedRustDelegationVerifierRejectsControlCharactersAndOversizedPaths() {
         val unsafePaths = listOf(
-            "releases/\\u0000app.tar.zst",
-            "releases/\\napp.tar.zst",
+            "releases/\u0000app.tar.zst",
+            "releases/\napp.tar.zst",
             "a".repeat(4097)
         )
         unsafePaths.forEach { path ->
