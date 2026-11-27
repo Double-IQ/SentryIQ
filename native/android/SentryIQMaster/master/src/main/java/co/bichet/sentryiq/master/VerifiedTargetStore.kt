@@ -34,7 +34,7 @@ class VerifiedTargetStore(
         directory.setReadable(true, true)
         directory.setWritable(true, true)
         directory.setExecutable(true, true)
-        if (!directory.isDirectory || directory.canonicalFile != directory.absoluteFile.canonicalFile) {
+        if (!directory.isDirectory || directory.canonicalFile != directory.absoluteFile) {
             throw StoreException("Verified target directory is unsafe.")
         }
     }
