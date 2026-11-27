@@ -112,7 +112,7 @@ public final class OwnerBootstrapHTTPClient {
     /// Fetch, verify the separately pinned registry anchor, validate TUF, then persist atomically.
     public func fetchAndPersistSnapshot(
         using store: ProtectedTrustStateStore,
-        verifyTuf: @escaping (Snapshot) throws -> [String: Data],
+        verifyTuf: @escaping (Snapshot, ProtectedTrustState?) throws -> [String: Data],
         completion: @escaping (Result<ProtectedTrustState, Error>) -> Void
     ) {
         fetchSnapshot { result in
@@ -124,7 +124,8 @@ public final class OwnerBootstrapHTTPClient {
                           snapshot.sequence == String(anchor.sequence) else {
                         throw ClientError.invalidResponse
                     }
-                    let verifiedMetadata = try verifyTuf(snapshot)
+                    let cachedState = try store.loadPreviousState(for: anchor)
+                    let verifiedMetadata = try verifyTuf(snapshot, cachedState)
                     guard verifiedMetadata.count == snapshot.tufMetadata.count,
                           verifiedMetadata.allSatisfy({ snapshot.tufMetadata[$0.key] == $0.value }) else {
                         throw ClientError.invalidResponse
