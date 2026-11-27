@@ -34,11 +34,11 @@ function ownerApprovalDerToRawLowS(string $der): string
         throw new RuntimeException('Invalid ECDSA sequence length or R integer.');
     }
     $rLength = ord($der[$offset++]);
-    $r = str_pad(ltrim(substr($der, $offset, $rLength), "\\0"), 32, "\\0", STR_PAD_LEFT);
+    $r = str_pad(ltrim(substr($der, $offset, $rLength), "\0"), 32, "\0", STR_PAD_LEFT);
     $offset += $rLength;
     if (ord($der[$offset++]) !== 0x02) throw new RuntimeException('Invalid ECDSA S integer.');
     $sLength = ord($der[$offset++]);
-    $s = str_pad(ltrim(substr($der, $offset, $sLength), "\\0"), 32, "\\0", STR_PAD_LEFT);
+    $s = str_pad(ltrim(substr($der, $offset, $sLength), "\0"), 32, "\0", STR_PAD_LEFT);
     $half = hex2bin('7fffffff800000007fffffffffffffffde737d56d38bcf4279dce5617e3192a8');
     if (strcmp($s, $half) > 0) {
         $order = array_values(unpack('C*', hex2bin('ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551')));
