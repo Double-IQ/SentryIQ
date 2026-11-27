@@ -225,7 +225,7 @@ final class BootstrapChallengeStore
 
     private static function assertOwnerIdentifier(string $ownerIdentifier): void
     {
-        if ($ownerIdentifier === '' || strlen($ownerIdentifier) > 256 || str_contains($ownerIdentifier, "\n") || str_contains($ownerIdentifier, "\r")) {
+        if (!preg_match('/^[A-Za-z0-9._:-]{1,256}$/D', $ownerIdentifier)) {
             throw new RuntimeException('Invalid owner identifier.');
         }
     }
