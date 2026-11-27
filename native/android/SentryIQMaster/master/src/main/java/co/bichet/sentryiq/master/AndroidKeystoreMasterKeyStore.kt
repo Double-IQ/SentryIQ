@@ -33,7 +33,8 @@ class AndroidKeystoreMasterKeyStore(
     data class PublicKeySet(
         val signing: PublicKeyDescriptor,
         val keyAgreement: PublicKeyDescriptor,
-        val hardwareAssurance: String
+        val hardwareAssurance: String,
+        val deviceKeysetDigest: String
     )
 
     /** Opaque handle for one Keystore-backed, per-use authenticated signature. */
@@ -182,14 +183,19 @@ class AndroidKeystoreMasterKeyStore(
 
     private fun describe(signingDer: ByteArray, agreementDer: ByteArray, assurance: String): PublicKeySet {
         if (signingDer.contentEquals(agreementDer)) throw StoreException.InvalidKey()
-        return PublicKeySet(
-            descriptor("master-signing", "ES256", signingDer),
-            descriptor("master-key-agreement", "ECDH-ES", agreementDer),
+        val signingRaw = rawPublicKey(signingDer)
+        val agreementRaw = rawPublicKey(agreementDer)
+        val signing = descriptor("master-signing", "ES256", signingDer, signingRaw)
+        val agreement = descriptor("master-key-agreement", "ECDH-ES", agreementDer, agreementRaw)
+        val digest = MasterKeysetDigest.compute(
+            signing.kid, "ES256", signingRaw,
+            agreement.kid, "ECDH-ES", agreementRaw,
             assurance
         )
+        return PublicKeySet(signing, agreement, assurance, digest)
     }
 
-    private fun descriptor(role: String, alg: String, der: ByteArray): PublicKeyDescriptor {
+    private fun rawPublicKey(der: ByteArray): ByteArray {
         val ec = java.security.KeyFactory.getInstance("EC")
             .generatePublic(java.security.spec.X509EncodedKeySpec(der)) as ECPublicKey
         fun coordinate(value: BigInteger): ByteArray {
@@ -197,8 +203,10 @@ class AndroidKeystoreMasterKeyStore(
             require(raw.size <= 32)
             return ByteArray(32 - raw.size) + raw
         }
-        // Match iOS key IDs: SHA-256 over the 64-byte X||Y P-256 raw public key.
-        val rawPublic = coordinate(ec.w.affineX) + coordinate(ec.w.affineY)
+        return coordinate(ec.w.affineX) + coordinate(ec.w.affineY)
+    }
+
+    private fun descriptor(role: String, alg: String, der: ByteArray, rawPublic: ByteArray): PublicKeyDescriptor {
         val id = MessageDigest.getInstance("SHA-256").digest(rawPublic).joinToString("") { "%02x".format(it) }
         val pemBody = android.util.Base64.encodeToString(der, android.util.Base64.NO_WRAP)
         val pem = "-----BEGIN PUBLIC KEY-----\n" + pemBody.chunked(64).joinToString("\n") + "\n-----END PUBLIC KEY-----\n"
