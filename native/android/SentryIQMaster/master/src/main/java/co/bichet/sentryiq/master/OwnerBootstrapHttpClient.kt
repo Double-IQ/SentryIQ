@@ -277,6 +277,18 @@ class OwnerBootstrapHttpClient(
         return target
     }
 
+    fun fetchAndVerifyTarget(
+        path: String,
+        snapshot: Snapshot,
+        cachedState: ProtectedTrustStateStore.TrustState?
+    ): ByteArray {
+        val bytes = fetchTarget(path)
+        if (!verifyTargetBytes(bytes, path, snapshot, cachedState)) {
+            throw ClientException("Downloaded TUF target failed signed length/hash/delegation verification.")
+        }
+        return bytes
+    }
+
     fun issueChallenge(csrfToken: String): Challenge {
         val json = request("POST", JSONObject().put("action", "challenge"), csrfToken)
         val challenge = json.getString("challenge")
