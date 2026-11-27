@@ -260,6 +260,23 @@ class OwnerBootstrapHttpClient(
         return ByteArray(32) { index -> value.substring(index * 2, index * 2 + 2).toInt(16).toByte() }
     }
 
+    fun fetchTarget(path: String): ByteArray {
+        if (!path.matches(Regex("^[A-Za-z0-9._/-]{1,512}$")) || path.contains("//") ||
+            path.split('/').any { it == "." || it == ".." }) {
+            throw ClientException("TUF target path is invalid.")
+        }
+        val json = request("GET", null, null, targetPath = path, maxResponseBytes = 22_400_000)
+        if (json.getString("protocol") != "SENTRYIQ-OWNER-BOOTSTRAP-API-V1" ||
+            json.getString("target_path") != path) {
+            throw ClientException("TUF target response does not match the request.")
+        }
+        val target = decodeBase64Url(json.getString("target"))
+        if (target.isEmpty() || target.size > 16 * 1024 * 1024) {
+            throw ClientException("TUF target exceeds the permitted size.")
+        }
+        return target
+    }
+
     fun issueChallenge(csrfToken: String): Challenge {
         val json = request("POST", JSONObject().put("action", "challenge"), csrfToken)
         val challenge = json.getString("challenge")
@@ -294,8 +311,16 @@ class OwnerBootstrapHttpClient(
         return Receipt(receipt)
     }
 
-    private fun request(method: String, body: JSONObject?, csrfToken: String?): JSONObject {
-        val connection = (endpoint.openConnection() as? HttpsURLConnection)
+    private fun request(
+        method: String,
+        body: JSONObject?,
+        csrfToken: String?,
+        targetPath: String? = null,
+        maxResponseBytes: Int = 4_200_000
+    ): JSONObject {
+        val requestUrl = if (targetPath == null) endpoint else
+            URL(endpoint.toString() + "?target=" + java.net.URLEncoder.encode(targetPath, "UTF-8"))
+        val connection = (requestUrl.openConnection() as? HttpsURLConnection)
             ?: throw ClientException("Bootstrap endpoint must use HTTPS.")
         try {
             connection.requestMethod = method
@@ -303,7 +328,7 @@ class OwnerBootstrapHttpClient(
             connection.connectTimeout = connectTimeoutMillis
             connection.readTimeout = readTimeoutMillis
             connection.setRequestProperty("Accept", "application/json")
-            cookies.get(URI(endpoint.toString()), emptyMap()).forEach { (name, values) ->
+            cookies.get(URI(requestUrl.toString()), emptyMap()).forEach { (name, values) ->
                 values.forEach { value -> connection.addRequestProperty(name, value) }
             }
             if (body != null) {
@@ -323,14 +348,14 @@ class OwnerBootstrapHttpClient(
             connection.headerFields.forEach { (name, values) ->
                 if (name != null && values != null) responseHeaders[name] = values
             }
-            cookies.put(URI(endpoint.toString()), responseHeaders)
+            cookies.put(URI(requestUrl.toString()), responseHeaders)
             if (status != 200) throw ClientException("Bootstrap endpoint returned HTTP $status.")
             val contentType = connection.contentType ?: ""
             if (!contentType.lowercase().startsWith("application/json")) {
                 throw ClientException("Bootstrap endpoint did not return JSON.")
             }
             val bytes = connection.inputStream.use { it.readBytes() }
-            if (bytes.size > 4_200_000) throw ClientException("Bootstrap response exceeds the size limit.")
+            if (bytes.size > maxResponseBytes) throw ClientException("Bootstrap response exceeds the size limit.")
             return JSONObject(bytes.toString(Charsets.UTF_8))
         } catch (error: ClientException) {
             throw error
