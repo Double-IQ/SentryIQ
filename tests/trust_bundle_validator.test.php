@@ -158,6 +158,26 @@ trustBundleAssert($result['sequence'] === '1', 'Valid bootstrap bundle should re
 trustBundleAssert(strlen($result['digest']) === 64, 'Validated bundle should expose its canonical SHA-256 digest.');
 trustBundleAssert(preg_match('/^[a-f0-9]{64}$/D', $result['master_keyset_digest'] ?? '') === 1,
     'Validated bundle should expose the cross-platform master keyset digest.');
+$decodedKeysetBundle = json_decode($valid);
+$keysetFields = [];
+foreach ([
+    [$decodedKeysetBundle->master_keyset->signing->kid, $decodedKeysetBundle->master_keyset->signing->alg, $decodedKeysetBundle->master_keyset->signing->public_key_pem],
+    [$decodedKeysetBundle->master_keyset->key_agreement->kid, $decodedKeysetBundle->master_keyset->key_agreement->alg, $decodedKeysetBundle->master_keyset->key_agreement->public_key_pem],
+] as [$kid, $alg, $pem]) {
+    $key = openssl_pkey_get_public($pem);
+    $details = openssl_pkey_get_details($key);
+    openssl_pkey_free($key);
+    $raw = str_pad($details['ec']['x'], 32, "\\0", STR_PAD_LEFT) . str_pad($details['ec']['y'], 32, "\\0", STR_PAD_LEFT);
+    $keysetFields[] = $kid;
+    $keysetFields[] = $alg;
+    $keysetFields[] = $raw;
+}
+$keysetTranscript = "SENTRYIQ-MASTER-KEYSET-V1\\n";
+foreach ([$keysetFields[0], $keysetFields[1], $keysetFields[2], $keysetFields[3], $keysetFields[4], $keysetFields[5], $decodedKeysetBundle->master_keyset->hardware_assurance] as $field) {
+    $keysetTranscript .= pack('N', strlen($field)) . $field;
+}
+trustBundleAssert(hash_equals(hash('sha256', $keysetTranscript), $result['master_keyset_digest']),
+    'PHP keyset digest must follow the documented cross-platform binary transcript.');
 trustBundleAssert($result['signer_kids'] === ['release-root-1'], 'Validated bundle should report its independently pinned signer.');
 $releaseSpkiBody = preg_replace('/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\\s+/', '', $releasePem);
 $releaseSpkiDer = is_string($releaseSpkiBody) ? base64_decode($releaseSpkiBody, true) : false;
