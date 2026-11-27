@@ -340,7 +340,7 @@ public enum P256PublicKeyEncoding {
         return "\(prefix)-\(hex)"
     }
 
-    public static func rawRepresentation(fromSubjectPublicKeyInfoPEM pem: String) throws -> Data {
+    public static func subjectPublicKeyInfoDER(fromPEM pem: String) throws -> Data {
         let body = pem
             .replacingOccurrences(of: "-----BEGIN PUBLIC KEY-----", with: "")
             .replacingOccurrences(of: "-----END PUBLIC KEY-----", with: "")
@@ -350,7 +350,11 @@ public enum P256PublicKeyEncoding {
               der[subjectPublicKeyInfoPrefix.count] == 0x04 else {
             throw MasterKeyStoreError.invalidPublicKey
         }
-        return Data(der.suffix(64))
+        return der
+    }
+
+    public static func rawRepresentation(fromSubjectPublicKeyInfoPEM pem: String) throws -> Data {
+        Data(try subjectPublicKeyInfoDER(fromPEM: pem).suffix(64))
     }
 
     public static func subjectPublicKeyInfoPEM(fromRawRepresentation raw: Data) throws -> String {
