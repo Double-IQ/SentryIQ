@@ -27,6 +27,25 @@ final class RegistryAnchorVerifierTests: XCTestCase {
         )
     }
 
+    func testSharedRegistryAnchorCanonicalizationFixtureMatchesNativePayload() throws {
+        let fixtureURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("../../../../../tests/fixtures/registry-anchor-canonicalization.json")
+            .standardizedFileURL
+        let fixtureData = try Data(contentsOf: fixtureURL)
+        let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: fixtureData) as? [String: Any])
+        let expectedCanonical = try XCTUnwrap(fixture["canonical"] as? String)
+        let expectedDigest = try XCTUnwrap(fixture["sha256"] as? String)
+
+        let anchor = try makeAnchor(key: P256.Signing.PrivateKey())
+        let actualCanonical = try XCTUnwrap(String(data: anchor.signedPayload, encoding: .utf8))
+        XCTAssertEqual(actualCanonical, expectedCanonical)
+        let actualDigest = SHA256.hash(data: Data(actualCanonical.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        XCTAssertEqual(actualDigest, expectedDigest)
+    }
+
     func testVerifiesSignatureFromIndependentlyPinnedRegistrySigner() throws {
         let key = P256.Signing.PrivateKey()
         let anchor = try makeAnchor(key: key)
