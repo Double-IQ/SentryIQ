@@ -14,6 +14,7 @@ use RuntimeException;
 final class OwnerBootstrapApi
 {
     private readonly OwnerApprovalProofVerifier $proofVerifier;
+    private readonly string $canonicalBundle;
 
     /**
      * @param list<array{kid:string,role:string,alg:string,public_key_pem:string}> $registrySignerKeys
@@ -38,6 +39,14 @@ final class OwnerBootstrapApi
         if (!is_callable($verifyTuf) || !preg_match('/^[A-Za-z0-9._:-]{1,256}$/D', $ownerId)) {
             throw new RuntimeException('Bootstrap owner binding or TUF verifier is unavailable.');
         }
+        $initial = $this->bundleValidator->validate(
+            $this->bundleJson,
+            $this->bundleSignerKeys,
+            $this->ownerId,
+            $this->currentBundleDigest,
+            $this->currentSequence
+        );
+        $this->canonicalBundle = $initial['canonical_bundle'];
         $this->proofVerifier = $this->makeProofVerifier();
     }
 
@@ -79,6 +88,8 @@ final class OwnerBootstrapApi
             'registry_anchor_payload' => $this->registryAnchorPayload,
             'registry_anchor_signature' => $signature,
             'validated_bundle' => $validated['bundle'],
+            'master_keyset_digest' => $validated['master_keyset_digest'],
+            'key_fingerprints' => $validated['key_fingerprints'],
         ];
     }
 
@@ -105,11 +116,11 @@ final class OwnerBootstrapApi
      */
     public function approve(array $proof, int $now): array
     {
-        $snapshot = $this->snapshot($now);
+        // The proof verifier consumes the challenge before any context/TUF/anchor revalidation.
         $receipt = $this->proofVerifier->verifyAndRecord(
             $proof['challenge'] ?? '',
             $this->ownerId,
-            $snapshot['canonical_bundle'],
+            $this->canonicalBundle,
             $proof['bundle_sha256'] ?? '',
             $proof['root_role'] ?? '',
             $proof['root_key_id'] ?? '',
@@ -126,14 +137,8 @@ final class OwnerBootstrapApi
     {
         $resolveOwnerKey = function (string $ownerId): array {
             if (!hash_equals($this->ownerId, $ownerId)) return [];
-            $validated = $this->bundleValidator->validate(
-                $this->bundleJson,
-                $this->bundleSignerKeys,
-                $this->ownerId,
-                $this->currentBundleDigest,
-                $this->currentSequence
-            );
-            $signing = $validated['bundle']['master_keyset']['signing'] ?? null;
+            $snapshot = $this->snapshot(time());
+            $signing = $snapshot['validated_bundle']['master_keyset']['signing'] ?? null;
             if (!is_array($signing)) return [];
             return [
                 'owner_id' => $this->ownerId,
@@ -141,7 +146,7 @@ final class OwnerBootstrapApi
                 'role' => 'master-signing',
                 'algorithm' => $signing['alg'] ?? '',
                 'status' => 'active',
-                'device_keyset_digest' => $validated['master_keyset_digest'],
+                'device_keyset_digest' => $snapshot['master_keyset_digest'],
                 'public_key_pem' => $signing['public_key_pem'] ?? '',
             ];
         };
@@ -154,26 +159,20 @@ final class OwnerBootstrapApi
             string $deviceKeysetDigest,
             string $purpose
         ): bool {
-            $validated = $this->bundleValidator->validate(
-                $this->bundleJson,
-                $this->bundleSignerKeys,
-                $this->ownerId,
-                $this->currentBundleDigest,
-                $this->currentSequence
-            );
-            if (!hash_equals($validated['canonical_bundle'], $canonicalBundle)
-                || !hash_equals($validated['master_keyset_digest'], $deviceKeysetDigest)
+            $snapshot = $this->snapshot(time());
+            if (!hash_equals($snapshot['canonical_bundle'], $canonicalBundle)
+                || !hash_equals($snapshot['master_keyset_digest'], $deviceKeysetDigest)
                 || $rootRole !== 'release-authorisation'
                 || $purpose !== 'bootstrap-release-root'
-                || !isset($validated['key_fingerprints'][$rootKeyId])
-                || !hash_equals($validated['key_fingerprints'][$rootKeyId], strtolower($rootFingerprint))) {
+                || !isset($snapshot['key_fingerprints'][$rootKeyId])
+                || !hash_equals($snapshot['key_fingerprints'][$rootKeyId], strtolower($rootFingerprint))) {
                 return false;
             }
-            $releaseKeys = $validated['bundle']['release_authorisation']['keys'] ?? [];
+            $releaseKeys = $snapshot['validated_bundle']['release_authorisation']['keys'] ?? [];
             foreach ($releaseKeys as $key) {
                 if (($key['kid'] ?? null) === $rootKeyId
                     && ($key['purpose'] ?? null) === 'release-authorisation') {
-                    return (bool)(($this->verifyTuf)($validated['bundle']));
+                    return (bool)(($this->verifyTuf)($snapshot['validated_bundle']));
                 }
             }
             return false;
