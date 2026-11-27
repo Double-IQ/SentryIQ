@@ -19,6 +19,8 @@ on:
       - 'tests/fixtures/registry-anchor-canonicalization.json'
       - 'tests/fixtures/jcs-rfc8785-vectors.json'
       - 'tests/fixtures/jcs-rfc8785-appendix-b.json'
+      - 'composer.json'
+      - 'composer.lock'
       - '.github/workflows/phase-3-1-bootstrap.yml'
   push:
     branches: [main]
@@ -63,8 +65,10 @@ jobs:
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: openssl, mbstring
+          extensions: curl, dom, libxml, mbstring, openssl
           coverage: none
+      - name: Install pinned PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
       - name: Lint bootstrap security implementation
         run: |
           php -l app/Security/BootstrapChallengeStore.php
