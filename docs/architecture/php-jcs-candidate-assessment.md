@@ -16,6 +16,8 @@ The pinned candidate's source is available at [JsonCanonicalizator.php](https://
 
 - `root23/php-json-canonicalization` 1.0.1: declares PHP `>=8.0`, but is not a viable PHP 8.1 candidate. Its pinned source uses the same lossy `number_format($number, 7, '.', '')` decimal path and default-precision `sprintf('%e', ...)` exponent path, so it cannot satisfy the Appendix B binary64 vectors. The repository has no declared licence and its last source push was in 2023; exclude it rather than treating its broad PHP requirement as evidence of conformance. Source reviewed: [JsonCanonicalizer.php](https://github.com/root23/php-json-canonicalization/blob/main/src/JsonCanonicalizer.php), [Converter.php](https://github.com/root23/php-json-canonicalization/blob/main/src/Converter.php), and [composer.json](https://github.com/root23/php-json-canonicalization/blob/main/composer.json).
 
+- `truschery/kanon` 1.0.1: pinned and tested on PHP 8.4. It fails RFC 8785 Appendix B at IEEE-754 bit pattern `4430000000000000`; its `formatFloat` path delegates to PHP `json_encode`, which does not produce the required ECMAScript/JCS representation for this value. It also declares PHP `^8.2`, above the PHP 8.1 deployment baseline. Reject. Qualification evidence: current `php-jcs-candidate.yml` run 46068188509.
+
 ## Next gate
 
 The PHP JCS candidate workflow must complete and record the third candidate's result. If it fails as source review predicts, keep the production gate blocked and evaluate either a separately approved PHP baseline change or a maintained PHP 8.1-compatible implementation with complete RFC 8785 and strict-input evidence. Do not select a candidate from Composer metadata or package claims alone.
