@@ -109,9 +109,13 @@ class AndroidKeystoreMasterKeyStore(
         return SigningOperation(operation)
     }
 
-    /** Completes the exact prepared operation after its CryptoObject authenticates. */
-    fun completeSigningOperation(operation: SigningOperation): ByteArray =
-        derEcdsaToLowSJose(operation.signature.sign())
+    /** Completes only the exact Signature instance returned by an authenticated CryptoObject. */
+    fun completeSigningOperation(operation: SigningOperation, authenticatedSignature: Signature): ByteArray {
+        if (authenticatedSignature !== operation.signature) {
+            throw StoreException.InvalidKey()
+        }
+        return derEcdsaToLowSJose(authenticatedSignature.sign())
+    }
 
     /** P-256 ECDH followed by HKDF-SHA256; raw ECDH output is not returned. */
     fun deriveKey(peerSubjectPublicKeyInfo: ByteArray, salt: ByteArray, info: ByteArray): ByteArray {
