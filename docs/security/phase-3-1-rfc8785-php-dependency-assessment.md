@@ -80,13 +80,13 @@ Candidates under evaluation:
 - accredifysg/php-json-canonicalize 1.1.1
 - mbolli/php-ron 0.5.0
 
-Both candidates passed the six project-held RFC 8785 sample vectors and their respective strict-input negative cases in the isolated PHP 8.4 CI run (run 46054359619). The accredifysg harness checks duplicate members, a lone surrogate, numeric overflow, and malformed JSON. The php-ron harness checks those cases plus an I-JSON Unicode noncharacter.
+Both candidates passed the six project-held RFC 8785 sample vectors and their respective strict-input negative cases in the isolated PHP 8.4 CI run (run 46054359619). Both harnesses now reject nine invalid-input classes: duplicate literal names, duplicate decoded names, lone high and low surrogates, an I-JSON noncharacter, malformed UTF-8, an unescaped control character, numeric overflow, and malformed JSON.
 
-A project-owned Appendix B fixture contains all 24 finite IEEE-754 samples from RFC 8785 Table 1. Both candidates passed all 24 values in PHP 8.4 CI run 46054462347 by reconstructing the exact binary64 input from the RFC hexadecimal representation. Both candidates therefore pass the project's six sample vectors, 24 finite Appendix B values, and listed strict-input negative cases on PHP 8.4.
+A project-owned Appendix B fixture contains all 24 finite IEEE-754 samples from RFC 8785 Table 1. Both candidates passed all 24 values in PHP 8.4 CI run 46054462347 by reconstructing the exact binary64 input from the RFC hexadecimal representation. Both candidates therefore pass the project's six sample vectors and 24 finite Appendix B values on PHP 8.4. The expanded nine-case strict-input suite and the new shared PHP/Swift/Kotlin registry-anchor fixture assertions are awaiting CI on the current branch head.
 
 This is limited candidate evidence, not production qualification. The upstream packages' own conformance claims remain maintainer-reported until independently reproduced against their complete pinned corpora. The project still needs:
 - Complete upstream RFC 8785 corpus execution in SentryIQ CI (the project-owned six-vector and 24-value Appendix B subsets are passing).
-- Exact canonical bytes and SHA-256 parity against the PHP, Swift, and Kotlin trust-bundle / registry-anchor fixtures.
+- Complete PHP, Swift, and Kotlin CI confirmation of the shared registry-anchor canonical-bytes and SHA-256 fixture assertions (added; latest runs pending).
 - Full dependency provenance, release-integrity, vulnerability, license, and maintainer-continuity review.
 - A separate Composer/deployment design decision, lockfile and immutable artifact hash before any application dependency is introduced.
 - Independent security review before production use.
