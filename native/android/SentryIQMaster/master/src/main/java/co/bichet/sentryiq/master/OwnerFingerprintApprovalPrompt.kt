@@ -7,7 +7,6 @@ import android.widget.LinearLayout
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.fragment.app.FragmentActivity
-import java.security.Signature
 
 /**
  * Native confirmation + per-use OS authentication for one already-validated trust root.
@@ -32,8 +31,14 @@ class OwnerFingerprintApprovalPrompt(
     fun present(
         activity: FragmentActivity,
         details: RootDetails,
-        transcript: ByteArray,
-        onApproved: (ByteArray) -> Unit,
+        canonicalBundle: ByteArray,
+        ownerIdentifier: String,
+        deviceKeysetDigest: String,
+        purpose: String,
+        challenge: ByteArray,
+        expiresAt: Long,
+        verifyCandidateTrustChain: (ByteArray, String, String, ByteArray, ByteArray, String) -> Boolean,
+        onApproved: (OwnerFingerprintApprovalCeremony.ApprovalProof) -> Unit,
         onCancelled: () -> Unit,
         onError: (Throwable) -> Unit
     ) {
@@ -85,7 +90,24 @@ class OwnerFingerprintApprovalPrompt(
                     return@setPositiveButton
                 }
                 try {
-                    val operation = keyStore.beginSigningOperation(transcript)
+                    val enteredBundle = bundleFingerprintInput.text.toString().trim()
+                    val enteredRoot = rootFingerprintInput.text.toString().trim()
+                    val prepared = OwnerFingerprintApprovalCeremony.prepare(
+                        canonicalBundle,
+                        enteredBundle,
+                        ownerIdentifier,
+                        details.role,
+                        details.keyId,
+                        enteredRoot,
+                        deviceKeysetDigest,
+                        purpose,
+                        challenge,
+                        expiresAt,
+                        { enteredBundle },
+                        { enteredRoot },
+                        verifyCandidateTrustChain
+                    )
+                    val operation = keyStore.beginSigningOperation(prepared.transcript)
                     val prompt = BiometricPrompt(
                         activity,
                         activity.mainExecutor,
@@ -94,7 +116,17 @@ class OwnerFingerprintApprovalPrompt(
                                 try {
                                     val authenticated = result.cryptoObject?.signature
                                         ?: throw IllegalStateException("Authenticated CryptoObject did not return its signature.")
-                                    onApproved(keyStore.completeSigningOperation(operation, authenticated))
+                                    val proof = OwnerFingerprintApprovalCeremony.complete(
+                                        prepared,
+                                        requireFreshUserVerification = {},
+                                        sign = { transcriptToSign ->
+                                            if (!java.security.MessageDigest.isEqual(transcriptToSign, prepared.transcript)) {
+                                                throw IllegalStateException("Prepared approval transcript changed.")
+                                            }
+                                            keyStore.completeSigningOperation(operation, authenticated)
+                                        }
+                                    )
+                                    onApproved(proof)
                                 } catch (error: Throwable) {
                                     onError(error)
                                 }
