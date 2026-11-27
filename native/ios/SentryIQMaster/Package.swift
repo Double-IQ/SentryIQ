@@ -23,6 +23,6 @@ let package = Package(
             name: "SentryIQMaster",
             dependencies: ["SentryIQTufCoreBindings"]
         ),
-        .testTarget(name: "SentryIQMasterTests", dependencies: ["SentryIQMaster"])
+        .testTarget(name: "SentryIQMasterTests", dependencies: ["SentryIQMaster"], resources: [.copy("Fixtures")])
     ]
 )
