@@ -32,6 +32,11 @@ public final class VerifiedTargetStore {
             attributes: [.posixPermissions: 0o700]
         )
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+        var directoryInfo = stat()
+        guard lstat(directory.path, &directoryInfo) == 0,
+              (directoryInfo.st_mode & S_IFMT) == S_IFDIR else {
+            throw StoreError.corruptRecord
+        }
         var values = URLResourceValues()
         values.isExcludedFromBackup = true
         var protectedDirectory = directory
