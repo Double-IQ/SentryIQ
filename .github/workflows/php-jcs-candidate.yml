@@ -46,8 +46,11 @@ jobs:
           accredify_status=$?
           php tests/jcs-candidate/qualify-php-ron.php
           ron_status=$?
+          php tests/jcs-candidate/qualify-mmccook.php
+          mmccook_status=$?
           echo "accredifysg/php-json-canonicalize qualification exit: $accredify_status"
           echo "mbolli/php-ron qualification exit: $ron_status"
-          if [ "$accredify_status" -ne 0 ] || [ "$ron_status" -ne 0 ]; then
+          echo "mmccook/php-json-canonicalization-scheme qualification exit: $mmccook_status"
+          if [ "$accredify_status" -ne 0 ] || [ "$ron_status" -ne 0 ] || [ "$mmccook_status" -ne 0 ]; then
             exit 1
           fi
