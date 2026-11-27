@@ -54,6 +54,18 @@ References:
 
 **Disposition:** rejected for this protocol.
 
+### 4. `mmccook/php-json-canonicalization-scheme` — rejected for RFC 8785 number formatting
+
+- The package declares PHP `^8.1`, so it is the only reviewed candidate that matches the repository's PHP 8.1 trust-bundle regression matrix.
+- Source review of v1.0.0 (commit `cd6d3e7645a2c1e62574a9a2437d68e9e74e799f`) found `Utils::es6NumberFormat()` uses `number_format($number, 7, ...)` for ordinary magnitudes and default-precision `sprintf('%e', ...)` for exponent form. These truncate/round significant digits and cannot reproduce ECMAScript's shortest-roundtrip binary64 serialization. For example, the smallest positive binary64 value must serialize as `5e-324`; the implementation's exponent formatter produces a six-digit approximation instead.
+- The source also canonicalizes already-decoded PHP values rather than parsing raw JSON, so it cannot independently reject duplicate decoded member names at the input boundary.
+
+References:
+- https://packagist.org/packages/mmccook/php-json-canonicalization-scheme
+- https://github.com/mmccook/php-json-canonicalization-scheme
+
+**Disposition:** rejected; PHP 8.1 compatibility does not compensate for non-conformant number serialization.
+
 ## Required qualification before adoption
 
 1. Establish the application's supported PHP runtime and introduce Composer only through a separately reviewed dependency-management change (manifest, lockfile, CI install, deployment packaging, and no unreviewed install scripts).
@@ -99,3 +111,6 @@ This is limited candidate evidence, not production qualification. The upstream p
 - Independent security review before production use.
 
 **Interim disposition:** both packages remain evaluation candidates. Neither is selected or approved for production. The fixed-schema serializer remains restricted and non-production-qualified for general JCS.
+### Runtime compatibility gate
+
+The repository's `integrity-node-tests` workflow executes `TrustBundleValidator` regression tests across PHP 8.1 through 8.5. Until the supported production PHP baseline is explicitly changed in a separate reviewed decision, the JCS dependency must remain compatible with PHP 8.1. The two passing candidates in the isolated PHP 8.4 harness do not meet that baseline: `accredifysg/php-json-canonicalize` requires PHP `^8.2`, and `mbolli/php-ron` requires PHP `>=8.3`. The reviewed PHP 8.1 package above is non-conformant and rejected. Therefore **no production JCS dependency is selected** at this stage. Do not raise the runtime floor implicitly as part of this security change.
