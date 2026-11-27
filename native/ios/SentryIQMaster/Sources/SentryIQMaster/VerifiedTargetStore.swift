@@ -81,6 +81,8 @@ public final class VerifiedTargetStore {
 
     private func validatePath(_ path: String) throws {
         guard path.range(of: "^[A-Za-z0-9._/-]{1,512}$", options: .regularExpression) != nil,
+              !path.hasPrefix("/"),
+              !path.hasSuffix("/"),
               !path.contains("//"),
               !path.split(separator: "/", omittingEmptySubsequences: false).contains(where: { $0 == "." || $0 == ".." }) else {
             throw StoreError.invalidPath
