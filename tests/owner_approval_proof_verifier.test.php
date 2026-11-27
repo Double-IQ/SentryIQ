@@ -112,6 +112,7 @@ $contextValidator = static function (
         && $operationPurpose === $purpose;
 };
 $verifier = new OwnerApprovalProofVerifier($challenges, $dir, $resolver, $contextValidator);
+ownerApprovalReject(fn() => $challenges->issue('owner-é', $digest, $now), 'Challenge issuance must reject non-ASCII owner identifiers.');
 
 $challenge = $challenges->issue($owner, $digest, $now, 300);
 $challengeBytes = base64_decode(strtr($challenge . '=', '-_', '+/'), true);
