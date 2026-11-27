@@ -2,7 +2,7 @@
 
 ## Decision
 
-No production JCS dependency is selected. The repository's trust-bundle regression matrix still includes PHP 8.1; do not raise the runtime floor implicitly and do not replace a maintained canonicalizer with a hand-written serializer.
+Select `onematrix/tracing-sdk` 1.2.0 as the RFC 8785 canonicalization engine for the restricted trust-bundle profile. It passes all six RFC 8785 examples and all 24 Appendix B number vectors on PHP 8.1 and 8.4. SentryIQ retains its own raw-input I-JSON gate before invoking the library: duplicate object names, invalid UTF-8, Unicode noncharacters, floats, unsafe integers, non-ASCII member names, and unknown schema members are rejected. The validator also differentially compares the library output with the restricted-profile reference serializer and fails closed on any mismatch.
 
 ## Candidates already exercised
 
@@ -18,6 +18,8 @@ The pinned candidate's source is available at [JsonCanonicalizator.php](https://
 
 - `truschery/kanon` 1.0.1: pinned and tested on PHP 8.4. It fails RFC 8785 Appendix B at IEEE-754 bit pattern `4430000000000000`; its `formatFloat` path delegates to PHP `json_encode`, which does not produce the required ECMAScript/JCS representation for this value. It also declares PHP `^8.2`, above the PHP 8.1 deployment baseline. Reject. Qualification evidence: current `php-jcs-candidate.yml` run 46068188509.
 
+- `onematrix/tracing-sdk` 1.2.0: accepted candidate. The pinned `Tracing\\Sdk\\Canonicalize\\JsonCanonicalizer` passes all six RFC 8785 examples and 24 Appendix B binary64 numbers in the isolated harness on PHP 8.4 and in the PHP 8.1 compatibility job (run 46068732059). It declares PHP `^7.1 || ^8.0` and MIT licensing. The library's raw parser follows PHP `json_decode` duplicate-member semantics, so it is not used as the trust-bundle input gate by itself. SentryIQ's `TrustBundleValidator` first rejects duplicate raw members and I-JSON Unicode noncharacters, validates the fixed schema and restricted value profile, then invokes the pinned canonicalizer and requires byte-for-byte agreement with the restricted-profile reference implementation. The root `composer.json` pins exactly version 1.2.0. Source: [JsonCanonicalizer.php](https://github.com/OneMatrixL1/tracing-sdk-php/blob/1.2.0/src/Canonicalize/JsonCanonicalizer.php), [composer.json](https://github.com/OneMatrixL1/tracing-sdk-php/blob/1.2.0/composer.json).
+
 ## Next gate
 
-The PHP JCS candidate workflow must complete and record the third candidate's result. If it fails as source review predicts, keep the production gate blocked and evaluate either a separately approved PHP baseline change or a maintained PHP 8.1-compatible implementation with complete RFC 8785 and strict-input evidence. Do not select a candidate from Composer metadata or package claims alone.
+The integrated PHP 8.1–8.5 regression matrix must pass with Composer installed, including duplicate-member and noncharacter rejection before canonicalization. Verify that the production HelioHost runtime provides the package's declared extensions (`curl`, `dom`, `libxml`, `mbstring`) before deployment. Keep the dependency pinned to 1.2.0 and retain the independent security review gate; do not update it without rerunning all RFC 8785 vectors and Appendix B.
