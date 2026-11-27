@@ -1,0 +1,94 @@
+name: Node A Workers Runtime PoC
+
+on:
+  pull_request:
+    paths:
+      - "cloudflare/node-a-poc/**"
+      - ".github/workflows/node-a-workers-poc.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "cloudflare/node-a-poc/**"
+      - ".github/workflows/node-a-workers-poc.yml"
+
+permissions:
+  contents: read
+  attestations: read
+
+concurrency:
+  group: node-a-workers-poc-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  workerd-runtime:
+    name: Workers runtime and Durable Object tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        working-directory: cloudflare/node-a-poc
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.15.0"
+      - name: Generate exact dependency lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Install from generated lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Download genuine v0.1.2 release asset
+        run: |
+          gh release download v0.1.2 --repo Double-IQ/SentryIQ --pattern sentryiq-0.1.2.zip --dir "$RUNNER_TEMP"
+          printf '%s  %s\n' '41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e' "$RUNNER_TEMP/sentryiq-0.1.2.zip" | sha256sum --check -
+      - name: Download genuine GitHub attestation bundle
+        run: |
+          cd "$RUNNER_TEMP"
+          gh attestation download "$RUNNER_TEMP/sentryiq-0.1.2.zip" --repo Double-IQ/SentryIQ --predicate-type https://slsa.dev/provenance/v1
+          mv "$RUNNER_TEMP/sha256:41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e.jsonl" "$RUNNER_TEMP/sha256-41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e.jsonl"
+          gh attestation trusted-root > "$RUNNER_TEMP/trusted_root.jsonl"
+      - name: Inject genuine bundle and current trusted root into workerd test modules
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const bundlePath = process.env.RUNNER_TEMP + "/sha256-41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e.jsonl";
+          const rootPath = process.env.RUNNER_TEMP + "/trusted_root.jsonl";
+          const bundle = fs.readFileSync(bundlePath, "utf8").trim().split(String.fromCharCode(10))[0];
+          const trustedRoot = fs.readFileSync(rootPath, "utf8").trim().split(String.fromCharCode(10))[0];
+          JSON.parse(bundle);
+          JSON.parse(trustedRoot);
+          const bundleSource = "export const genuineV012BundleJson: string | null = " + JSON.stringify(bundle) + ";" + String.fromCharCode(10);
+          const rootSource = "export const genuineV012TrustedRootJson: string | null = " + JSON.stringify(trustedRoot) + ";" + String.fromCharCode(10);
+          fs.writeFileSync("test/fixtures/genuine-v012-bundle.ts", bundleSource);
+          fs.writeFileSync("test/fixtures/genuine-v012-trusted-root.ts", rootSource);
+          NODE
+      - name: Run workerd integration tests
+        run: npm test
+      - name: Export genuine v0.1.2 bundle for review
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: node-a-v012-genuine-attestation-bundle
+          path: ${{ runner.temp }}/sha256-41cc5fc46055836ebb21ed4501bd6bd3ace249c4f352da0373b85e5a57d9c49e.jsonl
+          if-no-files-found: error
+          retention-days: 3
+      - name: Export current Sigstore trusted root for review
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: node-a-current-sigstore-trusted-root
+          path: ${{ runner.temp }}/trusted_root.jsonl
+          if-no-files-found: error
+          retention-days: 3
+      - name: Export generated lockfile for review
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: node-a-poc-package-lock
+          path: cloudflare/node-a-poc/package-lock.json
+          if-no-files-found: error
+          retention-days: 3
