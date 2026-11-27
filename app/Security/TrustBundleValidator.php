@@ -108,6 +108,7 @@ final class TrustBundleValidator
         $unsigned = clone $bundle;
         unset($unsigned->signatures);
         $canonicalPayload = $this->canonicalJson($unsigned);
+        $canonicalBundle = $this->canonicalJson($bundle);
         $signerKids = $this->verifySignatures($bundle->signatures, $canonicalPayload, $trustedSigners, $bundle->revocations, $currentTime);
         if ($signerKids === []) {
             throw new RuntimeException('Trust bundle has no valid signature from an independently trusted key.');
@@ -115,7 +116,8 @@ final class TrustBundleValidator
 
         return [
             'bundle' => json_decode(json_encode($bundle, JSON_THROW_ON_ERROR), true, 64, JSON_THROW_ON_ERROR),
-            'digest' => hash('sha256', $this->canonicalJson($bundle)),
+            'digest' => hash('sha256', $canonicalBundle),
+            'canonical_bundle' => $canonicalBundle,
             'sequence' => $sequence,
             'signer_kids' => $signerKids,
             'key_fingerprints' => $keyFingerprints,
