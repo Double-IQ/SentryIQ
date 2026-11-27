@@ -107,7 +107,7 @@ class VerifiedTargetStore(
     }
 
     private fun validatePath(path: String) {
-        if (!path.matches(Regex("^[A-Za-z0-9._/-]{1,512}$")) || path.contains("//") ||
+        if (!path.matches(Regex("^[A-Za-z0-9._/-]{1,512}$")) || path.startsWith("/") || path.endsWith("/") || path.contains("//") ||
             path.split('/').any { it == "." || it == ".." }) {
             throw StoreException("TUF target path is invalid.")
         }
