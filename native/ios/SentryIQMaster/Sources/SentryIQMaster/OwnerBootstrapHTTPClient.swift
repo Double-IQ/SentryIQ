@@ -38,8 +38,16 @@ public final class OwnerBootstrapHTTPClient {
         public let receiptID: String
     }
 
+    public struct PreparedBootstrapState {
+        public let snapshot: Snapshot
+        public let anchor: TrustRegistryAnchor
+        public let cachedState: ProtectedTrustState?
+        public let verifiedTUFMetadata: [String: Data]
+    }
+
     public struct VerifiedBootstrapState {
         public let snapshot: Snapshot
+        public let anchor: TrustRegistryAnchor
         public let trustState: ProtectedTrustState
     }
 
@@ -217,10 +225,10 @@ public final class OwnerBootstrapHTTPClient {
     }
 
     /// Fetch, verify the separately pinned registry anchor, validate TUF, then persist atomically.
-    public func fetchAndPersistSnapshot(
+    public func fetchAndVerifySnapshot(
         using store: ProtectedTrustStateStore,
         verifyTuf: @escaping (Snapshot, ProtectedTrustState?) throws -> [String: Data],
-        completion: @escaping (Result<VerifiedBootstrapState, Error>) -> Void
+        completion: @escaping (Result<PreparedBootstrapState, Error>) -> Void
     ) {
         fetchSnapshot { result in
             completion(result.flatMap { snapshot in
@@ -237,18 +245,22 @@ public final class OwnerBootstrapHTTPClient {
                           verifiedMetadata.allSatisfy({ snapshot.tufMetadata[$0.key] == $0.value }) else {
                         throw ClientError.invalidResponse
                     }
-                    try store.save(bundle: snapshot.canonicalBundle, anchor: anchor, tufMetadata: verifiedMetadata)
-                    return .success(VerifiedBootstrapState(snapshot: snapshot, trustState: try store.load(anchor: anchor)))
+                    return .success(PreparedBootstrapState(
+                        snapshot: snapshot,
+                        anchor: anchor,
+                        cachedState: cachedState,
+                        verifiedTUFMetadata: verifiedMetadata
+                    ))
                 } catch { return .failure(error) }
             })
         }
     }
 
-    public func fetchAndPersistVerifiedSnapshot(
+    public func fetchAndVerifyTUFState(
         using store: ProtectedTrustStateStore,
-        completion: @escaping (Result<VerifiedBootstrapState, Error>) -> Void
+        completion: @escaping (Result<PreparedBootstrapState, Error>) -> Void
     ) {
-        fetchAndPersistSnapshot(using: store, verifyTuf: { snapshot, cachedState in
+        fetchAndVerifySnapshot(using: store, verifyTuf: { snapshot, cachedState in
             try Self.verifyTUFRefresh(snapshot: snapshot, cachedState: cachedState)
         }, completion: completion)
     }
@@ -407,6 +419,36 @@ public final class OwnerBootstrapHTTPClient {
                         throw ClientError.invalidResponse
                     }
                     return .success(Receipt(receiptID: receipt))
+                } catch { return .failure(error) }
+            })
+        }
+    }
+
+    /// Persist the candidate only after the server has accepted the owner's one-use signature.
+    public func submitApproval(
+        _ proof: ApprovalProof,
+        csrfToken: String,
+        preparedState: PreparedBootstrapState,
+        using store: ProtectedTrustStateStore,
+        completion: @escaping (Result<(Receipt, VerifiedBootstrapState), Error>) -> Void
+    ) {
+        submitApproval(proof, csrfToken: csrfToken) { result in
+            completion(result.flatMap { receipt in
+                do {
+                    try store.save(
+                        bundle: preparedState.snapshot.canonicalBundle,
+                        anchor: preparedState.anchor,
+                        tufMetadata: preparedState.verifiedTUFMetadata
+                    )
+                    let trustState = try store.load(anchor: preparedState.anchor)
+                    return .success((
+                        receipt,
+                        VerifiedBootstrapState(
+                            snapshot: preparedState.snapshot,
+                            anchor: preparedState.anchor,
+                            trustState: trustState
+                        )
+                    ))
                 } catch { return .failure(error) }
             })
         }
