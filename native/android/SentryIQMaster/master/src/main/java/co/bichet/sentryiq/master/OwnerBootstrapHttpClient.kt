@@ -49,8 +49,15 @@ class OwnerBootstrapHttpClient(
     )
 
     data class Receipt(val receiptId: String)
+    data class PreparedBootstrapState internal constructor(
+        val snapshot: Snapshot,
+        val anchor: ProtectedTrustStateStore.RegistryAnchor,
+        val cachedState: ProtectedTrustStateStore.TrustState?,
+        val verifiedTufMetadata: Map<String, ByteArray>
+    )
     data class VerifiedBootstrapState internal constructor(
         val snapshot: Snapshot,
+        val anchor: ProtectedTrustStateStore.RegistryAnchor,
         val trustState: ProtectedTrustStateStore.TrustState
     )
 
@@ -196,10 +203,10 @@ class OwnerBootstrapHttpClient(
     }
 
     /** Fetch, verify the separately pinned registry anchor, validate TUF, then persist atomically. */
-    fun fetchAndPersistSnapshot(
+    fun fetchAndVerifySnapshot(
         store: ProtectedTrustStateStore,
         verifyTuf: (Snapshot, ProtectedTrustStateStore.TrustState?) -> Map<String, ByteArray>
-    ): VerifiedBootstrapState {
+    ): PreparedBootstrapState {
         val snapshot = fetchSnapshot()
         val anchor = decodeAnchor(snapshot)
         val digest = java.security.MessageDigest.getInstance("SHA-256").digest(snapshot.canonicalBundle)
@@ -214,14 +221,29 @@ class OwnerBootstrapHttpClient(
             verifiedMetadata.any { (name, bytes) -> snapshot.tufMetadata[name]?.let { MessageDigest.isEqual(bytes, it) } != true }) {
             throw ClientException("TUF verifier returned metadata different from the downloaded snapshot.")
         }
-        store.save(snapshot.canonicalBundle, anchor, verifiedMetadata)
-        return VerifiedBootstrapState(snapshot, store.load(anchor))
+        return PreparedBootstrapState(snapshot, anchor, cachedState, verifiedMetadata)
     }
 
-    fun fetchAndPersistVerifiedSnapshot(
+    fun fetchAndVerifyTUFState(
         store: ProtectedTrustStateStore
-    ): VerifiedBootstrapState = fetchAndPersistSnapshot(store) { snapshot, cachedState ->
+    ): PreparedBootstrapState = fetchAndVerifySnapshot(store) { snapshot, cachedState ->
         verifyTufRefresh(snapshot, cachedState)
+    }
+
+    /** Persist the candidate only after the server accepts the owner's one-use signature. */
+    fun submitApprovalAndPersist(
+        proof: ApprovalProof,
+        csrfToken: String,
+        preparedState: PreparedBootstrapState,
+        store: ProtectedTrustStateStore
+    ): Pair<Receipt, VerifiedBootstrapState> {
+        val receipt = submitApproval(proof, csrfToken)
+        store.save(preparedState.snapshot.canonicalBundle, preparedState.anchor, preparedState.verifiedTufMetadata)
+        return receipt to VerifiedBootstrapState(
+            preparedState.snapshot,
+            preparedState.anchor,
+            store.load(preparedState.anchor)
+        )
     }
 
     private fun decodeAnchor(snapshot: Snapshot): ProtectedTrustStateStore.RegistryAnchor {
