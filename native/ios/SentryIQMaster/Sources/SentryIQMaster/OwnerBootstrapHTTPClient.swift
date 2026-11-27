@@ -324,6 +324,27 @@ public final class OwnerBootstrapHTTPClient {
         }
     }
 
+    public func fetchAndVerifyTarget(
+        path: String,
+        snapshot: Snapshot,
+        cachedState: ProtectedTrustState?,
+        completion: @escaping (Result<Data, Error>) -> Void
+    ) {
+        fetchTarget(path: path) { result in
+            completion(result.flatMap { bytes in
+                do {
+                    guard try Self.verifyTargetBytes(
+                        bytes,
+                        targetPath: path,
+                        snapshot: snapshot,
+                        cachedState: cachedState
+                    ) else { throw ClientError.invalidResponse }
+                    return .success(bytes)
+                } catch { return .failure(error) }
+            })
+        }
+    }
+
     public func issueChallenge(
         csrfToken: String,
         completion: @escaping (Result<Challenge, Error>) -> Void
