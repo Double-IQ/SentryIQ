@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Security/TrustBundleValidator.php';
 
-use SentryIQ\\Security\\TrustBundleValidator;
+use SentryIQ\Security\TrustBundleValidator;
 
 $method = new ReflectionMethod(TrustBundleValidator::class, 'canonicalJson');
 $method->setAccessible(true);
@@ -31,7 +31,7 @@ $assertCanonical(
     '{"a":{"n":null,"true":true},"slash":"a/b","z":1}'
 );
 $rejectCanonical(
-    (object)['\\u{10000}' => 1, 'a' => 2],
+    (object)["\u{10000}" => 1, 'a' => 2],
     'Non-ASCII object member names must be rejected by this restricted canonicalizer.'
 );
 $rejectCanonical(
