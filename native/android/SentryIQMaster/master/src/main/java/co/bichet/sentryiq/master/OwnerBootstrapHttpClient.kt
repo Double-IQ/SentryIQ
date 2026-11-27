@@ -134,7 +134,14 @@ class OwnerBootstrapHttpClient(
             referenceTimeEpochSeconds
         )
         if (!accepted) throw ClientException("Rust TUF metadata refresh verification failed.")
-        return snapshot.tufMetadata
+        val acceptedMetadata = linkedMapOf(
+            "root.json" to initialRoot,
+            "timestamp.json" to snapshot.tufMetadata.getValue("timestamp.json"),
+            "snapshot.json" to snapshot.tufMetadata.getValue("snapshot.json"),
+            "targets.json" to snapshot.tufMetadata.getValue("targets.json")
+        )
+        candidateRoots.forEachIndexed { index, bytes -> acceptedMetadata["root/${index + 2}.json"] = bytes }
+        return acceptedMetadata
     }
 
     /** Verify downloaded target bytes against signed top-level and delegated TUF metadata. */
@@ -199,7 +206,7 @@ class OwnerBootstrapHttpClient(
         }
         val cachedState = store.loadPreviousState(anchor)
         val verifiedMetadata = verifyTuf(snapshot, cachedState)
-        if (verifiedMetadata.keys != snapshot.tufMetadata.keys ||
+        if (!listOf("root.json", "timestamp.json", "snapshot.json", "targets.json").all { it in verifiedMetadata } ||
             verifiedMetadata.any { (name, bytes) -> snapshot.tufMetadata[name]?.let { MessageDigest.isEqual(bytes, it) } != true }) {
             throw ClientException("TUF verifier returned metadata different from the downloaded snapshot.")
         }
