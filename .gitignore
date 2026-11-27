@@ -21,3 +21,6 @@ native/android/SentryIQMaster/master/src/main/java/co/bichet/sentryiq/tuf/sentry
 native/ios/SentryIQMaster/Sources/SentryIQTufCoreBindings/SentryIQTufCore.swift
 native/ios/SentryIQMaster/Sources/SentryIQTufCoreFFI/include/SentryIQTufCoreFFI.h
 native/ios/SentryIQMaster/Sources/SentryIQTufCoreFFI/include/module.modulemap
+
+# Composer dependencies (reproducibly installed from composer.json)
+/vendor/
