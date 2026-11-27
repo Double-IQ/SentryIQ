@@ -50,7 +50,7 @@ public final class OwnerFingerprintApprovalPresenter {
         purpose: String,
         challenge: Data,
         expiresAt: UInt64,
-        verifiedState: OwnerBootstrapHTTPClient.VerifiedBootstrapState,
+        verifiedState: OwnerBootstrapHTTPClient.PreparedBootstrapState,
         completion: @escaping (Result<OwnerFingerprintApprovalCeremony.ApprovalProof, Error>) -> Void
     ) {
         guard ownerIdentifier == verifiedState.snapshot.ownerID,
