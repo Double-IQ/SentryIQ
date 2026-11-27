@@ -92,9 +92,13 @@ public enum OwnerFingerprintApprovalCeremony {
     /// Sign a prepared transcript only after the platform reports fresh user authentication.
     public static func complete(
         _ prepared: PreparedApproval,
+        now: UInt64 = UInt64(Date().timeIntervalSince1970),
         requireFreshUserVerification: () throws -> Void,
         sign: (Data) throws -> Data
     ) throws -> ApprovalProof {
+        guard prepared.expiresAt > now, prepared.expiresAt - now <= 300 else {
+            throw CeremonyError.expiredChallenge
+        }
         try requireFreshUserVerification()
         let signature = try sign(prepared.transcript)
         guard !signature.isEmpty else { throw CeremonyError.invalidContext }
@@ -148,6 +152,7 @@ public enum OwnerFingerprintApprovalCeremony {
         )
         return try complete(
             prepared,
+            now: now,
             requireFreshUserVerification: requireFreshUserVerification,
             sign: sign
         )
