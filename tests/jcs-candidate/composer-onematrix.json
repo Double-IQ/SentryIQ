@@ -1,0 +1,13 @@
+{
+  "name": "sentryiq/onematrix-jcs-php81-qualification",
+  "description": "PHP 8.1 compatibility probe for OneMatrix RFC 8785 canonicalizer",
+  "type": "project",
+  "require": {
+    "onematrix/tracing-sdk": "1.2.0"
+  },
+  "config": {
+    "sort-packages": true
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
