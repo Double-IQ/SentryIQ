@@ -14,8 +14,8 @@ use SentryIQ\Security\RegistryAnchorVerifier;
 
 $apiNow = time();
 $apiBundle = $makeBundle([
-    'issued_at' => gmdate('Y-m-d\\TH:i:s\\Z', $apiNow - 60),
-    'expires_at' => gmdate('Y-m-d\\TH:i:s\\Z', $apiNow + 86400),
+    'issued_at' => gmdate('Y-m-d\TH:i:s\Z', $apiNow - 60),
+    'expires_at' => gmdate('Y-m-d\TH:i:s\Z', $apiNow + 86400),
 ]);
 $apiResult = $validator->validate($apiBundle, $trusted, 'owner-test-001', null, null, $apiNow);
 
