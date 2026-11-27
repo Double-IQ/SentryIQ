@@ -116,10 +116,10 @@ class OwnerBootstrapHttpClient(
         val rootDigest = decodeHex(tuf.optString("root_digest"))
         val initialRoot = snapshot.tufMetadata["root.json"]
             ?: throw ClientException("Initial TUF root metadata is missing.")
-        val candidateRoots = snapshot.tufMetadata.keys
+        val candidateNames = snapshot.tufMetadata.keys
             .filter { it.matches(Regex("^root/[0-9]+\\.json$")) }
             .sortedBy { it.removePrefix("root/").removeSuffix(".json").toLongOrNull() ?: Long.MAX_VALUE }
-            .map { snapshot.tufMetadata.getValue(it) }
+        val candidateRoots = candidateNames.map { snapshot.tufMetadata.getValue(it) }
         val cached = cachedState?.tufMetadata ?: emptyMap()
         val accepted = SentryIQTufTrustVerifier.verifyMetadataRefresh(
             initialRoot,
@@ -140,7 +140,7 @@ class OwnerBootstrapHttpClient(
             "snapshot.json" to snapshot.tufMetadata.getValue("snapshot.json"),
             "targets.json" to snapshot.tufMetadata.getValue("targets.json")
         )
-        candidateRoots.forEachIndexed { index, bytes -> acceptedMetadata["root/${index + 2}.json"] = bytes }
+        candidateNames.forEach { name -> acceptedMetadata[name] = snapshot.tufMetadata.getValue(name) }
         return acceptedMetadata
     }
 
