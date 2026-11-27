@@ -13,6 +13,7 @@ public final class VerifiedTargetStore {
         case fileSystem(Int32)
     }
 
+    private static let keyLock = NSRecursiveLock()
     private let directory: URL
     private let service: String
     private let account = "verified-target-aes-gcm-v1"
@@ -120,6 +121,8 @@ public final class VerifiedTargetStore {
     }
 
     private func loadOrCreateKey() throws -> SymmetricKey {
+        Self.keyLock.lock()
+        defer { Self.keyLock.unlock() }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
