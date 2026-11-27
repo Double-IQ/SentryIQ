@@ -25,7 +25,8 @@ A candidate package must pass the upstream RFC 8785 corpus, Appendix B number ve
 References:
 - https://packagist.org/packages/mbolli/php-ron
 - https://github.com/mbolli/php-ron
-- Reviewed source commit: `0b88aed885d23659b8a22769cf46efe345db18d0`
+- Exact `v0.5.0` tag commit: `0224dc0ff32718e5807266e7edec2536f703e77a` (lightweight tag; commit signature is unverified).
+- Upstream release CI at that commit: PHP 8.3, 8.4, and 8.5 all passed.
 
 **Disposition:** candidate for isolated conformance evaluation; not approved as a production dependency.
 
@@ -79,6 +80,12 @@ Candidates under evaluation:
 
 - accredifysg/php-json-canonicalize 1.1.1
 - mbolli/php-ron 0.5.0
+
+Release provenance and upstream CI review:
+
+- `accredifysg/php-json-canonicalize` v1.1.1 resolves to tag commit `581990f63665df8382ed14078a8d3c94368f2c5a`. GitHub reports the commit signature as verified. Its PHP 8.2, 8.3, 8.4 unit checks and RFC 8785 conformance check passed. The separate conformance-report publishing job failed; it is not the conformance test job.
+- `mbolli/php-ron` v0.5.0 resolves to tag commit `0224dc0ff32718e5807266e7edec2536f703e77a`. The commit signature is unverified. Its PHP 8.3, 8.4, 8.5 CI checks passed.
+- Both candidate packages declare only PHP and standard PHP extensions as runtime requirements; neither declares a third-party runtime package dependency. The `php-ron` package retains post-install/post-update script declarations, disabled in the isolated harness.
 
 Both candidates passed the six project-held RFC 8785 sample vectors and their respective strict-input negative cases in the isolated PHP 8.4 CI run (run 46054359619). Both harnesses now reject nine invalid-input classes: duplicate literal names, duplicate decoded names, lone high and low surrogates, an I-JSON noncharacter, malformed UTF-8, an unescaped control character, numeric overflow, and malformed JSON.
 
