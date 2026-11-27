@@ -5,6 +5,7 @@ import org.json.JSONObject
 import java.net.CookieManager
 import java.net.URI
 import java.net.URL
+import java.security.MessageDigest
 import javax.net.ssl.HttpsURLConnection
 
 /**
@@ -80,6 +81,68 @@ class OwnerBootstrapHttpClient(
             signature,
             json.getString("csrf_token")
         )
+    }
+
+    /** Fetch, verify the separately pinned registry anchor, validate TUF, then persist atomically. */
+    fun fetchAndPersistSnapshot(
+        store: ProtectedTrustStateStore,
+        verifyTuf: (Snapshot) -> Unit
+    ): ProtectedTrustStateStore.TrustState {
+        val snapshot = fetchSnapshot()
+        val anchor = decodeAnchor(snapshot)
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(snapshot.canonicalBundle)
+        if (!MessageDigest.isEqual(digest, anchor.bundleSha256)) {
+            throw ClientException("Canonical bundle does not match its signed registry anchor.")
+        }
+        verifyTuf(snapshot)
+        store.save(snapshot.canonicalBundle, anchor)
+        return store.load(anchor)
+    }
+
+    private fun decodeAnchor(snapshot: Snapshot): ProtectedTrustStateStore.RegistryAnchor {
+        val json = try { JSONObject(snapshot.registryAnchorPayload.toString(Charsets.UTF_8)) }
+        catch (error: Exception) { throw ClientException("Signed registry anchor is invalid JSON.", error) }
+        val sequenceText = json.optString("sequence")
+        val sequence = sequenceText.toULongOrNull()
+            ?: throw ClientException("Registry anchor sequence is invalid.")
+        val bundleDigest = decodeHex(json.optString("bundle_sha256"))
+        val issuedAt = exactUnsignedLong(json, "issued_at")
+        val expiresAt = exactUnsignedLong(json, "expires_at")
+        val ownerId = json.optString("owner_id")
+        val signerKeyId = json.optString("signer_kid")
+        val previousValue = json.opt("previous_bundle_sha256")
+        val previous = if (previousValue == null || previousValue === JSONObject.NULL) null
+            else decodeHex(previousValue as? String ?: throw ClientException("Previous bundle digest is invalid."))
+        if (ownerId != snapshot.ownerId || bundleDigest.size != 32 ||
+            (previous != null && previous.size != 32)) {
+            throw ClientException("Registry anchor fields do not match the bootstrap snapshot.")
+        }
+        return ProtectedTrustStateStore.RegistryAnchor(
+            sequence,
+            bundleDigest,
+            snapshot.registryAnchorPayload,
+            snapshot.registryAnchorSignature,
+            issuedAt,
+            expiresAt,
+            previous,
+            ownerId,
+            signerKeyId
+        )
+    }
+
+    private fun exactUnsignedLong(json: JSONObject, key: String): Long {
+        val value = json.opt(key)
+        if (value !is Number) throw ClientException("Registry anchor $key is not an integer.")
+        val double = value.toDouble()
+        if (double < 0 || double % 1.0 != 0.0 || double > Long.MAX_VALUE.toDouble()) {
+            throw ClientException("Registry anchor $key is out of range.")
+        }
+        return value.toLong()
+    }
+
+    private fun decodeHex(value: String): ByteArray {
+        if (!value.matches(Regex("^[a-f0-9]{64}$"))) throw ClientException("Registry anchor digest is malformed.")
+        return ByteArray(32) { index -> value.substring(index * 2, index * 2 + 2).toInt(16).toByte() }
     }
 
     fun issueChallenge(csrfToken: String): Challenge {
