@@ -85,7 +85,7 @@ Both candidates passed the six project-held RFC 8785 sample vectors and their re
 A project-owned Appendix B fixture now contains all 24 finite IEEE-754 samples from RFC 8785 Table 1. The harness tests each candidate against those values by reconstructing the exact binary64 input from the RFC hexadecimal representation. The updated run is pending; no Appendix B pass is claimed yet.
 
 This is limited candidate evidence, not production qualification. The upstream packages' own conformance claims remain maintainer-reported until independently reproduced against their complete pinned corpora. The project still needs:
-- Complete upstream RFC 8785 corpus and Appendix B execution in SentryIQ CI.
+- Complete upstream RFC 8785 corpus execution in SentryIQ CI (the project-owned Appendix B subset is now passing).
 - Exact canonical bytes and SHA-256 parity against the PHP, Swift, and Kotlin trust-bundle / registry-anchor fixtures.
 - Full dependency provenance, release-integrity, vulnerability, license, and maintainer-continuity review.
 - A separate Composer/deployment design decision, lockfile and immutable artifact hash before any application dependency is introduced.
