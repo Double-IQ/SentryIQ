@@ -88,9 +88,11 @@ class OwnerBootstrapHttpClient(
         if (!challenge.matches(Regex("^[A-Za-z0-9_-]{43}$"))) {
             throw ClientException("Bootstrap challenge encoding is invalid.")
         }
+        val purpose = json.getString("purpose")
+        if (purpose != "bootstrap-release-root") throw ClientException("Bootstrap challenge purpose is invalid.")
         return Challenge(
             challenge,
-            json.getString("purpose"),
+            purpose,
             json.getString("bundle_sha256"),
             json.getLong("expires_at")
         )
