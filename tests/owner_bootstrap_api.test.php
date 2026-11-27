@@ -12,6 +12,13 @@ use SentryIQ\Security\BootstrapChallengeStore;
 use SentryIQ\Security\OwnerBootstrapApi;
 use SentryIQ\Security\RegistryAnchorVerifier;
 
+$apiNow = time();
+$apiBundle = $makeBundle([
+    'issued_at' => gmdate('Y-m-d\\TH:i:s\\Z', $apiNow - 60),
+    'expires_at' => gmdate('Y-m-d\\TH:i:s\\Z', $apiNow + 86400),
+]);
+$apiResult = $validator->validate($apiBundle, $trusted, 'owner-test-001', null, null, $apiNow);
+
 $registryPrivateKey = openssl_pkey_new([
     'private_key_type' => OPENSSL_KEYTYPE_EC,
     'curve_name' => 'prime256v1',
@@ -23,9 +30,9 @@ $anchorObject = [
     'schema_version' => 1,
     'owner_id' => 'owner-test-001',
     'sequence' => '1',
-    'bundle_sha256' => $result['digest'],
-    'issued_at' => $now - 10,
-    'expires_at' => $now + 3600,
+    'bundle_sha256' => $apiResult['digest'],
+    'issued_at' => $apiNow - 10,
+    'expires_at' => $apiNow + 3600,
     'previous_bundle_sha256' => null,
     'signer_kid' => 'registry-anchor-1',
 ];
@@ -52,7 +59,7 @@ try {
         $validator,
         new RegistryAnchorVerifier(),
         'owner-test-001',
-        $valid,
+        $apiBundle,
         $anchorPayload,
         $anchorSignature,
         $registrySigners,
@@ -62,10 +69,10 @@ try {
         static fn(array $bundle): bool => ($bundle['sigstore_tuf']['root_version'] ?? null) === 1
     );
 
-    $snapshot = $api->snapshot($now);
+    $snapshot = $api->snapshot($apiNow);
     trustBundleAssert(hash_equals($snapshot['bundle_sha256'], hash('sha256', $snapshot['canonical_bundle'])),
         'Bootstrap snapshot must return the exact canonical bundle bytes bound by its digest.');
-    $challenge = $api->issueChallenge($now);
+    $challenge = $api->issueChallenge($apiNow);
     $challengeRaw = base64_decode(strtr($challenge['challenge'] . '=', '-_', '+/'), true);
     trustBundleAssert(is_string($challengeRaw) && strlen($challengeRaw) === 32, 'API challenge must contain 32 random bytes.');
 
@@ -77,8 +84,8 @@ try {
         . hex2bin($snapshot['bundle_sha256'])
         . $fields('release-authorisation')
         . $fields('release-root-1')
-        . hex2bin($result['key_fingerprints']['release-root-1'])
-        . hex2bin($result['master_keyset_digest'])
+        . hex2bin($apiResult['key_fingerprints']['release-root-1'])
+        . hex2bin($apiResult['master_keyset_digest'])
         . $fields('bootstrap-release-root')
         . pack('N', strlen($challengeRaw)) . $challengeRaw
         . pack('N2', intdiv($challenge['expires_at'], 4294967296), $challenge['expires_at'] % 4294967296);
@@ -95,7 +102,7 @@ try {
         'purpose' => 'bootstrap-release-root',
         'signature' => rtrim(strtr(base64_encode(derEcdsaToRaw($ownerDer)), '+/', '-_'), '='),
     ];
-    $approved = $api->approve($proof, $now);
+    $approved = $api->approve($proof, $apiNow);
     trustBundleAssert(preg_match('/^[a-f0-9]{32}$/D', $approved['receipt_id'] ?? '') === 1,
         'Valid native owner proof must return only a durable receipt identifier.');
     trustBundleReject(
