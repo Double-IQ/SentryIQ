@@ -51,7 +51,7 @@ final class OwnerBootstrapApi
                 throw new RuntimeException('Bootstrap TUF metadata entry is invalid.');
             }
             $totalTufBytes += strlen($bytes);
-            if ($totalTufBytes > 3 * 1024 * 1024) throw new RuntimeException('Bootstrap TUF metadata exceeds its limit.');
+            if ($totalTufBytes > 2 * 1024 * 1024) throw new RuntimeException('Bootstrap TUF metadata exceeds its limit.');
         }
         foreach (['root.json', 'timestamp.json', 'snapshot.json', 'targets.json'] as $requiredMetadata) {
             if (!isset($this->tufMetadata[$requiredMetadata])) {
