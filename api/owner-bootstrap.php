@@ -88,6 +88,7 @@ try {
         $targetPath = $_GET['target'];
         if (!is_string($targetPath) || strlen($targetPath) > 512
             || !preg_match('~^[A-Za-z0-9._/-]+$~D', $targetPath)
+            || str_starts_with($targetPath, '/') || str_ends_with($targetPath, '/')
             || str_contains($targetPath, '//')
             || preg_match('~(^|/)\\.{1,2}($|/)~', $targetPath)) {
             owner_bootstrap_respond(400, ['error' => 'invalid_target_path']);
