@@ -311,8 +311,9 @@ class ProtectedTrustStateStore(
                 if (hasReceipt) {
                     val receiptLength = input.readInt()
                     if (receiptLength != 32 || receiptLength > input.available()) throw StateException("Invalid bootstrap receipt identifier.")
-                    receiptId = ByteArray(receiptLength).also(input::readFully).toString(Charsets.US_ASCII)
-                    if (!receiptId.matches(Regex("^[a-f0-9]{32}$"))) throw StateException("Malformed bootstrap receipt identifier.")
+                    val decodedReceipt = ByteArray(receiptLength).also(input::readFully).toString(Charsets.US_ASCII)
+                    if (!decodedReceipt.matches(Regex("^[a-f0-9]{32}$"))) throw StateException("Malformed bootstrap receipt identifier.")
+                    receiptId = decodedReceipt
                 }
             }
             if (input.available() != 0) throw StateException("Trailing trust-state bytes.")
