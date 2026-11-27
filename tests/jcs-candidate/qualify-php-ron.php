@@ -25,10 +25,14 @@ foreach ($fixture->vectors as $vector) {
 
 $invalidInputs = [
     '{"duplicate":1,"duplicate":2}',
+    '{"duplicate":1,"\u0064uplicate":2}',
     '"\ud800"',
+    '"\udc00"',
+    '"\ufdd0"',
+    '"' . chr(0xff) . '"',
+    '"bad' . chr(0x01) . 'string"',
     '1e400',
     '{"unterminated":',
-    '"\ufdd0"',
 ];
 foreach ($invalidInputs as $input) {
     try {
