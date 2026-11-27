@@ -60,6 +60,9 @@ class OwnerBootstrapHttpClient(
 
     fun fetchSnapshot(): Snapshot {
         val json = request("GET", null, null)
+        if (json.getString("protocol") != "SENTRYIQ-OWNER-BOOTSTRAP-API-V1") {
+            throw ClientException("Bootstrap protocol version is unsupported.")
+        }
         val bundle = decodeBase64Url(json.getString("bundle"))
         val anchor = decodeBase64Url(json.getString("registry_anchor_payload"))
         val signature = decodeBase64Url(json.getString("registry_anchor_signature"))
