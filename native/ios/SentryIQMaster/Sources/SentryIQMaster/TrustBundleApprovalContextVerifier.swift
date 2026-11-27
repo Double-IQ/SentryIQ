@@ -21,6 +21,8 @@ public struct TrustBundleApprovalContextVerifier {
         guard canonicalBundle == verified.snapshot.canonicalBundle,
               canonicalBundle == verified.trustState.bundle,
               Data(SHA256.hash(data: canonicalBundle)) == verified.trustState.bundleSHA256,
+              verified.trustState.sequence == UInt64(verified.snapshot.sequence),
+              verified.snapshot.bundleSHA256 == verified.trustState.bundleSHA256.map({ String(format: "%02x", $0) }).joined(),
               rootRole == "release-authorisation",
               purpose == "bootstrap-release-root",
               verified.trustState.tufMetadata["root.json"] != nil,
