@@ -199,8 +199,7 @@ final class OwnerApprovalProofVerifier
 
     private static function validOwner(mixed $owner): bool
     {
-        return is_string($owner) && $owner !== '' && strlen($owner) <= 256
-            && !str_contains($owner, "\n") && !str_contains($owner, "\r");
+        return is_string($owner) && preg_match('/^[A-Za-z0-9._:-]{1,256}$/D', $owner) === 1;
     }
 
     private static function validToken(mixed $value): bool
