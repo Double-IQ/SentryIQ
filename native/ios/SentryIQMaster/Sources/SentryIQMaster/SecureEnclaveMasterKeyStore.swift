@@ -36,6 +36,7 @@ public struct MasterPublicKeySet: Codable, Equatable {
     public let signing: MasterPublicKeyDescriptor
     public let keyAgreement: MasterPublicKeyDescriptor
     public let hardwareAssurance: String
+    public let deviceKeysetDigest: String
 
     enum CodingKeys: String, CodingKey {
         case signing
@@ -46,11 +47,13 @@ public struct MasterPublicKeySet: Codable, Equatable {
     public init(
         signing: MasterPublicKeyDescriptor,
         keyAgreement: MasterPublicKeyDescriptor,
-        hardwareAssurance: String = "secure-enclave"
+        hardwareAssurance: String = "secure-enclave",
+        deviceKeysetDigest: String = ""
     ) {
         self.signing = signing
         self.keyAgreement = keyAgreement
         self.hardwareAssurance = hardwareAssurance
+        self.deviceKeysetDigest = deviceKeysetDigest
     }
 }
 
@@ -258,7 +261,54 @@ public final class SecureEnclaveMasterKeyStore {
             alg: "ECDH-ES",
             publicKeyPEM: try P256PublicKeyEncoding.subjectPublicKeyInfoPEM(fromRawRepresentation: agreementRaw)
         )
-        return MasterPublicKeySet(signing: signing, keyAgreement: agreement)
+        let keysetDigest = MasterKeysetDigest.compute(
+            signingKeyID: signing.kid,
+            signingPublicKeyRaw: signingRaw,
+            agreementKeyID: agreement.kid,
+            agreementPublicKeyRaw: agreementRaw,
+            hardwareAssurance: "secure-enclave"
+        )
+        return MasterPublicKeySet(
+            signing: signing,
+            keyAgreement: agreement,
+            hardwareAssurance: "secure-enclave",
+            deviceKeysetDigest: keysetDigest
+        )
+    }
+}
+
+/// Cross-platform digest of the exact public master-keyset descriptor.
+public enum MasterKeysetDigest {
+    public static func compute(
+        signingKeyID: String,
+        signingPublicKeyRaw: Data,
+        agreementKeyID: String,
+        agreementPublicKeyRaw: Data,
+        hardwareAssurance: String
+    ) -> String {
+        precondition(signingPublicKeyRaw.count == 64 && agreementPublicKeyRaw.count == 64)
+        var transcript = Data("SENTRYIQ-MASTER-KEYSET-V1\n".utf8)
+        appendField(signingKeyID, to: &transcript)
+        appendField("ES256", to: &transcript)
+        appendField(signingPublicKeyRaw, to: &transcript)
+        appendField(agreementKeyID, to: &transcript)
+        appendField("ECDH-ES", to: &transcript)
+        appendField(agreementPublicKeyRaw, to: &transcript)
+        appendField(hardwareAssurance, to: &transcript)
+        return SHA256.hash(data: transcript).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func appendField(_ value: String, to data: inout Data) {
+        appendField(Data(value.utf8), to: &data)
+    }
+
+    private static func appendField(_ value: Data, to data: inout Data) {
+        let length = UInt32(value.count)
+        data.append(UInt8((length >> 24) & 255))
+        data.append(UInt8((length >> 16) & 255))
+        data.append(UInt8((length >> 8) & 255))
+        data.append(UInt8(length & 255))
+        data.append(value)
     }
 }
 
