@@ -96,36 +96,43 @@ public final class OwnerFingerprintApprovalPresenter {
                 completion(.failure(OwnerFingerprintApprovalCeremony.CeremonyError.invalidFingerprint))
                 return
             }
-            let context = LAContext()
-            context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Approve this exact SentryIQ trust root") { success, error in
-                Task { @MainActor in
-                    guard success else {
-                        completion(.failure(error ?? NSError(domain: "SentryIQ.OwnerApproval", code: 1)))
-                        return
-                    }
-                    do {
-                        let proof = try OwnerFingerprintApprovalCeremony.approve(
-                            canonicalBundle: canonicalBundle,
-                            outOfBandFingerprint: enteredBundle,
-                            ownerIdentifier: ownerIdentifier,
-                            rootRole: rootRole,
-                            rootKeyID: rootKeyID,
-                            outOfBandRootFingerprint: enteredRoot,
-                            deviceKeysetDigest: deviceKeysetDigest,
-                            purpose: purpose,
-                            challenge: challenge,
-                            expiresAt: expiresAt,
-                            confirmFingerprint: { enteredBundle },
-                            confirmRootFingerprint: { enteredRoot },
-                            verifyCandidateTrustChain: verifyCandidateTrustChain,
-                            requireFreshUserVerification: {},
-                            sign: { transcript in try self.keyStore.sign(transcript, context: context) }
-                        )
-                        completion(.success(proof))
-                    } catch {
-                        completion(.failure(error))
+            do {
+                let prepared = try OwnerFingerprintApprovalCeremony.prepare(
+                    canonicalBundle: canonicalBundle,
+                    outOfBandFingerprint: enteredBundle,
+                    ownerIdentifier: ownerIdentifier,
+                    rootRole: rootRole,
+                    rootKeyID: rootKeyID,
+                    outOfBandRootFingerprint: enteredRoot,
+                    deviceKeysetDigest: deviceKeysetDigest,
+                    purpose: purpose,
+                    challenge: challenge,
+                    expiresAt: expiresAt,
+                    confirmFingerprint: { enteredBundle },
+                    confirmRootFingerprint: { enteredRoot },
+                    verifyCandidateTrustChain: verifyCandidateTrustChain
+                )
+                let context = LAContext()
+                context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Approve this exact SentryIQ trust root") { success, error in
+                    Task { @MainActor in
+                        guard success else {
+                            completion(.failure(error ?? NSError(domain: "SentryIQ.OwnerApproval", code: 1)))
+                            return
+                        }
+                        do {
+                            let proof = try OwnerFingerprintApprovalCeremony.complete(
+                                prepared,
+                                requireFreshUserVerification: {},
+                                sign: { transcript in try self.keyStore.sign(transcript, context: context) }
+                            )
+                            completion(.success(proof))
+                        } catch {
+                            completion(.failure(error))
+                        }
                     }
                 }
+            } catch {
+                completion(.failure(error))
             }
         })
         presenter.present(alert, animated: true)
