@@ -24,8 +24,7 @@ object OwnerFingerprintApprovalCeremony {
         requireFreshUserVerification: () -> Unit, sign: (ByteArray) -> ByteArray,
         now: Long = System.currentTimeMillis() / 1000L
     ): ApprovalProof {
-        if (ownerIdentifier.isBlank() || ownerIdentifier.toByteArray(Charsets.UTF_8).size > 256 ||
-            ownerIdentifier.contains("\n") || ownerIdentifier.contains("\r")) {
+        if (!validOwnerIdentifier(ownerIdentifier)) {
             throw CeremonyException("Invalid owner identifier.")
         }
         if (!validToken(rootRole) || !validToken(rootKeyId) || !validToken(purpose) || challenge.size != 32) {
@@ -63,7 +62,10 @@ object OwnerFingerprintApprovalCeremony {
         )
     }
 
-    private fun validOwnerIdentifier(value: String): Boolean =\n        value.isNotEmpty() && value.toByteArray(Charsets.UTF_8).size <= 256 &&\n            value.matches(Regex("^[A-Za-z0-9._:-]+$"))\n\n    private fun validToken(value: String): Boolean =
+    private fun validOwnerIdentifier(value: String): Boolean =
+        value.isNotEmpty() && value.toByteArray(Charsets.UTF_8).size <= 256 &&
+            value.matches(Regex("^[A-Za-z0-9._:-]+$"))
+\n    private fun validToken(value: String): Boolean =
         value.isNotEmpty() && value.toByteArray(Charsets.UTF_8).size <= 128 &&
             value.all { it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' || it == '-' || it == '.' || it == '_' }
 
