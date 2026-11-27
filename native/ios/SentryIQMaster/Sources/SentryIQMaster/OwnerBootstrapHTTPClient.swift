@@ -38,6 +38,11 @@ public final class OwnerBootstrapHTTPClient {
         public let receiptID: String
     }
 
+    public struct VerifiedBootstrapState {
+        public let snapshot: Snapshot
+        public let trustState: ProtectedTrustState
+    }
+
     public enum ClientError: Error {
         case invalidOrigin
         case invalidResponse
@@ -215,7 +220,7 @@ public final class OwnerBootstrapHTTPClient {
     public func fetchAndPersistSnapshot(
         using store: ProtectedTrustStateStore,
         verifyTuf: @escaping (Snapshot, ProtectedTrustState?) throws -> [String: Data],
-        completion: @escaping (Result<ProtectedTrustState, Error>) -> Void
+        completion: @escaping (Result<VerifiedBootstrapState, Error>) -> Void
     ) {
         fetchSnapshot { result in
             completion(result.flatMap { snapshot in
@@ -233,7 +238,7 @@ public final class OwnerBootstrapHTTPClient {
                         throw ClientError.invalidResponse
                     }
                     try store.save(bundle: snapshot.canonicalBundle, anchor: anchor, tufMetadata: verifiedMetadata)
-                    return .success(try store.load(anchor: anchor))
+                    return .success(VerifiedBootstrapState(snapshot: snapshot, trustState: try store.load(anchor: anchor)))
                 } catch { return .failure(error) }
             })
         }
