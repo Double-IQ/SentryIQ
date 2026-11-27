@@ -156,6 +156,7 @@ $valid = $makeBundle();
 $result = $validator->validate($valid, $trusted, 'owner-test-001', null, null, $now);
 trustBundleAssert($result['sequence'] === '1', 'Valid bootstrap bundle should retain its sequence.');
 trustBundleAssert(strlen($result['digest']) === 64, 'Validated bundle should expose its canonical SHA-256 digest.');
+trustBundleAssert(hash_equals($result['digest'], hash('sha256', $result['canonical_bundle'] ?? '')), 'Validator must return the exact canonical bytes whose digest it exposes.');
 trustBundleAssert(preg_match('/^[a-f0-9]{64}$/D', $result['master_keyset_digest'] ?? '') === 1,
     'Validated bundle should expose the cross-platform master keyset digest.');
 $decodedKeysetBundle = json_decode($valid);
