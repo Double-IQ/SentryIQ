@@ -218,7 +218,7 @@ public final class ProtectedTrustStateStore {
                 throw StoreError.corruptState
             }
             total += bytes.count
-            if total > 3 * 1024 * 1024 { throw StoreError.corruptState }
+            if total > 2 * 1024 * 1024 { throw StoreError.corruptState }
         }
     }
 
