@@ -105,7 +105,7 @@ final class OwnerBootstrapApi
         );
         return [
             'challenge' => $challenge,
-            'purpose' => 'owner-bootstrap-approval',
+            'purpose' => 'bootstrap-release-root',
             'bundle_sha256' => $snapshot['bundle_sha256'],
             'expires_at' => $now + $ttlSeconds,
         ];
