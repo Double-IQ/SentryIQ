@@ -6,11 +6,13 @@
 
 ## Executive finding
 
-The Worker + Cloudflare Container route is the lower-policy-drift first proof of concept because it can retain the existing PHP verifier and orchestration as the behavioral reference. It is not a drop-in deployment: the existing PHP stores assume a durable POSIX filesystem, while Cloudflare Container disks are ephemeral. A reviewed storage boundary is mandatory before any acceptance.
+The repository already contains an active Worker-native TypeScript runtime/storage proof of concept in [PR #120](https://github.com/Double-IQ/SentryIQ/pull/120). It is materially ahead of the PHP Container alternative: it exercises the actual workerd runtime, the Sigstore verifier/TUF packages, Durable Object SQLite state, an expiring token-bound run lease, monotonic release-pin primitives, and a prototype filesystem bridge for TUF metadata. The next implementation work should continue that existing branch rather than create a parallel runtime prototype.
 
-A Worker-native TypeScript implementation remains a fallback, not the preferred first implementation. It must reproduce the full Sigstore/Fulcio/Rekor/SLSA/TUF policy and solve Worker-compatible TUF metadata persistence. The existing architecture review already identified that the upstream JavaScript TUF cache uses synchronous filesystem and home-directory assumptions; enabling Node compatibility alone does not establish a Durable Object storage adapter.
+The TypeScript path is not accepted yet. The upstream TUF client is still not wired to the Durable Object filesystem bridge, so persistent metadata refresh/rotation remains the main technical blocker. The latest observed PR #120 runtime CI run (commit 420d76d) failed on a brittle Buffer-specific assertion against a protobuf bytes field; the proposed correction in PR #122 changes that representation check to Uint8Array while preserving every cryptographic assertion. Re-run CI and verify the complete genuine-bundle test before treating the path as accepted.
 
-No implementation path is accepted until the same genuine golden attestations and adversarial fixtures produce equivalent accept/reject outcomes to the PHP reference.
+The Worker + PHP Container route remains a fallback if the TypeScript TUF integration cannot be made safe. It may preserve more of the reviewed PHP verifier policy, but is not a drop-in deployment: the existing PHP stores assume durable POSIX filesystem semantics, while Container disks are ephemeral. A Durable Object persistence boundary would still be mandatory.
+
+No implementation path is accepted until genuine SentryIQ release attestations and adversarial fixtures pass in the target runtime with policy outcomes equivalent to the PHP reference.
 
 ## 1. Existing PHP compatibility target
 
@@ -97,7 +99,7 @@ The storage interface must have the same contract tests against the existing fil
 
 ## 3. Option B — Worker-native TypeScript
 
-A native Worker avoids the PHP container and may simplify direct Cron/Fetch/Web Crypto integration, but it requires a security-sensitive port of orchestration, Sigstore/TUF verification, provenance policy, private-host attestation, Node 4 exchange, state management and alert delivery.
+A native Worker avoids the PHP container and is already represented by PR #120's isolated runtime/storage PoC. It still requires production integration of orchestration, Sigstore/TUF verification, provenance policy, private-host attestation, Node 4 exchange, state management and alert delivery.
 
 The unresolved blocker is not basic TypeScript execution. It is the complete maintained Sigstore/TUF dependency graph and its storage behavior in the Workers runtime. The existing architecture review identified filesystem-cache operations in the upstream JavaScript TUF client (`fs.existsSync`, `mkdirSync`, `writeFileSync`, `copyFileSync`, and `os.homedir()` assumptions). A Worker-compatible, reviewed durable metadata adapter or a different maintained compatible implementation must be demonstrated. Do not treat `nodejs_compat` as proof of compatibility.
 
@@ -213,11 +215,11 @@ Choose the implementation only after comparing actual runtime compatibility, dur
 
 ## 6. Current conclusion and outstanding owner inputs
 
-**Technical direction:** start with PoC A (PHP Container + Worker/SQLite Durable Object control plane). Keep PoC B as a fallback/benchmark if the JavaScript TUF storage obstacle can be resolved cleanly.
+**Technical direction:** continue PR #120 as the primary Node A implementation track. Prioritize the TUF Durable Object integration and fix the failing runtime CI. Keep Worker + PHP Container as a fallback only if the TypeScript TUF integration cannot meet the same trust and persistence requirements. Do not create a duplicate runtime PoC.
 
 **Not yet verified:** Cloudflare account entitlement, account ownership/access, container build, PHP extension availability in the selected image, private Composer artifact retrieval, actual attestation verification in Cloudflare, Durable Object adapter correctness, alert delivery, schedule, runtime cost and deployment.
 
-No owner action is needed to complete this repository-level feasibility assessment. Owner access/approval will be needed before any account inspection, credential provisioning, paid-plan change, production configuration or deployment.
+No owner action is needed for the next repository-level work on PR #120. Owner access/approval will be needed before Cloudflare account inspection, credential provisioning, paid-plan change, production configuration or deployment.
 
 ## References
 
