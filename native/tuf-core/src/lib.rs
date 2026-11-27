@@ -499,9 +499,9 @@ mod tests {
         assert!(!is_safe_target_path("packages/../../escape"));
         assert!(!is_safe_target_path("packages\\\\escape"));
         assert!(!is_safe_target_path("packages//empty"));
-        assert!(!is_safe_target_path("packages/\\u{0000}app.tar.zst"));
-        assert!(!is_safe_target_path("packages/\\napp.tar.zst"));
-        assert!(!is_safe_target_path("packages/\\tapp.tar.zst"));
+        assert!(!is_safe_target_path("packages/\u{0000}app.tar.zst"));
+        assert!(!is_safe_target_path("packages/\napp.tar.zst"));
+        assert!(!is_safe_target_path("packages/\tapp.tar.zst"));
         assert!(is_safe_target_path("releases/mobile/app.tar.zst"));
     }
 
