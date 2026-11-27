@@ -82,7 +82,7 @@ public enum OwnerFingerprintApprovalCeremony {
         )
     }
 
-    private static func validToken(_ value: String) -> Bool {
+    private static func validOwnerIdentifier(_ value: String) -> Bool {\n        !value.isEmpty && value.utf8.count <= 256 &&\n        value.utf8.allSatisfy { ($0 >= 65 && $0 <= 90) || ($0 >= 97 && $0 <= 122) ||\n            ($0 >= 48 && $0 <= 57) || $0 == 46 || $0 == 95 || $0 == 58 || $0 == 45 }\n    }\n\n    private static func validToken(_ value: String) -> Bool {
         !value.isEmpty && value.utf8.count <= 128 &&
         value.utf8.allSatisfy { ($0 >= 65 && $0 <= 90) || ($0 >= 97 && $0 <= 122) ||
             ($0 >= 48 && $0 <= 57) || $0 == 45 || $0 == 46 || $0 == 95 }
