@@ -80,6 +80,35 @@ class ProtectedTrustStateStore(
         state
     }
 
+    /** Load only the exact current state or immediate predecessor of a verified new anchor. */
+    fun loadPreviousState(
+        anchor: RegistryAnchor,
+        nowEpochSeconds: Long = System.currentTimeMillis() / 1000L
+    ): TrustState? = synchronized(processLock) {
+        requireValidAnchor(anchor, nowEpochSeconds)
+        if (!file.exists()) {
+            if (!TrustRegistryAnchorPolicy.isValidInitialAnchor(anchor.sequence, anchor.previousBundleSha256)) {
+                throw StateException("No cached predecessor exists for this registry anchor.")
+            }
+            return@synchronized null
+        }
+        if (file.length() !in 1..MAX_ENCODED_STATE_BYTES.toLong()) {
+            throw StateException("Stored trust state exceeds the permitted size.")
+        }
+        val current = decrypt(file.readBytes())
+        if (!MessageDigest.isEqual(sha256(current.bundle), current.bundleSha256)) {
+            throw StateException("Cached trust state digest is corrupt.")
+        }
+        val same = anchor.sequence == current.sequence &&
+            MessageDigest.isEqual(anchor.bundleSha256, current.bundleSha256)
+        val next = current.sequence < ULong.MAX_VALUE &&
+            anchor.sequence == current.sequence + 1uL &&
+            anchor.previousBundleSha256 != null &&
+            MessageDigest.isEqual(anchor.previousBundleSha256, current.bundleSha256)
+        if (!same && !next) throw StateException("Registry anchor is not current or the immediate successor.")
+        current
+    }
+
     fun save(
         bundle: ByteArray,
         anchor: RegistryAnchor,
