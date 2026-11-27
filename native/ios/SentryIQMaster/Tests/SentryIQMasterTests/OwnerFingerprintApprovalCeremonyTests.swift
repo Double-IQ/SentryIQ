@@ -68,6 +68,7 @@ final class OwnerFingerprintApprovalCeremonyTests: XCTestCase {
         var signedTranscript = Data()
         let proof = try OwnerFingerprintApprovalCeremony.complete(
             prepared,
+            now: now,
             requireFreshUserVerification: { authenticated = true },
             sign: { signedTranscript = $0; return Data([0x01]) }
         )
