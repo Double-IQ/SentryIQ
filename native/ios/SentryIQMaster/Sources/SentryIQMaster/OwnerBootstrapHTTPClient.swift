@@ -12,6 +12,7 @@ public final class OwnerBootstrapHTTPClient {
         public let canonicalBundle: Data
         public let registryAnchorPayload: Data
         public let registryAnchorSignature: Data
+        public let tufMetadata: [String: Data]
         public let csrfToken: String
     }
 
@@ -72,7 +73,24 @@ public final class OwnerBootstrapHTTPClient {
                     let anchor = try Self.decodeBase64URL(Self.string(object, "registry_anchor_payload"))
                     let signature = try Self.decodeBase64URL(Self.string(object, "registry_anchor_signature"))
                     let digest = try Self.string(object, "bundle_sha256")
-                    guard bundle.count <= 262_144, anchor.count <= 4_096,
+                    guard let encodedMetadata = object["tuf_metadata"] as? [String: String],
+                          encodedMetadata.count >= 4, encodedMetadata.count <= 64 else {
+                        throw ClientError.invalidResponse
+                    }
+                    var tufMetadata: [String: Data] = [:]
+                    var totalMetadataBytes = 0
+                    for (name, encoded) in encodedMetadata {
+                        guard name.range(of: "^[a-z0-9][a-z0-9._/-]{0,127}$", options: .regularExpression) != nil else {
+                            throw ClientError.invalidResponse
+                        }
+                        let bytes = try Self.decodeBase64URL(encoded)
+                        guard !bytes.isEmpty, bytes.count <= 1_048_576 else { throw ClientError.invalidResponse }
+                        totalMetadataBytes += bytes.count
+                        guard totalMetadataBytes <= 3 * 1024 * 1024 else { throw ClientError.invalidResponse }
+                        tufMetadata[name] = bytes
+                    }
+                    guard ["root.json", "timestamp.json", "snapshot.json", "targets.json"].allSatisfy({ tufMetadata[$0] != nil }),
+                          bundle.count <= 262_144, anchor.count <= 4_096,
                           signature.count == 64, digest.count == 64 else {
                         throw ClientError.invalidResponse
                     }
@@ -83,6 +101,7 @@ public final class OwnerBootstrapHTTPClient {
                         canonicalBundle: bundle,
                         registryAnchorPayload: anchor,
                         registryAnchorSignature: signature,
+                        tufMetadata: tufMetadata,
                         csrfToken: try Self.string(object, "csrf_token")
                     ))
                 } catch { return .failure(error) }
@@ -93,7 +112,7 @@ public final class OwnerBootstrapHTTPClient {
     /// Fetch, verify the separately pinned registry anchor, validate TUF, then persist atomically.
     public func fetchAndPersistSnapshot(
         using store: ProtectedTrustStateStore,
-        verifyTuf: @escaping (Snapshot) throws -> Void,
+        verifyTuf: @escaping (Snapshot) throws -> [String: Data],
         completion: @escaping (Result<ProtectedTrustState, Error>) -> Void
     ) {
         fetchSnapshot { result in
@@ -105,8 +124,12 @@ public final class OwnerBootstrapHTTPClient {
                           snapshot.sequence == String(anchor.sequence) else {
                         throw ClientError.invalidResponse
                     }
-                    try verifyTuf(snapshot)
-                    try store.save(bundle: snapshot.canonicalBundle, anchor: anchor)
+                    let verifiedMetadata = try verifyTuf(snapshot)
+                    guard verifiedMetadata.count == snapshot.tufMetadata.count,
+                          verifiedMetadata.allSatisfy({ snapshot.tufMetadata[$0.key] == $0.value }) else {
+                        throw ClientError.invalidResponse
+                    }
+                    try store.save(bundle: snapshot.canonicalBundle, anchor: anchor, tufMetadata: verifiedMetadata)
                     return .success(try store.load(anchor: anchor))
                 } catch { return .failure(error) }
             })
@@ -251,7 +274,7 @@ public final class OwnerBootstrapHTTPClient {
             guard response.statusCode == 200 else {
                 completion(.failure(ClientError.httpStatus(response.statusCode))); return
             }
-            guard let data, data.count <= 300_000,
+            guard let data, data.count <= 4_200_000,
                   let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 completion(.failure(ClientError.invalidResponse)); return
             }
