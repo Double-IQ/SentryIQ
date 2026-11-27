@@ -390,12 +390,12 @@ final class TrustBundleValidator
 
     private function canonicalJson(mixed $value): string
     {
-        if ($value instanceof \\stdClass) {
+        if ($value instanceof \stdClass) {
             $properties = get_object_vars($value);
             // Restricted profile: schema member names are ASCII. For ASCII,
             // byte ordering equals RFC 8785 UTF-16 code-unit ordering.
             foreach (array_keys($properties) as $propertyName) {
-                if (!is_string($propertyName) || !preg_match('/^[\\x00-\\x7F]*$/D', $propertyName)) {
+                if (!is_string($propertyName) || !preg_match('/^[\x00-\x7F]*$/D', $propertyName)) {
                     throw new RuntimeException('Canonical trust-bundle object member names must be ASCII.');
                 }
             }
