@@ -413,7 +413,13 @@ final class TrustBundleValidator
         if (is_float($value)) {
             throw new RuntimeException('Floating-point values are prohibited in trust bundle canonical data.');
         }
-        if (is_int($value) || is_string($value) || is_bool($value) || $value === null) {
+        if (is_int($value)) {
+            if ($value < -9007199254740991 || $value > 9007199254740991) {
+                throw new RuntimeException('Canonical trust-bundle integers must be within the interoperable JSON safe range.');
+            }
+            return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS | JSON_THROW_ON_ERROR);
+        }
+        if (is_string($value) || is_bool($value) || $value === null) {
             return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS | JSON_THROW_ON_ERROR);
         }
         throw new RuntimeException('Trust bundle contains an unsupported canonical JSON value.');
