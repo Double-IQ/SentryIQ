@@ -153,7 +153,7 @@ class OwnerBootstrapHttpClient(
         val initialRoot = snapshot.tufMetadata["root.json"]
             ?: throw ClientException("Initial TUF root metadata is missing.")
         val candidateRoots = snapshot.tufMetadata.keys
-            .filter { it.matches(Regex("^root/[0-9]+\\\\.json$")) }
+            .filter { it.matches(Regex("^root/[0-9]+\\.json$")) }
             .sortedBy { it.removePrefix("root/").removeSuffix(".json").toLongOrNull() ?: Long.MAX_VALUE }
             .map { snapshot.tufMetadata.getValue(it) }
         val roles = snapshot.tufMetadata["delegated-order.json"]?.let {
