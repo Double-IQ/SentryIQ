@@ -36,6 +36,12 @@ class AndroidKeystoreMasterKeyStore(
         val hardwareAssurance: String
     )
 
+    /** Opaque handle for one Keystore-backed, per-use authenticated signature. */
+    class SigningOperation internal constructor(internal val signature: Signature) {
+        /** Supply this exact object to BiometricPrompt.CryptoObject. */
+        val cryptoObjectSignature: Signature get() = signature
+    }
+
     sealed class StoreException(message: String) : Exception(message) {
         class IncompleteKeyset : StoreException("Master keyset is incomplete; recovery is required.")
         class UnsupportedHardware : StoreException("No approved hardware-backed Android Keystore tier is available.")
@@ -96,20 +102,16 @@ class AndroidKeystoreMasterKeyStore(
      * successful AuthenticationResult. A generic biometric check performed
      * separately from this CryptoObject is not sufficient for this key policy.
      */
-    fun beginSigningOperation(message: ByteArray): Signature {
+    fun beginSigningOperation(message: ByteArray): SigningOperation {
         val operation = Signature.getInstance("SHA256withECDSA")
         operation.initSign(privateKey(signingAlias))
         operation.update(message)
-        return operation
+        return SigningOperation(operation)
     }
 
-    /** Completes the Signature returned by a successful BiometricPrompt CryptoObject. */
-    fun completeSigningOperation(authenticatedOperation: Signature): ByteArray {
-        require(authenticatedOperation.algorithm == "SHA256withECDSA") {
-            "Only the prepared ES256 signing operation may be completed."
-        }
-        return derEcdsaToLowSJose(authenticatedOperation.sign())
-    }
+    /** Completes the exact prepared operation after its CryptoObject authenticates. */
+    fun completeSigningOperation(operation: SigningOperation): ByteArray =
+        derEcdsaToLowSJose(operation.signature.sign())
 
     /**
      * Convenience path for environments where Keystore has already authorised
