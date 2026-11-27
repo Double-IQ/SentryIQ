@@ -62,3 +62,19 @@ jobs:
           if [ "$accredify_status" -ne 0 ] || [ "$ron_status" -ne 0 ] || [ "$mmccook_status" -ne 0 ] || [ "$kanon_status" -ne 0 ] || [ "$onematrix_status" -ne 0 ]; then
             exit 1
           fi
+
+  onematrix-php81-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.1'
+          extensions: curl, dom, libxml, mbstring
+          coverage: none
+      - name: Install the pinned OneMatrix candidate on PHP 8.1
+        run: cd tests/jcs-candidate && COMPOSER=composer-onematrix.json composer update --no-interaction --prefer-dist --no-scripts
+      - name: Run RFC 8785 vectors and Appendix B on PHP 8.1
+        run: php tests/jcs-candidate/qualify-onematrix.php
