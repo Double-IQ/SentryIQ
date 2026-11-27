@@ -15,6 +15,7 @@ final class OwnerBootstrapApi
 {
     private readonly OwnerApprovalProofVerifier $proofVerifier;
     private readonly string $canonicalBundle;
+    private int $verificationTime = 0;
 
     /**
      * @param list<array{kid:string,role:string,alg:string,public_key_pem:string}> $registrySignerKeys
@@ -116,6 +117,7 @@ final class OwnerBootstrapApi
      */
     public function approve(array $proof, int $now): array
     {
+        $this->verificationTime = $now;
         // The proof verifier consumes the challenge before any context/TUF/anchor revalidation.
         $receipt = $this->proofVerifier->verifyAndRecord(
             $proof['challenge'] ?? '',
@@ -137,7 +139,7 @@ final class OwnerBootstrapApi
     {
         $resolveOwnerKey = function (string $ownerId): array {
             if (!hash_equals($this->ownerId, $ownerId)) return [];
-            $snapshot = $this->snapshot(time());
+            $snapshot = $this->snapshot($this->verificationTime > 0 ? $this->verificationTime : time());
             $signing = $snapshot['validated_bundle']['master_keyset']['signing'] ?? null;
             if (!is_array($signing)) return [];
             return [
