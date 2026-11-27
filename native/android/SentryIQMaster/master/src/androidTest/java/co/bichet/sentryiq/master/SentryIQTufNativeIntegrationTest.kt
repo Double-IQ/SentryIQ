@@ -124,6 +124,51 @@ class SentryIQTufNativeIntegrationTest {
     }
 
     @Test
+    fun packagedRustVerifierAcceptsDownloadedTargetBytes() {
+        val root = fixture("root")
+        val accepted = SentryIQTufTrustVerifier.verifyTargetBytes(
+            initialRoot = root,
+            expectedInitialRootSha256 = MessageDigest.getInstance("SHA-256").digest(root),
+            candidateRoots = emptyList(),
+            cachedTimestamp = null,
+            cachedSnapshot = null,
+            cachedTargets = null,
+            newTimestamp = fixture("timestamp"),
+            newSnapshot = fixture("snapshot"),
+            newTargets = fixture("targets"),
+            delegatedRoles = listOf("role1"),
+            delegatedMetadata = listOf(fixture("role1")),
+            targetPath = "file3.txt",
+            targetBytes = fixture("file3"),
+            referenceTimeUnixSeconds = 1_800_000_000L
+        )
+        assertTrue("Target bytes matching signed length and hash must verify", accepted)
+    }
+
+    @Test
+    fun packagedRustVerifierRejectsTamperedDownloadedTargetBytes() {
+        val root = fixture("root")
+        val target = fixture("file3").also { it[0] = (it[0].toInt() xor 1).toByte() }
+        val accepted = SentryIQTufTrustVerifier.verifyTargetBytes(
+            initialRoot = root,
+            expectedInitialRootSha256 = MessageDigest.getInstance("SHA-256").digest(root),
+            candidateRoots = emptyList(),
+            cachedTimestamp = null,
+            cachedSnapshot = null,
+            cachedTargets = null,
+            newTimestamp = fixture("timestamp"),
+            newSnapshot = fixture("snapshot"),
+            newTargets = fixture("targets"),
+            delegatedRoles = listOf("role1"),
+            delegatedMetadata = listOf(fixture("role1")),
+            targetPath = "file3.txt",
+            targetBytes = target,
+            referenceTimeUnixSeconds = 1_800_000_000L
+        )
+        assertFalse("Target bytes with the wrong digest must fail closed", accepted)
+    }
+
+    @Test
     fun packagedRustVerifierLoadsAndRejectsInvalidBootstrap() {
         val accepted = SentryIQTufTrustVerifier.verifyMetadataRefresh(
             initialRoot = byteArrayOf(),
