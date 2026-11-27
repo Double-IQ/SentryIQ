@@ -48,3 +48,6 @@ jobs:
 
       - name: Test signed registry-anchor verification
         run: php tests/registry_anchor_verifier.test.php
+
+      - name: Test authenticated owner bootstrap API integration
+        run: php tests/owner_bootstrap_api.test.php
