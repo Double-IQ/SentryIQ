@@ -50,9 +50,12 @@ jobs:
           ron_status=$?
           php tests/jcs-candidate/qualify-mmccook.php
           mmccook_status=$?
+          php tests/jcs-candidate/qualify-kanon.php
+          kanon_status=$?
           echo "accredifysg/php-json-canonicalize qualification exit: $accredify_status"
           echo "mbolli/php-ron qualification exit: $ron_status"
           echo "mmccook/php-json-canonicalization-scheme qualification exit: $mmccook_status"
-          if [ "$accredify_status" -ne 0 ] || [ "$ron_status" -ne 0 ] || [ "$mmccook_status" -ne 0 ]; then
+          echo "truschery/kanon qualification exit: $kanon_status"
+          if [ "$accredify_status" -ne 0 ] || [ "$ron_status" -ne 0 ] || [ "$mmccook_status" -ne 0 ] || [ "$kanon_status" -ne 0 ]; then
             exit 1
           fi
