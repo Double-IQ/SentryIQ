@@ -73,6 +73,7 @@ try {
     trustBundleAssert(hash_equals($snapshot['bundle_sha256'], hash('sha256', $snapshot['canonical_bundle'])),
         'Bootstrap snapshot must return the exact canonical bundle bytes bound by its digest.');
     $challenge = $api->issueChallenge($apiNow);
+trustBundleAssert($challenge['purpose'] === 'bootstrap-release-root', 'Challenge purpose must match the native approval transcript.');
     $challengeRaw = base64_decode(strtr($challenge['challenge'] . '=', '-_', '+/'), true);
     trustBundleAssert(is_string($challengeRaw) && strlen($challengeRaw) === 32, 'API challenge must contain 32 random bytes.');
 
