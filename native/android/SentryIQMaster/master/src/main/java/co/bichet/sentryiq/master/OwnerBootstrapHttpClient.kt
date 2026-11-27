@@ -61,6 +61,10 @@ class OwnerBootstrapHttpClient(
         val anchor: ProtectedTrustStateStore.RegistryAnchor,
         val trustState: ProtectedTrustStateStore.TrustState
     )
+    sealed class BootstrapResult {
+        data class ApprovalRequired internal constructor(val prepared: PreparedBootstrapState) : BootstrapResult()
+        data class AlreadyAccepted internal constructor(val verified: VerifiedBootstrapState) : BootstrapResult()
+    }
 
     class ClientException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
@@ -227,8 +231,26 @@ class OwnerBootstrapHttpClient(
 
     fun fetchAndVerifyTUFState(
         store: ProtectedTrustStateStore
-    ): PreparedBootstrapState = fetchAndVerifySnapshot(store) { snapshot, cachedState ->
-        verifyTufRefresh(snapshot, cachedState)
+    ): BootstrapResult {
+        val prepared = fetchAndVerifySnapshot(store) { snapshot, cachedState ->
+            verifyTufRefresh(snapshot, cachedState)
+        }
+        val cached = prepared.cachedState
+        val receiptId = cached?.bootstrapReceiptId
+        if (cached != null && receiptId != null &&
+            cached.sequence == prepared.anchor.sequence &&
+            MessageDigest.isEqual(cached.bundleSha256, prepared.anchor.bundleSha256)) {
+            store.save(
+                prepared.snapshot.canonicalBundle,
+                prepared.anchor,
+                prepared.verifiedTufMetadata,
+                receiptId
+            )
+            return BootstrapResult.AlreadyAccepted(
+                VerifiedBootstrapState(prepared.snapshot, prepared.anchor, store.load(prepared.anchor))
+            )
+        }
+        return BootstrapResult.ApprovalRequired(prepared)
     }
 
     /** Persist the candidate only after the server accepts the owner's one-use signature. */
