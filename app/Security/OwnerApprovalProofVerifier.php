@@ -18,6 +18,8 @@ final class OwnerApprovalProofVerifier
     private const DOMAIN = "SENTRYIQ-OWNER-BOOTSTRAP-APPROVAL-V2\n";
     private const RECEIPT_VERSION = 1;
     private const MAX_BUNDLE_BYTES = 262144;
+    private const P256_ORDER = 'ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551';
+    private const P256_HALF_ORDER = '7fffffff800000007fffffffffffffffde737d56d38bcf4279dce5617e3192a8';
 
     /**
      * @param callable(string):array{owner_id:string,key_id:string,role:string,algorithm:string,status:string,device_keyset_digest:string,public_key_pem:string} $resolveActiveOwnerKey
@@ -75,7 +77,7 @@ final class OwnerApprovalProofVerifier
             || !self::validToken($purpose)
             || !self::validDigest($rootFingerprintHex)
             || !self::validDigest($deviceKeysetDigestHex)
-            || !preg_match('/^[A-Za-z0-9_-]{94,96}$/D', $signatureBase64Url)) {
+            || !preg_match('/^[A-Za-z0-9_-]{86}$/D', $signatureBase64Url)) {
             throw new RuntimeException('Owner approval proof context is malformed or inconsistent.');
         }
 
@@ -107,10 +109,9 @@ final class OwnerApprovalProofVerifier
         }
 
         $signature = self::decodeBase64Url($signatureBase64Url);
-        // Native CryptoKit and Java SHA256withECDSA adapters emit ASN.1 DER ECDSA.
-        if (strlen($signature) < 8 || strlen($signature) > 80) {
-            throw new RuntimeException('Owner approval signature has an invalid DER length.');
-        }
+        // Both native key stores emit canonical 64-byte JOSE r||s signatures.
+        // Enforce low-S before converting to DER for OpenSSL.
+        $derSignature = self::rawEcdsaToDer($signature);
 
         $transcript = self::transcript(
             $ownerIdentifier,
@@ -135,7 +136,7 @@ final class OwnerApprovalProofVerifier
             throw new RuntimeException('Registered owner key is not a P-256 ES256 key.');
         }
         try {
-            $verified = openssl_verify($transcript, $signature, $publicKey, OPENSSL_ALGO_SHA256);
+            $verified = openssl_verify($transcript, $derSignature, $publicKey, OPENSSL_ALGO_SHA256);
         } finally {
             openssl_pkey_free($publicKey);
         }
@@ -157,7 +158,7 @@ final class OwnerApprovalProofVerifier
             'purpose' => $purpose,
             'challenge' => $encodedChallenge,
             'challenge_sha256' => hash('sha256', self::decodeBase64Url($encodedChallenge)),
-            'signature_encoding' => 'ecdsa-der-base64url',
+            'signature_encoding' => 'ecdsa-jose-raw-low-s-base64url',
             'signature' => $signatureBase64Url,
             'challenge_expires_at' => $challenge['expires_at'],
             'approved_at' => $now,
@@ -292,14 +293,39 @@ final class OwnerApprovalProofVerifier
             && is_string($record['challenge'] ?? null)
             && preg_match('/^[A-Za-z0-9_-]{43}$/D', $record['challenge']) === 1
             && self::validDigest($record['challenge_sha256'] ?? '')
-            && ($record['signature_encoding'] ?? null) === 'ecdsa-der-base64url'
+            && ($record['signature_encoding'] ?? null) === 'ecdsa-jose-raw-low-s-base64url'
             && is_string($record['signature'] ?? null)
-            && preg_match('/^[A-Za-z0-9_-]{94,96}$/D', $record['signature']) === 1
+            && preg_match('/^[A-Za-z0-9_-]{86}$/D', $record['signature']) === 1
             && is_int($record['challenge_expires_at'] ?? null)
             && $record['challenge_expires_at'] > 0
             && is_int($record['approved_at'] ?? null)
             && $record['approved_at'] > 0
             && self::validDigest($record['signature_sha256'] ?? '');
+    }
+
+    /** Convert canonical JOSE ES256 r||s to DER after enforcing P-256 ranges and low-S. */
+    private static function rawEcdsaToDer(string $raw): string
+    {
+        if (strlen($raw) !== 64) {
+            throw new RuntimeException('Owner approval signature must be 64-byte JOSE ES256.');
+        }
+        $r = substr($raw, 0, 32);
+        $s = substr($raw, 32, 32);
+        $order = hex2bin(self::P256_ORDER);
+        $halfOrder = hex2bin(self::P256_HALF_ORDER);
+        if (!is_string($order) || !is_string($halfOrder)
+            || $r === str_repeat("\\0", 32) || strcmp($r, $order) >= 0
+            || $s === str_repeat("\\0", 32) || strcmp($s, $halfOrder) > 0) {
+            throw new RuntimeException('Owner approval signature is not canonical low-S P-256.');
+        }
+        $integer = static function (string $bytes): string {
+            $bytes = ltrim($bytes, "\\0");
+            if ($bytes === '') $bytes = "\\0";
+            if ((ord($bytes[0]) & 0x80) !== 0) $bytes = "\\0" . $bytes;
+            return "\\x02" . chr(strlen($bytes)) . $bytes;
+        };
+        $body = $integer($r) . $integer($s);
+        return "\\x30" . chr(strlen($body)) . $body;
     }
 
     private static function transcript(
