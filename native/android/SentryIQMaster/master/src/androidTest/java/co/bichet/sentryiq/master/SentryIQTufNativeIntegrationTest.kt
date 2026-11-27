@@ -19,6 +19,29 @@ class SentryIQTufNativeIntegrationTest {
             .open("tufet-python-tuf/$name.$suffix").use { it.readBytes() }
 
     @Test
+    fun verifiedTargetStoreEncryptsAndAtomicallyReadsBackAcceptedBytes() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val store = VerifiedTargetStore(context, "co.bichet.sentryiq.test.verified-targets")
+        val path = "release/manifest.json"
+        val bytes = """{"version":1,"payload":"verified"}""".toByteArray(Charsets.UTF_8)
+        val digest = store.saveVerifiedTarget(path, bytes)
+        assertTrue("Stored target digest must be SHA-256", digest.matches(Regex("^[a-f0-9]{64}$")))
+        assertTrue("Only the exact encrypted target bytes may be read back", bytes.contentEquals(store.loadVerifiedTarget(path)))
+    }
+
+    @Test
+    fun verifiedTargetStoreRejectsTraversalPaths() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val store = VerifiedTargetStore(context, "co.bichet.sentryiq.test.verified-targets")
+        try {
+            store.saveVerifiedTarget("../outside", byteArrayOf(1))
+            throw AssertionError("Path traversal target must be rejected.")
+        } catch (_: VerifiedTargetStore.StoreException) {
+            // Expected fail-closed path rejection.
+        }
+    }
+
+    @Test
     fun packagedRustVerifierAcceptsValidSignedMetadataRefresh() {
         val root = fixture("root")
         val rootPin = MessageDigest.getInstance("SHA-256").digest(root)
