@@ -21,9 +21,97 @@ public enum OwnerFingerprintApprovalCeremony {
         public let signature: Data
     }
 
-    /// Confirmation must be native UI; fresh verification must invoke OS biometrics/passcode;
-    /// sign must use the dedicated hardware-backed master signing key. The challenge is
-    /// single-use at the verifier and must be consumed atomically when the proof is accepted.
+    public struct PreparedApproval {
+        public let bundleFingerprint: String
+        public let rootRole: String
+        public let rootKeyID: String
+        public let rootFingerprint: String
+        public let deviceKeysetDigest: String
+        public let purpose: String
+        public let challenge: Data
+        public let expiresAt: UInt64
+        public let transcript: Data
+    }
+
+    /// Validate the candidate and both owner-entered fingerprints before OS authentication.
+    public static func prepare(
+        canonicalBundle: Data,
+        outOfBandFingerprint: String,
+        ownerIdentifier: String,
+        rootRole: String,
+        rootKeyID: String,
+        outOfBandRootFingerprint: String,
+        deviceKeysetDigest: String,
+        purpose: String,
+        challenge: Data,
+        expiresAt: UInt64,
+        now: UInt64 = UInt64(Date().timeIntervalSince1970),
+        confirmFingerprint: () throws -> String,
+        confirmRootFingerprint: () throws -> String,
+        verifyCandidateTrustChain: (Data, String, String, Data, Data, String) throws -> Bool
+    ) throws -> PreparedApproval {
+        guard validOwnerIdentifier(ownerIdentifier) else {
+            throw CeremonyError.invalidOwnerIdentifier
+        }
+        guard validToken(rootRole), validToken(rootKeyID), validToken(purpose),
+              challenge.count == 32 else { throw CeremonyError.invalidContext }
+        guard expiresAt > now, expiresAt - now <= 300 else { throw CeremonyError.expiredChallenge }
+        let bundleDigest = Data(SHA256.hash(data: canonicalBundle))
+        let expectedBundle = try decodeFingerprint(outOfBandFingerprint)
+        let expectedRoot = try decodeFingerprint(outOfBandRootFingerprint)
+        let keysetDigest = try decodeFingerprint(deviceKeysetDigest)
+        guard try verifyCandidateTrustChain(canonicalBundle, rootRole, rootKeyID, expectedRoot, keysetDigest, purpose) else {
+            throw CeremonyError.invalidCandidateTrustChain
+        }
+        let confirmedBundle = try decodeFingerprint(confirmFingerprint())
+        let confirmedRoot = try decodeFingerprint(confirmRootFingerprint())
+        guard constantTimeEqual(bundleDigest, expectedBundle),
+              constantTimeEqual(bundleDigest, confirmedBundle),
+              constantTimeEqual(expectedRoot, confirmedRoot) else {
+            throw CeremonyError.fingerprintMismatch
+        }
+        let transcript = makeTranscript(
+            ownerIdentifier: ownerIdentifier, bundleDigest: bundleDigest,
+            rootRole: rootRole, rootKeyID: rootKeyID, rootFingerprint: expectedRoot,
+            deviceKeysetDigest: keysetDigest, purpose: purpose,
+            challenge: challenge, expiresAt: expiresAt
+        )
+        return PreparedApproval(
+            bundleFingerprint: formatFingerprint(bundleDigest),
+            rootRole: rootRole,
+            rootKeyID: rootKeyID,
+            rootFingerprint: formatFingerprint(expectedRoot),
+            deviceKeysetDigest: formatFingerprint(keysetDigest),
+            purpose: purpose,
+            challenge: challenge,
+            expiresAt: expiresAt,
+            transcript: transcript
+        )
+    }
+
+    /// Sign a prepared transcript only after the platform reports fresh user authentication.
+    public static func complete(
+        _ prepared: PreparedApproval,
+        requireFreshUserVerification: () throws -> Void,
+        sign: (Data) throws -> Data
+    ) throws -> ApprovalProof {
+        try requireFreshUserVerification()
+        let signature = try sign(prepared.transcript)
+        guard !signature.isEmpty else { throw CeremonyError.invalidContext }
+        return ApprovalProof(
+            bundleFingerprint: prepared.bundleFingerprint,
+            rootRole: prepared.rootRole,
+            rootKeyID: prepared.rootKeyID,
+            rootFingerprint: prepared.rootFingerprint,
+            deviceKeysetDigest: prepared.deviceKeysetDigest,
+            purpose: prepared.purpose,
+            challenge: prepared.challenge,
+            expiresAt: prepared.expiresAt,
+            signature: signature
+        )
+    }
+
+    /// Synchronous wrapper retained for deterministic unit tests and non-UI adapters.
     public static func approve(
         canonicalBundle: Data,
         outOfBandFingerprint: String,
@@ -42,42 +130,26 @@ public enum OwnerFingerprintApprovalCeremony {
         requireFreshUserVerification: () throws -> Void,
         sign: (Data) throws -> Data
     ) throws -> ApprovalProof {
-        guard validOwnerIdentifier(ownerIdentifier) else {
-            throw CeremonyError.invalidOwnerIdentifier
-        }
-        guard validToken(rootRole), validToken(rootKeyID), validToken(purpose),
-              challenge.count == 32 else { throw CeremonyError.invalidContext }
-        guard expiresAt > now, expiresAt - now <= 300 else { throw CeremonyError.expiredChallenge }
-        let bundleDigest = Data(SHA256.hash(data: canonicalBundle))
-        let expectedBundle = try decodeFingerprint(outOfBandFingerprint)
-        let expectedRoot = try decodeFingerprint(outOfBandRootFingerprint)
-        let keysetDigest = try decodeFingerprint(deviceKeysetDigest)
-        // Validate the bundle and resolve its selected root before asking the owner to confirm it.
-        guard try verifyCandidateTrustChain(canonicalBundle, rootRole, rootKeyID, expectedRoot, keysetDigest, purpose) else {
-            throw CeremonyError.invalidCandidateTrustChain
-        }
-        let confirmedBundle = try decodeFingerprint(confirmFingerprint())
-        let confirmedRoot = try decodeFingerprint(confirmRootFingerprint())
-        guard constantTimeEqual(bundleDigest, expectedBundle),
-              constantTimeEqual(bundleDigest, confirmedBundle),
-              constantTimeEqual(expectedRoot, confirmedRoot) else {
-            throw CeremonyError.fingerprintMismatch
-        }
-
-        let transcript = makeTranscript(
-            ownerIdentifier: ownerIdentifier, bundleDigest: bundleDigest,
-            rootRole: rootRole, rootKeyID: rootKeyID, rootFingerprint: expectedRoot,
-            deviceKeysetDigest: keysetDigest, purpose: purpose,
-            challenge: challenge, expiresAt: expiresAt
+        let prepared = try prepare(
+            canonicalBundle: canonicalBundle,
+            outOfBandFingerprint: outOfBandFingerprint,
+            ownerIdentifier: ownerIdentifier,
+            rootRole: rootRole,
+            rootKeyID: rootKeyID,
+            outOfBandRootFingerprint: outOfBandRootFingerprint,
+            deviceKeysetDigest: deviceKeysetDigest,
+            purpose: purpose,
+            challenge: challenge,
+            expiresAt: expiresAt,
+            now: now,
+            confirmFingerprint: confirmFingerprint,
+            confirmRootFingerprint: confirmRootFingerprint,
+            verifyCandidateTrustChain: verifyCandidateTrustChain
         )
-        try requireFreshUserVerification()
-        let signature = try sign(transcript)
-        guard !signature.isEmpty else { throw CeremonyError.invalidContext }
-        return ApprovalProof(
-            bundleFingerprint: formatFingerprint(bundleDigest), rootRole: rootRole,
-            rootKeyID: rootKeyID, rootFingerprint: formatFingerprint(expectedRoot),
-            deviceKeysetDigest: formatFingerprint(keysetDigest), purpose: purpose,
-            challenge: challenge, expiresAt: expiresAt, signature: signature
+        return try complete(
+            prepared,
+            requireFreshUserVerification: requireFreshUserVerification,
+            sign: sign
         )
     }
 
