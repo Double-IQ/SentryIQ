@@ -72,6 +72,8 @@ on:
       - 'tests/integrity_node_event_runner.test.php'
       - 'tests/integrity_node4_monitor.test.php'
       - '.github/workflows/integrity-node-tests.yml'
+      - 'composer.json'
+      - 'composer.lock'
       - 'app/Security/TrustBundleValidator.php'
       - 'tests/trust_bundle_validator.test.php'
   push:
@@ -100,7 +102,10 @@ jobs:
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: curl, openssl, sodium, zip
+          extensions: curl, dom, libxml, mbstring, openssl, sodium, zip
+
+      - name: Install pinned PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Run Integrity Node regression tests
         shell: bash
