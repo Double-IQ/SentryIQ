@@ -347,6 +347,15 @@ class OwnerBootstrapHttpClient(
         return bytes
     }
 
+    fun fetchVerifyAndPersistTarget(
+        path: String,
+        verifiedState: VerifiedBootstrapState,
+        targetStore: VerifiedTargetStore
+    ): String {
+        val bytes = fetchAndVerifyTarget(path, verifiedState)
+        return targetStore.saveVerifiedTarget(path, bytes)
+    }
+
     fun issueChallenge(csrfToken: String): Challenge {
         val json = request("POST", JSONObject().put("action", "challenge"), csrfToken)
         val challenge = json.getString("challenge")
