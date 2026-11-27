@@ -294,7 +294,7 @@ trustBundleReject(
     'High-S ECDSA signature malleability must be rejected.'
 );
 
-$noncharacter = str_replace('"policy_version":"1"', '"policy_version":"\\uFDD0"', $valid);
+$noncharacter = str_replace('"policy_version":"1"', '"policy_version":"\uFDD0"', $valid);
 trustBundleReject(
     fn() => $validator->validate($noncharacter, $trusted, 'owner-test-001', null, null, $now),
     'Unicode noncharacters must be rejected by the I-JSON input gate.'
