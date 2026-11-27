@@ -52,7 +52,8 @@ try {
         || !is_string($runtime['registry_anchor_payload'] ?? null)
         || !is_string($runtime['registry_anchor_signature_base64url'] ?? null)
         || !is_array($runtime['registry_signer_keys'] ?? null)
-        || !is_array($runtime['bundle_signer_keys'] ?? null)) {
+        || !is_array($runtime['bundle_signer_keys'] ?? null)
+        || !is_array($runtime['tuf_metadata'] ?? null)) {
         owner_bootstrap_respond(503, ['error' => 'bootstrap_runtime_invalid']);
     }
 
@@ -76,6 +77,7 @@ try {
         $runtime['registry_anchor_signature_base64url'],
         $runtime['registry_signer_keys'],
         $runtime['bundle_signer_keys'],
+        $runtime['tuf_metadata'],
         is_string($runtime['current_sequence'] ?? null) ? $runtime['current_sequence'] : null,
         is_string($runtime['current_bundle_digest'] ?? null) ? $runtime['current_bundle_digest'] : null,
         $runtime['verify_tuf']
@@ -91,6 +93,7 @@ try {
             'bundle' => owner_bootstrap_b64url($snapshot['canonical_bundle']),
             'registry_anchor_payload' => owner_bootstrap_b64url($snapshot['registry_anchor_payload']),
             'registry_anchor_signature' => owner_bootstrap_b64url($snapshot['registry_anchor_signature']),
+            'tuf_metadata' => array_map('owner_bootstrap_b64url', $snapshot['tuf_metadata']),
             'csrf_token' => sentryiq_csrf_token(),
         ]);
     }
