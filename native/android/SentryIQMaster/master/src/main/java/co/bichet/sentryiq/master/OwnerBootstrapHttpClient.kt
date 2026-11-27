@@ -184,7 +184,7 @@ class OwnerBootstrapHttpClient(
             catch (error: Exception) { throw ClientException("Delegated TUF role order is invalid.", error) }
         }?.let { array -> List(array.length()) { index -> array.getString(index) } } ?: emptyList()
         val delegated = roles.map { role ->
-            if (!role.matches(Regex("^[a-zA-Z0-9._-]{1,128}$"))) throw ClientException("Delegated TUF role name is invalid.")
+            if (!role.matches(Regex("^[a-z0-9._-]{1,128}$"))) throw ClientException("Delegated TUF role name is invalid.")
             snapshot.tufMetadata["delegated/$role.json"]
                 ?: throw ClientException("Delegated TUF metadata is missing.")
         }
