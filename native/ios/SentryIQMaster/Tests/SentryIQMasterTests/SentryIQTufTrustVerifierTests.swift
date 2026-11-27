@@ -47,6 +47,48 @@ final class SentryIQTufTrustVerifierTests: XCTestCase {
         XCTAssertFalse(accepted, "Tampered signed metadata must fail closed through Rust FFI")
     }
 
+    func testValidSignedDelegatedTargetCrossesRustLibraryBoundary() throws {
+        let root = try fixture("root")
+        let accepted = SentryIQTufTrustVerifier.verifyTargetDelegation(
+            initialRoot: root,
+            expectedInitialRootSHA256: Data(SHA256.hash(data: root)),
+            candidateRoots: [],
+            cachedTimestamp: nil,
+            cachedSnapshot: nil,
+            cachedTargets: nil,
+            newTimestamp: try fixture("timestamp"),
+            newSnapshot: try fixture("snapshot"),
+            newTargets: try fixture("targets"),
+            delegatedRoles: ["role1"],
+            delegatedMetadata: [try fixture("role1")],
+            targetPath: "file3.txt",
+            referenceTimeUnixSeconds: 1_800_000_000
+        )
+        XCTAssertTrue(accepted, "Valid delegated metadata must authorize its target through Rust FFI")
+    }
+
+    func testTamperedSignedDelegatedTargetFailsThroughRustLibrary() throws {
+        let root = try fixture("root")
+        var role1 = try fixture("role1")
+        role1[0] ^= 1
+        let accepted = SentryIQTufTrustVerifier.verifyTargetDelegation(
+            initialRoot: root,
+            expectedInitialRootSHA256: Data(SHA256.hash(data: root)),
+            candidateRoots: [],
+            cachedTimestamp: nil,
+            cachedSnapshot: nil,
+            cachedTargets: nil,
+            newTimestamp: try fixture("timestamp"),
+            newSnapshot: try fixture("snapshot"),
+            newTargets: try fixture("targets"),
+            delegatedRoles: ["role1"],
+            delegatedMetadata: [role1],
+            targetPath: "file3.txt",
+            referenceTimeUnixSeconds: 1_800_000_000
+        )
+        XCTAssertFalse(accepted, "Tampered delegated metadata must fail closed through Rust FFI")
+    }
+
     func testInvalidTopLevelMetadataFailsClosedThroughRustLibrary() {
         let accepted = SentryIQTufTrustVerifier.verifyMetadataRefresh(
             initialRoot: Data(),
