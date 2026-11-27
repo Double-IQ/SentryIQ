@@ -5,12 +5,16 @@ on:
     branches: [main]
     paths:
       - 'tests/fixtures/jcs-rfc8785-vectors.json'
+      - 'tests/fixtures/jcs-rfc8785-appendix-b.json'
+      - 'tests/fixtures/registry-anchor-canonicalization.json'
       - 'tests/jcs-candidate/**'
       - '.github/workflows/php-jcs-candidate.yml'
   push:
     branches: [main]
     paths:
       - 'tests/fixtures/jcs-rfc8785-vectors.json'
+      - 'tests/fixtures/jcs-rfc8785-appendix-b.json'
+      - 'tests/fixtures/registry-anchor-canonicalization.json'
       - 'tests/jcs-candidate/**'
       - '.github/workflows/php-jcs-candidate.yml'
 
