@@ -47,6 +47,7 @@ References:
 
 - Packagist reports version 1.0.1 from 2023, no license information for the latest version, one GitHub star, and no dependents.
 - Its older release and unclear licensing are insufficient for a security-critical production dependency.
+- Source review also found the same lossy number formatter pattern (`number_format(..., 7)` and default-precision `sprintf('%e')`) as the PHP 8.1 `mmccook` fork; it cannot serialize all RFC 8785 binary64 Appendix B values.
 
 References:
 - https://packagist.org/packages/root23/php-json-canonicalization
