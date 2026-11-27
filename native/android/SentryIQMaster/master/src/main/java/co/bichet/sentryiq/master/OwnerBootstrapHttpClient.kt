@@ -137,6 +137,53 @@ class OwnerBootstrapHttpClient(
         return snapshot.tufMetadata
     }
 
+    /** Verify downloaded target bytes against signed top-level and delegated TUF metadata. */
+    fun verifyTargetBytes(
+        targetBytes: ByteArray,
+        targetPath: String,
+        snapshot: Snapshot,
+        cachedState: ProtectedTrustStateStore.TrustState?,
+        referenceTimeEpochSeconds: Long = System.currentTimeMillis() / 1000L
+    ): Boolean {
+        val bundle = try { JSONObject(snapshot.canonicalBundle.toString(Charsets.UTF_8)) }
+            catch (error: Exception) { throw ClientException("Canonical trust bundle is invalid JSON.", error) }
+        val tuf = bundle.optJSONObject("sigstore_tuf")
+            ?: throw ClientException("Trust bundle TUF pin is missing.")
+        val rootDigest = decodeHex(tuf.optString("root_digest"))
+        val initialRoot = snapshot.tufMetadata["root.json"]
+            ?: throw ClientException("Initial TUF root metadata is missing.")
+        val candidateRoots = snapshot.tufMetadata.keys
+            .filter { it.matches(Regex("^root/[0-9]+\\\\.json$")) }
+            .sortedBy { it.removePrefix("root/").removeSuffix(".json").toLongOrNull() ?: Long.MAX_VALUE }
+            .map { snapshot.tufMetadata.getValue(it) }
+        val roles = snapshot.tufMetadata["delegated-order.json"]?.let {
+            try { org.json.JSONArray(it.toString(Charsets.UTF_8)) }
+            catch (error: Exception) { throw ClientException("Delegated TUF role order is invalid.", error) }
+        }?.let { array -> List(array.length()) { index -> array.getString(index) } } ?: emptyList()
+        val delegated = roles.map { role ->
+            if (!role.matches(Regex("^[a-zA-Z0-9._-]{1,128}$"))) throw ClientException("Delegated TUF role name is invalid.")
+            snapshot.tufMetadata["delegated/$role.json"]
+                ?: throw ClientException("Delegated TUF metadata is missing.")
+        }
+        val cached = cachedState?.tufMetadata ?: emptyMap()
+        return SentryIQTufTrustVerifier.verifyTargetBytes(
+            initialRoot,
+            rootDigest,
+            candidateRoots,
+            cached["timestamp.json"],
+            cached["snapshot.json"],
+            cached["targets.json"],
+            snapshot.tufMetadata["timestamp.json"] ?: throw ClientException("Timestamp metadata is missing."),
+            snapshot.tufMetadata["snapshot.json"] ?: throw ClientException("Snapshot metadata is missing."),
+            snapshot.tufMetadata["targets.json"] ?: throw ClientException("Targets metadata is missing."),
+            roles,
+            delegated,
+            targetPath,
+            targetBytes,
+            referenceTimeEpochSeconds
+        )
+    }
+
     /** Fetch, verify the separately pinned registry anchor, validate TUF, then persist atomically. */
     fun fetchAndPersistSnapshot(
         store: ProtectedTrustStateStore,
