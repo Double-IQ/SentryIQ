@@ -438,7 +438,8 @@ public final class OwnerBootstrapHTTPClient {
                     try store.save(
                         bundle: preparedState.snapshot.canonicalBundle,
                         anchor: preparedState.anchor,
-                        tufMetadata: preparedState.verifiedTUFMetadata
+                        tufMetadata: preparedState.verifiedTUFMetadata,
+                        bootstrapReceiptID: receipt.receiptID
                     )
                     let trustState = try store.load(anchor: preparedState.anchor)
                     return .success((
