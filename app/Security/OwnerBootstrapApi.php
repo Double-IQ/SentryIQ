@@ -20,7 +20,7 @@ final class OwnerBootstrapApi
     /**
      * @param list<array{kid:string,role:string,alg:string,public_key_pem:string}> $registrySignerKeys
      * @param list<array{kid:string,role:string,alg:string,public_key_pem:string}> $bundleSignerKeys
-     * @param callable(array<string,mixed>):bool $verifyTuf
+     * @param callable(array<string,mixed>,array<string,string>):bool $verifyTuf
      */
     public function __construct(
         private readonly BootstrapChallengeStore $challenges,
