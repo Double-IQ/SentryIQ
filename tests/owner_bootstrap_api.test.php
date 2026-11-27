@@ -64,9 +64,17 @@ try {
         $anchorSignature,
         $registrySigners,
         $trusted,
+        [
+            'root.json' => '{"signed":{"_type":"root"}}',
+            'timestamp.json' => '{"signed":{"_type":"timestamp"}}',
+            'snapshot.json' => '{"signed":{"_type":"snapshot"}}',
+            'targets.json' => '{"signed":{"_type":"targets"}}',
+        ],
         null,
         null,
-        static fn(array $bundle): bool => ($bundle['sigstore_tuf']['root_version'] ?? null) === 1
+        static fn(array $bundle, array $metadata): bool =>
+            ($bundle['sigstore_tuf']['root_version'] ?? null) === 1
+            && isset($metadata['root.json'], $metadata['timestamp.json'], $metadata['snapshot.json'], $metadata['targets.json'])
     );
 
     $snapshot = $api->snapshot($apiNow);
