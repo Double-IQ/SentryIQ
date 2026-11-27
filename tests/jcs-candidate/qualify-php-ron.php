@@ -34,13 +34,14 @@ $invalidInputs = [
     '1e400',
     '{"unterminated":',
 ];
+$acceptedInvalidInputs = [];
 foreach ($invalidInputs as $input) {
     try {
         Ron::canonicalJson($input);
+        $acceptedInvalidInputs[] = bin2hex($input);
     } catch (Throwable) {
-        continue;
+        // Rejection is the expected result for malformed or non-I-JSON input.
     }
-    throw new RuntimeException('php-ron accepted invalid I-JSON input: ' . $input);
 }
 
 $numberFixture = json_decode(
