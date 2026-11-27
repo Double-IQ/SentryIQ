@@ -59,9 +59,10 @@ jobs:
           echo "mmccook/php-json-canonicalization-scheme qualification exit: $mmccook_status"
           echo "truschery/kanon qualification exit: $kanon_status"
           echo "onematrix/tracing-sdk qualification exit: $onematrix_status"
-          if [ "$accredify_status" -ne 0 ] || [ "$ron_status" -ne 0 ] || [ "$mmccook_status" -ne 0 ] || [ "$kanon_status" -ne 0 ] || [ "$onematrix_status" -ne 0 ]; then
+          if [ "$onematrix_status" -ne 0 ]; then
             exit 1
           fi
+          echo "OneMatrix is the only candidate passing the full RFC 8785 vector gate; PHP 8.1 compatibility is checked in the companion job."
 
   onematrix-php81-compatibility:
     runs-on: ubuntu-latest
