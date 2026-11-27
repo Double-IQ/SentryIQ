@@ -73,8 +73,12 @@ object OwnerFingerprintApprovalCeremony {
     fun complete(
         prepared: PreparedApproval,
         requireFreshUserVerification: () -> Unit,
-        sign: (ByteArray) -> ByteArray
+        sign: (ByteArray) -> ByteArray,
+        now: Long = System.currentTimeMillis() / 1000L
     ): ApprovalProof {
+        if (prepared.expiresAt <= now || prepared.expiresAt - now > 300) {
+            throw CeremonyException("Bootstrap challenge expired before owner signing completed.")
+        }
         requireFreshUserVerification()
         val signature = sign(prepared.transcript.copyOf())
         if (signature.isEmpty()) throw CeremonyException("Master signer returned an empty signature.")
@@ -100,7 +104,7 @@ object OwnerFingerprintApprovalCeremony {
             outOfBandRootFingerprint, deviceKeysetDigest, purpose, challenge, expiresAt,
             confirmFingerprint, confirmRootFingerprint, verifyCandidateTrustChain, now
         )
-        return complete(prepared, requireFreshUserVerification, sign)
+        return complete(prepared, requireFreshUserVerification, sign, now)
     }
 
     private fun validOwnerIdentifier(value: String): Boolean =
