@@ -20,7 +20,7 @@ final class SentryIQTufTrustVerifierTests: XCTestCase {
     }
 
     func testDelegatedTargetVerifierRejectsControlCharactersAndOversizedPathsThroughRustLibrary() {
-        for path in ["releases/\\u{0000}app.tar.zst", "releases/\\napp.tar.zst", String(repeating: "a", count: 4097)] {
+        for path in ["releases/\u{0000}app.tar.zst", "releases/\napp.tar.zst", String(repeating: "a", count: 4097)] {
             let accepted = SentryIQTufTrustVerifier.verifyTargetDelegation(
                 initialRoot: Data(),
                 expectedInitialRootSHA256: Data(repeating: 0, count: 32),
