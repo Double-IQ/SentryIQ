@@ -113,13 +113,6 @@ class AndroidKeystoreMasterKeyStore(
     fun completeSigningOperation(operation: SigningOperation): ByteArray =
         derEcdsaToLowSJose(operation.signature.sign())
 
-    /**
-     * Convenience path for environments where Keystore has already authorised
-     * the key use. Interactive apps should use begin/complete with CryptoObject.
-     */
-    fun sign(message: ByteArray): ByteArray =
-        completeSigningOperation(beginSigningOperation(message))
-
     /** P-256 ECDH followed by HKDF-SHA256; raw ECDH output is not returned. */
     fun deriveKey(peerSubjectPublicKeyInfo: ByteArray, salt: ByteArray, info: ByteArray): ByteArray {
         val peer = java.security.KeyFactory.getInstance("EC")
