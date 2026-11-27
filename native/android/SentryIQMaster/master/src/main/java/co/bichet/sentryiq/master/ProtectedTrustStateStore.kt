@@ -208,7 +208,7 @@ class ProtectedTrustStateStore(
                 throw StateException("TUF metadata object name or size is invalid.")
             }
             total += bytes.size
-            if (total > 3 * 1024 * 1024) throw StateException("TUF metadata exceeds the storage limit.")
+            if (total > 2 * 1024 * 1024) throw StateException("TUF metadata exceeds the storage limit.")
         }
     }
 
@@ -302,7 +302,7 @@ class ProtectedTrustStateStore(
                 if (valueLength !in 1..1_048_576 || valueLength > input.available()) throw StateException("Invalid TUF metadata length.")
                 val value = ByteArray(valueLength).also(input::readFully)
                 total += valueLength
-                if (total > 3 * 1024 * 1024 || metadata.put(name, value) != null) {
+                if (total > 2 * 1024 * 1024 || metadata.put(name, value) != null) {
                     throw StateException("TUF metadata is duplicated or exceeds limits.")
                 }
             }
