@@ -6,7 +6,7 @@ import java.security.MessageDigest
 /** Re-checks the selected approval context against the exact bundle already
  * authenticated by the pinned registry anchor and persisted after TUF refresh. */
 class TrustBundleApprovalContextVerifier(
-    private val verified: OwnerBootstrapHttpClient.VerifiedBootstrapState
+    private val verified: OwnerBootstrapHttpClient.PreparedBootstrapState
 ) {
     fun verify(
         canonicalBundle: ByteArray,
