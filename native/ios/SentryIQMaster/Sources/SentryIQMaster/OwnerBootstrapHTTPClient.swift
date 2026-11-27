@@ -150,6 +150,60 @@ public final class OwnerBootstrapHTTPClient {
         return snapshot.tufMetadata
     }
 
+    /// Verify downloaded target bytes against signed top-level and delegated TUF metadata.
+    public static func verifyTargetBytes(
+        _ targetBytes: Data,
+        targetPath: String,
+        snapshot: Snapshot,
+        cachedState: ProtectedTrustState?,
+        referenceTime: UInt64 = UInt64(Date().timeIntervalSince1970)
+    ) throws -> Bool {
+        guard referenceTime <= UInt64(Int64.max),
+              let bundle = try JSONSerialization.jsonObject(with: snapshot.canonicalBundle) as? [String: Any],
+              let tuf = bundle["sigstore_tuf"] as? [String: Any],
+              let rootDigestText = tuf["root_digest"] as? String,
+              let initialRoot = snapshot.tufMetadata["root.json"] else {
+            throw ClientError.invalidResponse
+        }
+        let rootDigest = try decodeHex(rootDigestText)
+        let candidateNames = snapshot.tufMetadata.keys.filter {
+            $0.range(of: "^root/[0-9]+\\.json$", options: .regularExpression) != nil
+        }.sorted {
+            (Int($0.dropFirst(5).dropLast(5)) ?? 0) < (Int($1.dropFirst(5).dropLast(5)) ?? 0)
+        }
+        let candidateRoots = candidateNames.compactMap { snapshot.tufMetadata[$0] }
+        let roles: [String]
+        if let orderBytes = snapshot.tufMetadata["delegated-order.json"] {
+            roles = try JSONDecoder().decode([String].self, from: orderBytes)
+        } else {
+            roles = []
+        }
+        let delegated = try roles.map { role -> Data in
+            guard role.range(of: "^[a-zA-Z0-9._-]{1,128}$", options: .regularExpression) != nil,
+                  let metadata = snapshot.tufMetadata["delegated/\\(role).json"] else {
+                throw ClientError.invalidResponse
+            }
+            return metadata
+        }
+        let cached = cachedState?.tufMetadata ?? [:]
+        return SentryIQTufTrustVerifier.verifyTargetBytes(
+            initialRoot: initialRoot,
+            expectedInitialRootSHA256: rootDigest,
+            candidateRoots: candidateRoots,
+            cachedTimestamp: cached["timestamp.json"],
+            cachedSnapshot: cached["snapshot.json"],
+            cachedTargets: cached["targets.json"],
+            newTimestamp: snapshot.tufMetadata["timestamp.json"]!,
+            newSnapshot: snapshot.tufMetadata["snapshot.json"]!,
+            newTargets: snapshot.tufMetadata["targets.json"]!,
+            delegatedRoles: roles,
+            delegatedMetadata: delegated,
+            targetPath: targetPath,
+            targetBytes: targetBytes,
+            referenceTimeUnixSeconds: Int64(referenceTime)
+        )
+    }
+
     /// Fetch, verify the separately pinned registry anchor, validate TUF, then persist atomically.
     public func fetchAndPersistSnapshot(
         using store: ProtectedTrustStateStore,
