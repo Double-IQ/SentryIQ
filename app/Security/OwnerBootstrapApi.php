@@ -33,6 +33,7 @@ final class OwnerBootstrapApi
         private readonly string $registryAnchorSignatureBase64Url,
         private readonly array $registrySignerKeys,
         private readonly array $bundleSignerKeys,
+        private readonly array $tufMetadata,
         private readonly ?string $currentSequence,
         private readonly ?string $currentBundleDigest,
         private readonly mixed $verifyTuf
@@ -40,6 +41,24 @@ final class OwnerBootstrapApi
         if (!is_callable($verifyTuf) || !preg_match('/^[A-Za-z0-9._:-]{1,256}$/D', $ownerId)) {
             throw new RuntimeException('Bootstrap owner binding or TUF verifier is unavailable.');
         }
+        if (count($this->tufMetadata) < 4 || count($this->tufMetadata) > 64) {
+            throw new RuntimeException('Bootstrap TUF metadata set is incomplete or oversized.');
+        }
+        $totalTufBytes = 0;
+        foreach ($this->tufMetadata as $name => $bytes) {
+            if (!is_string($name) || !preg_match('/^[a-z0-9][a-z0-9._/-]{0,127}$/D', $name)
+                || !is_string($bytes) || $bytes === '' || strlen($bytes) > 1_048_576) {
+                throw new RuntimeException('Bootstrap TUF metadata entry is invalid.');
+            }
+            $totalTufBytes += strlen($bytes);
+            if ($totalTufBytes > 3 * 1024 * 1024) throw new RuntimeException('Bootstrap TUF metadata exceeds its limit.');
+        }
+        foreach (['root.json', 'timestamp.json', 'snapshot.json', 'targets.json'] as $requiredMetadata) {
+            if (!isset($this->tufMetadata[$requiredMetadata])) {
+                throw new RuntimeException('Bootstrap TUF metadata set is missing a required role.');
+            }
+        }
+
         $initial = $this->bundleValidator->validate(
             $this->bundleJson,
             $this->bundleSignerKeys,
@@ -77,7 +96,7 @@ final class OwnerBootstrapApi
             || !hash_equals($validated['digest'], $anchor['bundle_sha256'])
             || !hash_equals($validated['digest'], hash('sha256', $validated['canonical_bundle']))
             || !hash_equals($this->ownerId, $anchor['owner_id'])
-            || !(($this->verifyTuf)($validated['bundle']))) {
+            || !(($this->verifyTuf)($validated['bundle'], $this->tufMetadata))) {
             throw new RuntimeException('Signed registry anchor, trust bundle, and TUF state do not agree.');
         }
 
@@ -89,6 +108,7 @@ final class OwnerBootstrapApi
             'registry_anchor_payload' => $this->registryAnchorPayload,
             'registry_anchor_signature' => $signature,
             'validated_bundle' => $validated['bundle'],
+            'tuf_metadata' => $this->tufMetadata,
             'master_keyset_digest' => $validated['master_keyset_digest'],
             'key_fingerprints' => $validated['key_fingerprints'],
         ];
@@ -174,7 +194,7 @@ final class OwnerBootstrapApi
             foreach ($releaseKeys as $key) {
                 if (($key['kid'] ?? null) === $rootKeyId
                     && ($key['purpose'] ?? null) === 'release-authorisation') {
-                    return (bool)(($this->verifyTuf)($snapshot['validated_bundle']));
+                    return (bool)(($this->verifyTuf)($snapshot['validated_bundle'], $snapshot['tuf_metadata']));
                 }
             }
             return false;
