@@ -40,7 +40,8 @@ internal object TrustRegistryAnchorPolicy {
  */
 class ProtectedTrustStateStore(
     context: Context,
-    private val verifyRegistryAnchor: (RegistryAnchor) -> Boolean
+    private val expectedOwnerId: String,
+    private val trustedSignerKeys: List<RegistryAnchorSignerKey>
 ) {
     data class RegistryAnchor(
         val sequence: ULong,
@@ -150,9 +151,13 @@ class ProtectedTrustStateStore(
         if (anchor.sequence < 1uL || anchor.bundleSha256.size != 32 ||
             anchor.signedPayload.isEmpty() || anchor.signature.isEmpty() ||
             !TrustRegistryAnchorPolicy.isFresh(anchor.issuedAt, anchor.expiresAt, now) ||
-            (anchor.previousBundleSha256 != null && anchor.previousBundleSha256.size != 32) ||
-            !verifyRegistryAnchor(anchor)) {
+            (anchor.previousBundleSha256 != null && anchor.previousBundleSha256.size != 32)) {
             throw StateException("Registry anchor is missing, stale, or invalid.")
+        }
+        try {
+            RegistryAnchorVerifier.verify(anchor, expectedOwnerId, trustedSignerKeys, now)
+        } catch (_: Exception) {
+            throw StateException("Registry anchor signature or independent pin validation failed.")
         }
     }
 
