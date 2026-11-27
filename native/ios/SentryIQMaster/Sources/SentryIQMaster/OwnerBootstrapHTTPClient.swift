@@ -52,6 +52,11 @@ public final class OwnerBootstrapHTTPClient {
         public let trustState: ProtectedTrustState
     }
 
+    public enum BootstrapResult {
+        case approvalRequired(PreparedBootstrapState)
+        case alreadyAccepted(VerifiedBootstrapState)
+    }
+
     public enum ClientError: Error {
         case invalidOrigin
         case invalidResponse
@@ -259,11 +264,34 @@ public final class OwnerBootstrapHTTPClient {
 
     public func fetchAndVerifyTUFState(
         using store: ProtectedTrustStateStore,
-        completion: @escaping (Result<PreparedBootstrapState, Error>) -> Void
+        completion: @escaping (Result<BootstrapResult, Error>) -> Void
     ) {
         fetchAndVerifySnapshot(using: store, verifyTuf: { snapshot, cachedState in
             try Self.verifyTUFRefresh(snapshot: snapshot, cachedState: cachedState)
-        }, completion: completion)
+        }) { result in
+            completion(result.flatMap { prepared in
+                if let cached = prepared.cachedState,
+                   cached.sequence == prepared.anchor.sequence,
+                   cached.bundleSHA256 == prepared.anchor.bundleSHA256,
+                   let receiptID = cached.bootstrapReceiptID {
+                    do {
+                        try store.save(
+                            bundle: prepared.snapshot.canonicalBundle,
+                            anchor: prepared.anchor,
+                            tufMetadata: prepared.verifiedTUFMetadata,
+                            bootstrapReceiptID: receiptID
+                        )
+                        let trustState = try store.load(anchor: prepared.anchor)
+                        return .success(.alreadyAccepted(VerifiedBootstrapState(
+                            snapshot: prepared.snapshot,
+                            anchor: prepared.anchor,
+                            trustState: trustState
+                        )))
+                    } catch { return .failure(error) }
+                }
+                return .success(.approvalRequired(prepared))
+            })
+        }
     }
 
     private static func decodeAnchor(_ snapshot: Snapshot) throws -> TrustRegistryAnchor {
