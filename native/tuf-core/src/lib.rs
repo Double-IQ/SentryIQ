@@ -180,17 +180,26 @@ pub fn verify_tuf_metadata_refresh(
     if let (Some(timestamp), Some(snapshot), Some(targets)) =
         (cached_timestamp, cached_snapshot, cached_targets)
     {
+        // Establish rollback baselines in TUF workflow order: timestamp
+        // before snapshot, and snapshot before any targets metadata.
         if trusted.load_cached_timestamp(&timestamp).is_err()
+            || trusted.update_timestamp(&new_timestamp).is_err()
             || trusted.load_cached_snapshot(&snapshot).is_err()
-            || trusted.update_targets(&targets).is_err()
+            || trusted.update_snapshot(&new_snapshot).is_err()
         {
             return false;
         }
+
+        // Cached targets are advisory only. Validate and load them when they
+        // still match the refreshed snapshot; a stale/corrupt cache is ignored.
+        let _ = trusted.update_targets(&targets);
+    } else if trusted.update_timestamp(&new_timestamp).is_err()
+        || trusted.update_snapshot(&new_snapshot).is_err()
+    {
+        return false;
     }
 
-    trusted.update_timestamp(&new_timestamp).is_ok()
-        && trusted.update_snapshot(&new_snapshot).is_ok()
-        && trusted.update_targets(&new_targets).is_ok()
+    trusted.update_targets(&new_targets).is_ok()
 }
 
 /// Verifies that a target is authorised by the top-level targets role or by a
@@ -321,18 +330,25 @@ pub fn verify_tuf_target_delegation(
     if let (Some(timestamp), Some(snapshot), Some(targets)) =
         (cached_timestamp, cached_snapshot, cached_targets)
     {
+        // Timestamp and snapshot must be advanced before targets are loaded.
         if trusted.load_cached_timestamp(&timestamp).is_err()
+            || trusted.update_timestamp(&new_timestamp).is_err()
             || trusted.load_cached_snapshot(&snapshot).is_err()
-            || trusted.update_targets(&targets).is_err()
+            || trusted.update_snapshot(&new_snapshot).is_err()
         {
             return false;
         }
+
+        // A stale or corrupt cached targets file must not block a fresh
+        // metadata refresh. It is used only when it still matches the snapshot.
+        let _ = trusted.update_targets(&targets);
+    } else if trusted.update_timestamp(&new_timestamp).is_err()
+        || trusted.update_snapshot(&new_snapshot).is_err()
+    {
+        return false;
     }
 
-    if trusted.update_timestamp(&new_timestamp).is_err()
-        || trusted.update_snapshot(&new_snapshot).is_err()
-        || trusted.update_targets(&new_targets).is_err()
-    {
+    if trusted.update_targets(&new_targets).is_err() {
         return false;
     }
 
