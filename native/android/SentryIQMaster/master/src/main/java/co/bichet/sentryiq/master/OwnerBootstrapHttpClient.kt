@@ -218,6 +218,12 @@ class OwnerBootstrapHttpClient(
         return VerifiedBootstrapState(snapshot, store.load(anchor))
     }
 
+    fun fetchAndPersistVerifiedSnapshot(
+        store: ProtectedTrustStateStore
+    ): VerifiedBootstrapState = fetchAndPersistSnapshot(store) { snapshot, cachedState ->
+        verifyTufRefresh(snapshot, cachedState)
+    }
+
     private fun decodeAnchor(snapshot: Snapshot): ProtectedTrustStateStore.RegistryAnchor {
         val json = try { JSONObject(snapshot.registryAnchorPayload.toString(Charsets.UTF_8)) }
         catch (error: Exception) { throw ClientException("Signed registry anchor is invalid JSON.", error) }
