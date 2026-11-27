@@ -1,0 +1,43 @@
+{
+  "format": "RFC 8785 JSON Canonicalization Scheme",
+  "upstream": "https://github.com/cyberphone/json-canonicalization/tree/master/testdata",
+  "license_note": "Test vectors transcribed from the upstream JCS sample testdata; retain upstream attribution.",
+  "vectors": [
+    {
+      "id": "arrays",
+      "source": "RFC 8785 JCS sample vectors (cyberphone/json-canonicalization testdata)",
+      "input": "[\n  56,\n  {\n    \"d\": true,\n    \"10\": null,\n    \"1\": [ ]\n  }\n]\n",
+      "canonical": "[56,{\"1\":[],\"10\":null,\"d\":true}]"
+    },
+    {
+      "id": "french",
+      "source": "RFC 8785 JCS sample vectors (cyberphone/json-canonicalization testdata)",
+      "input": "{\n  \"peach\": \"This sorting order\",\n  \"péché\": \"is wrong according to French\",\n  \"pêche\": \"but canonicalization MUST\",\n  \"sin\":   \"ignore locale\"\n}\n",
+      "canonical": "{\"peach\":\"This sorting order\",\"péché\":\"is wrong according to French\",\"pêche\":\"but canonicalization MUST\",\"sin\":\"ignore locale\"}"
+    },
+    {
+      "id": "structures",
+      "source": "RFC 8785 JCS sample vectors (cyberphone/json-canonicalization testdata)",
+      "input": "{\n  \"1\": {\"f\": {\"f\": \"hi\",\"F\": 5} ,\"\\n\": 56.0},\n  \"10\": { },\n  \"\": \"empty\",\n  \"a\": { },\n  \"111\": [ {\"e\": \"yes\",\"E\": \"no\" } ],\n  \"A\": { }\n}\n",
+      "canonical": "{\"\":\"empty\",\"1\":{\"\\n\":56,\"f\":{\"F\":5,\"f\":\"hi\"}},\"10\":{},\"111\":[{\"E\":\"no\",\"e\":\"yes\"}],\"A\":{},\"a\":{}}"
+    },
+    {
+      "id": "unicode",
+      "source": "RFC 8785 JCS sample vectors (cyberphone/json-canonicalization testdata)",
+      "input": "{\n  \"Unnormalized Unicode\":\"A\\u030a\"\n}\n",
+      "canonical": "{\"Unnormalized Unicode\":\"Å\"}"
+    },
+    {
+      "id": "values",
+      "source": "RFC 8785 JCS sample vectors (cyberphone/json-canonicalization testdata)",
+      "input": "{\n  \"numbers\": [333333333.33333329, 1E30, 4.50, 2e-3, 0.000000000000000000000000001],\n  \"string\": \"\\u20ac$\\u000F\\u000aA'\\u0042\\u0022\\u005c\\\\\\\"\\/\",\n  \"literals\": [null, true, false]\n}\n",
+      "canonical": "{\"literals\":[null,true,false],\"numbers\":[333333333.3333333,1e+30,4.5,0.002,1e-27],\"string\":\"€$\\u000f\\nA'B\\\"\\\\\\\\\\\"/\"}"
+    },
+    {
+      "id": "weird",
+      "source": "RFC 8785 JCS sample vectors (cyberphone/json-canonicalization testdata)",
+      "input": "{\n  \"\\u20ac\": \"Euro Sign\",\n  \"\\r\": \"Carriage Return\",\n  \"\\u000a\": \"Newline\",\n  \"1\": \"One\",\n  \"\\u0080\": \"Control\\u007f\",\n  \"\\ud83d\\ude02\": \"Smiley\",\n  \"\\u00f6\": \"Latin Small Letter O With Diaeresis\",\n  \"\\ufb33\": \"Hebrew Letter Dalet With Dagesh\",\n  \"</script>\": \"Browser Challenge\"\n}\n",
+      "canonical": "{\"\\n\":\"Newline\",\"\\r\":\"Carriage Return\",\"1\":\"One\",\"</script>\":\"Browser Challenge\",\"\":\"Control\",\"ö\":\"Latin Small Letter O With Diaeresis\",\"€\":\"Euro Sign\",\"😂\":\"Smiley\",\"דּ\":\"Hebrew Letter Dalet With Dagesh\"}"
+    }
+  ]
+}
