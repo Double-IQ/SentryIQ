@@ -44,6 +44,7 @@ public struct ProtectedTrustState {
     public let bundleSHA256: Data
     public let bundle: Data
     public let tufMetadata: [String: Data]
+    public let bootstrapReceiptID: String?
 }
 
 /**
@@ -68,6 +69,7 @@ public final class ProtectedTrustStateStore {
         let bundleSHA256: Data
         let bundle: Data
         let tufMetadata: [String: Data]?
+        let bootstrapReceiptID: String?
     }
 
     private static let processLock = NSRecursiveLock()
@@ -104,7 +106,8 @@ public final class ProtectedTrustStateStore {
             sequence: archive.sequence,
             bundleSHA256: archive.bundleSHA256,
             bundle: archive.bundle,
-            tufMetadata: archive.tufMetadata ?? [:]
+            tufMetadata: archive.tufMetadata ?? [:],
+            bootstrapReceiptID: archive.bootstrapReceiptID
         )
     }
 
@@ -146,6 +149,7 @@ public final class ProtectedTrustStateStore {
         bundle: Data,
         anchor: TrustRegistryAnchor,
         tufMetadata: [String: Data] = [:],
+        bootstrapReceiptID: String? = nil,
         now: UInt64 = UInt64(Date().timeIntervalSince1970)
     ) throws {
         Self.processLock.lock()
@@ -154,6 +158,9 @@ public final class ProtectedTrustStateStore {
         let digest = Data(SHA256.hash(data: bundle))
         guard digest == anchor.bundleSHA256 else { throw StoreError.digestMismatch }
         try validateTUFMetadata(tufMetadata)
+        if let bootstrapReceiptID, bootstrapReceiptID.range(of: "^[a-f0-9]{32}$", options: .regularExpression) == nil {
+            throw StoreError.corruptState
+        }
 
         if let currentData = try readItem() {
             guard let current = try? JSONDecoder().decode(Archive.self, from: currentData) else {
@@ -181,7 +188,8 @@ public final class ProtectedTrustStateStore {
             sequence: anchor.sequence,
             bundleSHA256: digest,
             bundle: bundle,
-            tufMetadata: tufMetadata
+            tufMetadata: tufMetadata,
+            bootstrapReceiptID: bootstrapReceiptID
         )
         let encoded = try JSONEncoder().encode(archive)
         try writeItem(encoded)
@@ -194,6 +202,7 @@ public final class ProtectedTrustStateStore {
               committed.bundleSHA256 == archive.bundleSHA256,
               committed.bundle == archive.bundle,
               (committed.tufMetadata ?? [:]) == tufMetadata,
+              committed.bootstrapReceiptID == bootstrapReceiptID,
               Data(SHA256.hash(data: committed.bundle)) == anchor.bundleSHA256 else {
             throw StoreError.corruptState
         }
