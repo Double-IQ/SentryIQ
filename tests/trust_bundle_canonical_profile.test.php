@@ -27,7 +27,7 @@ $rejectCanonical = static function (mixed $value, string $reason) use ($method, 
 };
 
 $assertCanonical(
-    (object)['z' => 1, 'a' => ['true' => true, 'n' => null], 'slash' => 'a/b'],
+    (object)['z' => 1, 'a' => (object)['true' => true, 'n' => null], 'slash' => 'a/b'],
     '{"a":{"n":null,"true":true},"slash":"a/b","z":1}'
 );
 $rejectCanonical(
