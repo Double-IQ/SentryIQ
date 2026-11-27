@@ -66,6 +66,22 @@ class RegistryAnchorVerifierTest {
         )
     }
 
+
+    @Test fun matchesSharedRegistryAnchorCanonicalizationFixture() {
+        val fixtureFile = java.io.File("../../../../tests/fixtures/registry-anchor-canonicalization.json")
+        check(fixtureFile.isFile) { "Shared registry-anchor fixture not found: ${fixtureFile.absolutePath}" }
+        val fixture = org.json.JSONObject(fixtureFile.readText(Charsets.UTF_8))
+        val expectedCanonical = fixture.getString("canonical")
+        val expectedDigest = fixture.getString("sha256")
+
+        val actualCanonical = payload().toString(Charsets.UTF_8)
+        assertEquals(expectedCanonical, actualCanonical)
+        val actualDigest = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(actualCanonical.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        assertEquals(expectedDigest, actualDigest)
+    }
+
     @Test fun verifiesSignatureFromIndependentlyPinnedRegistrySigner() {
         val pair = keyPair()
         val anchor = signedAnchor(pair)
