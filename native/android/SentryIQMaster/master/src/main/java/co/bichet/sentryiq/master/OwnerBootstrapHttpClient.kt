@@ -106,7 +106,7 @@ class OwnerBootstrapHttpClient(
     /** Fetch, verify the separately pinned registry anchor, validate TUF, then persist atomically. */
     fun fetchAndPersistSnapshot(
         store: ProtectedTrustStateStore,
-        verifyTuf: (Snapshot) -> Map<String, ByteArray>
+        verifyTuf: (Snapshot, ProtectedTrustStateStore.TrustState?) -> Map<String, ByteArray>
     ): ProtectedTrustStateStore.TrustState {
         val snapshot = fetchSnapshot()
         val anchor = decodeAnchor(snapshot)
@@ -116,7 +116,8 @@ class OwnerBootstrapHttpClient(
             digestHex != snapshot.bundleSha256 || anchor.sequence.toString() != snapshot.sequence) {
             throw ClientException("Canonical bundle, sequence, and signed registry anchor do not agree.")
         }
-        val verifiedMetadata = verifyTuf(snapshot)
+        val cachedState = store.loadPreviousState(anchor)
+        val verifiedMetadata = verifyTuf(snapshot, cachedState)
         if (verifiedMetadata.keys != snapshot.tufMetadata.keys ||
             verifiedMetadata.any { (name, bytes) -> snapshot.tufMetadata[name]?.let { MessageDigest.isEqual(bytes, it) } != true }) {
             throw ClientException("TUF verifier returned metadata different from the downloaded snapshot.")
