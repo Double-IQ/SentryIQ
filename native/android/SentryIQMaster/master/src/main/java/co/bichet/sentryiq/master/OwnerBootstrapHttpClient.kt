@@ -32,6 +32,7 @@ class OwnerBootstrapHttpClient(
 
     data class Challenge(
         val value: String,
+        val bytes: ByteArray,
         val purpose: String,
         val bundleSha256: String,
         val expiresAt: Long
@@ -246,6 +247,32 @@ class OwnerBootstrapHttpClient(
         )
     }
 
+    fun submitApprovalAndPersist(
+        proof: OwnerFingerprintApprovalCeremony.ApprovalProof,
+        challenge: Challenge,
+        csrfToken: String,
+        preparedState: PreparedBootstrapState,
+        store: ProtectedTrustStateStore
+    ): Pair<Receipt, VerifiedBootstrapState> {
+        if (!MessageDigest.isEqual(proof.challenge, challenge.bytes) ||
+            proof.bundleFingerprint != challenge.bundleSha256 ||
+            proof.purpose != challenge.purpose ||
+            proof.expiresAt.toLong() != challenge.expiresAt) {
+            throw ClientException("Owner approval proof is not bound to the issued challenge.")
+        }
+        val transportProof = ApprovalProof(
+            challenge.value,
+            proof.bundleFingerprint,
+            proof.rootRole,
+            proof.rootKeyId,
+            proof.rootFingerprint,
+            proof.deviceKeysetDigest,
+            proof.purpose,
+            proof.signature
+        )
+        return submitApprovalAndPersist(transportProof, csrfToken, preparedState, store)
+    }
+
     private fun decodeAnchor(snapshot: Snapshot): ProtectedTrustStateStore.RegistryAnchor {
         val json = try { JSONObject(snapshot.registryAnchorPayload.toString(Charsets.UTF_8)) }
         catch (error: Exception) { throw ClientException("Signed registry anchor is invalid JSON.", error) }
@@ -331,6 +358,7 @@ class OwnerBootstrapHttpClient(
         if (purpose != "bootstrap-release-root") throw ClientException("Bootstrap challenge purpose is invalid.")
         return Challenge(
             challenge,
+            decodeBase64Url(challenge),
             purpose,
             json.getString("bundle_sha256"),
             json.getLong("expires_at")
