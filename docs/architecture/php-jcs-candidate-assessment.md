@@ -14,6 +14,8 @@ No production JCS dependency is selected. The repository's trust-bundle regressi
 
 The pinned candidate's source is available at [JsonCanonicalizator.php](https://github.com/mmccook/php-json-canonicalization-scheme/blob/cd6d3e7645a2c1e62574a9a2437d68e9e74e799f/src/JsonCanonicalizator.php) and [Utils.php](https://github.com/mmccook/php-json-canonicalization-scheme/blob/cd6d3e7645a2c1e62574a9a2437d68e9e74e799f/src/Utils.php). The qualification harness is retained as a reproducible diagnostic, not as evidence of acceptance.
 
+- `root23/php-json-canonicalization` 1.0.1: declares PHP `>=8.0`, but is not a viable PHP 8.1 candidate. Its pinned source uses the same lossy `number_format($number, 7, '.', '')` decimal path and default-precision `sprintf('%e', ...)` exponent path, so it cannot satisfy the Appendix B binary64 vectors. The repository has no declared licence and its last source push was in 2023; exclude it rather than treating its broad PHP requirement as evidence of conformance. Source reviewed: [JsonCanonicalizer.php](https://github.com/root23/php-json-canonicalization/blob/main/src/JsonCanonicalizer.php), [Converter.php](https://github.com/root23/php-json-canonicalization/blob/main/src/Converter.php), and [composer.json](https://github.com/root23/php-json-canonicalization/blob/main/composer.json).
+
 ## Next gate
 
 The PHP JCS candidate workflow must complete and record the third candidate's result. If it fails as source review predicts, keep the production gate blocked and evaluate either a separately approved PHP baseline change or a maintained PHP 8.1-compatible implementation with complete RFC 8785 and strict-input evidence. Do not select a candidate from Composer metadata or package claims alone.
