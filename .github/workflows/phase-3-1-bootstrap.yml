@@ -15,6 +15,7 @@ on:
       - 'tests/registry_anchor_verifier.test.php'
       - 'tests/trust_bundle_validator.test.php'
       - 'tests/trust_bundle_canonical_profile.test.php'
+      - 'tests/owner_bootstrap_api.test.php'
       - 'tests/fixtures/registry-anchor-canonicalization.json'
       - 'tests/fixtures/jcs-rfc8785-vectors.json'
       - 'tests/fixtures/jcs-rfc8785-appendix-b.json'
@@ -33,6 +34,7 @@ on:
       - 'tests/registry_anchor_verifier.test.php'
       - 'tests/trust_bundle_validator.test.php'
       - 'tests/trust_bundle_canonical_profile.test.php'
+      - 'tests/owner_bootstrap_api.test.php'
       - 'tests/fixtures/registry-anchor-canonicalization.json'
       - 'tests/fixtures/jcs-rfc8785-vectors.json'
       - 'tests/fixtures/jcs-rfc8785-appendix-b.json'
@@ -78,3 +80,4 @@ jobs:
           php tests/registry_anchor_verifier.test.php
           php tests/trust_bundle_validator.test.php
           php tests/trust_bundle_canonical_profile.test.php
+          php tests/owner_bootstrap_api.test.php
