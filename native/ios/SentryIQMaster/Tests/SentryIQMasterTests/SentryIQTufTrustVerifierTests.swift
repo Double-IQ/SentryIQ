@@ -4,9 +4,9 @@ import XCTest
 @testable import SentryIQMaster
 
 final class SentryIQTufTrustVerifierTests: XCTestCase {
-    private func fixture(_ name: String) throws -> Data {
+    private func fixture(_ name: String, fileExtension: String = "json") throws -> Data {
         let url = try XCTUnwrap(
-            Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures")
+            Bundle.module.url(forResource: name, withExtension: fileExtension, subdirectory: "Fixtures")
         )
         return try Data(contentsOf: url)
     }
@@ -127,7 +127,7 @@ final class SentryIQTufTrustVerifierTests: XCTestCase {
             delegatedRoles: ["role1"],
             delegatedMetadata: [try fixture("role1")],
             targetPath: "file3.txt",
-            targetBytes: try fixture("file3"),
+            targetBytes: try fixture("file3", fileExtension: "txt"),
             referenceTimeUnixSeconds: 1_800_000_000
         )
         XCTAssertTrue(accepted, "Target bytes matching signed length and hash must verify")
@@ -135,7 +135,7 @@ final class SentryIQTufTrustVerifierTests: XCTestCase {
 
     func testTamperedDownloadedTargetBytesFailThroughRustLibrary() throws {
         let root = try fixture("root")
-        var target = try fixture("file3")
+        var target = try fixture("file3", fileExtension: "txt")
         target[0] ^= 1
         let accepted = SentryIQTufTrustVerifier.verifyTargetBytes(
             initialRoot: root,
