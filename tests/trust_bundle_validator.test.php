@@ -156,6 +156,8 @@ $valid = $makeBundle();
 $result = $validator->validate($valid, $trusted, 'owner-test-001', null, null, $now);
 trustBundleAssert($result['sequence'] === '1', 'Valid bootstrap bundle should retain its sequence.');
 trustBundleAssert(strlen($result['digest']) === 64, 'Validated bundle should expose its canonical SHA-256 digest.');
+trustBundleAssert(preg_match('/^[a-f0-9]{64}$/D', $result['master_keyset_digest'] ?? '') === 1,
+    'Validated bundle should expose the cross-platform master keyset digest.');
 trustBundleAssert($result['signer_kids'] === ['release-root-1'], 'Validated bundle should report its independently pinned signer.');
 $releaseSpkiBody = preg_replace('/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\\s+/', '', $releasePem);
 $releaseSpkiDer = is_string($releaseSpkiBody) ? base64_decode($releaseSpkiBody, true) : false;
