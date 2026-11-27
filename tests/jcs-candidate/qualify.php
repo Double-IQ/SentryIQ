@@ -61,4 +61,20 @@ foreach ($numberFixture->vectors as $vector) {
     }
 }
 
+$anchorFixture = json_decode(
+    (string) file_get_contents(dirname(__DIR__) . '/fixtures/registry-anchor-canonicalization.json'),
+    false,
+    8,
+    JSON_THROW_ON_ERROR
+);
+if (!$anchorFixture instanceof stdClass || !is_string($anchorFixture->input ?? null)
+    || !is_string($anchorFixture->canonical ?? null) || !is_string($anchorFixture->sha256 ?? null)) {
+    throw new RuntimeException('Malformed shared registry-anchor canonicalization fixture.');
+}
+$anchorCanonical = $jcs->canonicalize($anchorFixture->input);
+if (!hash_equals($anchorFixture->canonical, $anchorCanonical)
+    || !hash_equals($anchorFixture->sha256, hash('sha256', $anchorCanonical))) {
+    throw new RuntimeException('Candidate canonical bytes or digest diverged from the native registry-anchor fixture.');
+}
+
 echo "Candidate JCS passed six RFC 8785 vectors, 24 Appendix B numbers, and four strict-input rejection cases.\n";
