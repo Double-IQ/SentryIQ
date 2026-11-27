@@ -244,6 +244,15 @@ public final class OwnerBootstrapHTTPClient {
         }
     }
 
+    public func fetchAndPersistVerifiedSnapshot(
+        using store: ProtectedTrustStateStore,
+        completion: @escaping (Result<VerifiedBootstrapState, Error>) -> Void
+    ) {
+        fetchAndPersistSnapshot(using: store, verifyTuf: { snapshot, cachedState in
+            try Self.verifyTUFRefresh(snapshot: snapshot, cachedState: cachedState)
+        }, completion: completion)
+    }
+
     private static func decodeAnchor(_ snapshot: Snapshot) throws -> TrustRegistryAnchor {
         guard let object = try JSONSerialization.jsonObject(with: snapshot.registryAnchorPayload) as? [String: Any],
               let sequenceText = object["sequence"] as? String,
