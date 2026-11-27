@@ -56,7 +56,8 @@ class OwnerFingerprintApprovalCeremonyTest {
         val proof = OwnerFingerprintApprovalCeremony.complete(
             prepared,
             requireFreshUserVerification = { authenticated = true },
-            sign = { signedTranscript = it; byteArrayOf(0x01) }
+            sign = { signedTranscript = it; byteArrayOf(0x01) },
+            now = now
         )
         assertTrue(authenticated)
         assertArrayEquals(prepared.transcript, signedTranscript)
