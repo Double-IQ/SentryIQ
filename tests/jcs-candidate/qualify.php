@@ -39,4 +39,26 @@ foreach ($invalidInputs as $input) {
     throw new RuntimeException('Candidate accepted invalid I-JSON input: ' . $input);
 }
 
-echo "Candidate JCS passed six RFC 8785 vectors and four strict-input rejection cases.\n";
+$numberFixture = json_decode(
+    (string) file_get_contents(dirname(__DIR__) . '/fixtures/jcs-rfc8785-appendix-b.json'),
+    false,
+    16,
+    JSON_THROW_ON_ERROR
+);
+if (!$numberFixture instanceof stdClass || !is_array($numberFixture->vectors ?? null) || count($numberFixture->vectors) !== 24) {
+    throw new RuntimeException('RFC 8785 Appendix B fixture must contain 24 finite number vectors.');
+}
+foreach ($numberFixture->vectors as $vector) {
+    $bytes = hex2bin($vector->ieee754);
+    if (!is_string($bytes) || strlen($bytes) !== 8) {
+        throw new RuntimeException('Malformed Appendix B IEEE-754 value.');
+    }
+    $float = unpack('E', $bytes)[1];
+    $input = json_encode($float, JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR);
+    $actual = $jcs->canonicalize($input);
+    if (!hash_equals($vector->canonical, $actual)) {
+        throw new RuntimeException('Candidate JCS Appendix B number failed: ' . $vector->ieee754);
+    }
+}
+
+echo "Candidate JCS passed six RFC 8785 vectors, 24 Appendix B numbers, and four strict-input rejection cases.\n";
