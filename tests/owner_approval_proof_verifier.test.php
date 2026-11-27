@@ -25,6 +25,48 @@ function ownerApprovalField(string $value): string
 {
     return pack('N', strlen($value)) . $value;
 }
+function ownerApprovalDerToRawLowS(string $der): string
+{
+    $offset = 0;
+    if (ord($der[$offset++]) !== 0x30) throw new RuntimeException('Invalid ECDSA sequence.');
+    $sequenceLength = ord($der[$offset++]);
+    if ($sequenceLength !== strlen($der) - $offset || ord($der[$offset++]) !== 0x02) {
+        throw new RuntimeException('Invalid ECDSA sequence length or R integer.');
+    }
+    $rLength = ord($der[$offset++]);
+    $r = str_pad(ltrim(substr($der, $offset, $rLength), "\\0"), 32, "\\0", STR_PAD_LEFT);
+    $offset += $rLength;
+    if (ord($der[$offset++]) !== 0x02) throw new RuntimeException('Invalid ECDSA S integer.');
+    $sLength = ord($der[$offset++]);
+    $s = str_pad(ltrim(substr($der, $offset, $sLength), "\\0"), 32, "\\0", STR_PAD_LEFT);
+    $half = hex2bin('7fffffff800000007fffffffffffffffde737d56d38bcf4279dce5617e3192a8');
+    if (strcmp($s, $half) > 0) {
+        $order = array_values(unpack('C*', hex2bin('ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551')));
+        $bytes = array_values(unpack('C*', $s));
+        $borrow = 0;
+        for ($i = 31; $i >= 0; $i--) {
+            $value = $order[$i] - $bytes[$i] - $borrow;
+            $borrow = $value < 0 ? 1 : 0;
+            $bytes[$i] = $value < 0 ? $value + 256 : $value;
+        }
+        $s = pack('C*', ...$bytes);
+    }
+    return $r . $s;
+}
+
+function ownerApprovalHighS(string $raw): string
+{
+    $order = array_values(unpack('C*', hex2bin('ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551')));
+    $bytes = array_values(unpack('C*', substr($raw, 32, 32)));
+    $borrow = 0;
+    for ($i = 31; $i >= 0; $i--) {
+        $value = $order[$i] - $bytes[$i] - $borrow;
+        $borrow = $value < 0 ? 1 : 0;
+        $bytes[$i] = $value < 0 ? $value + 256 : $value;
+    }
+    return substr($raw, 0, 32) . pack('C*', ...$bytes);
+}
+
 function ownerApprovalTranscript(
     string $owner,
     string $bundleDigest,
@@ -120,7 +162,8 @@ $transcript = ownerApprovalTranscript(
     $owner, $digest, $rootRole, $rootKeyId, $rootFingerprint, $keysetDigest,
     $purpose, $challengeBytes, $expiry
 );
-if (!openssl_sign($transcript, $signature, $private, OPENSSL_ALGO_SHA256)) throw new RuntimeException('Unable to sign V2 approval transcript.');
+if (!openssl_sign($transcript, $signatureDer, $private, OPENSSL_ALGO_SHA256)) throw new RuntimeException('Unable to sign V2 approval transcript.');
+$signature = ownerApprovalDerToRawLowS($signatureDer);
 $receipt = $verifier->verifyAndRecord(
     $challenge, $owner, $canonicalBundle, $digest, $rootRole, $rootKeyId,
     $rootFingerprint, $keysetDigest, $purpose, ownerApprovalB64($signature), $now
@@ -138,6 +181,7 @@ $stored = json_decode((string)file_get_contents($receiptFile), true);
 ownerApprovalAssert(count($stored['receipts'] ?? []) === 1, 'A successful proof must create exactly one durable receipt.');
 ownerApprovalAssert(($stored['receipts'][0]['challenge'] ?? null) === $challenge, 'Receipt must retain the exact consumed challenge.');
 ownerApprovalAssert(($stored['receipts'][0]['signature'] ?? null) === ownerApprovalB64($signature), 'Receipt must retain the verifiable owner signature.');
+ownerApprovalAssert(($stored['receipts'][0]['signature_encoding'] ?? null) === 'ecdsa-jose-raw-low-s-base64url', 'Receipt must identify canonical native JOSE signature encoding.');
 ownerApprovalAssert(((fileperms($receiptFile) ?: 0) & 0777) === 0600, 'Receipt file must be owner-only.');
 ownerApprovalReject(fn() => $verifier->verifyAndRecord(
     $challenge, $owner, $canonicalBundle, $digest, $rootRole, $rootKeyId,
@@ -145,7 +189,8 @@ ownerApprovalReject(fn() => $verifier->verifyAndRecord(
 ), 'A proof challenge must not be replayable.');
 
 $bad = $challenges->issue($owner, $digest, $now, 300);
-if (!openssl_sign($transcript . 'tampered', $badSignature, $private, OPENSSL_ALGO_SHA256)) throw new RuntimeException('Unable to create negative signature fixture.');
+if (!openssl_sign($transcript . 'tampered', $badSignatureDer, $private, OPENSSL_ALGO_SHA256)) throw new RuntimeException('Unable to create negative signature fixture.');
+$badSignature = ownerApprovalDerToRawLowS($badSignatureDer);
 ownerApprovalReject(fn() => $verifier->verifyAndRecord(
     $bad, $owner, $canonicalBundle, $digest, $rootRole, $rootKeyId,
     $rootFingerprint, $keysetDigest, $purpose, ownerApprovalB64($badSignature), $now
@@ -208,7 +253,8 @@ $ledgerTranscript = ownerApprovalTranscript(
     $owner, $digest, $rootRole, $rootKeyId, $rootFingerprint, $keysetDigest,
     $purpose, $ledgerChallengeBytes, $expiry
 );
-if (!openssl_sign($ledgerTranscript, $ledgerSignature, $private, OPENSSL_ALGO_SHA256)) throw new RuntimeException('Unable to sign receipt-corruption fixture.');
+if (!openssl_sign($ledgerTranscript, $ledgerSignatureDer, $private, OPENSSL_ALGO_SHA256)) throw new RuntimeException('Unable to sign receipt-corruption fixture.');
+$ledgerSignature = ownerApprovalDerToRawLowS($ledgerSignatureDer);
 ownerApprovalReject(fn() => $verifier->verifyAndRecord(
     $ledgerChallenge, $owner, $canonicalBundle, $digest, $rootRole, $rootKeyId,
     $rootFingerprint, $keysetDigest, $purpose, ownerApprovalB64($ledgerSignature), $now
