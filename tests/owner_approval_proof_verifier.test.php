@@ -188,6 +188,14 @@ ownerApprovalReject(fn() => $verifier->verifyAndRecord(
     $rootFingerprint, $keysetDigest, $purpose, ownerApprovalB64($signature), $now
 ), 'A proof challenge must not be replayable.');
 
+$highSChallenge = $challenges->issue($owner, $digest, $now, 300);
+$highSSignature = ownerApprovalHighS($signature);
+ownerApprovalReject(fn() => $verifier->verifyAndRecord(
+    $highSChallenge, $owner, $canonicalBundle, $digest, $rootRole, $rootKeyId,
+    $rootFingerprint, $keysetDigest, $purpose, ownerApprovalB64($highSSignature), $now
+), 'High-S JOSE signatures must be rejected as non-canonical.');
+ownerApprovalReject(fn() => $challenges->consume($highSChallenge, $owner, $digest, $now), 'A high-S signature attempt must burn its challenge.');
+
 $bad = $challenges->issue($owner, $digest, $now, 300);
 if (!openssl_sign($transcript . 'tampered', $badSignatureDer, $private, OPENSSL_ALGO_SHA256)) throw new RuntimeException('Unable to create negative signature fixture.');
 $badSignature = ownerApprovalDerToRawLowS($badSignatureDer);
