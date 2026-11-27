@@ -50,9 +50,15 @@ public final class OwnerFingerprintApprovalPresenter {
         purpose: String,
         challenge: Data,
         expiresAt: UInt64,
-        verifyCandidateTrustChain: @escaping (Data, String, String, Data, Data, String) throws -> Bool,
+        verifiedState: OwnerBootstrapHTTPClient.VerifiedBootstrapState,
         completion: @escaping (Result<OwnerFingerprintApprovalCeremony.ApprovalProof, Error>) -> Void
     ) {
+        guard ownerIdentifier == verifiedState.snapshot.ownerID,
+              canonicalBundle == verifiedState.snapshot.canonicalBundle else {
+            completion(.failure(OwnerFingerprintApprovalCeremony.CeremonyError.invalidCandidateTrustChain))
+            return
+        }
+        let contextVerifier = TrustBundleApprovalContextVerifier(verifiedState: verifiedState)
         let bundleFingerprint = SHA256.hash(data: canonicalBundle)
             .map { String(format: "%02x", $0) }.joined()
         let message = [
@@ -110,7 +116,16 @@ public final class OwnerFingerprintApprovalPresenter {
                     expiresAt: expiresAt,
                     confirmFingerprint: { enteredBundle },
                     confirmRootFingerprint: { enteredRoot },
-                    verifyCandidateTrustChain: verifyCandidateTrustChain
+                    verifyCandidateTrustChain: { bundle, role, keyID, root, keyset, purpose in
+                        contextVerifier.verify(
+                            canonicalBundle: bundle,
+                            rootRole: role,
+                            rootKeyID: keyID,
+                            rootFingerprint: root,
+                            deviceKeysetDigest: keyset,
+                            purpose: purpose
+                        )
+                    }
                 )
                 let context = LAContext()
                 context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Approve this exact SentryIQ trust root") { success, error in
