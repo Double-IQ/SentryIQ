@@ -165,9 +165,9 @@ foreach ([
     [$decodedKeysetBundle->master_keyset->signing->kid, $decodedKeysetBundle->master_keyset->signing->alg, $decodedKeysetBundle->master_keyset->signing->public_key_pem],
     [$decodedKeysetBundle->master_keyset->key_agreement->kid, $decodedKeysetBundle->master_keyset->key_agreement->alg, $decodedKeysetBundle->master_keyset->key_agreement->public_key_pem],
 ] as [$kid, $alg, $pem]) {
-    $key = openssl_pkey_get_public($pem);
-    $details = openssl_pkey_get_details($key);
-    openssl_pkey_free($key);
+    $digestPublicKey = openssl_pkey_get_public($pem);
+    $details = openssl_pkey_get_details($digestPublicKey);
+    openssl_pkey_free($digestPublicKey);
     $raw = str_pad($details['ec']['x'], 32, "\0", STR_PAD_LEFT) . str_pad($details['ec']['y'], 32, "\0", STR_PAD_LEFT);
     $keysetFields[] = $kid;
     $keysetFields[] = $alg;
