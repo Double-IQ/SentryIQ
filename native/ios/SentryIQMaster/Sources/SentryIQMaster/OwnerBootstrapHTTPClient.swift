@@ -205,7 +205,7 @@ public final class OwnerBootstrapHTTPClient {
             roles = []
         }
         let delegated = try roles.map { role -> Data in
-            guard role.range(of: "^[a-zA-Z0-9._-]{1,128}$", options: .regularExpression) != nil,
+            guard role.range(of: "^[a-z0-9._-]{1,128}$", options: .regularExpression) != nil,
                   let metadata = snapshot.tufMetadata["delegated/\\(role).json"] else {
                 throw ClientError.invalidResponse
             }
