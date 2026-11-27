@@ -30,6 +30,8 @@ jobs:
           extensions: mbstring
           coverage: none
       - name: Resolve pinned candidate package
-        run: composer update --working-dir=tests/jcs-candidate --no-interaction --prefer-dist
+        run: composer update --working-dir=tests/jcs-candidate --no-interaction --prefer-dist --no-scripts
       - name: Run RFC 8785 vectors and strict-input tests
-        run: php tests/jcs-candidate/qualify.php
+        run: |
+          php tests/jcs-candidate/qualify.php
+          php tests/jcs-candidate/qualify-php-ron.php
