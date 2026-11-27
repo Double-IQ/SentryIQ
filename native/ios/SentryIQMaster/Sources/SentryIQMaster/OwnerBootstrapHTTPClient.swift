@@ -295,6 +295,35 @@ public final class OwnerBootstrapHTTPClient {
         return bytes
     }
 
+    public func fetchTarget(
+        path: String,
+        completion: @escaping (Result<Data, Error>) -> Void
+    ) {
+        guard path.range(of: "^[A-Za-z0-9._/-]{1,512}$", options: .regularExpression) != nil,
+              !path.contains("//"),
+              !path.split(separator: "/", omittingEmptySubsequences: false).contains(where: { $0 == "." || $0 == ".." }),
+              var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
+            completion(.failure(ClientError.invalidResponse)); return
+        }
+        components.queryItems = [URLQueryItem(name: "target", value: path)]
+        guard let url = components.url else { completion(.failure(ClientError.invalidResponse)); return }
+        request(url: url, method: "GET", body: nil, csrfToken: nil, maxResponseBytes: 22_400_000) { result in
+            completion(result.flatMap { object in
+                do {
+                    guard try Self.string(object, "protocol") == "SENTRYIQ-OWNER-BOOTSTRAP-API-V1",
+                          try Self.string(object, "target_path") == path else {
+                        throw ClientError.invalidResponse
+                    }
+                    let target = try Self.decodeBase64URL(Self.string(object, "target"))
+                    guard !target.isEmpty, target.count <= 16 * 1024 * 1024 else {
+                        throw ClientError.invalidResponse
+                    }
+                    return .success(target)
+                } catch { return .failure(error) }
+            })
+        }
+    }
+
     public func issueChallenge(
         csrfToken: String,
         completion: @escaping (Result<Challenge, Error>) -> Void
@@ -349,12 +378,14 @@ public final class OwnerBootstrapHTTPClient {
     }
 
     private func request(
+        url: URL? = nil,
         method: String,
         body: [String: Any]?,
         csrfToken: String?,
+        maxResponseBytes: Int = 4_200_000,
         completion: @escaping (Result<[String: Any], Error>) -> Void
     ) {
-        var request = URLRequest(url: endpoint)
+        var request = URLRequest(url: url ?? endpoint)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let body {
@@ -377,7 +408,7 @@ public final class OwnerBootstrapHTTPClient {
             guard response.statusCode == 200 else {
                 completion(.failure(ClientError.httpStatus(response.statusCode))); return
             }
-            guard let data, data.count <= 4_200_000,
+            guard let data, data.count <= maxResponseBytes,
                   let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 completion(.failure(ClientError.invalidResponse)); return
             }
