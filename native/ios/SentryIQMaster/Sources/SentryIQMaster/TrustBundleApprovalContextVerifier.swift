@@ -4,7 +4,7 @@ import Foundation
 /// Re-checks the selected approval context against the exact bundle already
 /// authenticated by the pinned registry anchor and persisted after TUF refresh.
 public struct TrustBundleApprovalContextVerifier {
-    private let verified: OwnerBootstrapHTTPClient.VerifiedBootstrapState
+    private let verified: OwnerBootstrapHTTPClient.PreparedBootstrapState
 
     public init(verifiedState: OwnerBootstrapHTTPClient.VerifiedBootstrapState) {
         self.verified = verifiedState
@@ -20,16 +20,16 @@ public struct TrustBundleApprovalContextVerifier {
     ) -> Bool {
         guard let snapshotSequence = UInt64(verified.snapshot.sequence) else { return false }
         guard canonicalBundle == verified.snapshot.canonicalBundle,
-              canonicalBundle == verified.trustState.bundle,
-              Data(SHA256.hash(data: canonicalBundle)) == verified.trustState.bundleSHA256,
-              verified.trustState.sequence == snapshotSequence,
-              verified.snapshot.bundleSHA256 == verified.trustState.bundleSHA256.map({ String(format: "%02x", $0) }).joined(),
+              Data(SHA256.hash(data: canonicalBundle)) == verified.anchor.bundleSHA256,
+              verified.anchor.sequence == snapshotSequence,
+              verified.snapshot.bundleSHA256 == verified.anchor.bundleSHA256.map({ String(format: "%02x", $0) }).joined(),
+              verified.anchor.ownerID == verified.snapshot.ownerID,
               rootRole == "release-authorisation",
               purpose == "bootstrap-release-root",
-              verified.trustState.tufMetadata["root.json"] != nil,
-              verified.trustState.tufMetadata["timestamp.json"] != nil,
-              verified.trustState.tufMetadata["snapshot.json"] != nil,
-              verified.trustState.tufMetadata["targets.json"] != nil,
+              verified.verifiedTUFMetadata["root.json"] != nil,
+              verified.verifiedTUFMetadata["timestamp.json"] != nil,
+              verified.verifiedTUFMetadata["snapshot.json"] != nil,
+              verified.verifiedTUFMetadata["targets.json"] != nil,
               let bundle = try? JSONSerialization.jsonObject(with: canonicalBundle) as? [String: Any],
               bundle["owner_id"] as? String == verified.snapshot.ownerID,
               let release = bundle["release_authorisation"] as? [String: Any],
