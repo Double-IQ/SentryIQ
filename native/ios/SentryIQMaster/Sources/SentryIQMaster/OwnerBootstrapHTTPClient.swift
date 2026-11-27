@@ -371,6 +371,20 @@ public final class OwnerBootstrapHTTPClient {
         }
     }
 
+    public func fetchVerifyAndPersistTarget(
+        path: String,
+        verifiedState: VerifiedBootstrapState,
+        targetStore: VerifiedTargetStore,
+        completion: @escaping (Result<String, Error>) -> Void
+    ) {
+        fetchAndVerifyTarget(path: path, verifiedState: verifiedState) { result in
+            completion(result.flatMap { bytes in
+                do { return .success(try targetStore.saveVerifiedTarget(path: path, bytes: bytes)) }
+                catch { return .failure(error) }
+            })
+        }
+    }
+
     public func issueChallenge(
         csrfToken: String,
         completion: @escaping (Result<Challenge, Error>) -> Void
