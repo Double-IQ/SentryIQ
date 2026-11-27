@@ -46,7 +46,7 @@ final class OwnerBootstrapApi
         }
         $totalTufBytes = 0;
         foreach ($this->tufMetadata as $name => $bytes) {
-            if (!is_string($name) || !preg_match('/^[a-z0-9][a-z0-9._/-]{0,127}$/D', $name)
+            if (!is_string($name) || !preg_match('~^[a-z0-9][a-z0-9._/-]{0,127}$~D', $name)
                 || !is_string($bytes) || $bytes === '' || strlen($bytes) > 1_048_576) {
                 throw new RuntimeException('Bootstrap TUF metadata entry is invalid.');
             }
