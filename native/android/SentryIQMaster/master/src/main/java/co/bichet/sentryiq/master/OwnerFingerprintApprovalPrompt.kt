@@ -37,7 +37,7 @@ class OwnerFingerprintApprovalPrompt(
         purpose: String,
         challenge: ByteArray,
         expiresAt: Long,
-        verifyCandidateTrustChain: (ByteArray, String, String, ByteArray, ByteArray, String) -> Boolean,
+        verifiedState: OwnerBootstrapHttpClient.VerifiedBootstrapState,
         onApproved: (OwnerFingerprintApprovalCeremony.ApprovalProof) -> Unit,
         onCancelled: () -> Unit,
         onError: (Throwable) -> Unit
@@ -47,6 +47,9 @@ class OwnerFingerprintApprovalPrompt(
         require(details.bundleFingerprintSha256.matches(Regex("^[a-fA-F0-9]{64}$")))
         require(details.fingerprintSha256.matches(Regex("^[a-fA-F0-9]{64}$")))
         require(details.provenance.isNotBlank() && details.permittedPurpose.isNotBlank())
+        require(ownerIdentifier == verifiedState.snapshot.ownerId)
+        require(canonicalBundle.contentEquals(verifiedState.snapshot.canonicalBundle))
+        val contextVerifier = TrustBundleApprovalContextVerifier(verifiedState)
         val message = listOf(
             "Role: ${details.role}",
             "Key ID: ${details.keyId}",
@@ -105,7 +108,9 @@ class OwnerFingerprintApprovalPrompt(
                         expiresAt,
                         { enteredBundle },
                         { enteredRoot },
-                        verifyCandidateTrustChain
+                        { bundle, role, keyId, root, keyset, approvalPurpose ->
+                            contextVerifier.verify(bundle, role, keyId, root, keyset, approvalPurpose)
+                        }
                     )
                     val operation = keyStore.beginSigningOperation(prepared.transcript)
                     val prompt = BiometricPrompt(
