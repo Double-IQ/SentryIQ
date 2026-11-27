@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Same-origin transport for the authenticated bootstrap endpoint.
@@ -87,6 +88,79 @@ public final class OwnerBootstrapHTTPClient {
                 } catch { return .failure(error) }
             })
         }
+    }
+
+    /// Fetch, verify the separately pinned registry anchor, validate TUF, then persist atomically.
+    public func fetchAndPersistSnapshot(
+        using store: ProtectedTrustStateStore,
+        verifyTuf: @escaping (Snapshot) throws -> Void,
+        completion: @escaping (Result<ProtectedTrustState, Error>) -> Void
+    ) {
+        fetchSnapshot { result in
+            completion(result.flatMap { snapshot in
+                do {
+                    let anchor = try Self.decodeAnchor(snapshot)
+                    guard Data(SHA256.hash(data: snapshot.canonicalBundle)) == anchor.bundleSHA256 else {
+                        throw ClientError.invalidResponse
+                    }
+                    try verifyTuf(snapshot)
+                    try store.save(bundle: snapshot.canonicalBundle, anchor: anchor)
+                    return .success(try store.load(anchor: anchor))
+                } catch { return .failure(error) }
+            })
+        }
+    }
+
+    private static func decodeAnchor(_ snapshot: Snapshot) throws -> TrustRegistryAnchor {
+        guard let object = try JSONSerialization.jsonObject(with: snapshot.registryAnchorPayload) as? [String: Any],
+              let sequenceText = object["sequence"] as? String,
+              let sequence = UInt64(sequenceText),
+              let digestText = object["bundle_sha256"] as? String,
+              let digest = decodeHex(digestText),
+              let issuedAt = integer(object["issued_at"]),
+              let expiresAt = integer(object["expires_at"]),
+              let ownerID = object["owner_id"] as? String,
+              let signerKeyID = object["signer_kid"] as? String else {
+            throw ClientError.invalidResponse
+        }
+        let previous: Data?
+        if object["previous_bundle_sha256"] is NSNull { previous = nil }
+        else if let text = object["previous_bundle_sha256"] as? String { previous = try decodeHex(text) }
+        else { throw ClientError.invalidResponse }
+        guard ownerID == snapshot.ownerID, digest.count == 32,
+              previous == nil || previous?.count == 32 else { throw ClientError.invalidResponse }
+        return TrustRegistryAnchor(
+            sequence: sequence,
+            bundleSHA256: digest,
+            signedPayload: snapshot.registryAnchorPayload,
+            signature: snapshot.registryAnchorSignature,
+            issuedAt: issuedAt,
+            expiresAt: expiresAt,
+            previousBundleSHA256: previous,
+            ownerID: ownerID,
+            signerKeyID: signerKeyID
+        )
+    }
+
+    private static func integer(_ value: Any?) -> UInt64? {
+        guard let number = value as? NSNumber, number.doubleValue >= 0,
+              number.doubleValue.rounded(.towardZero) == number.doubleValue else { return nil }
+        return number.uint64Value
+    }
+
+    private static func decodeHex(_ value: String) throws -> Data {
+        guard value.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil else {
+            throw ClientError.invalidEncoding
+        }
+        var bytes = Data()
+        var index = value.startIndex
+        while index < value.endIndex {
+            let next = value.index(index, offsetBy: 2)
+            guard let byte = UInt8(value[index..<next], radix: 16) else { throw ClientError.invalidEncoding }
+            bytes.append(byte)
+            index = next
+        }
+        return bytes
     }
 
     public func issueChallenge(
