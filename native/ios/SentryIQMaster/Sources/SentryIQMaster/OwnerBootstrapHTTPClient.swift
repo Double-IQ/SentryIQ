@@ -100,7 +100,7 @@ public final class OwnerBootstrapHTTPClient {
                         let bytes = try Self.decodeBase64URL(encoded)
                         guard !bytes.isEmpty, bytes.count <= 1_048_576 else { throw ClientError.invalidResponse }
                         totalMetadataBytes += bytes.count
-                        guard totalMetadataBytes <= 3 * 1024 * 1024 else { throw ClientError.invalidResponse }
+                        guard totalMetadataBytes <= 2 * 1024 * 1024 else { throw ClientError.invalidResponse }
                         tufMetadata[name] = bytes
                     }
                     guard ["root.json", "timestamp.json", "snapshot.json", "targets.json"].allSatisfy({ tufMetadata[$0] != nil }),
