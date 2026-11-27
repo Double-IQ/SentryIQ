@@ -141,7 +141,8 @@ public final class ProtectedTrustStateStore {
             sequence: archive.sequence,
             bundleSHA256: archive.bundleSHA256,
             bundle: archive.bundle,
-            tufMetadata: archive.tufMetadata ?? [:]
+            tufMetadata: archive.tufMetadata ?? [:],
+            bootstrapReceiptID: archive.bootstrapReceiptID
         )
     }
 
