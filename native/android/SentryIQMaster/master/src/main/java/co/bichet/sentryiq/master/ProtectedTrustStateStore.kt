@@ -55,7 +55,7 @@ class ProtectedTrustStateStore(
         val signerKeyId: String
     )
 
-    data class TrustState(val sequence: ULong, val bundleSha256: ByteArray, val bundle: ByteArray)
+    data class TrustState(val sequence: ULong, val bundleSha256: ByteArray, val bundle: ByteArray, val tufMetadata: Map<String, ByteArray> = emptyMap())
 
     class StateException(message: String) : Exception(message)
 
@@ -83,9 +83,12 @@ class ProtectedTrustStateStore(
     fun save(
         bundle: ByteArray,
         anchor: RegistryAnchor,
+        tufMetadata: Map<String, ByteArray> = emptyMap(),
         nowEpochSeconds: Long = System.currentTimeMillis() / 1000L
     ) = synchronized(processLock) {
         requireValidAnchor(anchor, nowEpochSeconds)
+        if (bundle.isEmpty() || bundle.size > MAX_BUNDLE_BYTES) throw StateException("Trust bundle exceeds the permitted size.")
+        validateTufMetadata(tufMetadata)
         val digest = sha256(bundle)
         if (!MessageDigest.isEqual(digest, anchor.bundleSha256)) {
             throw StateException("Bundle digest does not match the verified registry anchor.")
@@ -114,7 +117,7 @@ class ProtectedTrustStateStore(
             )) {
             throw StateException("Initial registry anchor must start at sequence one with no previous digest.")
         }
-        val encoded = encrypt(TrustState(anchor.sequence, digest, bundle))
+        val encoded = encrypt(TrustState(anchor.sequence, digest, bundle, tufMetadata))
         val temporary = File(file.parentFile, file.name + ".tmp")
         FileOutputStream(temporary).use { stream ->
             stream.write(encoded)
@@ -142,6 +145,7 @@ class ProtectedTrustStateStore(
         if (committed.sequence != anchor.sequence ||
             !MessageDigest.isEqual(committed.bundleSha256, digest) ||
             !MessageDigest.isEqual(committed.bundle, bundle) ||
+            !metadataEquals(committed.tufMetadata, tufMetadata) ||
             !MessageDigest.isEqual(sha256(committed.bundle), anchor.bundleSha256)) {
             throw StateException("Committed trust state failed readback verification.")
         }
@@ -159,6 +163,24 @@ class ProtectedTrustStateStore(
         } catch (_: Exception) {
             throw StateException("Registry anchor signature or independent pin validation failed.")
         }
+    }
+
+    private fun validateTufMetadata(metadata: Map<String, ByteArray>) {
+        if (metadata.size > 64) throw StateException("Too many TUF metadata objects.")
+        var total = 0
+        metadata.forEach { (name, bytes) ->
+            if (!name.matches(Regex("^[a-z0-9][a-z0-9._/-]{0,127}$")) ||
+                bytes.isEmpty() || bytes.size > 1_048_576) {
+                throw StateException("TUF metadata object name or size is invalid.")
+            }
+            total += bytes.size
+            if (total > 3 * 1024 * 1024) throw StateException("TUF metadata exceeds the storage limit.")
+        }
+    }
+
+    private fun metadataEquals(left: Map<String, ByteArray>, right: Map<String, ByteArray>): Boolean {
+        if (left.keys != right.keys) return false
+        return left.all { (name, bytes) -> right[name]?.let { MessageDigest.isEqual(bytes, it) } == true }
     }
 
     private fun encrypt(state: TrustState): ByteArray {
@@ -209,6 +231,12 @@ class ProtectedTrustStateStore(
                 out.write(state.bundleSha256)
                 out.writeInt(state.bundle.size)
                 out.write(state.bundle)
+                out.writeInt(state.tufMetadata.size)
+                state.tufMetadata.toSortedMap().forEach { (name, value) ->
+                    val nameBytes = name.toByteArray(Charsets.UTF_8)
+                    out.writeInt(nameBytes.size); out.write(nameBytes)
+                    out.writeInt(value.size); out.write(value)
+                }
             }
         }.toByteArray()
 
@@ -221,7 +249,26 @@ class ProtectedTrustStateStore(
             throw StateException("Invalid trust-state payload.")
         }
         val bundle = ByteArray(length).also(input::readFully)
-        return TrustState(sequence, digest, bundle)
+        val metadata = linkedMapOf<String, ByteArray>()
+        if (input.available() > 0) {
+            val count = input.readInt()
+            if (count !in 0..64) throw StateException("Invalid TUF metadata count.")
+            var total = 0
+            repeat(count) {
+                val nameLength = input.readInt()
+                if (nameLength !in 1..128 || nameLength > input.available()) throw StateException("Invalid TUF metadata name.")
+                val name = ByteArray(nameLength).also(input::readFully).toString(Charsets.UTF_8)
+                val valueLength = input.readInt()
+                if (valueLength !in 1..1_048_576 || valueLength > input.available()) throw StateException("Invalid TUF metadata length.")
+                val value = ByteArray(valueLength).also(input::readFully)
+                total += valueLength
+                if (total > 3 * 1024 * 1024 || metadata.put(name, value) != null) {
+                    throw StateException("TUF metadata is duplicated or exceeds limits.")
+                }
+            }
+            if (input.available() != 0) throw StateException("Trailing trust-state bytes.")
+        }
+        return TrustState(sequence, digest, bundle, metadata)
     }
 
     private fun secretKey(): SecretKey {
@@ -249,6 +296,7 @@ class ProtectedTrustStateStore(
         // cannot race the read/validate/atomic-replace sequence.
         private val processLock = Any()
         private const val MAX_ENCODED_STATE_BYTES = 4 * 1024 * 1024 + 128
+        private const val MAX_BUNDLE_BYTES = 262_144
         private val MAGIC = byteArrayOf(0x53, 0x49, 0x51, 0x54, 0x53, 0x01)
     }
 }
