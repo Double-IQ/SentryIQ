@@ -2,11 +2,11 @@ import CryptoKit
 import Foundation
 
 /// Re-checks the selected approval context against the exact bundle already
-/// authenticated by the pinned registry anchor and persisted after TUF refresh.
+/// authenticated by the pinned registry anchor and TUF verifier before owner activation.
 public struct TrustBundleApprovalContextVerifier {
     private let verified: OwnerBootstrapHTTPClient.PreparedBootstrapState
 
-    public init(verifiedState: OwnerBootstrapHTTPClient.VerifiedBootstrapState) {
+    public init(verifiedState: OwnerBootstrapHTTPClient.PreparedBootstrapState) {
         self.verified = verifiedState
     }
 
