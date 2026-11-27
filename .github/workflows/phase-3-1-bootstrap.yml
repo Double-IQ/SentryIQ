@@ -25,6 +25,8 @@ on:
   push:
     branches: [main]
     paths:
+      - 'composer.json'
+      - 'composer.lock'
       - 'app/Security/BootstrapChallengeStore.php'
       - 'app/Security/OwnerApprovalProofVerifier.php'
       - 'app/Security/RegistryAnchorVerifier.php'
