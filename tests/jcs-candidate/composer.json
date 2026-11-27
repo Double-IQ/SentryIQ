@@ -1,0 +1,13 @@
+{
+  "name": "sentryiq/jcs-candidate-qualification",
+  "description": "Isolated qualification harness for a candidate RFC 8785 implementation",
+  "type": "project",
+  "require": {
+    "accredifysg/php-json-canonicalize": "1.1.1"
+  },
+  "config": {
+    "sort-packages": true
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
