@@ -64,6 +64,9 @@ public final class OwnerBootstrapHTTPClient {
         request(method: "GET", body: nil, csrfToken: nil) { result in
             completion(result.flatMap { object in
                 do {
+                    guard try Self.string(object, "protocol") == "SENTRYIQ-OWNER-BOOTSTRAP-API-V1" else {
+                        throw ClientError.invalidResponse
+                    }
                     let bundle = try Self.decodeBase64URL(Self.string(object, "bundle"))
                     let anchor = try Self.decodeBase64URL(Self.string(object, "registry_anchor_payload"))
                     let signature = try Self.decodeBase64URL(Self.string(object, "registry_anchor_signature"))
@@ -157,7 +160,10 @@ public final class OwnerBootstrapHTTPClient {
             if let error { completion(.failure(error)); return }
             guard let response = response as? HTTPURLResponse,
                   response.url?.scheme?.lowercased() == "https",
-                  response.url?.host?.lowercased() == self.endpoint.host?.lowercased() else {
+                  response.url?.host?.lowercased() == self.endpoint.host?.lowercased(),
+                  response.url?.port == self.endpoint.port,
+                  response.url?.path == self.endpoint.path,
+                  response.mimeType?.lowercased() == "application/json" else {
                 completion(.failure(ClientError.invalidResponse)); return
             }
             guard response.statusCode == 200 else {
