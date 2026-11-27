@@ -38,6 +38,27 @@ class SentryIQTufNativeIntegrationTest {
     }
 
     @Test
+    fun packagedRustVerifierAcceptsCachedSignedMetadataBaseline() {
+        val root = fixture("root")
+        val timestamp = fixture("timestamp")
+        val snapshot = fixture("snapshot")
+        val targets = fixture("targets")
+        val accepted = SentryIQTufTrustVerifier.verifyMetadataRefresh(
+            initialRoot = root,
+            expectedInitialRootSha256 = MessageDigest.getInstance("SHA-256").digest(root),
+            candidateRoots = emptyList(),
+            cachedTimestamp = timestamp,
+            cachedSnapshot = snapshot,
+            cachedTargets = targets,
+            newTimestamp = timestamp,
+            newSnapshot = snapshot,
+            newTargets = targets,
+            referenceTimeUnixSeconds = 1_800_000_000L
+        )
+        assertTrue("A valid cached rollback baseline must refresh through Rust FFI", accepted)
+    }
+
+    @Test
     fun packagedRustVerifierRejectsTamperedSignedMetadata() {
         val root = fixture("root")
         val timestamp = fixture("timestamp").also { it[0] = (it[0].toInt() xor 1).toByte() }
