@@ -189,7 +189,13 @@ ownerApprovalReject(fn() => $verifier->verifyAndRecord(
 ), 'A proof challenge must not be replayable.');
 
 $highSChallenge = $challenges->issue($owner, $digest, $now, 300);
-$highSSignature = ownerApprovalHighS($signature);
+$highSChallengeBytes = base64_decode(strtr($highSChallenge . '=', '-_', '+/'), true);
+$highSTranscript = ownerApprovalTranscript(
+    $owner, $digest, $rootRole, $rootKeyId, $rootFingerprint, $keysetDigest,
+    $purpose, $highSChallengeBytes, $expiry
+);
+if (!openssl_sign($highSTranscript, $highSSignatureDer, $private, OPENSSL_ALGO_SHA256)) throw new RuntimeException('Unable to sign high-S fixture.');
+$highSSignature = ownerApprovalHighS(ownerApprovalDerToRawLowS($highSSignatureDer));
 ownerApprovalReject(fn() => $verifier->verifyAndRecord(
     $highSChallenge, $owner, $canonicalBundle, $digest, $rootRole, $rootKeyId,
     $rootFingerprint, $keysetDigest, $purpose, ownerApprovalB64($highSSignature), $now
