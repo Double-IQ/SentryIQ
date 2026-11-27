@@ -55,7 +55,7 @@ final class OwnerFingerprintApprovalCeremonyTests: XCTestCase {
     }
     func testWrongBundleFingerprintFailsClosed() { XCTAssertThrowsError(try approve(bundleFP: String(repeating: "0", count: 64))) }
     func testWrongOwnerAndMalformedContextFailClosed() {
-        XCTAssertThrowsError(try approve(owner: "")); XCTAssertThrowsError(try approve(role: "release authorisation"))
+        XCTAssertThrowsError(try approve(owner: "")); XCTAssertThrowsError(try approve(owner: "owner-é")); XCTAssertThrowsError(try approve(role: "release authorisation"))
         XCTAssertThrowsError(try approve(purpose: ""))
     }
     func testExpiredChallengeAndInvalidCandidateFailBeforeSigning() {
