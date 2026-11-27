@@ -526,6 +526,14 @@ mod tests {
             include_bytes!("../tests/fixtures/tufet-python-tuf/role1.json"),
             include_bytes!("../../android/SentryIQMaster/master/src/androidTest/assets/tufet-python-tuf/role1.json")
         );
+        assert_eq!(
+            include_bytes!("../tests/fixtures/tufet-python-tuf/file3.txt"),
+            include_bytes!("../../ios/SentryIQMaster/Tests/SentryIQMasterTests/Fixtures/file3.txt")
+        );
+        assert_eq!(
+            include_bytes!("../tests/fixtures/tufet-python-tuf/file3.txt"),
+            include_bytes!("../../android/SentryIQMaster/master/src/androidTest/assets/tufet-python-tuf/file3.txt")
+        );
     }
 
     #[test]
@@ -684,6 +692,69 @@ mod tests {
             timestamp,
             snapshot,
             targets,
+            1_800_000_000,
+        ));
+    }
+
+    #[test]
+    fn verifies_downloaded_target_bytes_against_signed_delegated_metadata() {
+        let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
+        let timestamp =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
+        let snapshot =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let role1 = include_bytes!("../tests/fixtures/tufet-python-tuf/role1.json").to_vec();
+        let target = include_bytes!("../tests/fixtures/tufet-python-tuf/file3.txt").to_vec();
+        let root_pin = Sha256::digest(&root).to_vec();
+
+        assert!(verify_tuf_target_bytes(
+            root,
+            root_pin,
+            vec![],
+            None,
+            None,
+            None,
+            timestamp,
+            snapshot,
+            targets,
+            vec!["role1".to_string()],
+            vec![role1],
+            "file3.txt".to_string(),
+            target,
+            1_800_000_000,
+        ));
+    }
+
+    #[test]
+    fn rejects_downloaded_target_bytes_with_wrong_length_or_hash() {
+        let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
+        let timestamp =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
+        let snapshot =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let role1 = include_bytes!("../tests/fixtures/tufet-python-tuf/role1.json").to_vec();
+        let mut target = include_bytes!("../tests/fixtures/tufet-python-tuf/file3.txt").to_vec();
+        let root_pin = Sha256::digest(&root).to_vec();
+        target[0] ^= 1;
+
+        assert!(!verify_tuf_target_bytes(
+            root,
+            root_pin,
+            vec![],
+            None,
+            None,
+            None,
+            timestamp,
+            snapshot,
+            targets,
+            vec!["role1".to_string()],
+            vec![role1],
+            "file3.txt".to_string(),
+            target,
             1_800_000_000,
         ));
     }
