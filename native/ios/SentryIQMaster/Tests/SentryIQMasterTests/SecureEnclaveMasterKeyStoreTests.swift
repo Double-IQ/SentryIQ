@@ -4,6 +4,17 @@ import XCTest
 @testable import SentryIQMaster
 
 final class SecureEnclaveMasterKeyStoreTests: XCTestCase {
+    func testMasterKeysetDigestMatchesCrossPlatformGoldenVector() {
+        let digest = MasterKeysetDigest.compute(
+            signingKeyID: "master-signing-abc",
+            signingPublicKeyRaw: Data(repeating: 0x01, count: 64),
+            agreementKeyID: "master-key-agreement-def",
+            agreementPublicKeyRaw: Data(repeating: 0x02, count: 64),
+            hardwareAssurance: "secure-enclave"
+        )
+        XCTAssertEqual(digest, "ff40c999ecdbeacc424f4c012a242a29cef1339f34b1692c9a1714518008e813")
+    }
+
     func testPublicKeyPEMUsesP256SubjectPublicKeyInfo() throws {
         let key = P256.Signing.PrivateKey()
         let raw = key.publicKey.rawRepresentation
