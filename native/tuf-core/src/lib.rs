@@ -20,6 +20,7 @@ const MAX_ROOT_CHAIN_BYTES: usize = 20 * 1024 * 1024;
 const MAX_DELEGATED_METADATA_BYTES: usize = 20 * 1024 * 1024;
 const MAX_DELEGATED_ROLES: usize = 32;
 const MAX_TARGET_PATH_BYTES: usize = 4096;
+const MAX_TARGET_BYTES: usize = 64 * 1024 * 1024;
 
 /// Verifies a pinned initial TUF root and a sequence of sequential root updates.
 ///
@@ -230,6 +231,78 @@ pub fn verify_tuf_target_delegation(
     target_path: String,
     reference_time_unix_seconds: i64,
 ) -> bool {
+    verify_tuf_target_internal(
+        initial_root,
+        expected_initial_root_sha256,
+        candidate_roots,
+        cached_timestamp,
+        cached_snapshot,
+        cached_targets,
+        new_timestamp,
+        new_snapshot,
+        new_targets,
+        delegated_roles,
+        delegated_metadata,
+        target_path,
+        None,
+        reference_time_unix_seconds,
+    )
+}
+
+#[uniffi::export]
+pub fn verify_tuf_target_bytes(
+    initial_root: Vec<u8>,
+    expected_initial_root_sha256: Vec<u8>,
+    candidate_roots: Vec<Vec<u8>>,
+    cached_timestamp: Option<Vec<u8>>,
+    cached_snapshot: Option<Vec<u8>>,
+    cached_targets: Option<Vec<u8>>,
+    new_timestamp: Vec<u8>,
+    new_snapshot: Vec<u8>,
+    new_targets: Vec<u8>,
+    delegated_roles: Vec<String>,
+    delegated_metadata: Vec<Vec<u8>>,
+    target_path: String,
+    target_bytes: Vec<u8>,
+    reference_time_unix_seconds: i64,
+) -> bool {
+    if target_bytes.len() > MAX_TARGET_BYTES {
+        return false;
+    }
+    verify_tuf_target_internal(
+        initial_root,
+        expected_initial_root_sha256,
+        candidate_roots,
+        cached_timestamp,
+        cached_snapshot,
+        cached_targets,
+        new_timestamp,
+        new_snapshot,
+        new_targets,
+        delegated_roles,
+        delegated_metadata,
+        target_path,
+        Some(&target_bytes),
+        reference_time_unix_seconds,
+    )
+}
+
+fn verify_tuf_target_internal(
+    initial_root: Vec<u8>,
+    expected_initial_root_sha256: Vec<u8>,
+    candidate_roots: Vec<Vec<u8>>,
+    cached_timestamp: Option<Vec<u8>>,
+    cached_snapshot: Option<Vec<u8>>,
+    cached_targets: Option<Vec<u8>>,
+    new_timestamp: Vec<u8>,
+    new_snapshot: Vec<u8>,
+    new_targets: Vec<u8>,
+    delegated_roles: Vec<String>,
+    delegated_metadata: Vec<Vec<u8>>,
+    target_path: String,
+    target_bytes: Option<&[u8]>,
+    reference_time_unix_seconds: i64,
+) -> bool {
     let cached_count = [
         cached_timestamp.is_some(),
         cached_snapshot.is_some(),
@@ -374,8 +447,8 @@ pub fn verify_tuf_target_delegation(
         let Some(metadata) = metadata else {
             return false;
         };
-        if search.visit(&step, metadata.signed()).is_some() {
-            return true;
+        if let Some(target) = search.visit(&step, metadata.signed()) {
+            return target_bytes.map_or(true, |bytes| target.verify(bytes).is_ok());
         }
     }
 
