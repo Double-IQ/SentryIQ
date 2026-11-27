@@ -93,7 +93,7 @@ class OwnerBootstrapHttpClient(
             val bytes = decodeBase64Url(metadataJson.getString(name))
             if (bytes.isEmpty() || bytes.size > 1_048_576) throw ClientException("TUF metadata object size is invalid.")
             totalMetadataBytes += bytes.size
-            if (totalMetadataBytes > 3 * 1024 * 1024) throw ClientException("TUF metadata exceeds the response limit.")
+            if (totalMetadataBytes > 2 * 1024 * 1024) throw ClientException("TUF metadata exceeds the response limit.")
             tufMetadata[name] = bytes
         }
         if (!listOf("root.json", "timestamp.json", "snapshot.json", "targets.json").all { it in tufMetadata }) {
