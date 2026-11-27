@@ -80,16 +80,19 @@ class SentryIQTufNativeIntegrationTest {
     @Test
     fun packagedRustVerifierAcceptsValidSignedDelegatedTarget() {
         val root = fixture("root")
+        val timestamp = fixture("timestamp")
+        val snapshot = fixture("snapshot")
+        val targets = fixture("targets")
         val accepted = SentryIQTufTrustVerifier.verifyTargetDelegation(
             initialRoot = root,
             expectedInitialRootSha256 = MessageDigest.getInstance("SHA-256").digest(root),
             candidateRoots = emptyList(),
-            cachedTimestamp = null,
-            cachedSnapshot = null,
-            cachedTargets = null,
-            newTimestamp = fixture("timestamp"),
-            newSnapshot = fixture("snapshot"),
-            newTargets = fixture("targets"),
+            cachedTimestamp = timestamp,
+            cachedSnapshot = snapshot,
+            cachedTargets = targets,
+            newTimestamp = timestamp,
+            newSnapshot = snapshot,
+            newTargets = targets,
             delegatedRoles = listOf("role1"),
             delegatedMetadata = listOf(fixture("role1")),
             targetPath = "file3.txt",
