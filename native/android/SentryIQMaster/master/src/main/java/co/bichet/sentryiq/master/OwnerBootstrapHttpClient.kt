@@ -238,7 +238,7 @@ class OwnerBootstrapHttpClient(
         store: ProtectedTrustStateStore
     ): Pair<Receipt, VerifiedBootstrapState> {
         val receipt = submitApproval(proof, csrfToken)
-        store.save(preparedState.snapshot.canonicalBundle, preparedState.anchor, preparedState.verifiedTufMetadata)
+        store.save(preparedState.snapshot.canonicalBundle, preparedState.anchor, preparedState.verifiedTufMetadata, receipt.receiptId)
         return receipt to VerifiedBootstrapState(
             preparedState.snapshot,
             preparedState.anchor,
