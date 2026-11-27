@@ -100,7 +100,7 @@ public final class OwnerFingerprintApprovalPresenter {
             context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Approve this exact SentryIQ trust root") { success, error in
                 Task { @MainActor in
                     guard success else {
-                        completion(.failure(error ?? LAError(.authenticationFailed)))
+                        completion(.failure(error ?? NSError(domain: "SentryIQ.OwnerApproval", code: 1)))
                         return
                     }
                     do {
