@@ -172,7 +172,7 @@ public final class OwnerBootstrapHTTPClient {
     }
 
     /// Verify downloaded target bytes against signed top-level and delegated TUF metadata.
-    public static func verifyTargetBytes(
+    private static func verifyTargetBytes(
         _ targetBytes: Data,
         targetPath: String,
         snapshot: Snapshot,
@@ -353,8 +353,7 @@ public final class OwnerBootstrapHTTPClient {
 
     public func fetchAndVerifyTarget(
         path: String,
-        snapshot: Snapshot,
-        cachedState: ProtectedTrustState?,
+        verifiedState: VerifiedBootstrapState,
         completion: @escaping (Result<Data, Error>) -> Void
     ) {
         fetchTarget(path: path) { result in
@@ -363,8 +362,8 @@ public final class OwnerBootstrapHTTPClient {
                     guard try Self.verifyTargetBytes(
                         bytes,
                         targetPath: path,
-                        snapshot: snapshot,
-                        cachedState: cachedState
+                        snapshot: verifiedState.snapshot,
+                        cachedState: verifiedState.trustState
                     ) else { throw ClientError.invalidResponse }
                     return .success(bytes)
                 } catch { return .failure(error) }
