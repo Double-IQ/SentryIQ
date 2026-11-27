@@ -28,5 +28,6 @@ final class VerifiedTargetStoreTests: XCTestCase {
             service: "co.bichet.sentryiq.verified-target-tests"
         )
         XCTAssertThrowsError(try store.saveVerifiedTarget(path: "../outside", bytes: Data([1])))
+        XCTAssertThrowsError(try store.saveVerifiedTarget(path: "/absolute/path", bytes: Data([1])))
     }
 }
