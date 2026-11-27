@@ -314,18 +314,18 @@ final class OwnerApprovalProofVerifier
         $order = hex2bin(self::P256_ORDER);
         $halfOrder = hex2bin(self::P256_HALF_ORDER);
         if (!is_string($order) || !is_string($halfOrder)
-            || $r === str_repeat("\\0", 32) || strcmp($r, $order) >= 0
-            || $s === str_repeat("\\0", 32) || strcmp($s, $halfOrder) > 0) {
+            || $r === str_repeat("\0", 32) || strcmp($r, $order) >= 0
+            || $s === str_repeat("\0", 32) || strcmp($s, $halfOrder) > 0) {
             throw new RuntimeException('Owner approval signature is not canonical low-S P-256.');
         }
         $integer = static function (string $bytes): string {
-            $bytes = ltrim($bytes, "\\0");
-            if ($bytes === '') $bytes = "\\0";
-            if ((ord($bytes[0]) & 0x80) !== 0) $bytes = "\\0" . $bytes;
-            return "\\x02" . chr(strlen($bytes)) . $bytes;
+            $bytes = ltrim($bytes, "\0");
+            if ($bytes === '') $bytes = "\0";
+            if ((ord($bytes[0]) & 0x80) !== 0) $bytes = "\0" . $bytes;
+            return "\x02" . chr(strlen($bytes)) . $bytes;
         };
         $body = $integer($r) . $integer($s);
-        return "\\x30" . chr(strlen($body)) . $body;
+        return "\x30" . chr(strlen($body)) . $body;
     }
 
     private static function transcript(
