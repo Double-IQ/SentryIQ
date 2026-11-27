@@ -26,6 +26,17 @@ $rejectCanonical = static function (mixed $value, string $reason) use ($method, 
     throw new RuntimeException($reason);
 };
 
+$ijsonMethod = new ReflectionMethod(TrustBundleValidator::class, 'assertIJsonValues');
+$ijsonMethod->setAccessible(true);
+$rejectIJson = static function (string $value, string $reason) use ($ijsonMethod, $validator): void {
+    try { $ijsonMethod->invoke($validator, $value); }
+    catch (Throwable) { return; }
+    throw new RuntimeException($reason);
+};
+$rejectIJson("\\u{FDD0}", 'I-JSON noncharacters U+FDD0..U+FDEF must be rejected.');
+$rejectIJson("\\u{1FFFF}", 'I-JSON plane-ending noncharacters must be rejected.');
+$ijsonMethod->invoke($validator, "\\u{2028}\\u{2029}");
+
 $assertCanonical(
     (object)['z' => 1, 'a' => (object)['true' => true, 'n' => null], 'slash' => 'a/b'],
     '{"a":{"n":null,"true":true},"slash":"a/b","z":1}'
