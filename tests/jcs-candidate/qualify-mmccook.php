@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-use Mmccook\\JsonCanonicalizator\\JsonCanonicalizatorFactory;
+use Mmccook\JsonCanonicalizator\JsonCanonicalizatorFactory;
 
 $jcs = JsonCanonicalizatorFactory::getInstance();
 $fixturePath = dirname(__DIR__) . '/fixtures/jcs-rfc8785-vectors.json';
