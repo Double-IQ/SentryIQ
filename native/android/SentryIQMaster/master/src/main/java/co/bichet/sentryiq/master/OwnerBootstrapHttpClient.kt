@@ -49,7 +49,7 @@ class OwnerBootstrapHttpClient(
     )
 
     data class Receipt(val receiptId: String)
-    data class VerifiedBootstrapState(
+    data class VerifiedBootstrapState internal constructor(
         val snapshot: Snapshot,
         val trustState: ProtectedTrustStateStore.TrustState
     )
