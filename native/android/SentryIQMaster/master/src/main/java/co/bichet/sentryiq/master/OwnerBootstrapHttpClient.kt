@@ -26,6 +26,7 @@ class OwnerBootstrapHttpClient(
         val canonicalBundle: ByteArray,
         val registryAnchorPayload: ByteArray,
         val registryAnchorSignature: ByteArray,
+        val tufMetadata: Map<String, ByteArray>,
         val csrfToken: String
     )
 
@@ -68,6 +69,24 @@ class OwnerBootstrapHttpClient(
         val anchor = decodeBase64Url(json.getString("registry_anchor_payload"))
         val signature = decodeBase64Url(json.getString("registry_anchor_signature"))
         val digest = json.getString("bundle_sha256")
+        val metadataJson = json.optJSONObject("tuf_metadata")
+            ?: throw ClientException("Bootstrap TUF metadata is missing.")
+        if (metadataJson.length() !in 4..64) throw ClientException("Bootstrap TUF metadata count is invalid.")
+        val tufMetadata = linkedMapOf<String, ByteArray>()
+        var totalMetadataBytes = 0
+        val names = metadataJson.keys()
+        while (names.hasNext()) {
+            val name = names.next()
+            if (!name.matches(Regex("^[a-z0-9][a-z0-9._/-]{0,127}$"))) throw ClientException("TUF metadata name is invalid.")
+            val bytes = decodeBase64Url(metadataJson.getString(name))
+            if (bytes.isEmpty() || bytes.size > 1_048_576) throw ClientException("TUF metadata object size is invalid.")
+            totalMetadataBytes += bytes.size
+            if (totalMetadataBytes > 3 * 1024 * 1024) throw ClientException("TUF metadata exceeds the response limit.")
+            tufMetadata[name] = bytes
+        }
+        if (!listOf("root.json", "timestamp.json", "snapshot.json", "targets.json").all { it in tufMetadata }) {
+            throw ClientException("Required TUF metadata roles are missing.")
+        }
         if (bundle.size > 262_144 || anchor.size > 4_096 || signature.size != 64 ||
             !digest.matches(Regex("^[a-f0-9]{64}$"))) {
             throw ClientException("Bootstrap snapshot response is malformed.")
@@ -79,6 +98,7 @@ class OwnerBootstrapHttpClient(
             bundle,
             anchor,
             signature,
+            tufMetadata,
             json.getString("csrf_token")
         )
     }
@@ -86,7 +106,7 @@ class OwnerBootstrapHttpClient(
     /** Fetch, verify the separately pinned registry anchor, validate TUF, then persist atomically. */
     fun fetchAndPersistSnapshot(
         store: ProtectedTrustStateStore,
-        verifyTuf: (Snapshot) -> Unit
+        verifyTuf: (Snapshot) -> Map<String, ByteArray>
     ): ProtectedTrustStateStore.TrustState {
         val snapshot = fetchSnapshot()
         val anchor = decodeAnchor(snapshot)
@@ -96,8 +116,12 @@ class OwnerBootstrapHttpClient(
             digestHex != snapshot.bundleSha256 || anchor.sequence.toString() != snapshot.sequence) {
             throw ClientException("Canonical bundle, sequence, and signed registry anchor do not agree.")
         }
-        verifyTuf(snapshot)
-        store.save(snapshot.canonicalBundle, anchor)
+        val verifiedMetadata = verifyTuf(snapshot)
+        if (verifiedMetadata.keys != snapshot.tufMetadata.keys ||
+            verifiedMetadata.any { (name, bytes) -> snapshot.tufMetadata[name]?.let { MessageDigest.isEqual(bytes, it) } != true }) {
+            throw ClientException("TUF verifier returned metadata different from the downloaded snapshot.")
+        }
+        store.save(snapshot.canonicalBundle, anchor, verifiedMetadata)
         return store.load(anchor)
     }
 
@@ -217,7 +241,7 @@ class OwnerBootstrapHttpClient(
                 throw ClientException("Bootstrap endpoint did not return JSON.")
             }
             val bytes = connection.inputStream.use { it.readBytes() }
-            if (bytes.size > 300_000) throw ClientException("Bootstrap response exceeds the size limit.")
+            if (bytes.size > 4_200_000) throw ClientException("Bootstrap response exceeds the size limit.")
             return JSONObject(bytes.toString(Charsets.UTF_8))
         } catch (error: ClientException) {
             throw error
