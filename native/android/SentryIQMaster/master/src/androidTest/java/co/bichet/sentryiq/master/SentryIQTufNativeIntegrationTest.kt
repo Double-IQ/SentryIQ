@@ -39,6 +39,12 @@ class SentryIQTufNativeIntegrationTest {
         } catch (_: VerifiedTargetStore.StoreException) {
             // Expected fail-closed path rejection.
         }
+        try {
+            store.saveVerifiedTarget("/absolute/path", byteArrayOf(1))
+            throw AssertionError("Absolute target path must be rejected.")
+        } catch (_: VerifiedTargetStore.StoreException) {
+            // Expected fail-closed path rejection.
+        }
     }
 
     @Test
