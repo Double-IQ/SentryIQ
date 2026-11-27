@@ -69,16 +69,19 @@ final class SentryIQTufTrustVerifierTests: XCTestCase {
 
     func testValidSignedDelegatedTargetCrossesRustLibraryBoundary() throws {
         let root = try fixture("root")
+        let timestamp = try fixture("timestamp")
+        let snapshot = try fixture("snapshot")
+        let targets = try fixture("targets")
         let accepted = SentryIQTufTrustVerifier.verifyTargetDelegation(
             initialRoot: root,
             expectedInitialRootSHA256: Data(SHA256.hash(data: root)),
             candidateRoots: [],
-            cachedTimestamp: nil,
-            cachedSnapshot: nil,
-            cachedTargets: nil,
-            newTimestamp: try fixture("timestamp"),
-            newSnapshot: try fixture("snapshot"),
-            newTargets: try fixture("targets"),
+            cachedTimestamp: timestamp,
+            cachedSnapshot: snapshot,
+            cachedTargets: targets,
+            newTimestamp: timestamp,
+            newSnapshot: snapshot,
+            newTargets: targets,
             delegatedRoles: ["role1"],
             delegatedMetadata: [try fixture("role1")],
             targetPath: "file3.txt",
