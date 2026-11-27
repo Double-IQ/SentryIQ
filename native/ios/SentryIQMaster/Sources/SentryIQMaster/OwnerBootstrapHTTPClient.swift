@@ -109,6 +109,47 @@ public final class OwnerBootstrapHTTPClient {
         }
     }
 
+    /// Verify the delivered TUF metadata with the shared Rust core and return the exact accepted bytes.
+    public static func verifyTUFRefresh(
+        snapshot: Snapshot,
+        cachedState: ProtectedTrustState?,
+        referenceTime: UInt64 = UInt64(Date().timeIntervalSince1970)
+    ) throws -> [String: Data] {
+        guard referenceTime <= UInt64(Int64.max),
+              let bundle = try JSONSerialization.jsonObject(with: snapshot.canonicalBundle) as? [String: Any],
+              let tuf = bundle["sigstore_tuf"] as? [String: Any],
+              let rootDigestText = tuf["root_digest"] as? String else {
+            throw ClientError.invalidResponse
+        }
+        let rootDigest = try decodeHex(rootDigestText)
+        guard let initialRoot = snapshot.tufMetadata["root.json"] else {
+            throw ClientError.invalidResponse
+        }
+        let candidateNames = snapshot.tufMetadata.keys.filter {
+            $0.range(of: "^root/[0-9]+\\.json$", options: .regularExpression) != nil
+        }.sorted {
+            let left = Int($0.dropFirst(5).dropLast(5)) ?? 0
+            let right = Int($1.dropFirst(5).dropLast(5)) ?? 0
+            return left < right
+        }
+        let candidateRoots = candidateNames.compactMap { snapshot.tufMetadata[$0] }
+        let cached = cachedState?.tufMetadata ?? [:]
+        let accepted = SentryIQTufTrustVerifier.verifyMetadataRefresh(
+            initialRoot: initialRoot,
+            expectedInitialRootSHA256: rootDigest,
+            candidateRoots: candidateRoots,
+            cachedTimestamp: cached["timestamp.json"],
+            cachedSnapshot: cached["snapshot.json"],
+            cachedTargets: cached["targets.json"],
+            newTimestamp: snapshot.tufMetadata["timestamp.json"]!,
+            newSnapshot: snapshot.tufMetadata["snapshot.json"]!,
+            newTargets: snapshot.tufMetadata["targets.json"]!,
+            referenceTimeUnixSeconds: Int64(referenceTime)
+        )
+        guard accepted else { throw ClientError.invalidResponse }
+        return snapshot.tufMetadata
+    }
+
     /// Fetch, verify the separately pinned registry anchor, validate TUF, then persist atomically.
     public func fetchAndPersistSnapshot(
         using store: ProtectedTrustStateStore,
