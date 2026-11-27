@@ -42,8 +42,7 @@ public enum OwnerFingerprintApprovalCeremony {
         requireFreshUserVerification: () throws -> Void,
         sign: (Data) throws -> Data
     ) throws -> ApprovalProof {
-        guard !ownerIdentifier.isEmpty, ownerIdentifier.utf8.count <= 256,
-              !ownerIdentifier.contains("\n"), !ownerIdentifier.contains("\r") else {
+        guard validOwnerIdentifier(ownerIdentifier) else {
             throw CeremonyError.invalidOwnerIdentifier
         }
         guard validToken(rootRole), validToken(rootKeyID), validToken(purpose),
