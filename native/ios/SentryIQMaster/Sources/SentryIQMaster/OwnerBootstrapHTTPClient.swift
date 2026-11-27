@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import WebKit
 
 /// Same-origin transport for the authenticated bootstrap endpoint.
 /// Responses remain untrusted until the caller verifies the registry anchor,
@@ -68,6 +69,41 @@ public final class OwnerBootstrapHTTPClient {
     private let session: URLSession
 
     /// Pass the URLSession that shares the authenticated SentryIQ session cookie.
+    /// Copies only the secure, HttpOnly session cookie for this exact HTTPS host
+    /// from the authenticated WKWebView into URLSession's shared cookie store.
+    public static func synchronizeSessionCookie(
+        from webView: WKWebView,
+        origin: URL,
+        sessionCookieName: String,
+        completion: @escaping (Result<Void, Error>) -> Void
+    ) {
+        guard origin.scheme?.lowercased() == "https",
+              let host = origin.host, !host.isEmpty,
+              !sessionCookieName.isEmpty else {
+            completion(.failure(ClientError.invalidOrigin))
+            return
+        }
+        webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
+            let endpointPath = "/api/owner-bootstrap.php"
+            let matching = cookies.filter { cookie in
+                let domain = cookie.domain.hasPrefix(".") ? String(cookie.domain.dropFirst()) : cookie.domain
+                let pathMatches = endpointPath == cookie.path || endpointPath.hasPrefix(cookie.path.hasSuffix("/") ? cookie.path : cookie.path + "/")
+                return cookie.name == sessionCookieName
+                    && domain == host
+                    && cookie.isSecure
+                    && cookie.isHTTPOnly
+                    && pathMatches
+                    && (cookie.expiresDate == nil || cookie.expiresDate! > Date())
+            }
+            guard let sessionCookie = matching.max(by: { $0.path.count < $1.path.count }) else {
+                completion(.failure(ClientError.missingSessionCookie))
+                return
+            }
+            HTTPCookieStorage.shared.setCookie(sessionCookie)
+            completion(.success(()))
+        }
+    }
+
     public init(baseURL: URL, session: URLSession = .shared) throws {
         guard baseURL.scheme?.lowercased() == "https",
               let host = baseURL.host, !host.isEmpty,
