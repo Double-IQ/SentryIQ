@@ -100,9 +100,11 @@ public final class OwnerBootstrapHTTPClient {
                     guard challenge.range(of: "^[A-Za-z0-9_-]{43}$", options: .regularExpression) != nil else {
                         throw ClientError.invalidResponse
                     }
+                    let purpose = try Self.string(object, "purpose")
+                    guard purpose == "bootstrap-release-root" else { throw ClientError.invalidResponse }
                     return .success(Challenge(
                         value: challenge,
-                        purpose: try Self.string(object, "purpose"),
+                        purpose: purpose,
                         bundleSHA256: try Self.string(object, "bundle_sha256"),
                         expiresAt: try Self.uint64(object, "expires_at")
                     ))
