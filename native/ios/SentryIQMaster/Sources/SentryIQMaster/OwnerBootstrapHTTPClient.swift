@@ -18,6 +18,7 @@ public final class OwnerBootstrapHTTPClient {
 
     public struct Challenge {
         public let value: String
+        public let bytes: Data
         public let purpose: String
         public let bundleSHA256: String
         public let expiresAt: UInt64
@@ -386,6 +387,7 @@ public final class OwnerBootstrapHTTPClient {
                     guard purpose == "bootstrap-release-root" else { throw ClientError.invalidResponse }
                     return .success(Challenge(
                         value: challenge,
+                        bytes: try Self.decodeBase64URL(challenge),
                         purpose: purpose,
                         bundleSHA256: try Self.string(object, "bundle_sha256"),
                         expiresAt: try Self.uint64(object, "expires_at")
@@ -453,6 +455,40 @@ public final class OwnerBootstrapHTTPClient {
                 } catch { return .failure(error) }
             })
         }
+    }
+
+    public func submitApproval(
+        _ proof: OwnerFingerprintApprovalCeremony.ApprovalProof,
+        challenge: Challenge,
+        csrfToken: String,
+        preparedState: PreparedBootstrapState,
+        using store: ProtectedTrustStateStore,
+        completion: @escaping (Result<(Receipt, VerifiedBootstrapState), Error>) -> Void
+    ) {
+        guard proof.challenge == challenge.bytes,
+              proof.bundleFingerprint == challenge.bundleSHA256,
+              proof.purpose == challenge.purpose,
+              proof.expiresAt == challenge.expiresAt else {
+            completion(.failure(ClientError.invalidResponse))
+            return
+        }
+        let transportProof = ApprovalProof(
+            challenge: challenge.value,
+            bundleSHA256: proof.bundleFingerprint,
+            rootRole: proof.rootRole,
+            rootKeyID: proof.rootKeyID,
+            rootFingerprint: proof.rootFingerprint,
+            deviceKeysetDigest: proof.deviceKeysetDigest,
+            purpose: proof.purpose,
+            signature: proof.signature
+        )
+        submitApproval(
+            transportProof,
+            csrfToken: csrfToken,
+            preparedState: preparedState,
+            using: store,
+            completion: completion
+        )
     }
 
     private func request(
