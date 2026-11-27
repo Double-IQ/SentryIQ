@@ -43,6 +43,7 @@ public struct ProtectedTrustState {
     public let sequence: UInt64
     public let bundleSHA256: Data
     public let bundle: Data
+    public let tufMetadata: [String: Data]
 }
 
 /**
@@ -66,6 +67,7 @@ public final class ProtectedTrustStateStore {
         let sequence: UInt64
         let bundleSHA256: Data
         let bundle: Data
+        let tufMetadata: [String: Data]?
     }
 
     private static let processLock = NSRecursiveLock()
@@ -101,16 +103,23 @@ public final class ProtectedTrustStateStore {
         return ProtectedTrustState(
             sequence: archive.sequence,
             bundleSHA256: archive.bundleSHA256,
-            bundle: archive.bundle
+            bundle: archive.bundle,
+            tufMetadata: archive.tufMetadata ?? [:]
         )
     }
 
-    public func save(bundle: Data, anchor: TrustRegistryAnchor, now: UInt64 = UInt64(Date().timeIntervalSince1970)) throws {
+    public func save(
+        bundle: Data,
+        anchor: TrustRegistryAnchor,
+        tufMetadata: [String: Data] = [:],
+        now: UInt64 = UInt64(Date().timeIntervalSince1970)
+    ) throws {
         Self.processLock.lock()
         defer { Self.processLock.unlock() }
         try validate(anchor, now: now)
         let digest = Data(SHA256.hash(data: bundle))
         guard digest == anchor.bundleSHA256 else { throw StoreError.digestMismatch }
+        try validateTUFMetadata(tufMetadata)
 
         if let currentData = try readItem() {
             guard let current = try? JSONDecoder().decode(Archive.self, from: currentData) else {
@@ -137,7 +146,8 @@ public final class ProtectedTrustStateStore {
         let archive = Archive(
             sequence: anchor.sequence,
             bundleSHA256: digest,
-            bundle: bundle
+            bundle: bundle,
+            tufMetadata: tufMetadata
         )
         let encoded = try JSONEncoder().encode(archive)
         try writeItem(encoded)
@@ -149,8 +159,22 @@ public final class ProtectedTrustStateStore {
               committed.sequence == archive.sequence,
               committed.bundleSHA256 == archive.bundleSHA256,
               committed.bundle == archive.bundle,
+              (committed.tufMetadata ?? [:]) == tufMetadata,
               Data(SHA256.hash(data: committed.bundle)) == anchor.bundleSHA256 else {
             throw StoreError.corruptState
+        }
+    }
+
+    private func validateTUFMetadata(_ metadata: [String: Data]) throws {
+        guard metadata.count <= 64 else { throw StoreError.corruptState }
+        var total = 0
+        for (name, bytes) in metadata {
+            guard name.range(of: "^[a-z0-9][a-z0-9._/-]{0,127}$", options: .regularExpression) != nil,
+                  !bytes.isEmpty, bytes.count <= 1_048_576 else {
+                throw StoreError.corruptState
+            }
+            total += bytes.count
+            if total > 3 * 1024 * 1024 { throw StoreError.corruptState }
         }
     }
 
