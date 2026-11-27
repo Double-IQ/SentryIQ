@@ -391,7 +391,7 @@ final class TrustBundleValidator
     }
 
     /** SHA-256 of the platform-independent SENTRYIQ-MASTER-KEYSET-V1 binary descriptor. */
-    private function masterKeysetDigest(\\stdClass $keyset): string
+    private function masterKeysetDigest(\stdClass $keyset): string
     {
         $rawPublic = function (string $pem): string {
             $key = openssl_pkey_get_public($pem);
@@ -403,7 +403,7 @@ final class TrustBundleValidator
                 if (!is_string($x) || !is_string($y) || strlen($x) > 32 || strlen($y) > 32) {
                     throw new RuntimeException('Master P-256 public key coordinates are malformed.');
                 }
-                return str_pad($x, 32, "\\0", STR_PAD_LEFT) . str_pad($y, 32, "\\0", STR_PAD_LEFT);
+                return str_pad($x, 32, "\0", STR_PAD_LEFT) . str_pad($y, 32, "\0", STR_PAD_LEFT);
             } finally {
                 openssl_pkey_free($key);
             }
@@ -417,7 +417,7 @@ final class TrustBundleValidator
             $rawPublic($keyset->key_agreement->public_key_pem),
             $keyset->hardware_assurance,
         ];
-        $transcript = "SENTRYIQ-MASTER-KEYSET-V1\\n";
+        $transcript = "SENTRYIQ-MASTER-KEYSET-V1\n";
         foreach ($fields as $field) {
             $transcript .= pack('N', strlen($field)) . $field;
         }
