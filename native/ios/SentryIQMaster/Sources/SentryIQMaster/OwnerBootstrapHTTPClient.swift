@@ -100,7 +100,9 @@ public final class OwnerBootstrapHTTPClient {
             completion(result.flatMap { snapshot in
                 do {
                     let anchor = try Self.decodeAnchor(snapshot)
-                    guard Data(SHA256.hash(data: snapshot.canonicalBundle)) == anchor.bundleSHA256 else {
+                    guard Data(SHA256.hash(data: snapshot.canonicalBundle)) == anchor.bundleSHA256,
+                          snapshot.bundleSHA256 == Self.encodeHex(anchor.bundleSHA256),
+                          snapshot.sequence == String(anchor.sequence) else {
                         throw ClientError.invalidResponse
                     }
                     try verifyTuf(snapshot)
@@ -146,6 +148,10 @@ public final class OwnerBootstrapHTTPClient {
         guard let number = value as? NSNumber, number.doubleValue >= 0,
               number.doubleValue.rounded(.towardZero) == number.doubleValue else { return nil }
         return number.uint64Value
+    }
+
+    private static func encodeHex(_ value: Data) -> String {
+        value.map { String(format: "%02x", $0) }.joined()
     }
 
     private static func decodeHex(_ value: String) throws -> Data {
