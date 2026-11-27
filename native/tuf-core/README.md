@@ -16,13 +16,13 @@ The caller supplies metadata and target bytes already fetched by its transport l
 
 ## Dependency decision
 
-Tuffet 0.1.0 is a provisional candidate, not yet production-approved. It follows TUF 1.0, offers an offline TrustedMetadata API and backend-neutral cryptography, and lets SentryIQ own transport and protected storage. Its documented unsupported areas include TAP 4 multi-repository consensus and the optional mirrors role; SentryIQ's initial deployment is one repository and does not require either feature. We still need a security review, signed upstream Tuffet/Python-TUF fixture interoperability tests, mobile cross-compilation, and dependency maintenance assessment before pinning it for production.
+Tuffet 0.1.0 is a provisional candidate, not yet production-approved. It follows TUF 1.0, offers an offline TrustedMetadata API and backend-neutral cryptography, and lets SentryIQ own transport and protected storage. Its documented unsupported areas include TAP 4 multi-repository consensus and the optional mirrors role; SentryIQ's initial deployment is one repository and does not require either feature. We still need successful CI confirmation of the signed upstream Tuffet/Python-TUF fixture tests, mobile cross-compilation, security review, and dependency maintenance assessment before pinning it for production.
 
 UniFFI provides generated Swift and Kotlin bindings from one Rust core. The crate exports the root/metadata/delegation/target-byte verification functions. CI regenerates Swift and Kotlin bindings from the current cdylib and packages the platform libraries; the corresponding platform builds and instrumentation tests must complete successfully before this prototype can be considered validated.
 
 ## UniFFI binding generation
 
-The crate now exposes a pinned UniFFI 0.32.2 bindgen executable and a checked-in `uniffi.toml` naming the Kotlin package (`co.bichet.sentryiq.tuf`) and Swift module (`SentryIQTufCore`). CI builds the Rust cdylib and generates both language bindings from that exact library in library mode. Generated files are currently placed under the ignored Cargo target directory and are not yet linked into the Android AAR or iOS Swift package.
+The crate now exposes a pinned UniFFI 0.32.2 bindgen executable and a checked-in `uniffi.toml` naming the Kotlin package (`co.bichet.sentryiq.tuf`) and Swift module (`SentryIQTufCore`). CI builds the Rust cdylib and generates both language bindings from that exact library in library mode. Generated files are placed under the ignored Cargo target directory rather than checked in; the platform build scripts generate and link them into the Android AAR and iOS Swift package during each build.
 
 The binding-generation step validates the exported interface. The iOS and Android platform build scripts also package the generated wrappers with the compiled Rust libraries into the Swift package's XCFramework and Android module's `jniLibs`/JNA integration. CI exercises the iOS Swift-to-Rust call and an Android emulator instrumentation call; successful CI does not replace physical-device hardware assurance or independent security review.
 
@@ -43,4 +43,4 @@ The generated language source and compiled platform libraries are build outputs,
 cargo test --manifest-path native/tuf-core/Cargo.toml
 ```
 
-No production root, private key, trust state, or repository metadata is included.
+No production root, private key, or trust state is included. The repository contains only public upstream TUF test metadata and target-byte fixtures.
