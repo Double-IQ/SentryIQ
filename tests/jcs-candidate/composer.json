@@ -3,7 +3,8 @@
   "description": "Isolated qualification harness for a candidate RFC 8785 implementation",
   "type": "project",
   "require": {
-    "accredifysg/php-json-canonicalize": "1.1.1"
+    "accredifysg/php-json-canonicalize": "1.1.1",
+    "mbolli/php-ron": "0.5.0"
   },
   "config": {
     "sort-packages": true
