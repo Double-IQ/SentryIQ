@@ -71,14 +71,17 @@ public final class ProtectedTrustStateStore {
     private static let processLock = NSRecursiveLock()
     private let service: String
     private let account = "accepted-trust-bundle-v1"
-    private let verifyRegistryAnchor: (TrustRegistryAnchor) -> Bool
+    private let expectedOwnerID: String
+    private let trustedSignerKeys: [RegistryAnchorSignerKey]
 
     public init(
         service: String = "co.bichet.sentryiq.master-companion",
-        verifyRegistryAnchor: @escaping (TrustRegistryAnchor) -> Bool
+        expectedOwnerID: String,
+        trustedSignerKeys: [RegistryAnchorSignerKey]
     ) {
         self.service = service
-        self.verifyRegistryAnchor = verifyRegistryAnchor
+        self.expectedOwnerID = expectedOwnerID
+        self.trustedSignerKeys = trustedSignerKeys
     }
 
     public func load(anchor: TrustRegistryAnchor, now: UInt64 = UInt64(Date().timeIntervalSince1970)) throws -> ProtectedTrustState {
@@ -157,8 +160,17 @@ public final class ProtectedTrustStateStore {
               !anchor.signedPayload.isEmpty,
               !anchor.signature.isEmpty,
               TrustRegistryAnchorPolicy.isFresh(issuedAt: anchor.issuedAt, expiresAt: anchor.expiresAt, now: now),
-              anchor.previousBundleSHA256 == nil || anchor.previousBundleSHA256?.count == 32,
-              verifyRegistryAnchor(anchor) else {
+              anchor.previousBundleSHA256 == nil || anchor.previousBundleSHA256?.count == 32 else {
+            throw StoreError.invalidRegistryAnchor
+        }
+        do {
+            try RegistryAnchorVerifier.verify(
+                anchor,
+                expectedOwnerID: expectedOwnerID,
+                trustedSignerKeys: trustedSignerKeys,
+                now: now
+            )
+        } catch {
             throw StoreError.invalidRegistryAnchor
         }
     }
