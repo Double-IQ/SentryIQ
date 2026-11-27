@@ -355,6 +355,8 @@ public final class OwnerBootstrapHTTPClient {
         completion: @escaping (Result<Data, Error>) -> Void
     ) {
         guard path.range(of: "^[A-Za-z0-9._/-]{1,512}$", options: .regularExpression) != nil,
+              !path.hasPrefix("/"),
+              !path.hasSuffix("/"),
               !path.contains("//"),
               !path.split(separator: "/", omittingEmptySubsequences: false).contains(where: { $0 == "." || $0 == ".." }),
               var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
