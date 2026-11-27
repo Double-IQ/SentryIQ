@@ -13,6 +13,9 @@ on:
       - 'tests/registry_anchor_verifier.test.php'
       - 'tests/trust_bundle_validator.test.php'
       - 'tests/trust_bundle_canonical_profile.test.php'
+      - 'tests/fixtures/registry-anchor-canonicalization.json'
+      - 'tests/fixtures/jcs-rfc8785-vectors.json'
+      - 'tests/fixtures/jcs-rfc8785-appendix-b.json'
       - '.github/workflows/phase-3-1-bootstrap.yml'
   push:
     branches: [main]
