@@ -88,14 +88,35 @@ class AndroidKeystoreMasterKeyStore(
         }
     }
 
-    /** ES256 JOSE r||s, normalized to low-S. User authentication is required by Keystore. */
-    fun sign(message: ByteArray): ByteArray {
-        val key = privateKey(signingAlias)
-        val signer = Signature.getInstance("SHA256withECDSA")
-        signer.initSign(key)
-        signer.update(message)
-        return derEcdsaToLowSJose(signer.sign())
+    /**
+     * Prepares a per-use authenticated signing operation.
+     *
+     * Pass the returned Signature to BiometricPrompt.CryptoObject, then call
+     * completeSigningOperation() with the authenticated Signature from the
+     * successful AuthenticationResult. A generic biometric check performed
+     * separately from this CryptoObject is not sufficient for this key policy.
+     */
+    fun beginSigningOperation(message: ByteArray): Signature {
+        val operation = Signature.getInstance("SHA256withECDSA")
+        operation.initSign(privateKey(signingAlias))
+        operation.update(message)
+        return operation
     }
+
+    /** Completes the Signature returned by a successful BiometricPrompt CryptoObject. */
+    fun completeSigningOperation(authenticatedOperation: Signature): ByteArray {
+        require(authenticatedOperation.algorithm == "SHA256withECDSA") {
+            "Only the prepared ES256 signing operation may be completed."
+        }
+        return derEcdsaToLowSJose(authenticatedOperation.sign())
+    }
+
+    /**
+     * Convenience path for environments where Keystore has already authorised
+     * the key use. Interactive apps should use begin/complete with CryptoObject.
+     */
+    fun sign(message: ByteArray): ByteArray =
+        completeSigningOperation(beginSigningOperation(message))
 
     /** P-256 ECDH followed by HKDF-SHA256; raw ECDH output is not returned. */
     fun deriveKey(peerSubjectPublicKeyInfo: ByteArray, salt: ByteArray, info: ByteArray): ByteArray {
