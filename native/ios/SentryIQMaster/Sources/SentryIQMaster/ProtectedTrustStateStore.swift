@@ -108,6 +108,40 @@ public final class ProtectedTrustStateStore {
         )
     }
 
+    /// Load the cached state only when it is the exact current or immediate predecessor of a newly verified anchor.
+    public func loadPreviousState(
+        for anchor: TrustRegistryAnchor,
+        now: UInt64 = UInt64(Date().timeIntervalSince1970)
+    ) throws -> ProtectedTrustState? {
+        Self.processLock.lock()
+        defer { Self.processLock.unlock() }
+        try validate(anchor, now: now)
+        guard let data = try readItem() else {
+            guard TrustRegistryAnchorPolicy.isValidInitialAnchor(
+                sequence: anchor.sequence,
+                previousBundleSHA256: anchor.previousBundleSHA256
+            ) else { throw StoreError.rollbackDetected }
+            return nil
+        }
+        let archive: Archive
+        do { archive = try JSONDecoder().decode(Archive.self, from: data) }
+        catch { throw StoreError.corruptState }
+        guard Data(SHA256.hash(data: archive.bundle)) == archive.bundleSHA256 else {
+            throw StoreError.corruptState
+        }
+        let same = anchor.sequence == archive.sequence && anchor.bundleSHA256 == archive.bundleSHA256
+        let next = archive.sequence < UInt64.max
+            && anchor.sequence == archive.sequence + 1
+            && anchor.previousBundleSHA256 == archive.bundleSHA256
+        guard same || next else { throw StoreError.rollbackDetected }
+        return ProtectedTrustState(
+            sequence: archive.sequence,
+            bundleSHA256: archive.bundleSHA256,
+            bundle: archive.bundle,
+            tufMetadata: archive.tufMetadata ?? [:]
+        )
+    }
+
     public func save(
         bundle: Data,
         anchor: TrustRegistryAnchor,
