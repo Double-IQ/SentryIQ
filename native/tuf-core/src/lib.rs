@@ -521,6 +521,56 @@ mod tests {
     }
 
     #[test]
+    fn accepts_signed_cached_metadata_rollback_baseline() {
+        let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
+        let timestamp =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
+        let snapshot =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let root_pin = Sha256::digest(&root).to_vec();
+
+        assert!(verify_tuf_metadata_refresh(
+            root,
+            root_pin,
+            vec![],
+            Some(timestamp.clone()),
+            Some(snapshot.clone()),
+            Some(targets.clone()),
+            timestamp,
+            snapshot,
+            targets,
+            1_800_000_000,
+        ));
+    }
+
+    #[test]
+    fn ignores_corrupt_cached_targets_when_fresh_signed_metadata_is_valid() {
+        let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
+        let timestamp =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
+        let snapshot =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let root_pin = Sha256::digest(&root).to_vec();
+
+        assert!(verify_tuf_metadata_refresh(
+            root,
+            root_pin,
+            vec![],
+            Some(timestamp.clone()),
+            Some(snapshot.clone()),
+            Some(b"corrupt cached targets".to_vec()),
+            timestamp,
+            snapshot,
+            targets,
+            1_800_000_000,
+        ));
+    }
+
+    #[test]
     fn rejects_empty_initial_root() {
         assert_eq!(
             verify_tuf_root_rotation_chain(vec![], vec![0; 32], vec![], 1_700_000_000),
