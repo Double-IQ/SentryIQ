@@ -1,6 +1,7 @@
 package co.bichet.sentryiq.master
 
 import android.app.AlertDialog
+import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.fragment.app.FragmentActivity
 import java.security.Signature
@@ -84,8 +85,8 @@ class OwnerFingerprintApprovalPrompt(
                         .setSubtitle("Approve ${details.role} · ${details.keyId}")
                         .setDescription("The hardware-backed master key will sign this exact approval.")
                         .setAllowedAuthenticators(
-                            BiometricPrompt.AUTHENTICATORS_BIOMETRIC_STRONG or
-                                BiometricPrompt.AUTHENTICATORS_DEVICE_CREDENTIAL
+                            BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                                BiometricManager.Authenticators.DEVICE_CREDENTIAL
                         )
                         .build()
                     prompt.authenticate(promptInfo, BiometricPrompt.CryptoObject(operation.cryptoObjectSignature))
