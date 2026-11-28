@@ -102,7 +102,9 @@ public final class OwnerBootstrapHTTPClient {
                     && pathMatches
                     && (cookie.expiresDate == nil || cookie.expiresDate! > Date())
             }
-            guard let sessionCookie = matching.max(by: { $0.path.count < $1.path.count }) else {
+            // Fail closed if multiple cookies with the configured name match
+            // the endpoint; choosing one by path could hide session ambiguity.
+            guard matching.count == 1, let sessionCookie = matching.first else {
                 completion(.failure(ClientError.missingSessionCookie))
                 return
             }
