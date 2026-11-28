@@ -60,8 +60,11 @@ return [
         throw new RuntimeException('Provision the independent TUF metadata verifier.');
     },
 
-    // Return target bytes only for a safe relative path from the approved target store.
-    'resolve_target' => static function (string $relativeTargetPath, array $validatedBundle, array $verifiedTufMetadata): ?string {
-        throw new RuntimeException('Provision a path-confined TUF target resolver.');
+    // Return a null miss, or bytes + the target descriptor sourced from independently
+    // verified signed TUF target/delegation metadata. BootstrapTargetStore::read() checks
+    // the signed SHA-256/length; the API boundary rechecks them before sending bytes.
+    'resolve_target' => static function (string $relativeTargetPath, array $validatedBundle, array $verifiedTufMetadata): ?array {
+        throw new RuntimeException('Provision a verified TUF target resolver.');
+        // Return ['bytes' => $bytes, 'descriptor' => ['sha256' => $signedHash, 'length' => $signedLength]];
     },
 ];
