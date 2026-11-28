@@ -4,13 +4,18 @@ import XCTest
 final class BootstrapLifecycleTests: XCTestCase {
     func testDerivesUninitialisedAndMasterCreatedStates() {
         XCTAssertEqual(
-            BootstrapLifecycle.evaluate(BootstrapLifecycleEvidence(masterKeyset: .absent, protectedTrust: .absent)),
+            BootstrapLifecycle.evaluate(BootstrapLifecycleEvidence(masterKeyset: .absent, protectedTrust: .absent, identityContinuity: .neverInitialized)),
             .uninitialised
         )
         XCTAssertEqual(
-            BootstrapLifecycle.evaluate(BootstrapLifecycleEvidence(masterKeyset: .complete, protectedTrust: .absent)),
+            BootstrapLifecycle.evaluate(BootstrapLifecycleEvidence(masterKeyset: .complete, protectedTrust: .absent, identityContinuity: .neverInitialized)),
             .masterCreatedPendingRoots
         )
+    }
+
+    func testRestoredOrUnknownIdentityNeverFallsBackToFirstRun() {
+        XCTAssertEqual(BootstrapLifecycle.evaluate(BootstrapLifecycleEvidence(masterKeyset: .absent, protectedTrust: .absent, identityContinuity: .previouslyInitialized)), .recoveryRequired)
+        XCTAssertEqual(BootstrapLifecycle.evaluate(BootstrapLifecycleEvidence(masterKeyset: .absent, protectedTrust: .absent)), .recoveryRequired)
     }
 
     func testAcceptedReceiptLeavesVerifierPendingUntilIndependentQualification() {
