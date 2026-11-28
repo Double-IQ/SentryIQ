@@ -63,6 +63,7 @@ public final class OwnerBootstrapHTTPClient {
         case invalidResponse
         case httpStatus(Int)
         case invalidEncoding
+        case missingSessionCookie
     }
 
     private let endpoint: URL
@@ -335,7 +336,7 @@ public final class OwnerBootstrapHTTPClient {
               let sequenceText = object["sequence"] as? String,
               let sequence = UInt64(sequenceText),
               let digestText = object["bundle_sha256"] as? String,
-              let digest = decodeHex(digestText),
+              let digest = try? decodeHex(digestText),
               let issuedAt = integer(object["issued_at"]),
               let expiresAt = integer(object["expires_at"]),
               let ownerID = object["owner_id"] as? String,
