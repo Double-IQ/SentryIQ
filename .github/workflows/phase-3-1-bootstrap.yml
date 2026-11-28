@@ -36,7 +36,10 @@ on:
       - 'app/Security/RegistryAnchorVerifier.php'
       - 'app/Security/TrustBundleValidator.php'
       - 'app/Security/OwnerBootstrapApi.php'
+      - 'app/Security/BootstrapTargetStore.php'
+      - 'tests/bootstrap_target_store.test.php'
       - 'api/owner-bootstrap.php'
+      - 'scripts/qualify-bootstrap-runtime.php'
       - 'tests/bootstrap_challenge_store.test.php'
       - 'tests/owner_approval_proof_verifier.test.php'
       - 'tests/registry_anchor_verifier.test.php'
@@ -84,6 +87,7 @@ jobs:
           php -l app/Security/OwnerBootstrapApi.php
           php -l app/Security/BootstrapTargetStore.php
           php -l api/owner-bootstrap.php
+          php -l scripts/qualify-bootstrap-runtime.php
       - name: Run bootstrap security regression tests
         run: |
           php tests/bootstrap_challenge_store.test.php
