@@ -502,6 +502,7 @@ class OwnerBootstrapHttpClient(
             ?: throw ClientException("Bootstrap endpoint must use HTTPS.")
         try {
             connection.requestMethod = method
+            connection.useCaches = false
             connection.instanceFollowRedirects = false
             connection.connectTimeout = connectTimeoutMillis
             connection.readTimeout = readTimeoutMillis
@@ -519,7 +520,7 @@ class OwnerBootstrapHttpClient(
             val status = connection.responseCode
             val finalUrl = connection.url
             if (!finalUrl.protocol.equals("https", true) || finalUrl.host != endpoint.host ||
-                finalUrl.port != endpoint.port || finalUrl.path != endpoint.path) {
+                finalUrl.port != endpoint.port || finalUrl.path != endpoint.path || finalUrl.query != requestUrl.query) {
                 throw ClientException("Bootstrap endpoint redirected outside the authenticated origin.")
             }
             val responseHeaders = mutableMapOf<String, List<String>>()
