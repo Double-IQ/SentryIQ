@@ -47,6 +47,12 @@ class BootstrapLifecycleTest {
         ))
     }
 
+    @Test fun receiptWithoutProtectedTrustRequiresRecovery() {
+        assertEquals(BootstrapLifecycleState.RECOVERY_REQUIRED, BootstrapLifecycle.evaluate(
+            BootstrapLifecycleEvidence(MasterKeysetStatus.COMPLETE, ProtectedTrustStatus.ABSENT, true)
+        ))
+    }
+
     @Test fun revokedOrExpiredVerifierSuspendsTrustedState() {
         assertEquals(BootstrapLifecycleState.SUSPENDED, BootstrapLifecycle.evaluate(
             BootstrapLifecycleEvidence(
