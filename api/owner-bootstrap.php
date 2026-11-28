@@ -13,6 +13,7 @@ require_once dirname(__DIR__) . '/app/Security/TrustBundleValidator.php';
 require_once dirname(__DIR__) . '/app/Security/RegistryAnchorVerifier.php';
 require_once dirname(__DIR__) . '/app/Security/OwnerApprovalProofVerifier.php';
 require_once dirname(__DIR__) . '/app/Security/OwnerBootstrapApi.php';
+require_once dirname(__DIR__) . '/app/Security/BootstrapTargetStore.php';
 
 sentryiq_security_bootstrap();
 sentryiq_require_fresh_auth();
@@ -87,7 +88,7 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['target'])) {
         // Do not serve targets unless the current signed anchor, trust bundle,
         // and complete TUF metadata set pass the same validation as a snapshot.
-        $api->snapshot(time());
+        $targetSnapshot = $api->snapshot(time());
         $targetPath = $_GET['target'];
         if (!is_string($targetPath) || strlen($targetPath) > 512
             || !preg_match('~^[A-Za-z0-9._/-]+$~D', $targetPath)
@@ -96,7 +97,7 @@ try {
             || preg_match('~(^|/)\\.{1,2}($|/)~', $targetPath)) {
             owner_bootstrap_respond(400, ['error' => 'invalid_target_path']);
         }
-        $targetBytes = ($runtime['resolve_target'])($targetPath);
+        $targetBytes = ($runtime['resolve_target'])($targetPath, $targetSnapshot['validated_bundle'], $targetSnapshot['tuf_metadata']);
         if (!is_string($targetBytes) || $targetBytes === '') {
             owner_bootstrap_respond(404, ['error' => 'target_not_found']);
         }
