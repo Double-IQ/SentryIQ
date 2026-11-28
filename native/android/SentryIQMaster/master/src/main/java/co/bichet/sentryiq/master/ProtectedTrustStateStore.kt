@@ -57,7 +57,8 @@ class ProtectedTrustStateStore(
 
     data class TrustState(val sequence: ULong, val bundleSha256: ByteArray, val bundle: ByteArray, val tufMetadata: Map<String, ByteArray> = emptyMap(), val bootstrapReceiptId: String? = null)
 
-    class StateException(message: String) : Exception(message)
+    open class StateException(message: String) : Exception(message)
+    class MissingStateException : StateException("No protected trust state exists; bootstrap is required.")
 
     private val file = File(context.noBackupFilesDir, "sentryiq-trust-state-v1.bin")
     private val keyAlias = "co.bichet.sentryiq.trust-state-aes-gcm.v1"
@@ -67,7 +68,7 @@ class ProtectedTrustStateStore(
         nowEpochSeconds: Long = System.currentTimeMillis() / 1000L
     ): TrustState = synchronized(processLock) {
         requireValidAnchor(anchor, nowEpochSeconds)
-        if (!file.exists()) throw StateException("No protected trust state exists; bootstrap is required.")
+        if (!file.exists()) throw MissingStateException()
         if (file.length() !in 1..MAX_ENCODED_STATE_BYTES.toLong()) {
             throw StateException("Stored trust state exceeds the permitted size.")
         }
