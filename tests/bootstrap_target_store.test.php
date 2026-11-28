@@ -29,25 +29,39 @@ chmod($root . '/releases/app.bin', 0600);
 chmod($outside, 0600);
 try {
     $store = new BootstrapTargetStore($root);
+    $verified = [
+        'releases/app.bin' => [
+            'sha256' => hash('sha256', 'verified fixture bytes'),
+            'length' => strlen('verified fixture bytes'),
+        ],
+    ];
     bootstrapTargetAssert(
-        $store->read('releases/app.bin', ['releases/app.bin']) === 'verified fixture bytes',
-        'Authorized target must be read exactly.'
+        $store->read('releases/app.bin', $verified) === 'verified fixture bytes',
+        'Authorized target must be read exactly and verified against signed metadata.'
     );
     bootstrapTargetReject(
         fn() => $store->read('releases/app.bin', []),
-        'Target store must reject a path not present in the verified allowlist.'
+        'Target store must reject a path not present in verified target metadata.'
+    );
+    bootstrapTargetReject(
+        fn() => $store->read('releases/app.bin', ['releases/app.bin' => ['sha256' => str_repeat('0', 64), 'length' => strlen('verified fixture bytes')]]),
+        'Target store must reject bytes that do not match the signed target digest.'
+    );
+    bootstrapTargetReject(
+        fn() => $store->read('releases/app.bin', ['releases/app.bin' => ['sha256' => hash('sha256', 'verified fixture bytes'), 'length' => 1]]),
+        'Target store must reject target size mismatches.'
     );
     foreach (['../outside', '/absolute', 'releases/../app.bin', 'releases//app.bin', 'releases\\app.bin', 'releases/.'] as $unsafe) {
         bootstrapTargetAssert(!BootstrapTargetStore::validRelativePath($unsafe), 'Unsafe target path must fail validation.');
     }
     bootstrapTargetReject(
-        fn() => $store->read('../' . basename($outside), ['../' . basename($outside)]),
+        fn() => $store->read('../' . basename($outside), ['../' . basename($outside) => ['sha256' => hash('sha256', 'external bytes'), 'length' => strlen('external bytes')]]),
         'Target store must reject path traversal.'
     );
 
     if (function_exists('symlink') && @symlink($outside, $root . '/releases/escape.bin')) {
         bootstrapTargetReject(
-            fn() => $store->read('releases/escape.bin', ['releases/escape.bin']),
+            fn() => $store->read('releases/escape.bin', ['releases/escape.bin' => ['sha256' => hash('sha256', 'external bytes'), 'length' => strlen('external bytes')]]),
             'Target store must reject symbolic links.'
         );
     }
