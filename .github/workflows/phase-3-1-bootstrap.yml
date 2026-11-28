@@ -9,6 +9,10 @@ on:
       - 'app/Security/RegistryAnchorVerifier.php'
       - 'app/Security/TrustBundleValidator.php'
       - 'app/Security/OwnerBootstrapApi.php'
+      - 'app/Security/BootstrapTargetStore.php'
+      - 'tests/bootstrap_target_store.test.php'
+      - 'app/Security/BootstrapTargetStore.php'
+      - 'tests/bootstrap_target_store.test.php'
       - 'api/owner-bootstrap.php'
       - 'tests/bootstrap_challenge_store.test.php'
       - 'tests/owner_approval_proof_verifier.test.php'
@@ -78,6 +82,7 @@ jobs:
           php -l app/Security/RegistryAnchorVerifier.php
           php -l app/Security/TrustBundleValidator.php
           php -l app/Security/OwnerBootstrapApi.php
+          php -l app/Security/BootstrapTargetStore.php
           php -l api/owner-bootstrap.php
       - name: Run bootstrap security regression tests
         run: |
@@ -87,3 +92,4 @@ jobs:
           php tests/trust_bundle_validator.test.php
           php tests/trust_bundle_canonical_profile.test.php
           php tests/owner_bootstrap_api.test.php
+          php tests/bootstrap_target_store.test.php
