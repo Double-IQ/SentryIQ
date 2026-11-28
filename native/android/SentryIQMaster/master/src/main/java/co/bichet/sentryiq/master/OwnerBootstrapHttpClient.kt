@@ -76,6 +76,8 @@ class OwnerBootstrapHttpClient(
 
         /** Extract one unambiguous session cookie; duplicate or unsafe values fail closed. */
         internal fun extractSessionCookie(cookieHeader: String, expectedName: String): String? {
+            // Never let trim() normalize CR/LF or other controls into an apparently safe token.
+            if (cookieHeader.any { it.code < 0x20 || it.code == 0x7f }) return null
             val matches = cookieHeader.split(';').mapNotNull { pair ->
                 val separator = pair.indexOf('=')
                 if (separator <= 0) return@mapNotNull null
