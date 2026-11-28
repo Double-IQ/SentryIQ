@@ -48,7 +48,7 @@ class OwnerBootstrapHttpClient(
                 secure = true
                 isHttpOnly = true
             }
-            nativeCookieJar.cookiePolicy = CookiePolicy.ACCEPT_ORIGINAL_SERVER
+            nativeCookieJar.setCookiePolicy(CookiePolicy.ACCEPT_ORIGINAL_SERVER)
             nativeCookieJar.cookieStore.add(endpointUrl.toURI(), cookie)
             WebViewCookieManager.getInstance().flush()
             val returned = nativeCookieJar.get(endpointUrl.toURI(), emptyMap())["Cookie"].orEmpty()
