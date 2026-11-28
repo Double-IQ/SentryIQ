@@ -21,7 +21,7 @@ Native app configuration must read this field from the loaded same-origin Sentry
 - confirms that the current WebView URL is same-origin with the configured origin;
 - reads cookies for the bootstrap endpoint and selects only the exact configured session-cookie name;
 - rejects missing, duplicate, or unsafe session-cookie values;
-- transfers that one cookie into a native `java.net.CookieManager` with Secure, HttpOnly and SameSite=Strict attributes;
+- transfers that one cookie into a native `java.net.CookieManager` with Secure and HttpOnly attributes; the web session cookie remains `SameSite=Strict` at the PHP/WebView boundary, while SameSite is not a property enforced by Java's native HTTP cookie jar;
 - never copies unrelated WebView cookies.
 
 The native app must call this bridge after the web login succeeds and before creating/sending bootstrap requests. Keep the native cookie jar in memory for the authenticated session and call `OwnerBootstrapHttpClient.clearNativeSessionCookie(origin, sessionCookieName, nativeCookieJar)` when the vault locks, on logout, session-expiry, WebView teardown, and authentication failure. This removes only the configured cookie and leaves unrelated cookies untouched.
