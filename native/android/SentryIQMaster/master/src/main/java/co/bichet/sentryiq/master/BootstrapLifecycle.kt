@@ -31,7 +31,8 @@ data class BootstrapLifecycleEvidence(
 
 object BootstrapLifecycle {
     fun evaluate(evidence: BootstrapLifecycleEvidence): BootstrapLifecycleState {
-        if (evidence.protectedTrust == ProtectedTrustStatus.CORRUPT ||
+        if ((evidence.hasAcceptedBootstrapReceipt && evidence.protectedTrust == ProtectedTrustStatus.ABSENT) ||
+            evidence.protectedTrust == ProtectedTrustStatus.CORRUPT ||
             evidence.masterKeyset == MasterKeysetStatus.INCOMPLETE ||
             (evidence.masterKeyset == MasterKeysetStatus.ABSENT &&
                 evidence.protectedTrust == ProtectedTrustStatus.VALID)) {
