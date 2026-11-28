@@ -80,7 +80,13 @@ public final class OwnerBootstrapHTTPClient {
     ) {
         guard origin.scheme?.lowercased() == "https",
               let host = origin.host, !host.isEmpty,
-              !sessionCookieName.isEmpty else {
+              origin.user == nil, origin.password == nil,
+              origin.query == nil, origin.fragment == nil,
+              sessionCookieName.range(of: "^[A-Za-z0-9_-]{1,64}$", options: .regularExpression) != nil,
+              let currentURL = webView.url,
+              currentURL.scheme?.lowercased() == "https",
+              currentURL.host?.lowercased() == host.lowercased(),
+              (currentURL.port ?? 443) == (origin.port ?? 443) else {
             completion(.failure(ClientError.invalidOrigin))
             return
         }
