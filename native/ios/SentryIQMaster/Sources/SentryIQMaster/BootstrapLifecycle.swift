@@ -12,6 +12,8 @@ public enum ProtectedTrustStatus {
     case corrupt
 }
 
+public enum IdentityContinuityStatus { case neverInitialized, previouslyInitialized, unknown }
+
 public enum VerifierQualificationStatus {
     case pending
     case qualified
@@ -39,23 +41,28 @@ public struct BootstrapLifecycleEvidence {
     public let protectedTrust: ProtectedTrustStatus
     public let hasAcceptedBootstrapReceipt: Bool
     public let verifierQualification: VerifierQualificationStatus
+    public let identityContinuity: IdentityContinuityStatus
 
     public init(
         masterKeyset: MasterKeysetStatus,
         protectedTrust: ProtectedTrustStatus,
         hasAcceptedBootstrapReceipt: Bool = false,
-        verifierQualification: VerifierQualificationStatus = .pending
+        verifierQualification: VerifierQualificationStatus = .pending,
+        identityContinuity: IdentityContinuityStatus = .unknown
     ) {
         self.masterKeyset = masterKeyset
         self.protectedTrust = protectedTrust
         self.hasAcceptedBootstrapReceipt = hasAcceptedBootstrapReceipt
         self.verifierQualification = verifierQualification
+        self.identityContinuity = identityContinuity
     }
 }
 
 /** Fail-closed first-run state reducer shared semantically with the Android adapter. */
 public enum BootstrapLifecycle {
     public static func evaluate(_ evidence: BootstrapLifecycleEvidence) -> BootstrapLifecycleState {
+        if evidence.masterKeyset == .absent && evidence.identityContinuity != .neverInitialized { return .recoveryRequired }
+        if evidence.masterKeyset != .absent && evidence.identityContinuity == .neverInitialized { return .recoveryRequired }
         if (evidence.hasAcceptedBootstrapReceipt && evidence.protectedTrust == .absent) ||
             evidence.protectedTrust == .corrupt ||
             evidence.masterKeyset == .incomplete ||
@@ -115,6 +122,7 @@ public final class BootstrapLifecycleCoordinator {
         anchor: TrustRegistryAnchor,
         verifyAcceptedReceipt: (String) -> Bool,
         verifierQualification: VerifierQualificationStatus,
+        identityContinuity: IdentityContinuityStatus,
         context: LAContext? = nil
     ) -> BootstrapLifecycleState {
         let keyset = masterKeyStore.lifecycleKeysetStatus(context: context)
@@ -137,7 +145,8 @@ public final class BootstrapLifecycleCoordinator {
             masterKeyset: keyset,
             protectedTrust: trustStatus,
             hasAcceptedBootstrapReceipt: acceptedReceipt,
-            verifierQualification: verifierQualification
+            verifierQualification: verifierQualification,
+            identityContinuity: identityContinuity
         ))
     }
 }
