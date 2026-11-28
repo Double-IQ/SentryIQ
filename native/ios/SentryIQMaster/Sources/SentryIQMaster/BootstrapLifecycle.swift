@@ -1,3 +1,4 @@
+import LocalAuthentication
 import Foundation
 
 public enum MasterKeysetStatus {
@@ -132,7 +133,7 @@ public final class BootstrapLifecycleCoordinator {
             let trust = try trustStateStore.load(anchor: anchor)
             trustStatus = .valid
             acceptedReceipt = trust.bootstrapReceiptID.map { id in
-                (try? verifyAcceptedReceipt(id)) ?? false
+                verifyAcceptedReceipt(id)
             } ?? false
         } catch ProtectedTrustStateStore.StoreError.missingState {
             trustStatus = .absent
