@@ -24,7 +24,7 @@ Native app configuration must read this field from the loaded same-origin Sentry
 - transfers that one cookie into a native `java.net.CookieManager` with Secure, HttpOnly and SameSite=Strict attributes;
 - never copies unrelated WebView cookies.
 
-The native app must call this bridge after the web login succeeds and before creating/sending bootstrap requests. Keep the native cookie jar in memory for the authenticated session and clear it when the vault locks or the web session expires.
+The native app must call this bridge after the web login succeeds and before creating/sending bootstrap requests. Keep the native cookie jar in memory for the authenticated session and call `OwnerBootstrapHttpClient.clearNativeSessionCookie(origin, sessionCookieName, nativeCookieJar)` when the vault locks, on logout, session-expiry, WebView teardown, and authentication failure. This removes only the configured cookie and leaves unrelated cookies untouched.
 
 The parser has JVM regression tests for selection, missing/duplicate cookie rejection, unsafe values, and name mismatch.
 
@@ -32,11 +32,11 @@ The parser has JVM regression tests for selection, missing/duplicate cookie reje
 
 `OwnerBootstrapHTTPClient.synchronizeSessionCookie(from:origin:sessionCookieName:completion:)` selects only the exact named secure, HttpOnly cookie for the HTTPS host and API path. The native caller should invoke it after WebView authentication and before bootstrap transport.
 
-The native app must use a URLSession whose cookie storage is the storage receiving the copied cookie. Do not log, persist, export, or place cookie values in the JavaScript bridge.
+The native app must use a URLSession whose cookie storage is the storage receiving the copied cookie. On lock/logout/session expiry/authentication failure, call `OwnerBootstrapHTTPClient.clearNativeSessionCookie(origin:sessionCookieName:cookieStorage:)` to remove only the configured native session cookie. Lock intentionally leaves the WebView cookie intact; explicit logout should also invoke the application's normal web logout. Do not log, persist, export, or place cookie values in the JavaScript bridge.
 
 ## App-level integration requirement
 
-The repository currently contains native companion libraries and UI approval components, not a complete iOS/Android app shell with a login WebView lifecycle. Therefore, the bridge is not yet connected to an actual login screen or lock/logout lifecycle. The consuming app must:
+The repository currently contains native companion libraries and UI approval components, not a complete iOS/Android app shell with a login WebView lifecycle. Cookie clearing helpers and unit tests are implemented, but the bridge is not yet connected to an actual login screen or lock/logout lifecycle. The consuming app must:
 
 1. Load the SentryIQ login page in its same-origin WebView.
 2. Detect successful authentication from the trusted navigation flow (not arbitrary JavaScript messages).
