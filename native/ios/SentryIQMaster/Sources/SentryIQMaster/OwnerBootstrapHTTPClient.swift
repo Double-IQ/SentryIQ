@@ -105,6 +105,31 @@ public final class OwnerBootstrapHTTPClient {
         }
     }
 
+    /// Remove only the configured session cookie from the native URLSession cookie store.
+    /// Call on lock, logout, explicit session expiry, and authentication failure.
+    /// This intentionally leaves the WebView's browser session intact on lock.
+    public static func clearNativeSessionCookie(
+        origin: URL,
+        sessionCookieName: String,
+        cookieStorage: HTTPCookieStorage = .shared
+    ) {
+        guard origin.scheme?.lowercased() == "https",
+              let host = origin.host, !host.isEmpty,
+              sessionCookieName.range(of: "^[A-Za-z0-9_-]{1,64}$", options: .regularExpression) != nil else {
+            return
+        }
+        let endpointPath = "/api/owner-bootstrap.php"
+        let cookies = cookieStorage.cookies ?? []
+        for cookie in cookies {
+            let domain = cookie.domain.hasPrefix(".") ? String(cookie.domain.dropFirst()) : cookie.domain
+            let pathMatches = endpointPath == cookie.path ||
+                endpointPath.hasPrefix(cookie.path.hasSuffix("/") ? cookie.path : cookie.path + "/")
+            if cookie.name == sessionCookieName && domain == host && cookie.isSecure && cookie.isHTTPOnly && pathMatches {
+                cookieStorage.deleteCookie(cookie)
+            }
+        }
+    }
+
     public init(baseURL: URL, session: URLSession = .shared) throws {
         guard baseURL.scheme?.lowercased() == "https",
               let host = baseURL.host, !host.isEmpty,
