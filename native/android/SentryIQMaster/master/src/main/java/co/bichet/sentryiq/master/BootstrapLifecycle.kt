@@ -92,12 +92,12 @@ class BootstrapLifecycleCoordinator(
             val accepted = trust.bootstrapReceiptId?.let { id -> runCatching { verifyAcceptedReceipt(id) }.getOrDefault(false) } ?: false
             ProtectedTrustStatus.VALID to accepted
         } catch (error: ProtectedTrustStateStore.StateException) {
-            if (error.message == "No protected trust state exists; bootstrap is required.") {
+            if (error is ProtectedTrustStateStore.MissingStateException) {
                 ProtectedTrustStatus.ABSENT to false
             } else {
                 ProtectedTrustStatus.CORRUPT to false
             }
-        } catch (_: Throwable) {
+        } catch (_: Exception) {
             ProtectedTrustStatus.CORRUPT to false
         }
         return BootstrapLifecycle.evaluate(BootstrapLifecycleEvidence(
