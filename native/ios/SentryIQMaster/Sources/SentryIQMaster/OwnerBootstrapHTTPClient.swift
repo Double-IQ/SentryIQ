@@ -612,6 +612,7 @@ public final class OwnerBootstrapHTTPClient {
     ) {
         var request = URLRequest(url: url ?? endpoint)
         request.httpMethod = method
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -626,7 +627,7 @@ public final class OwnerBootstrapHTTPClient {
                   response.url?.scheme?.lowercased() == "https",
                   response.url?.host?.lowercased() == self.endpoint.host?.lowercased(),
                   response.url?.port == self.endpoint.port,
-                  response.url?.path == self.endpoint.path,
+                  response.url == request.url,
                   response.mimeType?.lowercased() == "application/json" else {
                 completion(.failure(ClientError.invalidResponse)); return
             }
