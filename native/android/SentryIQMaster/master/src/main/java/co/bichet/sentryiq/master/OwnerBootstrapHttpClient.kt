@@ -3,6 +3,10 @@ package co.bichet.sentryiq.master
 import android.util.Base64
 import org.json.JSONObject
 import java.net.CookieManager
+import java.net.CookiePolicy
+import java.net.HttpCookie
+import android.webkit.WebView
+import android.webkit.CookieManager as WebViewCookieManager
 import java.net.URI
 import java.net.URL
 import java.security.MessageDigest
@@ -20,8 +24,56 @@ class OwnerBootstrapHttpClient(
     private val readTimeoutMillis: Int = 20_000
 ) {
     companion object {
-        /** Use the same WebView cookie jar after login; flush before native HTTP requests. */
-        fun authenticatedWebViewCookieManager(): CookieManager = CookieManager.getInstance().also { it.flush() }
+        /**
+         * Copy only the configured HTTPS/HttpOnly session cookie from an authenticated
+         * same-origin WebView into the native HTTP cookie jar. Never copy unrelated cookies.
+         */
+        fun synchronizeAuthenticatedSessionCookie(
+            webView: WebView,
+            origin: URL,
+            sessionCookieName: String,
+            nativeCookieJar: CookieManager
+        ): Boolean {
+            if (!origin.protocol.equals("https", true) || origin.userInfo != null ||
+                origin.query != null || origin.ref != null || !sessionCookieName.matches(Regex("^[A-Za-z0-9_-]{1,64}$"))) {
+                return false
+            }
+            val currentUrl = try { URL(webView.url ?: return false) } catch (_: Exception) { return false }
+            if (!sameOrigin(origin, currentUrl)) return false
+            val endpointUrl = URL(origin.toString().trimEnd('/') + "/api/owner-bootstrap.php")
+            val cookieHeader = WebViewCookieManager.getInstance().getCookie(endpointUrl.toString()) ?: return false
+            val sessionValue = extractSessionCookie(cookieHeader, sessionCookieName) ?: return false
+            val cookie = HttpCookie(sessionCookieName, sessionValue).apply {
+                path = "/"
+                secure = true
+                isHttpOnly = true
+            }
+            nativeCookieJar.cookiePolicy = CookiePolicy.ACCEPT_ORIGINAL_SERVER
+            nativeCookieJar.cookieStore.add(endpointUrl.toURI(), cookie)
+            WebViewCookieManager.getInstance().flush()
+            val returned = nativeCookieJar.get(endpointUrl.toURI(), emptyMap())["Cookie"].orEmpty()
+            return returned.any { it.split(';').any { pair -> pair.trim() == "$sessionCookieName=$sessionValue" } }
+        }
+
+        /** Extract one unambiguous session cookie; duplicate or unsafe values fail closed. */
+        internal fun extractSessionCookie(cookieHeader: String, expectedName: String): String? {
+            val matches = cookieHeader.split(';').mapNotNull { pair ->
+                val separator = pair.indexOf('=')
+                if (separator <= 0) return@mapNotNull null
+                val name = pair.substring(0, separator).trim()
+                if (name != expectedName) return@mapNotNull null
+                pair.substring(separator + 1).trim()
+            }
+            if (matches.size != 1) return null
+            val value = matches.single()
+            return value.takeIf { it.matches(Regex("^[A-Za-z0-9,_-]{16,256}$")) }
+        }
+
+        private fun sameOrigin(left: URL, right: URL): Boolean =
+            left.protocol.equals("https", true) && right.protocol.equals("https", true) &&
+                left.host.equals(right.host, true) && effectivePort(left) == effectivePort(right)
+
+        private fun effectivePort(url: URL): Int = if (url.port >= 0) url.port else 443
     }
 
     data class Snapshot(
