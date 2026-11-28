@@ -13,7 +13,7 @@ class BootstrapLifecycleTest {
         )
         assertEquals(
             BootstrapLifecycleState.MASTER_CREATED_PENDING_ROOTS,
-            BootstrapLifecycle.evaluate(BootstrapLifecycleEvidence(MasterKeysetStatus.COMPLETE, ProtectedTrustStatus.ABSENT, identityContinuity = IdentityContinuityStatus.NEVER_INITIALIZED))
+            BootstrapLifecycle.evaluate(BootstrapLifecycleEvidence(MasterKeysetStatus.COMPLETE, ProtectedTrustStatus.ABSENT, identityContinuity = IdentityContinuityStatus.PREVIOUSLY_INITIALIZED))
         )
     }
 
