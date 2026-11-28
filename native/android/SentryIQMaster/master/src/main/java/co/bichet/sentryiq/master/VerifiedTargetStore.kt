@@ -22,7 +22,7 @@ class VerifiedTargetStore(
 ) {
     class StoreException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
-    private val directory = File(context.noBackupFilesDir, "verified-targets")
+    private val directory = File(context.noBackupFilesDir.canonicalFile, "verified-targets")
     private val maximumTargetBytes = 16 * 1024 * 1024
     private val magic = "SIQVT1".toByteArray(Charsets.US_ASCII)
 
