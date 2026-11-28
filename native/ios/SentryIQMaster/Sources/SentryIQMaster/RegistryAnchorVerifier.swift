@@ -81,7 +81,7 @@ public enum RegistryAnchorVerifier {
 
         // CryptoKit's DER initializer is iOS 14+, while this package supports iOS 13.
         // Accept only the exact SubjectPublicKeyInfo prefix for id-ecPublicKey / prime256v1.
-        let subjectPublicKeyInfoPrefix = Data(hex: "3039301306072a8648ce3d020106082a8648ce3d03010703420004")!
+        let subjectPublicKeyInfoPrefix = Data(hex: "3059301306072a8648ce3d020106082a8648ce3d03010703420004")!
         guard signer.subjectPublicKeyInfoDER.starts(with: subjectPublicKeyInfoPrefix) else {
             throw VerificationError.invalidSignerKey
         }
