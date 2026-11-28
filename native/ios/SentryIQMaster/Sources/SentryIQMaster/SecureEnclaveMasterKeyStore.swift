@@ -85,6 +85,23 @@ public final class SecureEnclaveMasterKeyStore {
         self.keychainService = keychainService
     }
 
+    /**
+     * Read-only lifecycle probe. An absent archive is distinct from a partial,
+     * corrupt, or unusable Secure Enclave identity. This never creates keys.
+     */
+    public func lifecycleKeysetStatus(context: LAContext? = nil) -> MasterKeysetStatus {
+        guard SecureEnclave.isAvailable else { return .incomplete }
+        Self.processLock.lock()
+        defer { Self.processLock.unlock() }
+        do {
+            guard let archive = try readArchive() else { return .absent }
+            _ = try publicKeySet(from: archive, context: context)
+            return .complete
+        } catch {
+            return .incomplete
+        }
+    }
+
     /// Loads an existing device-bound master keyset. Missing or invalid state fails closed.
     public func loadExisting(context: LAContext? = nil) throws -> MasterPublicKeySet {
         guard SecureEnclave.isAvailable else {
