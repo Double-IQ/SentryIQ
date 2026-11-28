@@ -72,6 +72,18 @@ $payload = [
     'previous_bundle_sha256' => null,
     'signer_kid' => 'registry-test-1',
 ];
+$anchorFixture = json_decode(
+    (string) file_get_contents(__DIR__ . '/fixtures/registry-anchor-canonicalization.json'),
+    false,
+    8,
+    JSON_THROW_ON_ERROR
+);
+anchorAssert($anchorFixture instanceof stdClass
+    && is_string($anchorFixture->canonical ?? null)
+    && is_string($anchorFixture->sha256 ?? null), 'Shared registry-anchor fixture must be valid.');
+anchorAssert(hash_equals($anchorFixture->canonical, anchorCanonical($payload)), 'PHP anchor bytes must match the shared cross-platform fixture.');
+anchorAssert(hash_equals($anchorFixture->sha256, hash('sha256', anchorCanonical($payload))), 'PHP anchor digest must match the shared cross-platform fixture.');
+
 $signed = anchorCanonical($payload);
 $der = '';
 if (!openssl_sign($signed, $der, $key, OPENSSL_ALGO_SHA256)) throw new RuntimeException('Unable to sign registry fixture.');

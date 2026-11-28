@@ -3,6 +3,10 @@ name: iOS Master Core
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 on:
   pull_request:
     branches: [main]
@@ -25,5 +29,7 @@ jobs:
         run: bash native/tuf-core/scripts/build-ios-xcframework.sh
       - name: Build iOS master companion core
         run: swift build --package-path native/ios/SentryIQMaster
+      - name: Compile UIKit approval and bootstrap UI for iOS simulator
+        run: swift build --package-path native/ios/SentryIQMaster --sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" --triple arm64-apple-ios-simulator
       - name: Run iOS master companion tests
         run: swift test --package-path native/ios/SentryIQMaster

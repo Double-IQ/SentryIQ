@@ -43,6 +43,20 @@ public struct MasterPublicKeySet: Codable, Equatable {
         case hardwareAssurance = "hardware_assurance"
     }
 
+    public var deviceKeysetDigest: String? {
+        guard let signingRaw = try? P256PublicKeyEncoding.rawRepresentation(fromSubjectPublicKeyInfoPEM: signing.publicKeyPEM),
+              let agreementRaw = try? P256PublicKeyEncoding.rawRepresentation(fromSubjectPublicKeyInfoPEM: keyAgreement.publicKeyPEM) else {
+            return nil
+        }
+        return MasterKeysetDigest.compute(
+            signingKeyID: signing.kid,
+            signingPublicKeyRaw: signingRaw,
+            agreementKeyID: keyAgreement.kid,
+            agreementPublicKeyRaw: agreementRaw,
+            hardwareAssurance: hardwareAssurance
+        )
+    }
+
     public init(
         signing: MasterPublicKeyDescriptor,
         keyAgreement: MasterPublicKeyDescriptor,
@@ -69,6 +83,23 @@ public final class SecureEnclaveMasterKeyStore {
 
     public init(keychainService: String = "co.bichet.sentryiq.master-companion") {
         self.keychainService = keychainService
+    }
+
+    /**
+     * Read-only lifecycle probe. An absent archive is distinct from a partial,
+     * corrupt, or unusable Secure Enclave identity. This never creates keys.
+     */
+    public func lifecycleKeysetStatus(context: LAContext? = nil) -> MasterKeysetStatus {
+        guard SecureEnclave.isAvailable else { return .incomplete }
+        Self.processLock.lock()
+        defer { Self.processLock.unlock() }
+        do {
+            guard let archive = try readArchive() else { return .absent }
+            _ = try publicKeySet(from: archive, context: context)
+            return .complete
+        } catch {
+            return .incomplete
+        }
     }
 
     /// Loads an existing device-bound master keyset. Missing or invalid state fails closed.
@@ -262,6 +293,41 @@ public final class SecureEnclaveMasterKeyStore {
     }
 }
 
+/// Cross-platform digest of the exact public master-keyset descriptor.
+public enum MasterKeysetDigest {
+    public static func compute(
+        signingKeyID: String,
+        signingPublicKeyRaw: Data,
+        agreementKeyID: String,
+        agreementPublicKeyRaw: Data,
+        hardwareAssurance: String
+    ) -> String {
+        precondition(signingPublicKeyRaw.count == 64 && agreementPublicKeyRaw.count == 64)
+        var transcript = Data("SENTRYIQ-MASTER-KEYSET-V1\n".utf8)
+        appendField(signingKeyID, to: &transcript)
+        appendField("ES256", to: &transcript)
+        appendField(signingPublicKeyRaw, to: &transcript)
+        appendField(agreementKeyID, to: &transcript)
+        appendField("ECDH-ES", to: &transcript)
+        appendField(agreementPublicKeyRaw, to: &transcript)
+        appendField(hardwareAssurance, to: &transcript)
+        return SHA256.hash(data: transcript).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func appendField(_ value: String, to data: inout Data) {
+        appendField(Data(value.utf8), to: &data)
+    }
+
+    private static func appendField(_ value: Data, to data: inout Data) {
+        let length = UInt32(value.count)
+        data.append(UInt8((length >> 24) & 255))
+        data.append(UInt8((length >> 16) & 255))
+        data.append(UInt8((length >> 8) & 255))
+        data.append(UInt8(length & 255))
+        data.append(value)
+    }
+}
+
 /// Encoding helpers shared by the iOS adapter and its deterministic unit tests.
 public enum P256PublicKeyEncoding {
     private static let subjectPublicKeyInfoPrefix = Data([
@@ -289,6 +355,23 @@ public enum P256PublicKeyEncoding {
         let digest = SHA256.hash(data: rawRepresentation)
         let hex = digest.map { String(format: "%02x", $0) }.joined()
         return "\(prefix)-\(hex)"
+    }
+
+    public static func subjectPublicKeyInfoDER(fromPEM pem: String) throws -> Data {
+        let body = pem
+            .replacingOccurrences(of: "-----BEGIN PUBLIC KEY-----", with: "")
+            .replacingOccurrences(of: "-----END PUBLIC KEY-----", with: "")
+            .components(separatedBy: .whitespacesAndNewlines).joined()
+        guard let der = Data(base64Encoded: body), der.count == 91,
+              der.prefix(subjectPublicKeyInfoPrefix.count) == subjectPublicKeyInfoPrefix,
+              der[subjectPublicKeyInfoPrefix.count] == 0x04 else {
+            throw MasterKeyStoreError.invalidPublicKey
+        }
+        return der
+    }
+
+    public static func rawRepresentation(fromSubjectPublicKeyInfoPEM pem: String) throws -> Data {
+        Data(try subjectPublicKeyInfoDER(fromPEM: pem).suffix(64))
     }
 
     public static func subjectPublicKeyInfoPEM(fromRawRepresentation raw: Data) throws -> String {

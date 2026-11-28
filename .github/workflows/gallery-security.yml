@@ -67,7 +67,10 @@ jobs:
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: '8.4'
-          extensions: curl, zip
+          extensions: curl, dom, libxml, mbstring, openssl, zip
+
+      - name: Install pinned PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Install Playwright and locate runner Chromium
         run: |

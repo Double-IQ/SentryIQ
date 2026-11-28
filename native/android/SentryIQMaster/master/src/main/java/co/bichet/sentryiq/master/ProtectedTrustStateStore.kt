@@ -40,7 +40,8 @@ internal object TrustRegistryAnchorPolicy {
  */
 class ProtectedTrustStateStore(
     context: Context,
-    private val verifyRegistryAnchor: (RegistryAnchor) -> Boolean
+    private val expectedOwnerId: String,
+    private val trustedSignerKeys: List<RegistryAnchorSignerKey>
 ) {
     data class RegistryAnchor(
         val sequence: ULong,
@@ -54,9 +55,10 @@ class ProtectedTrustStateStore(
         val signerKeyId: String
     )
 
-    data class TrustState(val sequence: ULong, val bundleSha256: ByteArray, val bundle: ByteArray)
+    data class TrustState(val sequence: ULong, val bundleSha256: ByteArray, val bundle: ByteArray, val tufMetadata: Map<String, ByteArray> = emptyMap(), val bootstrapReceiptId: String? = null)
 
-    class StateException(message: String) : Exception(message)
+    open class StateException(message: String) : Exception(message)
+    class MissingStateException : StateException("No protected trust state exists; bootstrap is required.")
 
     private val file = File(context.noBackupFilesDir, "sentryiq-trust-state-v1.bin")
     private val keyAlias = "co.bichet.sentryiq.trust-state-aes-gcm.v1"
@@ -66,7 +68,7 @@ class ProtectedTrustStateStore(
         nowEpochSeconds: Long = System.currentTimeMillis() / 1000L
     ): TrustState = synchronized(processLock) {
         requireValidAnchor(anchor, nowEpochSeconds)
-        if (!file.exists()) throw StateException("No protected trust state exists; bootstrap is required.")
+        if (!file.exists()) throw MissingStateException()
         if (file.length() !in 1..MAX_ENCODED_STATE_BYTES.toLong()) {
             throw StateException("Stored trust state exceeds the permitted size.")
         }
@@ -79,12 +81,48 @@ class ProtectedTrustStateStore(
         state
     }
 
+    /** Load only the exact current state or immediate predecessor of a verified new anchor. */
+    fun loadPreviousState(
+        anchor: RegistryAnchor,
+        nowEpochSeconds: Long = System.currentTimeMillis() / 1000L
+    ): TrustState? = synchronized(processLock) {
+        requireValidAnchor(anchor, nowEpochSeconds)
+        if (!file.exists()) {
+            if (!TrustRegistryAnchorPolicy.isValidInitialAnchor(anchor.sequence, anchor.previousBundleSha256)) {
+                throw StateException("No cached predecessor exists for this registry anchor.")
+            }
+            return@synchronized null
+        }
+        if (file.length() !in 1..MAX_ENCODED_STATE_BYTES.toLong()) {
+            throw StateException("Stored trust state exceeds the permitted size.")
+        }
+        val current = decrypt(file.readBytes())
+        if (!MessageDigest.isEqual(sha256(current.bundle), current.bundleSha256)) {
+            throw StateException("Cached trust state digest is corrupt.")
+        }
+        val same = anchor.sequence == current.sequence &&
+            MessageDigest.isEqual(anchor.bundleSha256, current.bundleSha256)
+        val next = current.sequence < ULong.MAX_VALUE &&
+            anchor.sequence == current.sequence + 1uL &&
+            anchor.previousBundleSha256 != null &&
+            MessageDigest.isEqual(anchor.previousBundleSha256, current.bundleSha256)
+        if (!same && !next) throw StateException("Registry anchor is not current or the immediate successor.")
+        current
+    }
+
     fun save(
         bundle: ByteArray,
         anchor: RegistryAnchor,
+        tufMetadata: Map<String, ByteArray> = emptyMap(),
+        bootstrapReceiptId: String? = null,
         nowEpochSeconds: Long = System.currentTimeMillis() / 1000L
     ) = synchronized(processLock) {
         requireValidAnchor(anchor, nowEpochSeconds)
+        if (bundle.isEmpty() || bundle.size > MAX_BUNDLE_BYTES) throw StateException("Trust bundle exceeds the permitted size.")
+        validateTufMetadata(tufMetadata)
+        if (bootstrapReceiptId != null && !bootstrapReceiptId.matches(Regex("^[a-f0-9]{32}$"))) {
+            throw StateException("Bootstrap receipt identifier is invalid.")
+        }
         val digest = sha256(bundle)
         if (!MessageDigest.isEqual(digest, anchor.bundleSha256)) {
             throw StateException("Bundle digest does not match the verified registry anchor.")
@@ -113,7 +151,7 @@ class ProtectedTrustStateStore(
             )) {
             throw StateException("Initial registry anchor must start at sequence one with no previous digest.")
         }
-        val encoded = encrypt(TrustState(anchor.sequence, digest, bundle))
+        val encoded = encrypt(TrustState(anchor.sequence, digest, bundle, tufMetadata, bootstrapReceiptId))
         val temporary = File(file.parentFile, file.name + ".tmp")
         FileOutputStream(temporary).use { stream ->
             stream.write(encoded)
@@ -141,6 +179,8 @@ class ProtectedTrustStateStore(
         if (committed.sequence != anchor.sequence ||
             !MessageDigest.isEqual(committed.bundleSha256, digest) ||
             !MessageDigest.isEqual(committed.bundle, bundle) ||
+            !metadataEquals(committed.tufMetadata, tufMetadata) ||
+            committed.bootstrapReceiptId != bootstrapReceiptId ||
             !MessageDigest.isEqual(sha256(committed.bundle), anchor.bundleSha256)) {
             throw StateException("Committed trust state failed readback verification.")
         }
@@ -150,10 +190,32 @@ class ProtectedTrustStateStore(
         if (anchor.sequence < 1uL || anchor.bundleSha256.size != 32 ||
             anchor.signedPayload.isEmpty() || anchor.signature.isEmpty() ||
             !TrustRegistryAnchorPolicy.isFresh(anchor.issuedAt, anchor.expiresAt, now) ||
-            (anchor.previousBundleSha256 != null && anchor.previousBundleSha256.size != 32) ||
-            !verifyRegistryAnchor(anchor)) {
+            (anchor.previousBundleSha256 != null && anchor.previousBundleSha256.size != 32)) {
             throw StateException("Registry anchor is missing, stale, or invalid.")
         }
+        try {
+            RegistryAnchorVerifier.verify(anchor, expectedOwnerId, trustedSignerKeys, now)
+        } catch (_: Exception) {
+            throw StateException("Registry anchor signature or independent pin validation failed.")
+        }
+    }
+
+    private fun validateTufMetadata(metadata: Map<String, ByteArray>) {
+        if (metadata.size > 64) throw StateException("Too many TUF metadata objects.")
+        var total = 0
+        metadata.forEach { (name, bytes) ->
+            if (!name.matches(Regex("^[a-z0-9][a-z0-9._/-]{0,127}$")) ||
+                bytes.isEmpty() || bytes.size > 1_048_576) {
+                throw StateException("TUF metadata object name or size is invalid.")
+            }
+            total += bytes.size
+            if (total > 2 * 1024 * 1024) throw StateException("TUF metadata exceeds the storage limit.")
+        }
+    }
+
+    private fun metadataEquals(left: Map<String, ByteArray>, right: Map<String, ByteArray>): Boolean {
+        if (left.keys != right.keys) return false
+        return left.all { (name, bytes) -> right[name]?.let { MessageDigest.isEqual(bytes, it) } == true }
     }
 
     private fun encrypt(state: TrustState): ByteArray {
@@ -204,6 +266,17 @@ class ProtectedTrustStateStore(
                 out.write(state.bundleSha256)
                 out.writeInt(state.bundle.size)
                 out.write(state.bundle)
+                out.writeInt(state.tufMetadata.size)
+                state.tufMetadata.toSortedMap().forEach { (name, value) ->
+                    val nameBytes = name.toByteArray(Charsets.UTF_8)
+                    out.writeInt(nameBytes.size); out.write(nameBytes)
+                    out.writeInt(value.size); out.write(value)
+                }
+                out.writeBoolean(state.bootstrapReceiptId != null)
+                state.bootstrapReceiptId?.let { receipt ->
+                    val receiptBytes = receipt.toByteArray(Charsets.US_ASCII)
+                    out.writeInt(receiptBytes.size); out.write(receiptBytes)
+                }
             }
         }.toByteArray()
 
@@ -216,7 +289,37 @@ class ProtectedTrustStateStore(
             throw StateException("Invalid trust-state payload.")
         }
         val bundle = ByteArray(length).also(input::readFully)
-        return TrustState(sequence, digest, bundle)
+        val metadata = linkedMapOf<String, ByteArray>()
+        var receiptId: String? = null
+        if (input.available() > 0) {
+            val count = input.readInt()
+            if (count !in 0..64) throw StateException("Invalid TUF metadata count.")
+            var total = 0
+            repeat(count) {
+                val nameLength = input.readInt()
+                if (nameLength !in 1..128 || nameLength > input.available()) throw StateException("Invalid TUF metadata name.")
+                val name = ByteArray(nameLength).also(input::readFully).toString(Charsets.UTF_8)
+                val valueLength = input.readInt()
+                if (valueLength !in 1..1_048_576 || valueLength > input.available()) throw StateException("Invalid TUF metadata length.")
+                val value = ByteArray(valueLength).also(input::readFully)
+                total += valueLength
+                if (total > 2 * 1024 * 1024 || metadata.put(name, value) != null) {
+                    throw StateException("TUF metadata is duplicated or exceeds limits.")
+                }
+            }
+            if (input.available() > 0) {
+                val hasReceipt = input.readBoolean()
+                if (hasReceipt) {
+                    val receiptLength = input.readInt()
+                    if (receiptLength != 32 || receiptLength > input.available()) throw StateException("Invalid bootstrap receipt identifier.")
+                    val decodedReceipt = ByteArray(receiptLength).also(input::readFully).toString(Charsets.US_ASCII)
+                    if (!decodedReceipt.matches(Regex("^[a-f0-9]{32}$"))) throw StateException("Malformed bootstrap receipt identifier.")
+                    receiptId = decodedReceipt
+                }
+            }
+            if (input.available() != 0) throw StateException("Trailing trust-state bytes.")
+        }
+        return TrustState(sequence, digest, bundle, metadata, receiptId)
     }
 
     private fun secretKey(): SecretKey {
@@ -244,6 +347,7 @@ class ProtectedTrustStateStore(
         // cannot race the read/validate/atomic-replace sequence.
         private val processLock = Any()
         private const val MAX_ENCODED_STATE_BYTES = 4 * 1024 * 1024 + 128
+        private const val MAX_BUNDLE_BYTES = 262_144
         private val MAGIC = byteArrayOf(0x53, 0x49, 0x51, 0x54, 0x53, 0x01)
     }
 }

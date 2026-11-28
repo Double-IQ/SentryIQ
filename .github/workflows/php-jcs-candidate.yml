@@ -1,0 +1,81 @@
+name: PHP JCS Candidate Qualification
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tests/fixtures/jcs-rfc8785-vectors.json'
+      - 'tests/fixtures/jcs-rfc8785-appendix-b.json'
+      - 'tests/fixtures/registry-anchor-canonicalization.json'
+      - 'tests/jcs-candidate/**'
+      - 'docs/architecture/php-jcs-candidate-assessment.md'
+      - '.github/workflows/php-jcs-candidate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tests/fixtures/jcs-rfc8785-vectors.json'
+      - 'tests/fixtures/jcs-rfc8785-appendix-b.json'
+      - 'tests/fixtures/registry-anchor-canonicalization.json'
+      - 'tests/jcs-candidate/**'
+      - 'docs/architecture/php-jcs-candidate-assessment.md'
+      - '.github/workflows/php-jcs-candidate.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  candidate-conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.4'
+          extensions: curl, dom, libxml, mbstring
+          coverage: none
+      - name: Resolve pinned candidate package
+        run: composer update --working-dir=tests/jcs-candidate --no-interaction --prefer-dist --no-scripts
+      - name: Run RFC 8785 vectors and strict-input tests
+        run: |
+          set +e
+          php tests/jcs-candidate/qualify.php
+          accredify_status=$?
+          php tests/jcs-candidate/qualify-php-ron.php
+          ron_status=$?
+          php tests/jcs-candidate/qualify-mmccook.php
+          mmccook_status=$?
+          php tests/jcs-candidate/qualify-kanon.php
+          kanon_status=$?
+          php tests/jcs-candidate/qualify-onematrix.php
+          onematrix_status=$?
+          echo "accredifysg/php-json-canonicalize qualification exit: $accredify_status"
+          echo "mbolli/php-ron qualification exit: $ron_status"
+          echo "mmccook/php-json-canonicalization-scheme qualification exit: $mmccook_status"
+          echo "truschery/kanon qualification exit: $kanon_status"
+          echo "onematrix/tracing-sdk qualification exit: $onematrix_status"
+          if [ "$onematrix_status" -ne 0 ]; then
+            exit 1
+          fi
+          echo "OneMatrix is the only candidate passing the full RFC 8785 vector gate; PHP 8.1 compatibility is checked in the companion job."
+
+  onematrix-php81-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.1'
+          extensions: curl, dom, libxml, mbstring
+          coverage: none
+      - name: Install the pinned OneMatrix candidate on PHP 8.1
+        run: cd tests/jcs-candidate && COMPOSER=composer-onematrix.json composer update --no-interaction --prefer-dist --no-scripts
+      - name: Run RFC 8785 vectors and Appendix B on PHP 8.1
+        run: php tests/jcs-candidate/qualify-onematrix.php

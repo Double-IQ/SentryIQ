@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use RuntimeException;
 use Throwable;
+use Tracing\Sdk\Canonicalize\JsonCanonicalizer;
 
 /**
  * Strict, platform-independent validator for SentryIQ public trust bundles.
@@ -20,6 +21,20 @@ final class TrustBundleValidator
     private const MAX_BYTES = 262144;
     private const MAX_VALIDITY_SECONDS = 2592000;
     private const MAX_FUTURE_SKEW_SECONDS = 300;
+
+    private readonly JsonCanonicalizer $canonicalizer;
+
+    public function __construct(?JsonCanonicalizer $canonicalizer = null)
+    {
+        $autoload = dirname(__DIR__, 2) . '/vendor/autoload.php';
+        if (!class_exists(JsonCanonicalizer::class)) {
+            if (!is_file($autoload)) {
+                throw new RuntimeException('Composer dependencies are missing; install the pinned RFC 8785 canonicalizer.');
+            }
+            require_once $autoload;
+        }
+        $this->canonicalizer = $canonicalizer ?? new JsonCanonicalizer();
+    }
 
     /**
      * @param list<array{kid:string,role:string,alg:string,public_key_pem:string}> $trustedSigners
@@ -51,6 +66,8 @@ final class TrustBundleValidator
         if (!$bundle instanceof \stdClass) {
             throw new RuntimeException('Trust bundle must be a JSON object.');
         }
+
+        $this->assertIJsonValues($bundle);
 
         $this->assertExactObjectFields($bundle, [
             'type', 'schema_version', 'policy_version', 'sequence', 'previous_digest',
@@ -99,6 +116,7 @@ final class TrustBundleValidator
         $this->validateTufReference($bundle->sigstore_tuf ?? null);
         $this->validateRevocations($bundle->revocations ?? null);
         $keyFingerprints = $this->assertRoleSeparation($bundle);
+        $masterKeysetDigest = $this->masterKeysetDigest($bundle->master_keyset);
 
         if (!is_array($bundle->signatures) || $bundle->signatures === []) {
             throw new RuntimeException('Trust bundle has no detached signatures.');
@@ -106,7 +124,12 @@ final class TrustBundleValidator
 
         $unsigned = clone $bundle;
         unset($unsigned->signatures);
-        $canonicalPayload = $this->canonicalJson($unsigned);
+        $unsignedJson = json_encode(
+            $unsigned,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS | JSON_THROW_ON_ERROR
+        );
+        $canonicalPayload = $this->canonicalizeWithLibrary($unsignedJson, $unsigned);
+        $canonicalBundle = $this->canonicalizeWithLibrary($json, $bundle);
         $signerKids = $this->verifySignatures($bundle->signatures, $canonicalPayload, $trustedSigners, $bundle->revocations, $currentTime);
         if ($signerKids === []) {
             throw new RuntimeException('Trust bundle has no valid signature from an independently trusted key.');
@@ -114,11 +137,54 @@ final class TrustBundleValidator
 
         return [
             'bundle' => json_decode(json_encode($bundle, JSON_THROW_ON_ERROR), true, 64, JSON_THROW_ON_ERROR),
-            'digest' => hash('sha256', $this->canonicalJson($bundle)),
+            'digest' => hash('sha256', $canonicalBundle),
+            'canonical_bundle' => $canonicalBundle,
             'sequence' => $sequence,
             'signer_kids' => $signerKids,
             'key_fingerprints' => $keyFingerprints,
+            'master_keyset_digest' => $masterKeysetDigest,
         ];
+    }
+
+    private function canonicalizeWithLibrary(string $rawJson, mixed $validatedValue): string
+    {
+        // Retain the restricted-profile implementation as a differential guard:
+        // the external RFC 8785 engine must produce exactly the same bytes.
+        $restrictedReference = $this->canonicalJson($validatedValue);
+        $canonical = $this->canonicalizer->canonicalize($rawJson);
+        if (!hash_equals($restrictedReference, $canonical)) {
+            throw new RuntimeException('RFC 8785 canonicalizer disagrees with the restricted trust-bundle profile.');
+        }
+        return $canonical;
+    }
+
+    private function assertIJsonValues(mixed $value): void
+    {
+        if (is_string($value)) {
+            if (!mb_check_encoding($value, 'UTF-8')) {
+                throw new RuntimeException('Trust bundle contains invalid UTF-8.');
+            }
+            $length = mb_strlen($value, 'UTF-8');
+            for ($index = 0; $index < $length; $index++) {
+                $codePoint = mb_ord(mb_substr($value, $index, 1, 'UTF-8'), 'UTF-8');
+                if (($codePoint >= 0xFDD0 && $codePoint <= 0xFDEF)
+                    || (($codePoint & 0xFFFF) === 0xFFFE)
+                    || (($codePoint & 0xFFFF) === 0xFFFF)) {
+                    throw new RuntimeException('Trust bundle contains a Unicode noncharacter forbidden by I-JSON.');
+                }
+            }
+            return;
+        }
+        if ($value instanceof \stdClass) {
+            foreach (get_object_vars($value) as $key => $child) {
+                $this->assertIJsonValues((string) $key);
+                $this->assertIJsonValues($child);
+            }
+            return;
+        }
+        if (is_array($value)) {
+            foreach ($value as $child) $this->assertIJsonValues($child);
+        }
     }
 
     private function assertExactObjectFields(mixed $value, array $expected): void
@@ -388,10 +454,51 @@ final class TrustBundleValidator
         return $date->getTimestamp();
     }
 
+    /** SHA-256 of the platform-independent SENTRYIQ-MASTER-KEYSET-V1 binary descriptor. */
+    private function masterKeysetDigest(\stdClass $keyset): string
+    {
+        $rawPublic = function (string $pem): string {
+            $key = openssl_pkey_get_public($pem);
+            if ($key === false) throw new RuntimeException('Invalid master public key for keyset digest.');
+            try {
+                $details = openssl_pkey_get_details($key);
+                $x = $details['ec']['x'] ?? null;
+                $y = $details['ec']['y'] ?? null;
+                if (!is_string($x) || !is_string($y) || strlen($x) > 32 || strlen($y) > 32) {
+                    throw new RuntimeException('Master P-256 public key coordinates are malformed.');
+                }
+                return str_pad($x, 32, "\0", STR_PAD_LEFT) . str_pad($y, 32, "\0", STR_PAD_LEFT);
+            } finally {
+                openssl_pkey_free($key);
+            }
+        };
+        $fields = [
+            $keyset->signing->kid,
+            $keyset->signing->alg,
+            $rawPublic($keyset->signing->public_key_pem),
+            $keyset->key_agreement->kid,
+            $keyset->key_agreement->alg,
+            $rawPublic($keyset->key_agreement->public_key_pem),
+            $keyset->hardware_assurance,
+        ];
+        $transcript = "SENTRYIQ-MASTER-KEYSET-V1\n";
+        foreach ($fields as $field) {
+            $transcript .= pack('N', strlen($field)) . $field;
+        }
+        return hash('sha256', $transcript);
+    }
+
     private function canonicalJson(mixed $value): string
     {
         if ($value instanceof \stdClass) {
             $properties = get_object_vars($value);
+            // Restricted profile: schema member names are ASCII. For ASCII,
+            // byte ordering equals RFC 8785 UTF-16 code-unit ordering.
+            foreach (array_keys($properties) as $propertyName) {
+                if (!is_string($propertyName) || !preg_match('/^[\x00-\x7F]*$/D', $propertyName)) {
+                    throw new RuntimeException('Canonical trust-bundle object member names must be ASCII.');
+                }
+            }
             ksort($properties, SORT_STRING);
             $parts = [];
             foreach ($properties as $key => $child) {
@@ -406,7 +513,13 @@ final class TrustBundleValidator
         if (is_float($value)) {
             throw new RuntimeException('Floating-point values are prohibited in trust bundle canonical data.');
         }
-        if (is_int($value) || is_string($value) || is_bool($value) || $value === null) {
+        if (is_int($value)) {
+            if ($value < -9007199254740991 || $value > 9007199254740991) {
+                throw new RuntimeException('Canonical trust-bundle integers must be within the interoperable JSON safe range.');
+            }
+            return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS | JSON_THROW_ON_ERROR);
+        }
+        if (is_string($value) || is_bool($value) || $value === null) {
             return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS | JSON_THROW_ON_ERROR);
         }
         throw new RuntimeException('Trust bundle contains an unsupported canonical JSON value.');

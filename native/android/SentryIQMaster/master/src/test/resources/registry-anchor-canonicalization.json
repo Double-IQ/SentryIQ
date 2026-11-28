@@ -1,0 +1,6 @@
+{
+  "protocol": "SENTRYIQ-REGISTRY-ANCHOR",
+  "input": "{\"type\":\"SENTRYIQ-REGISTRY-ANCHOR\",\"schema_version\":1,\"owner_id\":\"owner-test-001\",\"sequence\":\"1\",\"bundle_sha256\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"issued_at\":1799999990,\"expires_at\":1800003600,\"previous_bundle_sha256\":null,\"signer_kid\":\"registry-test-1\"}",
+  "canonical": "{\"bundle_sha256\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"expires_at\":1800003600,\"issued_at\":1799999990,\"owner_id\":\"owner-test-001\",\"previous_bundle_sha256\":null,\"schema_version\":1,\"sequence\":\"1\",\"signer_kid\":\"registry-test-1\",\"type\":\"SENTRYIQ-REGISTRY-ANCHOR\"}",
+  "sha256": "a1d44c803aec3c582bc0d366ea8994f51f352e4b3e8ae3656856fa9c6008689e"
+}

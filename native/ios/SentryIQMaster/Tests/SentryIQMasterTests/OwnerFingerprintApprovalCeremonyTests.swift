@@ -47,6 +47,37 @@ final class OwnerFingerprintApprovalCeremonyTests: XCTestCase {
         XCTAssertEqual(transcript.map { String(format: "%02x", $0) }.joined(), sharedGoldenHex)
     }
 
+    func testPreparedApprovalCompletesOnlyAfterAuthenticationAndSignsExactTranscript() throws {
+        let prepared = try OwnerFingerprintApprovalCeremony.prepare(
+            canonicalBundle: bundle,
+            outOfBandFingerprint: fp(bundle),
+            ownerIdentifier: "owner-123",
+            rootRole: "release-authorisation",
+            rootKeyID: "release-root-1",
+            outOfBandRootFingerprint: fp(root),
+            deviceKeysetDigest: fp(keyset),
+            purpose: "bootstrap-release-root",
+            challenge: challenge,
+            expiresAt: expiry,
+            now: now,
+            confirmFingerprint: { fp(bundle) },
+            confirmRootFingerprint: { fp(root) },
+            verifyCandidateTrustChain: { _, _, _, _, _, _ in true }
+        )
+        var authenticated = false
+        var signedTranscript = Data()
+        let proof = try OwnerFingerprintApprovalCeremony.complete(
+            prepared,
+            now: now,
+            requireFreshUserVerification: { authenticated = true },
+            sign: { signedTranscript = $0; return Data([0x01]) }
+        )
+        XCTAssertTrue(authenticated)
+        XCTAssertEqual(signedTranscript, prepared.transcript)
+        XCTAssertEqual(proof.bundleFingerprint, fp(bundle))
+        XCTAssertEqual(proof.rootFingerprint, fp(root))
+    }
+
     func testWrongRootFingerprintFailsBeforeAuthenticationOrSigning() {
         var fresh = false; var signed = false
         XCTAssertThrowsError(try approve(rootFP: String(repeating: "0", count: 64),
@@ -55,7 +86,7 @@ final class OwnerFingerprintApprovalCeremonyTests: XCTestCase {
     }
     func testWrongBundleFingerprintFailsClosed() { XCTAssertThrowsError(try approve(bundleFP: String(repeating: "0", count: 64))) }
     func testWrongOwnerAndMalformedContextFailClosed() {
-        XCTAssertThrowsError(try approve(owner: "")); XCTAssertThrowsError(try approve(role: "release authorisation"))
+        XCTAssertThrowsError(try approve(owner: "")); XCTAssertThrowsError(try approve(owner: "owner-é")); XCTAssertThrowsError(try approve(role: "release authorisation"))
         XCTAssertThrowsError(try approve(purpose: ""))
     }
     func testExpiredChallengeAndInvalidCandidateFailBeforeSigning() {

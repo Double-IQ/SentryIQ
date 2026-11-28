@@ -61,4 +61,38 @@ public enum SentryIQTufTrustVerifier {
             referenceTimeUnixSeconds: referenceTimeUnixSeconds
         )
     }
+    
+    public static func verifyTargetBytes(
+        initialRoot: Data,
+        expectedInitialRootSHA256: Data,
+        candidateRoots: [Data],
+        cachedTimestamp: Data?,
+        cachedSnapshot: Data?,
+        cachedTargets: Data?,
+        newTimestamp: Data,
+        newSnapshot: Data,
+        newTargets: Data,
+        delegatedRoles: [String],
+        delegatedMetadata: [Data],
+        targetPath: String,
+        targetBytes: Data,
+        referenceTimeUnixSeconds: Int64
+    ) -> Bool {
+        verifyTufTargetBytes(
+            initialRoot: initialRoot,
+            expectedInitialRootSha256: expectedInitialRootSHA256,
+            candidateRoots: candidateRoots,
+            cachedTimestamp: cachedTimestamp,
+            cachedSnapshot: cachedSnapshot,
+            cachedTargets: cachedTargets,
+            newTimestamp: newTimestamp,
+            newSnapshot: newSnapshot,
+            newTargets: newTargets,
+            delegatedRoles: delegatedRoles,
+            delegatedMetadata: delegatedMetadata,
+            targetPath: targetPath,
+            targetBytes: targetBytes,
+            referenceTimeUnixSeconds: referenceTimeUnixSeconds
+        )
+    }
 }

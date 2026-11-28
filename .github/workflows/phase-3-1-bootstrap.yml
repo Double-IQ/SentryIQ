@@ -1,0 +1,99 @@
+name: Phase 3.1 Bootstrap Security Tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app/Security/BootstrapChallengeStore.php'
+      - 'app/Security/OwnerApprovalProofVerifier.php'
+      - 'app/Security/RegistryAnchorVerifier.php'
+      - 'app/Security/TrustBundleValidator.php'
+      - 'app/Security/OwnerBootstrapApi.php'
+      - 'app/Security/BootstrapTargetStore.php'
+      - 'tests/bootstrap_target_store.test.php'
+      - 'api/owner-bootstrap.php'
+      - 'scripts/qualify-bootstrap-runtime.php'
+      - 'docs/architecture/bootstrap-runtime.example.php'
+      - 'tests/bootstrap_challenge_store.test.php'
+      - 'tests/owner_approval_proof_verifier.test.php'
+      - 'tests/registry_anchor_verifier.test.php'
+      - 'tests/trust_bundle_validator.test.php'
+      - 'tests/trust_bundle_canonical_profile.test.php'
+      - 'tests/owner_bootstrap_api.test.php'
+      - 'tests/fixtures/registry-anchor-canonicalization.json'
+      - 'tests/fixtures/jcs-rfc8785-vectors.json'
+      - 'tests/fixtures/jcs-rfc8785-appendix-b.json'
+      - 'composer.json'
+      - 'composer.lock'
+      - '.github/workflows/phase-3-1-bootstrap.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'composer.json'
+      - 'composer.lock'
+      - 'app/Security/BootstrapChallengeStore.php'
+      - 'app/Security/OwnerApprovalProofVerifier.php'
+      - 'app/Security/RegistryAnchorVerifier.php'
+      - 'app/Security/TrustBundleValidator.php'
+      - 'app/Security/OwnerBootstrapApi.php'
+      - 'app/Security/BootstrapTargetStore.php'
+      - 'tests/bootstrap_target_store.test.php'
+      - 'api/owner-bootstrap.php'
+      - 'scripts/qualify-bootstrap-runtime.php'
+      - 'tests/bootstrap_challenge_store.test.php'
+      - 'tests/owner_approval_proof_verifier.test.php'
+      - 'tests/registry_anchor_verifier.test.php'
+      - 'tests/trust_bundle_validator.test.php'
+      - 'tests/trust_bundle_canonical_profile.test.php'
+      - 'tests/owner_bootstrap_api.test.php'
+      - 'tests/fixtures/registry-anchor-canonicalization.json'
+      - 'tests/fixtures/jcs-rfc8785-vectors.json'
+      - 'tests/fixtures/jcs-rfc8785-appendix-b.json'
+      - '.github/workflows/phase-3-1-bootstrap.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bootstrap-security:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.2', '8.3', '8.4', '8.5']
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: curl, dom, libxml, mbstring, openssl
+          coverage: none
+      - name: Install pinned PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Lint bootstrap security implementation
+        run: |
+          php -l app/Security/BootstrapChallengeStore.php
+          php -l app/Security/OwnerApprovalProofVerifier.php
+          php -l app/Security/RegistryAnchorVerifier.php
+          php -l app/Security/TrustBundleValidator.php
+          php -l app/Security/OwnerBootstrapApi.php
+          php -l app/Security/BootstrapTargetStore.php
+          php -l api/owner-bootstrap.php
+          php -l scripts/qualify-bootstrap-runtime.php
+      - name: Run bootstrap security regression tests
+        run: |
+          php tests/bootstrap_challenge_store.test.php
+          php tests/owner_approval_proof_verifier.test.php
+          php tests/registry_anchor_verifier.test.php
+          php tests/trust_bundle_validator.test.php
+          php tests/trust_bundle_canonical_profile.test.php
+          php tests/owner_bootstrap_api.test.php
+          php tests/bootstrap_target_store.test.php

@@ -79,7 +79,17 @@ public enum RegistryAnchorVerifier {
             throw VerificationError.nonCanonicalSignature
         }
 
-        let publicKey = try P256.Signing.PublicKey(derRepresentation: signer.subjectPublicKeyInfoDER)
+        // CryptoKit's DER initializer is iOS 14+, while this package supports iOS 13.
+        // Accept only the exact SubjectPublicKeyInfo prefix for id-ecPublicKey / prime256v1.
+        let subjectPublicKeyInfoPrefix = Data(hex: "3059301306072a8648ce3d020106082a8648ce3d03010703420004")!
+        guard signer.subjectPublicKeyInfoDER.starts(with: subjectPublicKeyInfoPrefix) else {
+            throw VerificationError.invalidSignerKey
+        }
+        let rawCoordinates = Data(signer.subjectPublicKeyInfoDER.dropFirst(subjectPublicKeyInfoPrefix.count))
+        guard rawCoordinates.count == 64 else { throw VerificationError.invalidSignerKey }
+        // CryptoKit rawRepresentation is the 64-byte x || y form, not the
+        // 65-byte X9.63 uncompressed point (0x04 || x || y).
+        let publicKey = try P256.Signing.PublicKey(rawRepresentation: rawCoordinates)
         let signature = try P256.Signing.ECDSASignature(rawRepresentation: anchor.signature)
         guard publicKey.isValidSignature(signature, for: anchor.signedPayload) else {
             throw VerificationError.invalidSignature
@@ -90,6 +100,7 @@ public enum RegistryAnchorVerifier {
         case invalidEnvelope
         case ambiguousSignerSet
         case untrustedSigner
+        case invalidSignerKey
         case nonCanonicalSignature
         case invalidSignature
     }

@@ -43,6 +43,8 @@ public struct ProtectedTrustState {
     public let sequence: UInt64
     public let bundleSHA256: Data
     public let bundle: Data
+    public let tufMetadata: [String: Data]
+    public let bootstrapReceiptID: String?
 }
 
 /**
@@ -66,19 +68,24 @@ public final class ProtectedTrustStateStore {
         let sequence: UInt64
         let bundleSHA256: Data
         let bundle: Data
+        let tufMetadata: [String: Data]?
+        let bootstrapReceiptID: String?
     }
 
     private static let processLock = NSRecursiveLock()
     private let service: String
     private let account = "accepted-trust-bundle-v1"
-    private let verifyRegistryAnchor: (TrustRegistryAnchor) -> Bool
+    private let expectedOwnerID: String
+    private let trustedSignerKeys: [RegistryAnchorSignerKey]
 
     public init(
         service: String = "co.bichet.sentryiq.master-companion",
-        verifyRegistryAnchor: @escaping (TrustRegistryAnchor) -> Bool
+        expectedOwnerID: String,
+        trustedSignerKeys: [RegistryAnchorSignerKey]
     ) {
         self.service = service
-        self.verifyRegistryAnchor = verifyRegistryAnchor
+        self.expectedOwnerID = expectedOwnerID
+        self.trustedSignerKeys = trustedSignerKeys
     }
 
     public func load(anchor: TrustRegistryAnchor, now: UInt64 = UInt64(Date().timeIntervalSince1970)) throws -> ProtectedTrustState {
@@ -98,16 +105,63 @@ public final class ProtectedTrustStateStore {
         return ProtectedTrustState(
             sequence: archive.sequence,
             bundleSHA256: archive.bundleSHA256,
-            bundle: archive.bundle
+            bundle: archive.bundle,
+            tufMetadata: archive.tufMetadata ?? [:],
+            bootstrapReceiptID: archive.bootstrapReceiptID
         )
     }
 
-    public func save(bundle: Data, anchor: TrustRegistryAnchor, now: UInt64 = UInt64(Date().timeIntervalSince1970)) throws {
+    /// Load the cached state only when it is the exact current or immediate predecessor of a newly verified anchor.
+    public func loadPreviousState(
+        for anchor: TrustRegistryAnchor,
+        now: UInt64 = UInt64(Date().timeIntervalSince1970)
+    ) throws -> ProtectedTrustState? {
+        Self.processLock.lock()
+        defer { Self.processLock.unlock() }
+        try validate(anchor, now: now)
+        guard let data = try readItem() else {
+            guard TrustRegistryAnchorPolicy.isValidInitialAnchor(
+                sequence: anchor.sequence,
+                previousBundleSHA256: anchor.previousBundleSHA256
+            ) else { throw StoreError.rollbackDetected }
+            return nil
+        }
+        let archive: Archive
+        do { archive = try JSONDecoder().decode(Archive.self, from: data) }
+        catch { throw StoreError.corruptState }
+        guard Data(SHA256.hash(data: archive.bundle)) == archive.bundleSHA256 else {
+            throw StoreError.corruptState
+        }
+        let same = anchor.sequence == archive.sequence && anchor.bundleSHA256 == archive.bundleSHA256
+        let next = archive.sequence < UInt64.max
+            && anchor.sequence == archive.sequence + 1
+            && anchor.previousBundleSHA256 == archive.bundleSHA256
+        guard same || next else { throw StoreError.rollbackDetected }
+        return ProtectedTrustState(
+            sequence: archive.sequence,
+            bundleSHA256: archive.bundleSHA256,
+            bundle: archive.bundle,
+            tufMetadata: archive.tufMetadata ?? [:],
+            bootstrapReceiptID: archive.bootstrapReceiptID
+        )
+    }
+
+    public func save(
+        bundle: Data,
+        anchor: TrustRegistryAnchor,
+        tufMetadata: [String: Data] = [:],
+        bootstrapReceiptID: String? = nil,
+        now: UInt64 = UInt64(Date().timeIntervalSince1970)
+    ) throws {
         Self.processLock.lock()
         defer { Self.processLock.unlock() }
         try validate(anchor, now: now)
         let digest = Data(SHA256.hash(data: bundle))
         guard digest == anchor.bundleSHA256 else { throw StoreError.digestMismatch }
+        try validateTUFMetadata(tufMetadata)
+        if let bootstrapReceiptID, bootstrapReceiptID.range(of: "^[a-f0-9]{32}$", options: .regularExpression) == nil {
+            throw StoreError.corruptState
+        }
 
         if let currentData = try readItem() {
             guard let current = try? JSONDecoder().decode(Archive.self, from: currentData) else {
@@ -134,7 +188,9 @@ public final class ProtectedTrustStateStore {
         let archive = Archive(
             sequence: anchor.sequence,
             bundleSHA256: digest,
-            bundle: bundle
+            bundle: bundle,
+            tufMetadata: tufMetadata,
+            bootstrapReceiptID: bootstrapReceiptID
         )
         let encoded = try JSONEncoder().encode(archive)
         try writeItem(encoded)
@@ -146,8 +202,23 @@ public final class ProtectedTrustStateStore {
               committed.sequence == archive.sequence,
               committed.bundleSHA256 == archive.bundleSHA256,
               committed.bundle == archive.bundle,
+              (committed.tufMetadata ?? [:]) == tufMetadata,
+              committed.bootstrapReceiptID == bootstrapReceiptID,
               Data(SHA256.hash(data: committed.bundle)) == anchor.bundleSHA256 else {
             throw StoreError.corruptState
+        }
+    }
+
+    private func validateTUFMetadata(_ metadata: [String: Data]) throws {
+        guard metadata.count <= 64 else { throw StoreError.corruptState }
+        var total = 0
+        for (name, bytes) in metadata {
+            guard name.range(of: "^[a-z0-9][a-z0-9._/-]{0,127}$", options: .regularExpression) != nil,
+                  !bytes.isEmpty, bytes.count <= 1_048_576 else {
+                throw StoreError.corruptState
+            }
+            total += bytes.count
+            if total > 2 * 1024 * 1024 { throw StoreError.corruptState }
         }
     }
 
@@ -157,8 +228,17 @@ public final class ProtectedTrustStateStore {
               !anchor.signedPayload.isEmpty,
               !anchor.signature.isEmpty,
               TrustRegistryAnchorPolicy.isFresh(issuedAt: anchor.issuedAt, expiresAt: anchor.expiresAt, now: now),
-              anchor.previousBundleSHA256 == nil || anchor.previousBundleSHA256?.count == 32,
-              verifyRegistryAnchor(anchor) else {
+              anchor.previousBundleSHA256 == nil || anchor.previousBundleSHA256?.count == 32 else {
+            throw StoreError.invalidRegistryAnchor
+        }
+        do {
+            try RegistryAnchorVerifier.verify(
+                anchor,
+                expectedOwnerID: expectedOwnerID,
+                trustedSignerKeys: trustedSignerKeys,
+                now: now
+            )
+        } catch {
             throw StoreError.invalidRegistryAnchor
         }
     }

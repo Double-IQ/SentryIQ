@@ -25,7 +25,8 @@ A candidate package must pass the upstream RFC 8785 corpus, Appendix B number ve
 References:
 - https://packagist.org/packages/mbolli/php-ron
 - https://github.com/mbolli/php-ron
-- Reviewed source commit: `0b88aed885d23659b8a22769cf46efe345db18d0`
+- Exact `v0.5.0` tag commit: `0224dc0ff32718e5807266e7edec2536f703e77a` (lightweight tag; commit signature is unverified).
+- Upstream release CI at that commit: PHP 8.3, 8.4, and 8.5 all passed.
 
 **Disposition:** candidate for isolated conformance evaluation; not approved as a production dependency.
 
@@ -46,12 +47,25 @@ References:
 
 - Packagist reports version 1.0.1 from 2023, no license information for the latest version, one GitHub star, and no dependents.
 - Its older release and unclear licensing are insufficient for a security-critical production dependency.
+- Source review also found the same lossy number formatter pattern (`number_format(..., 7)` and default-precision `sprintf('%e')`) as the PHP 8.1 `mmccook` fork; it cannot serialize all RFC 8785 binary64 Appendix B values.
 
 References:
 - https://packagist.org/packages/root23/php-json-canonicalization
 - https://github.com/root23/php-json-canonicalization
 
 **Disposition:** rejected for this protocol.
+
+### 4. `mmccook/php-json-canonicalization-scheme` — rejected for RFC 8785 number formatting
+
+- The package declares PHP `^8.1`, so it is the only reviewed candidate that matches the repository's PHP 8.1 trust-bundle regression matrix.
+- Source review of v1.0.0 (commit `cd6d3e7645a2c1e62574a9a2437d68e9e74e799f`) found `Utils::es6NumberFormat()` uses `number_format($number, 7, ...)` for ordinary magnitudes and default-precision `sprintf('%e', ...)` for exponent form. These truncate/round significant digits and cannot reproduce ECMAScript's shortest-roundtrip binary64 serialization. For example, the smallest positive binary64 value must serialize as `5e-324`; the implementation's exponent formatter produces a six-digit approximation instead.
+- The source also canonicalizes already-decoded PHP values rather than parsing raw JSON, so it cannot independently reject duplicate decoded member names at the input boundary.
+
+References:
+- https://packagist.org/packages/mmccook/php-json-canonicalization-scheme
+- https://github.com/mmccook/php-json-canonicalization-scheme
+
+**Disposition:** rejected; PHP 8.1 compatibility does not compensate for non-conformant number serialization.
 
 ## Required qualification before adoption
 
@@ -70,3 +84,34 @@ RFC 8785 requires recursive object sorting by UTF-16 code units, ECMAScript-comp
 - https://www.rfc-editor.org/rfc/rfc8785.html
 
 This assessment does not generate keys, change trust roots, add a Composer dependency, or authorize deployment.
+
+## 2026-11-27 isolated candidate evaluation
+
+The project now has an isolated Composer harness under tests/jcs-candidate/. It does not add Composer to the application or alter runtime deployment dependencies. The harness resolves exact package versions with Composer scripts disabled, because the mbolli/php-ron package declares submodule-initialization install hooks.
+
+Candidates under evaluation:
+
+- accredifysg/php-json-canonicalize 1.1.1
+- mbolli/php-ron 0.5.0
+
+Release provenance and upstream CI review:
+
+- `accredifysg/php-json-canonicalize` v1.1.1 resolves to tag commit `581990f63665df8382ed14078a8d3c94368f2c5a`. GitHub reports the commit signature as verified. Its PHP 8.2, 8.3, 8.4 unit checks and RFC 8785 conformance check passed. The separate conformance-report publishing job failed; it is not the conformance test job.
+- `mbolli/php-ron` v0.5.0 resolves to tag commit `0224dc0ff32718e5807266e7edec2536f703e77a`. The commit signature is unverified. Its PHP 8.3, 8.4, 8.5 CI checks passed.
+- Both candidate packages declare only PHP and standard PHP extensions as runtime requirements; neither declares a third-party runtime package dependency. The `php-ron` package retains post-install/post-update script declarations, disabled in the isolated harness.
+
+Both candidates passed the six project-held RFC 8785 sample vectors in the isolated PHP 8.4 evaluation. The expanded strict-input run (GitHub Actions run 46056405517) distinguishes them: `mbolli/php-ron` 0.5.0 rejects all nine project negative cases (duplicate literal names, duplicate decoded names, lone high and low surrogates, an I-JSON noncharacter, malformed UTF-8, an unescaped control character, numeric overflow, and malformed JSON). `accredifysg/php-json-canonicalize` 1.1.1 rejects eight but accepts the I-JSON noncharacter U+FDD0 (`"\\ufdd0"`), so it fails the strict-input gate and is disqualified for this profile.
+
+A project-owned Appendix B fixture contains all 24 finite IEEE-754 samples from RFC 8785 Table 1. Both candidates passed all 24 values in PHP 8.4 CI run 46054462347 by reconstructing the exact binary64 input from the RFC hexadecimal representation. Both candidates therefore pass the project's six sample vectors and 24 finite Appendix B values on PHP 8.4. The expanded nine-case strict-input suite and the new shared PHP/Swift/Kotlin registry-anchor fixture assertions are awaiting CI on the current branch head.
+
+This is limited candidate evidence, not production qualification. The upstream packages' own conformance claims remain maintainer-reported until independently reproduced against their complete pinned corpora. The project still needs:
+- Complete upstream RFC 8785 corpus execution in SentryIQ CI (the project-owned six-vector and 24-value Appendix B subsets are passing).
+- Complete PHP, Swift, and Kotlin CI confirmation of the shared registry-anchor canonical-bytes and SHA-256 fixture assertions (added; latest runs pending).
+- Full dependency provenance, release-integrity, vulnerability, license, and maintainer-continuity review.
+- A separate Composer/deployment design decision, lockfile and immutable artifact hash before any application dependency is introduced.
+- Independent security review before production use.
+
+**Disposition:** no production candidate is selected. `accredifysg/php-json-canonicalize` and `mbolli/php-ron` pass the isolated PHP 8.4 vector subset but exceed the repository's PHP 8.1 compatibility floor. The reviewed PHP 8.1 candidates `mmccook/php-json-canonicalization-scheme` and `root23/php-json-canonicalization` have lossy number-formatting defects and are rejected. Do not add either passing PHP 8.4 package to the application or raise the runtime floor implicitly. The next dependency-selection action requires either a separately approved PHP 8.2+ runtime-baseline change or a new PHP 8.1-compatible implementation that passes the complete qualification corpus. The fixed-schema serializer remains restricted and non-production-qualified for general JCS.
+### Runtime compatibility gate
+
+The repository's `integrity-node-tests` workflow executes `TrustBundleValidator` regression tests across PHP 8.1 through 8.5. Until the supported production PHP baseline is explicitly changed in a separate reviewed decision, the JCS dependency must remain compatible with PHP 8.1. The two passing candidates in the isolated PHP 8.4 harness do not meet that baseline: `accredifysg/php-json-canonicalize` requires PHP `^8.2`, and `mbolli/php-ron` requires PHP `>=8.3`. The reviewed PHP 8.1 package above is non-conformant and rejected. Therefore **no production JCS dependency is selected** at this stage. Do not raise the runtime floor implicitly as part of this security change.

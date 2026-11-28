@@ -20,6 +20,7 @@ const MAX_ROOT_CHAIN_BYTES: usize = 20 * 1024 * 1024;
 const MAX_DELEGATED_METADATA_BYTES: usize = 20 * 1024 * 1024;
 const MAX_DELEGATED_ROLES: usize = 32;
 const MAX_TARGET_PATH_BYTES: usize = 4096;
+const MAX_TARGET_BYTES: usize = 64 * 1024 * 1024;
 
 /// Verifies a pinned initial TUF root and a sequence of sequential root updates.
 ///
@@ -180,17 +181,26 @@ pub fn verify_tuf_metadata_refresh(
     if let (Some(timestamp), Some(snapshot), Some(targets)) =
         (cached_timestamp, cached_snapshot, cached_targets)
     {
+        // Establish rollback baselines in TUF workflow order: timestamp
+        // before snapshot, and snapshot before any targets metadata.
         if trusted.load_cached_timestamp(&timestamp).is_err()
+            || trusted.update_timestamp(&new_timestamp).is_err()
             || trusted.load_cached_snapshot(&snapshot).is_err()
-            || trusted.update_targets(&targets).is_err()
+            || trusted.update_snapshot(&new_snapshot).is_err()
         {
             return false;
         }
+
+        // Cached targets are advisory only. Validate and load them when they
+        // still match the refreshed snapshot; a stale/corrupt cache is ignored.
+        let _ = trusted.update_targets(&targets);
+    } else if trusted.update_timestamp(&new_timestamp).is_err()
+        || trusted.update_snapshot(&new_snapshot).is_err()
+    {
+        return false;
     }
 
-    trusted.update_timestamp(&new_timestamp).is_ok()
-        && trusted.update_snapshot(&new_snapshot).is_ok()
-        && trusted.update_targets(&new_targets).is_ok()
+    trusted.update_targets(&new_targets).is_ok()
 }
 
 /// Verifies that a target is authorised by the top-level targets role or by a
@@ -219,6 +229,78 @@ pub fn verify_tuf_target_delegation(
     delegated_roles: Vec<String>,
     delegated_metadata: Vec<Vec<u8>>,
     target_path: String,
+    reference_time_unix_seconds: i64,
+) -> bool {
+    verify_tuf_target_internal(
+        initial_root,
+        expected_initial_root_sha256,
+        candidate_roots,
+        cached_timestamp,
+        cached_snapshot,
+        cached_targets,
+        new_timestamp,
+        new_snapshot,
+        new_targets,
+        delegated_roles,
+        delegated_metadata,
+        target_path,
+        None,
+        reference_time_unix_seconds,
+    )
+}
+
+#[uniffi::export]
+pub fn verify_tuf_target_bytes(
+    initial_root: Vec<u8>,
+    expected_initial_root_sha256: Vec<u8>,
+    candidate_roots: Vec<Vec<u8>>,
+    cached_timestamp: Option<Vec<u8>>,
+    cached_snapshot: Option<Vec<u8>>,
+    cached_targets: Option<Vec<u8>>,
+    new_timestamp: Vec<u8>,
+    new_snapshot: Vec<u8>,
+    new_targets: Vec<u8>,
+    delegated_roles: Vec<String>,
+    delegated_metadata: Vec<Vec<u8>>,
+    target_path: String,
+    target_bytes: Vec<u8>,
+    reference_time_unix_seconds: i64,
+) -> bool {
+    if target_bytes.len() > MAX_TARGET_BYTES {
+        return false;
+    }
+    verify_tuf_target_internal(
+        initial_root,
+        expected_initial_root_sha256,
+        candidate_roots,
+        cached_timestamp,
+        cached_snapshot,
+        cached_targets,
+        new_timestamp,
+        new_snapshot,
+        new_targets,
+        delegated_roles,
+        delegated_metadata,
+        target_path,
+        Some(&target_bytes),
+        reference_time_unix_seconds,
+    )
+}
+
+fn verify_tuf_target_internal(
+    initial_root: Vec<u8>,
+    expected_initial_root_sha256: Vec<u8>,
+    candidate_roots: Vec<Vec<u8>>,
+    cached_timestamp: Option<Vec<u8>>,
+    cached_snapshot: Option<Vec<u8>>,
+    cached_targets: Option<Vec<u8>>,
+    new_timestamp: Vec<u8>,
+    new_snapshot: Vec<u8>,
+    new_targets: Vec<u8>,
+    delegated_roles: Vec<String>,
+    delegated_metadata: Vec<Vec<u8>>,
+    target_path: String,
+    target_bytes: Option<&[u8]>,
     reference_time_unix_seconds: i64,
 ) -> bool {
     let cached_count = [
@@ -321,18 +403,25 @@ pub fn verify_tuf_target_delegation(
     if let (Some(timestamp), Some(snapshot), Some(targets)) =
         (cached_timestamp, cached_snapshot, cached_targets)
     {
+        // Timestamp and snapshot must be advanced before targets are loaded.
         if trusted.load_cached_timestamp(&timestamp).is_err()
+            || trusted.update_timestamp(&new_timestamp).is_err()
             || trusted.load_cached_snapshot(&snapshot).is_err()
-            || trusted.update_targets(&targets).is_err()
+            || trusted.update_snapshot(&new_snapshot).is_err()
         {
             return false;
         }
+
+        // A stale or corrupt cached targets file must not block a fresh
+        // metadata refresh. It is used only when it still matches the snapshot.
+        let _ = trusted.update_targets(&targets);
+    } else if trusted.update_timestamp(&new_timestamp).is_err()
+        || trusted.update_snapshot(&new_snapshot).is_err()
+    {
+        return false;
     }
 
-    if trusted.update_timestamp(&new_timestamp).is_err()
-        || trusted.update_snapshot(&new_snapshot).is_err()
-        || trusted.update_targets(&new_targets).is_err()
-    {
+    if trusted.update_targets(&new_targets).is_err() {
         return false;
     }
 
@@ -358,8 +447,8 @@ pub fn verify_tuf_target_delegation(
         let Some(metadata) = metadata else {
             return false;
         };
-        if search.visit(&step, metadata.signed()).is_some() {
-            return true;
+        if let Some(target) = search.visit(&step, metadata.signed()) {
+            return target_bytes.map_or(true, |bytes| target.verify(bytes).is_ok());
         }
     }
 
@@ -389,8 +478,376 @@ fn is_safe_target_path(path: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tuffet::crypto::HashAlgorithm;
-    use tuffet::metadata::{DelegatedRole, Delegations, TargetFile, Targets};
+    use tuffet::crypto::{HashAlgorithm, PrivateKey, Signer};
+    use tuffet::metadata::{
+        DelegatedRole, Delegations, Metadata, RoleType, Root, TargetFile, Targets,
+    };
+    use tuffet::pouf::{Json, Pouf};
+
+    // Interoperability fixture generated by Tuffet's Python-TUF test repository.
+    // It carries real Ed25519 role signatures and a complete timestamp/snapshot/targets chain.
+    const ED25519_PKCS8_PREFIX: [u8; 16] = [
+        0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04,
+        0x20,
+    ];
+
+    fn deterministic_test_key(name: &str) -> PrivateKey {
+        let seed = HashAlgorithm::Sha256.digest(name.as_bytes());
+        let der = [&ED25519_PKCS8_PREFIX[..], &seed].concat();
+        PrivateKey::from_pkcs8_der(&der).expect("valid deterministic Ed25519 test key")
+    }
+
+    fn signed_root(root: &Root, signers: &[&PrivateKey]) -> Vec<u8> {
+        let mut metadata = Metadata::<Root>::new(root.clone()).unwrap();
+        for signer in signers {
+            metadata.sign(*signer).unwrap();
+        }
+        metadata.to_bytes().unwrap()
+    }
+
+    #[test]
+    fn signed_tuf_fixtures_are_byte_identical_across_platform_test_bundles() {
+        assert_eq!(
+            include_bytes!("../tests/fixtures/tufet-python-tuf/root.json"),
+            include_bytes!("../../ios/SentryIQMaster/Tests/SentryIQMasterTests/Fixtures/root.json")
+        );
+        assert_eq!(
+            include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json"),
+            include_bytes!(
+                "../../ios/SentryIQMaster/Tests/SentryIQMasterTests/Fixtures/timestamp.json"
+            )
+        );
+        assert_eq!(
+            include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json"),
+            include_bytes!(
+                "../../ios/SentryIQMaster/Tests/SentryIQMasterTests/Fixtures/snapshot.json"
+            )
+        );
+        assert_eq!(
+            include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json"),
+            include_bytes!(
+                "../../ios/SentryIQMaster/Tests/SentryIQMasterTests/Fixtures/targets.json"
+            )
+        );
+        assert_eq!(
+            include_bytes!("../tests/fixtures/tufet-python-tuf/role1.json"),
+            include_bytes!(
+                "../../ios/SentryIQMaster/Tests/SentryIQMasterTests/Fixtures/role1.json"
+            )
+        );
+
+        assert_eq!(
+            include_bytes!("../tests/fixtures/tufet-python-tuf/root.json"),
+            include_bytes!("../../android/SentryIQMaster/master/src/androidTest/assets/tufet-python-tuf/root.json")
+        );
+        assert_eq!(
+            include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json"),
+            include_bytes!("../../android/SentryIQMaster/master/src/androidTest/assets/tufet-python-tuf/timestamp.json")
+        );
+        assert_eq!(
+            include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json"),
+            include_bytes!("../../android/SentryIQMaster/master/src/androidTest/assets/tufet-python-tuf/snapshot.json")
+        );
+        assert_eq!(
+            include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json"),
+            include_bytes!("../../android/SentryIQMaster/master/src/androidTest/assets/tufet-python-tuf/targets.json")
+        );
+        assert_eq!(
+            include_bytes!("../tests/fixtures/tufet-python-tuf/role1.json"),
+            include_bytes!("../../android/SentryIQMaster/master/src/androidTest/assets/tufet-python-tuf/role1.json")
+        );
+        assert_eq!(
+            include_bytes!("../tests/fixtures/tufet-python-tuf/file3.txt"),
+            include_bytes!("../../ios/SentryIQMaster/Tests/SentryIQMasterTests/Fixtures/file3.txt")
+        );
+        assert_eq!(
+            include_bytes!("../tests/fixtures/tufet-python-tuf/file3.txt"),
+            include_bytes!("../../android/SentryIQMaster/master/src/androidTest/assets/tufet-python-tuf/file3.txt")
+        );
+    }
+
+    #[test]
+    fn accepts_sequential_root_rotation_signed_by_old_and_new_thresholds() {
+        let old_key = deterministic_test_key("sentryiq tuf root v1 test key");
+        let new_key = deterministic_test_key("sentryiq tuf root v2 test key");
+        let old_key_id = Json::key_id(old_key.public_key()).unwrap();
+        let new_key_id = Json::key_id(new_key.public_key()).unwrap();
+
+        let mut initial = Root::new(Timestamp::from_second(2_000_000_000).unwrap());
+        for role in [
+            RoleType::Root,
+            RoleType::Timestamp,
+            RoleType::Snapshot,
+            RoleType::Targets,
+        ] {
+            initial.add_key(role, old_key_id.clone(), old_key.public_key().clone());
+        }
+        let initial_bytes = signed_root(&initial, &[&old_key]);
+
+        let mut rotated = initial;
+        rotated.version = 2;
+        rotated.roles.root.keyids = vec![new_key_id.clone()];
+        rotated.add_key(RoleType::Root, new_key_id, new_key.public_key().clone());
+        let rotated_bytes = signed_root(&rotated, &[&old_key, &new_key]);
+        let root_pin = Sha256::digest(&initial_bytes).to_vec();
+
+        assert_eq!(
+            verify_tuf_root_rotation_chain(
+                initial_bytes,
+                root_pin,
+                vec![rotated_bytes],
+                1_800_000_000,
+            ),
+            1
+        );
+    }
+
+    #[test]
+    fn rejects_root_rotation_missing_either_signing_threshold() {
+        let old_key = deterministic_test_key("sentryiq tuf root v1 threshold key");
+        let new_key = deterministic_test_key("sentryiq tuf root v2 threshold key");
+        let old_key_id = Json::key_id(old_key.public_key()).unwrap();
+        let new_key_id = Json::key_id(new_key.public_key()).unwrap();
+
+        let mut initial = Root::new(Timestamp::from_second(2_000_000_000).unwrap());
+        for role in [
+            RoleType::Root,
+            RoleType::Timestamp,
+            RoleType::Snapshot,
+            RoleType::Targets,
+        ] {
+            initial.add_key(role, old_key_id.clone(), old_key.public_key().clone());
+        }
+        let initial_bytes = signed_root(&initial, &[&old_key]);
+        let mut rotated = initial;
+        rotated.version = 2;
+        rotated.roles.root.keyids = vec![new_key_id.clone()];
+        rotated.add_key(RoleType::Root, new_key_id, new_key.public_key().clone());
+        let only_old = signed_root(&rotated, &[&old_key]);
+        let only_new = signed_root(&rotated, &[&new_key]);
+        let root_pin = Sha256::digest(&initial_bytes).to_vec();
+
+        assert_eq!(
+            verify_tuf_root_rotation_chain(
+                initial_bytes.clone(),
+                root_pin.clone(),
+                vec![only_old],
+                1_800_000_000,
+            ),
+            -1
+        );
+        assert_eq!(
+            verify_tuf_root_rotation_chain(initial_bytes, root_pin, vec![only_new], 1_800_000_000,),
+            -1
+        );
+    }
+
+    #[test]
+    fn accepts_complete_signed_python_tuf_metadata_refresh() {
+        let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
+        let timestamp =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
+        let snapshot = include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets = include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let root_pin = Sha256::digest(&root).to_vec();
+
+        assert!(verify_tuf_metadata_refresh(
+            root,
+            root_pin,
+            vec![],
+            None,
+            None,
+            None,
+            timestamp,
+            snapshot,
+            targets,
+            1_800_000_000,
+        ));
+    }
+
+    #[test]
+    fn rejects_tampered_signed_python_tuf_timestamp() {
+        let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
+        let mut timestamp =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
+        let snapshot = include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets = include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let root_pin = Sha256::digest(&root).to_vec();
+        timestamp[0] ^= 1;
+
+        assert!(!verify_tuf_metadata_refresh(
+            root,
+            root_pin,
+            vec![],
+            None,
+            None,
+            None,
+            timestamp,
+            snapshot,
+            targets,
+            1_800_000_000,
+        ));
+    }
+
+    #[test]
+    fn accepts_signed_delegated_target_metadata_from_python_tuf_fixture() {
+        let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
+        let timestamp =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
+        let snapshot = include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets = include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let role1 = include_bytes!("../tests/fixtures/tufet-python-tuf/role1.json").to_vec();
+        let root_pin = Sha256::digest(&root).to_vec();
+
+        assert!(verify_tuf_target_delegation(
+            root,
+            root_pin,
+            vec![],
+            Some(timestamp.clone()),
+            Some(snapshot.clone()),
+            Some(targets.clone()),
+            timestamp,
+            snapshot,
+            targets,
+            vec!["role1".to_string()],
+            vec![role1],
+            "file3.txt".to_string(),
+            1_800_000_000,
+        ));
+    }
+
+    #[test]
+    fn rejects_tampered_signed_delegated_target_metadata() {
+        let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
+        let timestamp =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
+        let snapshot = include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets = include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let mut role1 = include_bytes!("../tests/fixtures/tufet-python-tuf/role1.json").to_vec();
+        let root_pin = Sha256::digest(&root).to_vec();
+        role1[0] ^= 1;
+
+        assert!(!verify_tuf_target_delegation(
+            root,
+            root_pin,
+            vec![],
+            None,
+            None,
+            None,
+            timestamp,
+            snapshot,
+            targets,
+            vec!["role1".to_string()],
+            vec![role1],
+            "file3.txt".to_string(),
+            1_800_000_000,
+        ));
+    }
+
+    #[test]
+    fn accepts_signed_cached_metadata_rollback_baseline() {
+        let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
+        let timestamp =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
+        let snapshot = include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets = include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let root_pin = Sha256::digest(&root).to_vec();
+
+        assert!(verify_tuf_metadata_refresh(
+            root,
+            root_pin,
+            vec![],
+            Some(timestamp.clone()),
+            Some(snapshot.clone()),
+            Some(targets.clone()),
+            timestamp,
+            snapshot,
+            targets,
+            1_800_000_000,
+        ));
+    }
+
+    #[test]
+    fn ignores_corrupt_cached_targets_when_fresh_signed_metadata_is_valid() {
+        let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
+        let timestamp =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
+        let snapshot = include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets = include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let root_pin = Sha256::digest(&root).to_vec();
+
+        assert!(verify_tuf_metadata_refresh(
+            root,
+            root_pin,
+            vec![],
+            Some(timestamp.clone()),
+            Some(snapshot.clone()),
+            Some(b"corrupt cached targets".to_vec()),
+            timestamp,
+            snapshot,
+            targets,
+            1_800_000_000,
+        ));
+    }
+
+    #[test]
+    fn verifies_downloaded_target_bytes_against_signed_delegated_metadata() {
+        let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
+        let timestamp =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
+        let snapshot = include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets = include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let role1 = include_bytes!("../tests/fixtures/tufet-python-tuf/role1.json").to_vec();
+        let target = include_bytes!("../tests/fixtures/tufet-python-tuf/file3.txt").to_vec();
+        let root_pin = Sha256::digest(&root).to_vec();
+
+        assert!(verify_tuf_target_bytes(
+            root,
+            root_pin,
+            vec![],
+            None,
+            None,
+            None,
+            timestamp,
+            snapshot,
+            targets,
+            vec!["role1".to_string()],
+            vec![role1],
+            "file3.txt".to_string(),
+            target,
+            1_800_000_000,
+        ));
+    }
+
+    #[test]
+    fn rejects_downloaded_target_bytes_with_wrong_length_or_hash() {
+        let root = include_bytes!("../tests/fixtures/tufet-python-tuf/root.json").to_vec();
+        let timestamp =
+            include_bytes!("../tests/fixtures/tufet-python-tuf/timestamp.json").to_vec();
+        let snapshot = include_bytes!("../tests/fixtures/tufet-python-tuf/snapshot.json").to_vec();
+        let targets = include_bytes!("../tests/fixtures/tufet-python-tuf/targets.json").to_vec();
+        let role1 = include_bytes!("../tests/fixtures/tufet-python-tuf/role1.json").to_vec();
+        let mut target = include_bytes!("../tests/fixtures/tufet-python-tuf/file3.txt").to_vec();
+        let root_pin = Sha256::digest(&root).to_vec();
+        target[0] ^= 1;
+
+        assert!(!verify_tuf_target_bytes(
+            root,
+            root_pin,
+            vec![],
+            None,
+            None,
+            None,
+            timestamp,
+            snapshot,
+            targets,
+            vec!["role1".to_string()],
+            vec![role1],
+            "file3.txt".to_string(),
+            target,
+            1_800_000_000,
+        ));
+    }
 
     #[test]
     fn rejects_empty_initial_root() {
@@ -499,6 +956,9 @@ mod tests {
         assert!(!is_safe_target_path("packages/../../escape"));
         assert!(!is_safe_target_path("packages\\\\escape"));
         assert!(!is_safe_target_path("packages//empty"));
+        assert!(!is_safe_target_path("packages/\u{0000}app.tar.zst"));
+        assert!(!is_safe_target_path("packages/\napp.tar.zst"));
+        assert!(!is_safe_target_path("packages/\tapp.tar.zst"));
         assert!(is_safe_target_path("releases/mobile/app.tar.zst"));
     }
 

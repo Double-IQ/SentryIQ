@@ -22,6 +22,18 @@ jobs:
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: '8.4'
+          extensions: curl, dom, libxml, mbstring, openssl
+          coverage: none
+
+      - name: Install pinned PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Preserve resolved Composer lock for repository pinning
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sentryiq-composer-lock
+          path: composer.lock
+          if-no-files-found: error
 
       - name: Lint PHP files
         shell: bash
@@ -40,8 +52,14 @@ jobs:
       - name: Test canonical trust bundle validation
         run: php tests/trust_bundle_validator.test.php
 
+      - name: Test restricted trust-bundle canonical profile
+        run: php tests/trust_bundle_canonical_profile.test.php
+
       - name: Test server-side owner approval proof verification
         run: php tests/owner_approval_proof_verifier.test.php
 
       - name: Test signed registry-anchor verification
         run: php tests/registry_anchor_verifier.test.php
+
+      - name: Test authenticated owner bootstrap API integration
+        run: php tests/owner_bootstrap_api.test.php

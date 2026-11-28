@@ -35,6 +35,10 @@ $root = sys_get_temp_dir() . '/sentryiq-bootstrap-challenge-' . bin2hex(random_b
 if (!mkdir($root, 0700, true)) throw new RuntimeException('Unable to create private test directory.');
 $store = new BootstrapChallengeStore($root);
 $owner = 'owner-test-001';
+bootstrapChallengeReject(
+    fn() => $store->issue('owner-é', str_repeat('a', 64), 1000),
+    'Owner identifiers must use the shared ASCII protocol alphabet.'
+);
 $digest = str_repeat('a', 64);
 
 $challenge = $store->issue($owner, $digest, 1000);

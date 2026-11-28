@@ -33,8 +33,15 @@ class AndroidKeystoreMasterKeyStore(
     data class PublicKeySet(
         val signing: PublicKeyDescriptor,
         val keyAgreement: PublicKeyDescriptor,
-        val hardwareAssurance: String
+        val hardwareAssurance: String,
+        val deviceKeysetDigest: String
     )
+
+    /** Opaque handle for one Keystore-backed, per-use authenticated signature. */
+    class SigningOperation internal constructor(internal val signature: Signature) {
+        /** Supply this exact object to BiometricPrompt.CryptoObject. */
+        val cryptoObjectSignature: Signature get() = signature
+    }
 
     sealed class StoreException(message: String) : Exception(message) {
         class IncompleteKeyset : StoreException("Master keyset is incomplete; recovery is required.")
@@ -46,6 +53,22 @@ class AndroidKeystoreMasterKeyStore(
     private val signingAlias = "$aliasPrefix.signing.v1"
     private val agreementAlias = "$aliasPrefix.agreement.v1"
     private val lock = Any()
+
+    /**
+     * Read-only lifecycle probe. It distinguishes a genuinely empty Keystore from
+     * a partial or unusable identity and never creates, repairs, or replaces keys.
+     */
+    fun lifecycleKeysetStatus(): MasterKeysetStatus = synchronized(lock) {
+        val store = keyStore()
+        val hasSigning = store.containsAlias(signingAlias)
+        val hasAgreement = store.containsAlias(agreementAlias)
+        when {
+            !hasSigning && !hasAgreement -> MasterKeysetStatus.ABSENT
+            !hasSigning || !hasAgreement -> MasterKeysetStatus.INCOMPLETE
+            runCatching { loadExisting() }.isSuccess -> MasterKeysetStatus.COMPLETE
+            else -> MasterKeysetStatus.INCOMPLETE
+        }
+    }
 
     /** Reads existing keys only. It never creates or replaces a missing identity. */
     fun loadExisting(): PublicKeySet = synchronized(lock) {
@@ -88,13 +111,27 @@ class AndroidKeystoreMasterKeyStore(
         }
     }
 
-    /** ES256 JOSE r||s, normalized to low-S. User authentication is required by Keystore. */
-    fun sign(message: ByteArray): ByteArray {
-        val key = privateKey(signingAlias)
-        val signer = Signature.getInstance("SHA256withECDSA")
-        signer.initSign(key)
-        signer.update(message)
-        return derEcdsaToLowSJose(signer.sign())
+    /**
+     * Prepares a per-use authenticated signing operation.
+     *
+     * Pass the returned Signature to BiometricPrompt.CryptoObject, then call
+     * completeSigningOperation() with the authenticated Signature from the
+     * successful AuthenticationResult. A generic biometric check performed
+     * separately from this CryptoObject is not sufficient for this key policy.
+     */
+    fun beginSigningOperation(message: ByteArray): SigningOperation {
+        val operation = Signature.getInstance("SHA256withECDSA")
+        operation.initSign(privateKey(signingAlias))
+        operation.update(message)
+        return SigningOperation(operation)
+    }
+
+    /** Completes only the exact Signature instance returned by an authenticated CryptoObject. */
+    fun completeSigningOperation(operation: SigningOperation, authenticatedSignature: Signature): ByteArray {
+        if (authenticatedSignature !== operation.signature) {
+            throw StoreException.InvalidKey()
+        }
+        return derEcdsaToLowSJose(authenticatedSignature.sign())
     }
 
     /** P-256 ECDH followed by HKDF-SHA256; raw ECDH output is not returned. */
@@ -162,14 +199,19 @@ class AndroidKeystoreMasterKeyStore(
 
     private fun describe(signingDer: ByteArray, agreementDer: ByteArray, assurance: String): PublicKeySet {
         if (signingDer.contentEquals(agreementDer)) throw StoreException.InvalidKey()
-        return PublicKeySet(
-            descriptor("master-signing", "ES256", signingDer),
-            descriptor("master-key-agreement", "ECDH-ES", agreementDer),
+        val signingRaw = rawPublicKey(signingDer)
+        val agreementRaw = rawPublicKey(agreementDer)
+        val signing = descriptor("master-signing", "ES256", signingDer, signingRaw)
+        val agreement = descriptor("master-key-agreement", "ECDH-ES", agreementDer, agreementRaw)
+        val digest = MasterKeysetDigest.compute(
+            signing.kid, "ES256", signingRaw,
+            agreement.kid, "ECDH-ES", agreementRaw,
             assurance
         )
+        return PublicKeySet(signing, agreement, assurance, digest)
     }
 
-    private fun descriptor(role: String, alg: String, der: ByteArray): PublicKeyDescriptor {
+    private fun rawPublicKey(der: ByteArray): ByteArray {
         val ec = java.security.KeyFactory.getInstance("EC")
             .generatePublic(java.security.spec.X509EncodedKeySpec(der)) as ECPublicKey
         fun coordinate(value: BigInteger): ByteArray {
@@ -177,8 +219,10 @@ class AndroidKeystoreMasterKeyStore(
             require(raw.size <= 32)
             return ByteArray(32 - raw.size) + raw
         }
-        // Match iOS key IDs: SHA-256 over the 64-byte X||Y P-256 raw public key.
-        val rawPublic = coordinate(ec.w.affineX) + coordinate(ec.w.affineY)
+        return coordinate(ec.w.affineX) + coordinate(ec.w.affineY)
+    }
+
+    private fun descriptor(role: String, alg: String, der: ByteArray, rawPublic: ByteArray): PublicKeyDescriptor {
         val id = MessageDigest.getInstance("SHA-256").digest(rawPublic).joinToString("") { "%02x".format(it) }
         val pemBody = android.util.Base64.encodeToString(der, android.util.Base64.NO_WRAP)
         val pem = "-----BEGIN PUBLIC KEY-----\n" + pemBody.chunked(64).joinToString("\n") + "\n-----END PUBLIC KEY-----\n"

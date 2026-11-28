@@ -66,6 +66,28 @@ class RegistryAnchorVerifierTest {
         )
     }
 
+
+    @Test fun matchesSharedRegistryAnchorCanonicalizationFixture() {
+        val fixtureBytes = javaClass.getResourceAsStream("/registry-anchor-canonicalization.json")
+            ?.use { it.readBytes() }
+            ?: throw IllegalStateException("Shared registry-anchor test resource is missing.")
+        // Android's local-test org.json implementation is a stub unless Robolectric is
+        // installed. Extract the two scalar fields directly from the shared fixture.
+        val fixtureText = fixtureBytes.toString(Charsets.UTF_8)
+        val canonicalEncoded = fixtureText.substringAfter("\"canonical\": \"", "").substringBefore("\",\n  \"sha256\"")
+        check(canonicalEncoded.isNotEmpty()) { "Shared registry-anchor canonical field is missing." }
+        val expectedCanonical = canonicalEncoded.replace("\\\"", "\"")
+        val expectedDigest = fixtureText.substringAfter("\"sha256\": \"", "").substringBefore('"')
+        check(expectedDigest.matches(Regex("^[a-f0-9]{64}$"))) { "Shared registry-anchor digest field is missing." }
+
+        val actualCanonical = payload().toString(Charsets.UTF_8)
+        assertEquals(expectedCanonical, actualCanonical)
+        val actualDigest = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(actualCanonical.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        assertEquals(expectedDigest, actualDigest)
+    }
+
     @Test fun verifiesSignatureFromIndependentlyPinnedRegistrySigner() {
         val pair = keyPair()
         val anchor = signedAnchor(pair)
