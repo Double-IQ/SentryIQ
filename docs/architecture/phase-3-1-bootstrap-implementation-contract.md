@@ -100,6 +100,12 @@ Transitions:
 
 No remote endpoint can directly set the phone to `TRUSTED`.
 
+### 5.1 Native lifecycle reducer implementation (2026-11-28)
+
+Kotlin and Swift now contain matching `BootstrapLifecycle` evaluators and tests for all six states. The reducer accepts only evidence categories representing hardware master-keyset status, authenticated protected-trust-store status, the accepted bootstrap receipt, and independently verified verifier qualification. Corrupt trust state, incomplete/missing identity with existing trust, or an accepted trust bundle without its receipt resolves to `RECOVERY_REQUIRED`; revoked/expired verifier qualification resolves to `SUSPENDED`. Verifier-gated operations are allowed only in `TRUSTED`.
+
+This is the cross-platform state-evaluation core, not yet proof of complete application lifecycle integration. The consuming app must populate the evidence from the real platform key stores and protected trust store (never from API flags), preserve the restore/recovery marker semantics, and connect state changes to the native first-run UI and lock/logout lifecycle. End-to-end lifecycle integration remains an open Phase 3.1 gate.
+
 ## 6. Owner confirmation surface
 
 For each root, show role, key ID, algorithm, full fingerprint, source/provenance, exact permitted and forbidden purposes, and expiry/activation policy. The owner confirms each root independently with fresh local user verification. A generic “Trust SentryIQ” action is prohibited; server labels cannot replace role and fingerprint display.
