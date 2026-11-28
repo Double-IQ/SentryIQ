@@ -76,6 +76,7 @@ public final class OwnerBootstrapHTTPClient {
         from webView: WKWebView,
         origin: URL,
         sessionCookieName: String,
+        cookieStorage: HTTPCookieStorage = .shared,
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
         guard origin.scheme?.lowercased() == "https",
@@ -101,7 +102,7 @@ public final class OwnerBootstrapHTTPClient {
                 completion(.failure(ClientError.missingSessionCookie))
                 return
             }
-            HTTPCookieStorage.shared.setCookie(sessionCookie)
+            cookieStorage.setCookie(sessionCookie)
             completion(.success(()))
         }
     }
