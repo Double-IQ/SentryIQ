@@ -19,10 +19,10 @@ This runbook is for a **non-production qualification environment** after indepen
 After placing the reviewed runtime file, run this from the repository root using the same PHP runtime and account context intended for the service:
 
 ```sh
-SENTRYIQ_QUALIFY_USERNAME='known-test-account' php scripts/qualify-bootstrap-runtime.php
+SENTRYIQ_QUALIFY_USERNAME='known-test-account' \\\nSENTRYIQ_QUALIFY_TARGET_PATH='releases/test-target.bin' \\\nphp scripts/qualify-bootstrap-runtime.php
 ```
 
-The CLI performs file/directory boundary checks, callback shape checks, owner mapping, bundle validation, signed registry-anchor validation, and the configured TUF validation. It does not issue a challenge, sign an approval, write a receipt, modify trust state, or deploy.
+The CLI performs file/directory boundary checks, callback shape checks, owner mapping, bundle validation, signed registry-anchor validation, configured TUF validation, and verifies a target resolver's output against its returned signed target descriptor. Select a known target path from the test metadata. The target callback must be read-only. It does not issue a challenge, sign an approval, write a receipt, modify trust state, or deploy.
 
 Expected success output is deliberately non-sensitive:
 
