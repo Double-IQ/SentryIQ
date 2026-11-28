@@ -61,7 +61,7 @@ return [
     },
 
     // Return target bytes only for a safe relative path from the approved target store.
-    'resolve_target' => static function (string $relativeTargetPath): ?string {
+    'resolve_target' => static function (string $relativeTargetPath, array $validatedBundle, array $verifiedTufMetadata): ?string {
         throw new RuntimeException('Provision a path-confined TUF target resolver.');
     },
 ];
