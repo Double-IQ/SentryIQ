@@ -99,3 +99,45 @@ public enum BootstrapLifecycle {
         state == .trusted
     }
 }
+
+
+/// Reconstruct lifecycle from the hardware keyset and authenticated protected state.
+public final class BootstrapLifecycleCoordinator {
+    private let masterKeyStore: SecureEnclaveMasterKeyStore
+    private let trustStateStore: ProtectedTrustStateStore
+
+    public init(masterKeyStore: SecureEnclaveMasterKeyStore, trustStateStore: ProtectedTrustStateStore) {
+        self.masterKeyStore = masterKeyStore
+        self.trustStateStore = trustStateStore
+    }
+
+    public func evaluate(
+        anchor: TrustRegistryAnchor,
+        verifyAcceptedReceipt: (String) -> Bool,
+        verifierQualification: VerifierQualificationStatus,
+        context: LAContext? = nil
+    ) -> BootstrapLifecycleState {
+        let keyset = masterKeyStore.lifecycleKeysetStatus(context: context)
+        let trustStatus: ProtectedTrustStatus
+        let acceptedReceipt: Bool
+        do {
+            let trust = try trustStateStore.load(anchor: anchor)
+            trustStatus = .valid
+            acceptedReceipt = trust.bootstrapReceiptID.map { id in
+                (try? verifyAcceptedReceipt(id)) ?? false
+            } ?? false
+        } catch ProtectedTrustStateStore.StoreError.missingState {
+            trustStatus = .absent
+            acceptedReceipt = false
+        } catch {
+            trustStatus = .corrupt
+            acceptedReceipt = false
+        }
+        return BootstrapLifecycle.evaluate(BootstrapLifecycleEvidence(
+            masterKeyset: keyset,
+            protectedTrust: trustStatus,
+            hasAcceptedBootstrapReceipt: acceptedReceipt,
+            verifierQualification: verifierQualification
+        ))
+    }
+}
