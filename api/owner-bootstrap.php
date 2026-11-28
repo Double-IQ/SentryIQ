@@ -85,6 +85,9 @@ try {
     );
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['target'])) {
+        // Do not serve targets unless the current signed anchor, trust bundle,
+        // and complete TUF metadata set pass the same validation as a snapshot.
+        $api->snapshot(time());
         $targetPath = $_GET['target'];
         if (!is_string($targetPath) || strlen($targetPath) > 512
             || !preg_match('~^[A-Za-z0-9._/-]+$~D', $targetPath)
