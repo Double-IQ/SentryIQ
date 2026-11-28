@@ -85,10 +85,11 @@ public enum RegistryAnchorVerifier {
         guard signer.subjectPublicKeyInfoDER.starts(with: subjectPublicKeyInfoPrefix) else {
             throw VerificationError.invalidSignerKey
         }
-        let rawCoordinates = signer.subjectPublicKeyInfoDER.dropFirst(subjectPublicKeyInfoPrefix.count)
+        let rawCoordinates = Data(signer.subjectPublicKeyInfoDER.dropFirst(subjectPublicKeyInfoPrefix.count))
         guard rawCoordinates.count == 64 else { throw VerificationError.invalidSignerKey }
-        let uncompressedPoint = Data([0x04]) + Data(rawCoordinates)
-        let publicKey = try P256.Signing.PublicKey(rawRepresentation: uncompressedPoint)
+        // CryptoKit rawRepresentation is the 64-byte x || y form, not the
+        // 65-byte X9.63 uncompressed point (0x04 || x || y).
+        let publicKey = try P256.Signing.PublicKey(rawRepresentation: rawCoordinates)
         let signature = try P256.Signing.ECDSASignature(rawRepresentation: anchor.signature)
         guard publicKey.isValidSignature(signature, for: anchor.signedPayload) else {
             throw VerificationError.invalidSignature
