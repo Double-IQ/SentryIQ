@@ -97,13 +97,14 @@ try {
             || preg_match('~(^|/)\\.{1,2}($|/)~', $targetPath)) {
             owner_bootstrap_respond(400, ['error' => 'invalid_target_path']);
         }
-        $targetBytes = ($runtime['resolve_target'])($targetPath, $targetSnapshot['validated_bundle'], $targetSnapshot['tuf_metadata']);
-        if (!is_string($targetBytes) || $targetBytes === '') {
+        $resolved = ($runtime['resolve_target'])($targetPath, $targetSnapshot['validated_bundle'], $targetSnapshot['tuf_metadata']);
+        if (!is_array($resolved) || !is_string($resolved['bytes'] ?? null)
+            || !is_array($resolved['descriptor'] ?? null)) {
             owner_bootstrap_respond(404, ['error' => 'target_not_found']);
         }
-        if (strlen($targetBytes) > 16 * 1024 * 1024) {
-            owner_bootstrap_respond(413, ['error' => 'target_too_large']);
-        }
+        // The resolver must source the descriptor from the verified signed TUF
+        // target/delegation metadata. Re-check exact byte length and digest here.
+        $targetBytes = BootstrapTargetStore::verifyResolverBytes($resolved['bytes'], $resolved['descriptor']);
         owner_bootstrap_respond(200, [
             'protocol' => 'SENTRYIQ-OWNER-BOOTSTRAP-API-V1',
             'target_path' => $targetPath,
