@@ -76,6 +76,26 @@ final class BootstrapTargetStore
         return $bytes;
     }
 
+    /**
+     * Re-check resolver output at the API boundary. Descriptor values must come
+     * from the independently verified signed TUF target metadata, not a request.
+     *
+     * @param array{sha256:string,length:int} $descriptor
+     */
+    public static function verifyResolverBytes(string $bytes, array $descriptor): string
+    {
+        if (!is_string($descriptor['sha256'] ?? null)
+            || !preg_match('/^[a-f0-9]{64}$/D', $descriptor['sha256'])
+            || !is_int($descriptor['length'] ?? null)
+            || $descriptor['length'] < 1
+            || $descriptor['length'] > self::MAX_TARGET_BYTES
+            || strlen($bytes) !== $descriptor['length']
+            || !hash_equals($descriptor['sha256'], hash('sha256', $bytes))) {
+            throw new RuntimeException('Resolved target bytes do not match signed target metadata.');
+        }
+        return $bytes;
+    }
+
     public static function validRelativePath(string $path): bool
     {
         if ($path === '' || strlen($path) > 512 || str_starts_with($path, '/') ||
