@@ -109,7 +109,7 @@ try {
     }
     BootstrapTargetStore::verifyResolverBytes($resolved['bytes'], $resolved['descriptor']);
     fwrite(STDOUT, "Bootstrap runtime qualification PASSED.\n");
-    fwrite(STDOUT, "Owner mapping, signed registry anchor, trust bundle, and TUF callback verified.\n");
+    fwrite(STDOUT, "Owner mapping, signed registry anchor, trust bundle, TUF callback, and target bytes verified.\n");
     fwrite(STDOUT, "No challenges or receipts were created; no trust state or deployment changed.\n");
 } catch (Throwable) {
     qualificationFail('runtime verification failed; details withheld to avoid leaking configuration or key material.');
