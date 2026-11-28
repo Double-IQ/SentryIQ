@@ -8,7 +8,7 @@ final class BootstrapLifecycleTests: XCTestCase {
             .uninitialised
         )
         XCTAssertEqual(
-            BootstrapLifecycle.evaluate(BootstrapLifecycleEvidence(masterKeyset: .complete, protectedTrust: .absent, identityContinuity: .neverInitialized)),
+            BootstrapLifecycle.evaluate(BootstrapLifecycleEvidence(masterKeyset: .complete, protectedTrust: .absent, identityContinuity: .previouslyInitialized)),
             .masterCreatedPendingRoots
         )
     }
