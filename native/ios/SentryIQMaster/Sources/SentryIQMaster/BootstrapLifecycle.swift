@@ -56,7 +56,8 @@ public struct BootstrapLifecycleEvidence {
 /** Fail-closed first-run state reducer shared semantically with the Android adapter. */
 public enum BootstrapLifecycle {
     public static func evaluate(_ evidence: BootstrapLifecycleEvidence) -> BootstrapLifecycleState {
-        if evidence.protectedTrust == .corrupt ||
+        if (evidence.hasAcceptedBootstrapReceipt && evidence.protectedTrust == .absent) ||
+            evidence.protectedTrust == .corrupt ||
             evidence.masterKeyset == .incomplete ||
             (evidence.masterKeyset == .absent && evidence.protectedTrust == .valid) {
             return .recoveryRequired
