@@ -55,6 +55,25 @@ class OwnerBootstrapHttpClient(
             return returned.any { it.split(';').any { pair -> pair.trim() == "$sessionCookieName=$sessionValue" } }
         }
 
+        /**
+         * Clear the named session cookie from the native cookie jar on lock/logout/session expiry.
+         * Does not remove unrelated cookies or mutate the WebView's browser session.
+         */
+        fun clearNativeSessionCookie(
+            origin: URL,
+            sessionCookieName: String,
+            nativeCookieJar: CookieManager
+        ): Boolean {
+            if (!origin.protocol.equals("https", true) || origin.userInfo != null ||
+                origin.query != null || origin.ref != null ||
+                !sessionCookieName.matches(Regex("^[A-Za-z0-9_-]{1,64}$"))) return false
+            val endpointUrl = URL(origin.toString().trimEnd('/') + "/api/owner-bootstrap.php")
+            val uri = endpointUrl.toURI()
+            val matches = nativeCookieJar.cookieStore.get(uri).filter { it.name == sessionCookieName }
+            matches.forEach { cookie -> nativeCookieJar.cookieStore.remove(uri, cookie) }
+            return nativeCookieJar.cookieStore.get(uri).none { it.name == sessionCookieName }
+        }
+
         /** Extract one unambiguous session cookie; duplicate or unsafe values fail closed. */
         internal fun extractSessionCookie(cookieHeader: String, expectedName: String): String? {
             val matches = cookieHeader.split(';').mapNotNull { pair ->
