@@ -68,9 +68,10 @@ class RegistryAnchorVerifierTest {
 
 
     @Test fun matchesSharedRegistryAnchorCanonicalizationFixture() {
-        val fixtureFile = java.io.File("../../../tests/fixtures/registry-anchor-canonicalization.json")
-        check(fixtureFile.isFile) { "Shared registry-anchor fixture not found: ${fixtureFile.absolutePath}" }
-        val fixture = org.json.JSONObject(fixtureFile.readText(Charsets.UTF_8))
+        val fixtureBytes = javaClass.getResourceAsStream("/registry-anchor-canonicalization.json")
+            ?.use { it.readBytes() }
+            ?: throw IllegalStateException("Shared registry-anchor test resource is missing.")
+        val fixture = org.json.JSONObject(fixtureBytes.toString(Charsets.UTF_8))
         val expectedCanonical = fixture.getString("canonical")
         val expectedDigest = fixture.getString("sha256")
 
