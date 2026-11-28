@@ -21,6 +21,7 @@ require_once dirname(__DIR__) . '/app/Security/TrustBundleValidator.php';
 require_once dirname(__DIR__) . '/app/Security/RegistryAnchorVerifier.php';
 require_once dirname(__DIR__) . '/app/Security/OwnerApprovalProofVerifier.php';
 require_once dirname(__DIR__) . '/app/Security/OwnerBootstrapApi.php';
+require_once dirname(__DIR__) . '/app/Security/BootstrapTargetStore.php';
 
 use SentryIQ\Security\BootstrapChallengeStore;
 use SentryIQ\Security\OwnerBootstrapApi;
@@ -97,6 +98,15 @@ try {
     if (!hash_equals($snapshot['bundle_sha256'], hash('sha256', $snapshot['canonical_bundle']))) {
         qualificationFail('bundle canonical digest consistency check failed.');
     }
+    $targetPath = getenv('SENTRYIQ_QUALIFY_TARGET_PATH');
+    if (!is_string($targetPath) || !BootstrapTargetStore::validRelativePath($targetPath)) {
+        qualificationFail('set SENTRYIQ_QUALIFY_TARGET_PATH to a known signed target path for read-only target qualification.');
+    }
+    $resolved = ($runtime['resolve_target'])($targetPath, $snapshot['validated_bundle'], $snapshot['tuf_metadata']);
+    if (!is_array($resolved) || !is_string($resolved['bytes'] ?? null) || !is_array($resolved['descriptor'] ?? null)) {
+        qualificationFail('target resolver did not return bytes and a signed TUF descriptor.');
+    }
+    BootstrapTargetStore::verifyResolverBytes($resolved['bytes'], $resolved['descriptor']);
     fwrite(STDOUT, "Bootstrap runtime qualification PASSED.\n");
     fwrite(STDOUT, "Owner mapping, signed registry anchor, trust bundle, and TUF callback verified.\n");
     fwrite(STDOUT, "No challenges or receipts were created; no trust state or deployment changed.\n");
