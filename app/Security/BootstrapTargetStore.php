@@ -30,14 +30,20 @@ final class BootstrapTargetStore
     }
 
     /**
-     * @param list<string> $authorizedTargetPaths exact paths from verified signed TUF metadata
+     * @param array<string,array{sha256:string,length:int}> $verifiedTargets
+     * Exact path => expected SHA-256 and length from independently verified signed TUF target metadata.
      */
-    public function read(string $relativePath, array $authorizedTargetPaths): string
+    public function read(string $relativePath, array $verifiedTargets): string
     {
+        $target = $verifiedTargets[$relativePath] ?? null;
         if (!self::validRelativePath($relativePath)
-            || !array_is_list($authorizedTargetPaths)
-            || !in_array($relativePath, $authorizedTargetPaths, true)) {
-            throw new RuntimeException('Bootstrap target is not authorized.');
+            || !is_array($target)
+            || !is_string($target['sha256'] ?? null)
+            || !preg_match('/^[a-f0-9]{64}$/D', $target['sha256'])
+            || !is_int($target['length'] ?? null)
+            || $target['length'] < 1
+            || $target['length'] > self::MAX_TARGET_BYTES) {
+            throw new RuntimeException('Bootstrap target is not authorized by valid signed metadata.');
         }
 
         $path = $this->root;
@@ -59,12 +65,13 @@ final class BootstrapTargetStore
             throw new RuntimeException('Bootstrap target escaped its private store or is not a regular file.');
         }
         $size = filesize($real);
-        if (!is_int($size) || $size < 1 || $size > self::MAX_TARGET_BYTES) {
-            throw new RuntimeException('Bootstrap target is empty or exceeds the size limit.');
+        if (!is_int($size) || $size !== $target['length'] || $size > self::MAX_TARGET_BYTES) {
+            throw new RuntimeException('Bootstrap target length does not match signed metadata.');
         }
         $bytes = @file_get_contents($real);
-        if (!is_string($bytes) || strlen($bytes) !== $size) {
-            throw new RuntimeException('Bootstrap target read was incomplete.');
+        if (!is_string($bytes) || strlen($bytes) !== $size
+            || !hash_equals($target['sha256'], hash('sha256', $bytes))) {
+            throw new RuntimeException('Bootstrap target bytes do not match signed metadata.');
         }
         return $bytes;
     }
