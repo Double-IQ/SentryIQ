@@ -9,12 +9,17 @@ class BootstrapLifecycleTest {
     @Test fun derivesUninitialisedAndMasterCreatedStates() {
         assertEquals(
             BootstrapLifecycleState.UNINITIALISED,
-            BootstrapLifecycle.evaluate(BootstrapLifecycleEvidence(MasterKeysetStatus.ABSENT, ProtectedTrustStatus.ABSENT))
+            BootstrapLifecycle.evaluate(BootstrapLifecycleEvidence(MasterKeysetStatus.ABSENT, ProtectedTrustStatus.ABSENT, identityContinuity = IdentityContinuityStatus.NEVER_INITIALIZED))
         )
         assertEquals(
             BootstrapLifecycleState.MASTER_CREATED_PENDING_ROOTS,
-            BootstrapLifecycle.evaluate(BootstrapLifecycleEvidence(MasterKeysetStatus.COMPLETE, ProtectedTrustStatus.ABSENT))
+            BootstrapLifecycle.evaluate(BootstrapLifecycleEvidence(MasterKeysetStatus.COMPLETE, ProtectedTrustStatus.ABSENT, identityContinuity = IdentityContinuityStatus.NEVER_INITIALIZED))
         )
+    }
+
+    @Test fun restoredOrUnknownIdentityNeverFallsBackToFirstRun() {
+        assertEquals(BootstrapLifecycleState.RECOVERY_REQUIRED, BootstrapLifecycle.evaluate(BootstrapLifecycleEvidence(MasterKeysetStatus.ABSENT, ProtectedTrustStatus.ABSENT, identityContinuity = IdentityContinuityStatus.PREVIOUSLY_INITIALIZED)))
+        assertEquals(BootstrapLifecycleState.RECOVERY_REQUIRED, BootstrapLifecycle.evaluate(BootstrapLifecycleEvidence(MasterKeysetStatus.ABSENT, ProtectedTrustStatus.ABSENT)))
     }
 
     @Test fun acceptedReceiptLeavesVerifierPendingUntilIndependentQualification() {
