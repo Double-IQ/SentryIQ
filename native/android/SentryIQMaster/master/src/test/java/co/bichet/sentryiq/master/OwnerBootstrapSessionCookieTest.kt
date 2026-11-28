@@ -32,6 +32,13 @@ class OwnerBootstrapSessionCookieTest {
     }
 
     @Test
+    fun acceptsOnlyStrictSessionCookieNames() {
+        assertEquals("PHPSESSID", "PHPSESSID".takeIf { it.matches(Regex("^[A-Za-z0-9_-]{1,64}$")) })
+        assertNull("bad/name".takeIf { it.matches(Regex("^[A-Za-z0-9_-]{1,64}$")) })
+        assertNull("".takeIf { it.matches(Regex("^[A-Za-z0-9_-]{1,64}$")) })
+    }
+
+    @Test
     fun doesNotAcceptANameOtherThanTheConfiguredSessionCookie() {
         assertNull(OwnerBootstrapHttpClient.extractSessionCookie("PHPSESSID=abcDEF0123456789_-", "OTHER"))
     }
