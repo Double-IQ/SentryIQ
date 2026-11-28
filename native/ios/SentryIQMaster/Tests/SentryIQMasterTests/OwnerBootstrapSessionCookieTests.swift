@@ -3,6 +3,51 @@ import XCTest
 @testable import SentryIQMaster
 
 final class OwnerBootstrapSessionCookieTests: XCTestCase {
+    func testSelectsOnlySingleSecureHttpOnlySameHostCookie() throws {
+        let cookie = try XCTUnwrap(HTTPCookie(properties: [
+            .domain: "sentryiq.example",
+            .path: "/",
+            .name: "SID",
+            .value: "abcDEF0123456789_-",
+            .secure: "TRUE",
+            .httponly: "TRUE"
+        ]))
+        XCTAssertEqual(
+            OwnerBootstrapHTTPClient.selectSessionCookie(
+                [cookie], name: "SID", host: "sentryiq.example",
+                endpointPath: "/api/owner-bootstrap.php"
+            )?.value,
+            "abcDEF0123456789_-"
+        )
+        XCTAssertNil(OwnerBootstrapHTTPClient.selectSessionCookie(
+            [cookie], name: "SID", host: "other.example",
+            endpointPath: "/api/owner-bootstrap.php"
+        ))
+    }
+
+    func testRejectsAmbiguousDuplicateCookiesAndInsecureCookie() throws {
+        let rootPathCookie = try XCTUnwrap(HTTPCookie(properties: [
+            .domain: "sentryiq.example", .path: "/", .name: "SID",
+            .value: "abcDEF0123456789_-", .secure: "TRUE", .httponly: "TRUE"
+        ]))
+        let apiPathCookie = try XCTUnwrap(HTTPCookie(properties: [
+            .domain: "sentryiq.example", .path: "/api", .name: "SID",
+            .value: "xyzDEF0123456789_-", .secure: "TRUE", .httponly: "TRUE"
+        ]))
+        XCTAssertNil(OwnerBootstrapHTTPClient.selectSessionCookie(
+            [rootPathCookie, apiPathCookie], name: "SID", host: "sentryiq.example",
+            endpointPath: "/api/owner-bootstrap.php"
+        ))
+        let insecure = try XCTUnwrap(HTTPCookie(properties: [
+            .domain: "sentryiq.example", .path: "/", .name: "SID",
+            .value: "abcDEF0123456789_-"
+        ]))
+        XCTAssertNil(OwnerBootstrapHTTPClient.selectSessionCookie(
+            [insecure], name: "SID", host: "sentryiq.example",
+            endpointPath: "/api/owner-bootstrap.php"
+        ))
+    }
+
     func testClearsOnlyConfiguredSecureHttpOnlyCookieFromNativeStorage() throws {
         let storage = HTTPCookieStorage.sharedCookieStorage(forGroupContainerIdentifier: "sentryiq-session-cookie-tests")
         storage.cookies?.forEach(storage.deleteCookie)
