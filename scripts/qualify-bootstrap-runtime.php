@@ -24,6 +24,7 @@ require_once dirname(__DIR__) . '/app/Security/OwnerBootstrapApi.php';
 require_once dirname(__DIR__) . '/app/Security/BootstrapTargetStore.php';
 
 use SentryIQ\Security\BootstrapChallengeStore;
+use SentryIQ\Security\BootstrapTargetStore;
 use SentryIQ\Security\OwnerBootstrapApi;
 use SentryIQ\Security\RegistryAnchorVerifier;
 use SentryIQ\Security\TrustBundleValidator;
