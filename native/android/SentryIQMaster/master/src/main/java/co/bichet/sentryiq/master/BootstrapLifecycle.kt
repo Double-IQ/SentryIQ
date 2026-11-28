@@ -4,6 +4,7 @@ package co.bichet.sentryiq.master
 enum class MasterKeysetStatus { ABSENT, COMPLETE, INCOMPLETE }
 enum class ProtectedTrustStatus { ABSENT, VALID, CORRUPT }
 enum class VerifierQualificationStatus { PENDING, QUALIFIED, REVOKED_OR_EXPIRED }
+enum class IdentityContinuityStatus { NEVER_INITIALIZED, PREVIOUSLY_INITIALIZED, UNKNOWN }
 
 enum class BootstrapLifecycleState {
     UNINITIALISED,
@@ -26,11 +27,14 @@ data class BootstrapLifecycleEvidence(
     val masterKeyset: MasterKeysetStatus,
     val protectedTrust: ProtectedTrustStatus,
     val hasAcceptedBootstrapReceipt: Boolean = false,
-    val verifierQualification: VerifierQualificationStatus = VerifierQualificationStatus.PENDING
+    val verifierQualification: VerifierQualificationStatus = VerifierQualificationStatus.PENDING,
+    val identityContinuity: IdentityContinuityStatus = IdentityContinuityStatus.UNKNOWN
 )
 
 object BootstrapLifecycle {
     fun evaluate(evidence: BootstrapLifecycleEvidence): BootstrapLifecycleState {
+        if (evidence.masterKeyset == MasterKeysetStatus.ABSENT && evidence.identityContinuity != IdentityContinuityStatus.NEVER_INITIALIZED) return BootstrapLifecycleState.RECOVERY_REQUIRED
+        if (evidence.masterKeyset != MasterKeysetStatus.ABSENT && evidence.identityContinuity == IdentityContinuityStatus.NEVER_INITIALIZED) return BootstrapLifecycleState.RECOVERY_REQUIRED
         if ((evidence.hasAcceptedBootstrapReceipt && evidence.protectedTrust == ProtectedTrustStatus.ABSENT) ||
             evidence.protectedTrust == ProtectedTrustStatus.CORRUPT ||
             evidence.masterKeyset == MasterKeysetStatus.INCOMPLETE ||
@@ -84,7 +88,8 @@ class BootstrapLifecycleCoordinator(
     fun evaluate(
         anchor: ProtectedTrustStateStore.RegistryAnchor,
         verifyAcceptedReceipt: (String) -> Boolean,
-        verifierQualification: VerifierQualificationStatus
+        verifierQualification: VerifierQualificationStatus,
+        identityContinuity: IdentityContinuityStatus
     ): BootstrapLifecycleState {
         val keyset = masterKeyStore.lifecycleKeysetStatus()
         val trustResult = try {
@@ -104,7 +109,8 @@ class BootstrapLifecycleCoordinator(
             masterKeyset = keyset,
             protectedTrust = trustResult.first,
             hasAcceptedBootstrapReceipt = trustResult.second,
-            verifierQualification = verifierQualification
+            verifierQualification = verifierQualification,
+            identityContinuity = identityContinuity
         ))
     }
 }
