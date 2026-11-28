@@ -28,7 +28,7 @@ Expected success output is deliberately non-sensitive:
 
 ```
 Bootstrap runtime qualification PASSED.
-Owner mapping, signed registry anchor, trust bundle, and TUF callback verified.
+Owner mapping, signed registry anchor, trust bundle, TUF callback, and target bytes verified.
 No challenges or receipts were created; no trust state or deployment changed.
 ```
 
