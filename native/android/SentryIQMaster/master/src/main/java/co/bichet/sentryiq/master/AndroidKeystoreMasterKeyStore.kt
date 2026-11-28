@@ -54,6 +54,22 @@ class AndroidKeystoreMasterKeyStore(
     private val agreementAlias = "$aliasPrefix.agreement.v1"
     private val lock = Any()
 
+    /**
+     * Read-only lifecycle probe. It distinguishes a genuinely empty Keystore from
+     * a partial or unusable identity and never creates, repairs, or replaces keys.
+     */
+    fun lifecycleKeysetStatus(): MasterKeysetStatus = synchronized(lock) {
+        val store = keyStore()
+        val hasSigning = store.containsAlias(signingAlias)
+        val hasAgreement = store.containsAlias(agreementAlias)
+        when {
+            !hasSigning && !hasAgreement -> MasterKeysetStatus.ABSENT
+            !hasSigning || !hasAgreement -> MasterKeysetStatus.INCOMPLETE
+            runCatching { loadExisting() }.isSuccess -> MasterKeysetStatus.COMPLETE
+            else -> MasterKeysetStatus.INCOMPLETE
+        }
+    }
+
     /** Reads existing keys only. It never creates or replaces a missing identity. */
     fun loadExisting(): PublicKeySet = synchronized(lock) {
         val store = keyStore()
