@@ -46,6 +46,15 @@ final class BootstrapLifecycleTests: XCTestCase {
         )
     }
 
+    func testReceiptWithoutProtectedTrustRequiresRecovery() {
+        let evidence = BootstrapLifecycleEvidence(
+            masterKeyset: .complete,
+            protectedTrust: .absent,
+            hasAcceptedBootstrapReceipt: true
+        )
+        XCTAssertEqual(BootstrapLifecycle.evaluate(evidence), .recoveryRequired)
+    }
+
     func testRevokedOrExpiredVerifierSuspendsTrustedState() {
         let evidence = BootstrapLifecycleEvidence(
             masterKeyset: .complete,
