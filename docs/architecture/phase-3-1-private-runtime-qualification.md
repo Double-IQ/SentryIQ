@@ -10,7 +10,7 @@ This runbook is for a **non-production qualification environment** after indepen
 - Bundle bytes and registry-anchor payload/signature are the exact reviewed canonical values.
 - The initial registry anchor is sequence 1 with no predecessor; a successor names the previous accepted digest and increments exactly one.
 - The TUF callback independently validates the pinned root, timestamp, snapshot, targets, and every delegated role required by the candidate. It must not trust a boolean supplied by a request or candidate bundle.
-- The target resolver maps only validated relative target paths to files inside a private target store. It must reject symlinks, traversal, and unexpected file types and never fall back to a public web path.
+- The target resolver authorizes requested paths against the verified signed TUF target/delegation metadata and maps only those validated relative paths to files inside a private target store. The endpoint revalidates the current signed anchor, trust bundle, and complete TUF metadata before serving target bytes. The resolver must reject symlinks, traversal, and unexpected file types and never fall back to a public web path.
 - Owner mapping binds the authenticated application username to an immutable owner ID and rejects unknown accounts.
 - No private signing key is stored in the runtime file or application data directory.
 
