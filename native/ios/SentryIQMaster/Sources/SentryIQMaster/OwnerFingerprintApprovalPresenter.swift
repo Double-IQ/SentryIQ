@@ -54,7 +54,11 @@ public final class OwnerFingerprintApprovalPresenter {
         completion: @escaping (Result<OwnerFingerprintApprovalCeremony.ApprovalProof, Error>) -> Void
     ) {
         guard ownerIdentifier == verifiedState.snapshot.ownerID,
-              canonicalBundle == verifiedState.snapshot.canonicalBundle else {
+              canonicalBundle == verifiedState.snapshot.canonicalBundle,
+              details.role == rootRole,
+              details.keyID == rootKeyID,
+              details.algorithm == "ES256",
+              details.candidateRootFingerprint.range(of: "^[a-fA-F0-9]{64}$", options: .regularExpression) != nil else {
             completion(.failure(OwnerFingerprintApprovalCeremony.CeremonyError.invalidCandidateTrustChain))
             return
         }
@@ -103,6 +107,17 @@ public final class OwnerFingerprintApprovalPresenter {
                 return
             }
             do {
+                let displayedRoot = details.candidateRootFingerprint
+                    .replacingOccurrences(of: ":", with: "")
+                    .replacingOccurrences(of: " ", with: "")
+                    .lowercased()
+                let enteredRootNormalized = enteredRoot
+                    .replacingOccurrences(of: ":", with: "")
+                    .replacingOccurrences(of: " ", with: "")
+                    .lowercased()
+                guard enteredRootNormalized == displayedRoot else {
+                    throw OwnerFingerprintApprovalCeremony.CeremonyError.fingerprintMismatch
+                }
                 let prepared = try OwnerFingerprintApprovalCeremony.prepare(
                     canonicalBundle: canonicalBundle,
                     outOfBandFingerprint: enteredBundle,
