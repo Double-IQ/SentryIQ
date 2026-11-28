@@ -32,7 +32,7 @@ The parser has JVM regression tests for selection, missing/duplicate cookie reje
 
 `OwnerBootstrapHTTPClient.synchronizeSessionCookie(from:origin:sessionCookieName:completion:)` selects only the exact named secure, HttpOnly cookie for the HTTPS host and API path. The native caller should invoke it after WebView authentication and before bootstrap transport.
 
-The native app must use a URLSession whose cookie storage is the storage receiving the copied cookie. On lock/logout/session expiry/authentication failure, call `OwnerBootstrapHTTPClient.clearNativeSessionCookie(origin:sessionCookieName:cookieStorage:)` to remove only the configured native session cookie. Lock intentionally leaves the WebView cookie intact; explicit logout should also invoke the application's normal web logout. Do not log, persist, export, or place cookie values in the JavaScript bridge.
+The native app must pass the exact `HTTPCookieStorage` configured on its bootstrap `URLSession` to `synchronizeSessionCookie(..., cookieStorage:)`; the default `.shared` is suitable only when the URLSession uses shared storage. This avoids copying the cookie into a store the HTTP client never reads. On lock/logout/session expiry/authentication failure, call `OwnerBootstrapHTTPClient.clearNativeSessionCookie(origin:sessionCookieName:cookieStorage:)` to remove only the configured native session cookie. Lock intentionally leaves the WebView cookie intact; explicit logout should also invoke the application's normal web logout. Do not log, persist, export, or place cookie values in the JavaScript bridge.
 
 ## App-level integration requirement
 
