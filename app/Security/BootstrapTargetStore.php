@@ -45,7 +45,7 @@ final class BootstrapTargetStore
         foreach ($segments as $index => $segment) {
             $path .= DIRECTORY_SEPARATOR . $segment;
             $stat = @lstat($path);
-            if (!is_array($stat) || (($stat['mode'] & 0170000) === 0120000) {
+            if (!is_array($stat) || (($stat['mode'] & 0170000) === 0120000)) {
                 throw new RuntimeException('Bootstrap target path contains a missing entry or symbolic link.');
             }
             if ($index < count($segments) - 1 && (($stat['mode'] & 0170000) !== 0040000)) {
