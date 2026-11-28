@@ -12,7 +12,7 @@ final class RegistryAnchorVerifierTests: XCTestCase {
         let bytes = [UInt8](signature)
         let halfOrder = [UInt8](Data(hex: "7fffffff800000007fffffffffffffffde737d56d38bcf4279dce5617e3192a8")!)
         let s = Array(bytes[32..<64])
-        guard s.lexicographicallyPrecedes(halfOrder) == false, s != halfOrder else {
+        if s.lexicographicallyPrecedes(halfOrder) || s == halfOrder {
             return signature
         }
         let order = [UInt8](Data(hex: "ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551")!)
@@ -129,5 +129,21 @@ final class RegistryAnchorVerifierTests: XCTestCase {
         XCTAssertThrowsError(try RegistryAnchorVerifier.verify(
             anchor, expectedOwnerID: ownerID, trustedSignerKeys: [signer], now: now + 4000
         ))
+    }
+}
+
+
+private extension Data {
+    init?(hex: String) {
+        guard hex.count.isMultiple(of: 2) else { return nil }
+        var bytes = [UInt8]()
+        var index = hex.startIndex
+        while index < hex.endIndex {
+            let next = hex.index(index, offsetBy: 2)
+            guard let byte = UInt8(hex[index..<next], radix: 16) else { return nil }
+            bytes.append(byte)
+            index = next
+        }
+        self.init(bytes)
     }
 }
