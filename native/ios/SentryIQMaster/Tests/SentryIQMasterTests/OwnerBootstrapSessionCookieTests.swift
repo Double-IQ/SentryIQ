@@ -3,6 +3,8 @@ import XCTest
 @testable import SentryIQMaster
 
 final class OwnerBootstrapSessionCookieTests: XCTestCase {
+    private let httpOnlyKey = HTTPCookiePropertyKey(rawValue: "HttpOnly")
+
     func testSelectsOnlySingleSecureHttpOnlySameHostCookie() throws {
         let cookie = try XCTUnwrap(HTTPCookie(properties: [
             .domain: "sentryiq.example",
@@ -10,7 +12,7 @@ final class OwnerBootstrapSessionCookieTests: XCTestCase {
             .name: "SID",
             .value: "abcDEF0123456789_-",
             .secure: "TRUE",
-            .httponly: "TRUE"
+            httpOnlyKey: "TRUE"
         ]))
         XCTAssertEqual(
             OwnerBootstrapHTTPClient.selectSessionCookie(
@@ -28,11 +30,11 @@ final class OwnerBootstrapSessionCookieTests: XCTestCase {
     func testRejectsAmbiguousDuplicateCookiesAndInsecureCookie() throws {
         let rootPathCookie = try XCTUnwrap(HTTPCookie(properties: [
             .domain: "sentryiq.example", .path: "/", .name: "SID",
-            .value: "abcDEF0123456789_-", .secure: "TRUE", .httponly: "TRUE"
+            .value: "abcDEF0123456789_-", .secure: "TRUE", httpOnlyKey: "TRUE"
         ]))
         let apiPathCookie = try XCTUnwrap(HTTPCookie(properties: [
             .domain: "sentryiq.example", .path: "/api", .name: "SID",
-            .value: "xyzDEF0123456789_-", .secure: "TRUE", .httponly: "TRUE"
+            .value: "xyzDEF0123456789_-", .secure: "TRUE", httpOnlyKey: "TRUE"
         ]))
         XCTAssertNil(OwnerBootstrapHTTPClient.selectSessionCookie(
             [rootPathCookie, apiPathCookie], name: "SID", host: "sentryiq.example",
@@ -59,7 +61,7 @@ final class OwnerBootstrapSessionCookieTests: XCTestCase {
             .name: "SID",
             .value: "abcDEF0123456789_-",
             .secure: "TRUE",
-            .httponly: "TRUE"
+            httpOnlyKey: "TRUE"
         ]))
         let unrelated = try XCTUnwrap(HTTPCookie(properties: [
             .domain: "sentryiq.example",
@@ -90,7 +92,7 @@ final class OwnerBootstrapSessionCookieTests: XCTestCase {
             .name: "SID",
             .value: "abcDEF0123456789_-",
             .secure: "TRUE",
-            .httponly: "TRUE"
+            httpOnlyKey: "TRUE"
         ]))
         storage.setCookie(session)
 
