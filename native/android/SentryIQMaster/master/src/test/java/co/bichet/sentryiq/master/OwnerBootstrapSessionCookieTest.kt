@@ -29,6 +29,7 @@ class OwnerBootstrapSessionCookieTest {
         assertNull(OwnerBootstrapHttpClient.extractSessionCookie("PHPSESSID=short", "PHPSESSID"))
         assertNull(OwnerBootstrapHttpClient.extractSessionCookie("PHPSESSID=abc; injected=value", "PHPSESSID"))
         assertNull(OwnerBootstrapHttpClient.extractSessionCookie("PHPSESSID=abcDEF0123456789_-\n", "PHPSESSID"))
+        assertNull(OwnerBootstrapHttpClient.extractSessionCookie("PHPSESSID=abcDEF0123456789_-\r", "PHPSESSID"))
     }
 
     @Test
