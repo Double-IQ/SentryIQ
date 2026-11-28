@@ -47,6 +47,28 @@ try {
         fn() => $store->read('releases/app.bin', ['releases/app.bin' => ['sha256' => str_repeat('0', 64), 'length' => strlen('verified fixture bytes')]]),
         'Target store must reject bytes that do not match the signed target digest.'
     );
+    bootstrapTargetAssert(
+        BootstrapTargetStore::verifyResolverBytes('verified fixture bytes', [
+            'sha256' => hash('sha256', 'verified fixture bytes'),
+            'length' => strlen('verified fixture bytes'),
+        ]) === 'verified fixture bytes',
+        'API boundary must accept exact target bytes matching the signed descriptor.'
+    );
+    bootstrapTargetReject(
+        fn() => BootstrapTargetStore::verifyResolverBytes('tampered bytes', [
+            'sha256' => hash('sha256', 'verified fixture bytes'),
+            'length' => strlen('verified fixture bytes'),
+        ]),
+        'API boundary must reject resolver bytes with a mismatched signed digest.'
+    );
+    bootstrapTargetReject(
+        fn() => BootstrapTargetStore::verifyResolverBytes('verified fixture bytes', [
+            'sha256' => hash('sha256', 'verified fixture bytes'),
+            'length' => 1,
+        ]),
+        'API boundary must reject resolver bytes with a mismatched signed length.'
+    );
+
     bootstrapTargetReject(
         fn() => $store->read('releases/app.bin', ['releases/app.bin' => ['sha256' => hash('sha256', 'verified fixture bytes'), 'length' => 1]]),
         'Target store must reject target size mismatches.'
