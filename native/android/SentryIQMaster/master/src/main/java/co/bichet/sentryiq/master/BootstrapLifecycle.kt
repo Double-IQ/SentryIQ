@@ -74,3 +74,37 @@ object BootstrapLifecycle {
     fun allowsVerifierGatedOperation(state: BootstrapLifecycleState): Boolean =
         state == BootstrapLifecycleState.TRUSTED
 }
+
+
+/** Reconstruct lifecycle from the device stores, not UI/API flags. */
+class BootstrapLifecycleCoordinator(
+    private val masterKeyStore: AndroidKeystoreMasterKeyStore,
+    private val trustStateStore: ProtectedTrustStateStore
+) {
+    fun evaluate(
+        anchor: ProtectedTrustStateStore.RegistryAnchor,
+        verifyAcceptedReceipt: (String) -> Boolean,
+        verifierQualification: VerifierQualificationStatus
+    ): BootstrapLifecycleState {
+        val keyset = masterKeyStore.lifecycleKeysetStatus()
+        val trustResult = try {
+            val trust = trustStateStore.load(anchor)
+            val accepted = trust.bootstrapReceiptId?.let { id -> runCatching { verifyAcceptedReceipt(id) }.getOrDefault(false) } ?: false
+            ProtectedTrustStatus.VALID to accepted
+        } catch (error: ProtectedTrustStateStore.StateException) {
+            if (error.message == "No protected trust state exists; bootstrap is required.") {
+                ProtectedTrustStatus.ABSENT to false
+            } else {
+                ProtectedTrustStatus.CORRUPT to false
+            }
+        } catch (_: Throwable) {
+            ProtectedTrustStatus.CORRUPT to false
+        }
+        return BootstrapLifecycle.evaluate(BootstrapLifecycleEvidence(
+            masterKeyset = keyset,
+            protectedTrust = trustResult.first,
+            hasAcceptedBootstrapReceipt = trustResult.second,
+            verifierQualification = verifierQualification
+        ))
+    }
+}
