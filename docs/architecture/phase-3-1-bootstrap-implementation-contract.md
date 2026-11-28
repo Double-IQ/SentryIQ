@@ -77,7 +77,7 @@ The first platform-independent validator implementation uses the following concr
 
 The PHP implementation is a protocol validator, not the native trust-state persistence or owner ceremony. Its accepted schema and adversarial fixtures are the cross-platform compatibility reference, subject to independent security review.
 
-**Canonicalizer qualification remains open:** the current PHP validator uses a constrained in-tree canonical serializer for this exact fixed schema; it rejects floating-point values and unknown members and sorts the schema's ASCII member names. This is not yet the required maintained RFC 8785 library integration. Do not treat the current serializer as production-qualified; dependency selection, RFC 8785 conformance-vector testing, and independent review remain mandatory before production trust-root initialisation.
+**Canonicalizer qualification status (2026-11-28):** the PHP validator now uses the pinned `onematrix/tracing-sdk` 1.2.0 JCS implementation. The dependency is locked in `composer.lock`, exercised against all six RFC 8785 examples and all 24 Appendix B number vectors, and integrated behind duplicate-member, UTF-8, Unicode-noncharacter, schema, integer-range, and restricted-profile checks. The PHP 8.1–8.5 CI matrix and integrated qualification workflow pass on commit `babf7db5c0535acf9e9dc8de8097c9268da3b6d4`. This closes the JCS implementation/conformance gate; it does not replace independent security review of the dependency and integration.
 
 ## 5. First-run state machine
 
