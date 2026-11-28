@@ -181,7 +181,7 @@ final class OwnerBootstrapApi
             string $deviceKeysetDigest,
             string $purpose
         ): bool {
-            $snapshot = $this->snapshot(time());
+            $snapshot = $this->snapshot($this->verificationTime > 0 ? $this->verificationTime : time());
             if (!hash_equals($snapshot['canonical_bundle'], $canonicalBundle)
                 || !hash_equals($snapshot['master_keyset_digest'], $deviceKeysetDigest)
                 || $rootRole !== 'release-authorisation'
