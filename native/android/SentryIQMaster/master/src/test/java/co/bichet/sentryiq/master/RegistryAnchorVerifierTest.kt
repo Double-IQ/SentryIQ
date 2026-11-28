@@ -71,9 +71,14 @@ class RegistryAnchorVerifierTest {
         val fixtureBytes = javaClass.getResourceAsStream("/registry-anchor-canonicalization.json")
             ?.use { it.readBytes() }
             ?: throw IllegalStateException("Shared registry-anchor test resource is missing.")
-        val fixture = org.json.JSONObject(fixtureBytes.toString(Charsets.UTF_8))
-        val expectedCanonical = fixture.getString("canonical")
-        val expectedDigest = fixture.getString("sha256")
+        // Android's local-test org.json implementation is a stub unless Robolectric is
+        // installed. Extract the two scalar fields directly from the shared fixture.
+        val fixtureText = fixtureBytes.toString(Charsets.UTF_8)
+        val canonicalEncoded = fixtureText.substringAfter("\"canonical\": \"", "").substringBefore("\",\n  \"sha256\"")
+        check(canonicalEncoded.isNotEmpty()) { "Shared registry-anchor canonical field is missing." }
+        val expectedCanonical = canonicalEncoded.replace("\\\"", "\"")
+        val expectedDigest = fixtureText.substringAfter("\"sha256\": \"", "").substringBefore('"')
+        check(expectedDigest.matches(Regex("^[a-f0-9]{64}$"))) { "Shared registry-anchor digest field is missing." }
 
         val actualCanonical = payload().toString(Charsets.UTF_8)
         assertEquals(expectedCanonical, actualCanonical)
