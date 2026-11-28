@@ -104,6 +104,10 @@ try {
         }
         // The resolver must source the descriptor from the verified signed TUF
         // target/delegation metadata. Re-check exact byte length and digest here.
+        if (is_int($resolved['descriptor']['length'] ?? null)
+            && $resolved['descriptor']['length'] > 16 * 1024 * 1024) {
+            owner_bootstrap_respond(413, ['error' => 'target_too_large']);
+        }
         $targetBytes = BootstrapTargetStore::verifyResolverBytes($resolved['bytes'], $resolved['descriptor']);
         owner_bootstrap_respond(200, [
             'protocol' => 'SENTRYIQ-OWNER-BOOTSTRAP-API-V1',
