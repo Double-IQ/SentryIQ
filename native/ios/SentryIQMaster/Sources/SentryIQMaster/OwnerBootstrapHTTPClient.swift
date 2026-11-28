@@ -91,26 +91,40 @@ public final class OwnerBootstrapHTTPClient {
             return
         }
         webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
-            let endpointPath = "/api/owner-bootstrap.php"
-            let matching = cookies.filter { cookie in
-                let domain = cookie.domain.hasPrefix(".") ? String(cookie.domain.dropFirst()) : cookie.domain
-                let pathMatches = endpointPath == cookie.path || endpointPath.hasPrefix(cookie.path.hasSuffix("/") ? cookie.path : cookie.path + "/")
-                return cookie.name == sessionCookieName
-                    && domain == host
-                    && cookie.isSecure
-                    && cookie.isHTTPOnly
-                    && pathMatches
-                    && (cookie.expiresDate == nil || cookie.expiresDate! > Date())
-            }
-            // Fail closed if multiple cookies with the configured name match
-            // the endpoint; choosing one by path could hide session ambiguity.
-            guard matching.count == 1, let sessionCookie = matching.first else {
+            guard let sessionCookie = selectSessionCookie(
+                cookies,
+                name: sessionCookieName,
+                host: host,
+                endpointPath: "/api/owner-bootstrap.php",
+                now: Date()
+            ) else {
                 completion(.failure(ClientError.missingSessionCookie))
                 return
             }
             HTTPCookieStorage.shared.setCookie(sessionCookie)
             completion(.success(()))
         }
+    }
+
+    internal static func selectSessionCookie(
+        _ cookies: [HTTPCookie],
+        name: String,
+        host: String,
+        endpointPath: String,
+        now: Date = Date()
+    ) -> HTTPCookie? {
+        let matching = cookies.filter { cookie in
+            let domain = cookie.domain.hasPrefix(".") ? String(cookie.domain.dropFirst()) : cookie.domain
+            let cookiePath = cookie.path.hasSuffix("/") ? cookie.path : cookie.path + "/"
+            let pathMatches = endpointPath == cookie.path || endpointPath.hasPrefix(cookiePath)
+            return cookie.name == name
+                && domain.caseInsensitiveCompare(host) == .orderedSame
+                && cookie.isSecure
+                && cookie.isHTTPOnly
+                && pathMatches
+                && (cookie.expiresDate == nil || cookie.expiresDate! > now)
+        }
+        return matching.count == 1 ? matching.first : nil
     }
 
     /// Remove only the configured session cookie from the native URLSession cookie store.
